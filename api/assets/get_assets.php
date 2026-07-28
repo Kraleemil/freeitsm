@@ -36,6 +36,13 @@ try {
     $statusTableCheck->execute([DB_NAME]);
     $statusTableExists = (int)$statusTableCheck->fetch(PDO::FETCH_ASSOC)['cnt'] > 0;
 
+    // QR labels (#935): the tag column only exists after Database Verification
+    // has run. Naming it unconditionally would turn the whole asset list into
+    // "Unknown column" on an install that has pulled the update but not yet run
+    // it — the same trap the snooze columns had to dodge in the ticket list.
+    require_once '../../includes/asset_labels.php';
+    $tagCol = assetLabelsSchemaReady($conn) ? "a.asset_tag," : "NULL AS asset_tag,";
+
     // Build query with optional search
     if ($tableExists) {
         $sql = "SELECT
@@ -56,7 +63,8 @@ try {
                     a.purchase_cost,
                     a.supplier_id,
                     a.order_number,
-                    a.warranty_expiry,";
+                    a.warranty_expiry,
+                    $tagCol";
 
         if ($typeTableExists) {
             $sql .= "
@@ -110,6 +118,7 @@ try {
                     a.supplier_id,
                     a.order_number,
                     a.warranty_expiry,
+                    $tagCol
                     NULL AS asset_type_id,
                     NULL AS asset_type_name,
                     NULL AS asset_status_id,

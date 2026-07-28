@@ -1123,6 +1123,45 @@ $translationNamespaces = ['common', 'asset-management'];
             }
         }
 
+        /**
+         * Save the asset tag (#935). Its own endpoint, because the tag is unique
+         * per company — see api/assets/save_asset_tag.php.
+         *
+         * On a clash the field is put back to what it was: leaving the rejected
+         * value on screen would let somebody walk away believing they'd numbered
+         * the asset, and then print a label that says something else.
+         */
+        async function saveAssetTag(value) {
+            if (!selectedAssetId) return;
+            const input = document.getElementById('assetTagInput');
+            const asset = assets.find(a => a.id == selectedAssetId);
+            const previous = asset ? (asset.asset_tag || '') : '';
+            try {
+                const response = await fetch(API_BASE + 'save_asset_tag.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_id: selectedAssetId, asset_tag: value })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    if (asset) asset.asset_tag = data.asset_tag || null;
+                    if (selectedAsset) selectedAsset.asset_tag = data.asset_tag || null;
+                    renderAssetsList();
+                } else {
+                    showToast(data.error, 'error');
+                    if (input) input.value = previous;
+                }
+            } catch (error) {
+                showToast(window.t('asset-management.toast.update_error', { error: 'network' }), 'error');
+                if (input) input.value = previous;
+            }
+        }
+
+        /** Open the printable label sheet for one asset. */
+        function printAssetLabel(assetId) {
+            window.open('labels.php?ids=' + encodeURIComponent(assetId), '_blank');
+        }
+
         // Load assets from API
         async function loadAssets(search = '') {
             try {
@@ -1192,6 +1231,9 @@ $translationNamespaces = ['common', 'asset-management'];
                         <div style="margin-top: 10px;">
                             <button class="btn btn-outline btn-sm" onclick="openHistoryModal(${selectedAsset.id})">${window.t('asset-management.detail.view_history')}</button>
                             <button class="btn btn-outline btn-sm" onclick="openCheckoutLog(${selectedAsset.id})">${window.t('asset-management.detail.custody')}</button>
+                            <?php /* QR label (#935). Opens the print sheet for this one asset;
+                                     the sheet takes a list, so a future multi-select prints many. */ ?>
+                            <button class="btn btn-outline btn-sm" onclick="printAssetLabel(${selectedAsset.id})">${window.t('asset-management.detail.print_label')}</button>
                         </div>
                         <div class="asset-assigned-bar" id="assignedBar">
                             <div class="asset-assigned-info" id="assignedInfo">
@@ -1209,6 +1251,16 @@ $translationNamespaces = ['common', 'asset-management'];
                 <div class="asset-detail-body" id="detailBody">
                     <div class="detail-tab-panel detail-tab-panel--scroll active" id="keyinfoPanel" data-dtab-panel="keyinfo">
                     <div class="asset-info-grid">
+                        <?php /* The number printed on the label. Saved on change through its
+                                 own endpoint, because it is unique per company and the generic
+                                 field writer has no reason to know about tenants. */ ?>
+                        <div class="info-item">
+                            <span class="info-label">${window.t('asset-management.field.asset_tag')}</span>
+                            <input type="text" class="info-value-input" id="assetTagInput" maxlength="64"
+                                   value="${escapeHtml(selectedAsset.asset_tag || '')}"
+                                   placeholder="${window.t('asset-management.field.asset_tag_ph')}"
+                                   onchange="saveAssetTag(this.value)">
+                        </div>
                         <div class="info-item">
                             <span class="info-label">${window.t('asset-management.field.type')}</span>
                             <select class="info-value-select" onchange="updateAssetField('asset_type_id', this.value)">

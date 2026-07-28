@@ -35,6 +35,10 @@ return [
 
     // Inline-editable asset fields (info grid + table columns)
     'field' => [
+        // Etiquetas QR (#935). O número é único POR EMPRESA — duas empresas na
+        // mesma instalação podem ter cada uma o seu LT0001.
+        'asset_tag'        => 'Etiqueta do ativo',
+        'asset_tag_ph'     => 'ex.: LT0001',
         'type'             => 'Tipo',
         'status'           => 'Status',
         'location'         => 'Localização',
@@ -75,6 +79,7 @@ return [
         'service_tag'       => 'Etiqueta de serviço',
         'view_history'      => 'Ver histórico',
         'custody'           => 'Custódia',
+        'print_label'       => 'Imprimir etiqueta',
         'assign'            => 'Atribuir',
         'reassign'          => 'Reatribuir',
         'remove'            => 'Remover',

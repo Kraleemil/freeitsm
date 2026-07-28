@@ -42,6 +42,10 @@ return [
 
     // Inline-editable asset fields (info grid + table columns)
     'field' => [
+        // QR labels (#935). "per company" matters: two companies on one install
+        // may each run their own LT0001, and the message has to say so.
+        'asset_tag'        => 'Asset tag',
+        'asset_tag_ph'     => 'e.g. LT0001',
         'type'             => 'Type',
         'status'           => 'Status',
         'location'         => 'Location',
@@ -82,6 +86,7 @@ return [
         'service_tag'       => 'Service Tag',
         'view_history'      => 'View History',
         'custody'           => 'Custody',
+        'print_label'       => 'Print label',
         'assign'            => 'Assign',
         'reassign'          => 'Re-assign',
         'remove'            => 'Remove',
