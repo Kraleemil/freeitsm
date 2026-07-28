@@ -499,6 +499,39 @@ function renderWaffleMenuJS() {
          own <script src="toast.js"> tag. -->
     <script src="<?php echo BASE_URL; ?>assets/js/toast.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/confirm.js?v=2"></script>
+    <?php
+    // Command palette (#932). ⌘/Ctrl-K launcher on every analyst page. We hand
+    // it BASE_URL plus the module list already filtered to what this analyst may
+    // see — the same visibility rule the waffle panel applies above (system is
+    // admin-only; every other module honours allowed_modules) — so the palette
+    // can never offer a destination the launcher wouldn't.
+    // $modules is defined at this file's top level (global scope) when a header
+    // requires it; pull it in here since we're inside a function.
+    global $modules;
+    $cpAllowed = $_SESSION['allowed_modules'] ?? null;
+    $cpModules = [];
+    if (isset($modules) && is_array($modules)) {
+        foreach ($modules as $cpKey => $cpMod) {
+            if ($cpKey === 'system') {
+                if (!sessionIsAdmin()) continue;
+            } elseif ($cpAllowed !== null && !in_array($cpKey, $cpAllowed)) {
+                continue;
+            }
+            $cpModules[] = [
+                'key'  => $cpKey,
+                'name' => $cpMod['name'],
+                'path' => $cpMod['path'],
+                'icon' => $cpMod['icon'],
+            ];
+        }
+    }
+    ?>
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/command-palette.css?v=1">
+    <script>
+        window.CP_BASE = <?php echo json_encode(BASE_URL); ?>;
+        window.CP_MODULES = <?php echo json_encode($cpModules, JSON_UNESCAPED_SLASHES); ?>;
+    </script>
+    <script src="<?php echo BASE_URL; ?>assets/js/command-palette.js?v=1"></script>
     <script>
     // Per-analyst toast preferences pushed from PHP — toast.js reads
     // these before falling back to localStorage / default.

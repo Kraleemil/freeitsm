@@ -1029,11 +1029,23 @@ $translationNamespaces = ['common', 'asset-management'];
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            loadAssets();
-            loadAssetTypesForDropdown();
-            loadAssetStatusTypesForDropdown();
-            loadLocationsForDropdown();
-            loadAssetSuppliersForDropdown();
+            // Load the list and the lookups the detail view needs, then honour a
+            // deep link (?asset_id=N) — e.g. from the command palette. We wait for
+            // the lookups so the selected asset's Type/Status/Location dropdowns
+            // render populated rather than empty on first paint.
+            Promise.all([
+                loadAssets(),
+                loadAssetTypesForDropdown(),
+                loadAssetStatusTypesForDropdown(),
+                loadLocationsForDropdown(),
+                loadAssetSuppliersForDropdown()
+            ]).then(function() {
+                var aid = new URLSearchParams(window.location.search).get('asset_id');
+                if (aid) {
+                    var n = parseInt(aid, 10);
+                    if (n) selectAsset(n);
+                }
+            });
         });
 
         async function loadAssetTypesForDropdown() {
