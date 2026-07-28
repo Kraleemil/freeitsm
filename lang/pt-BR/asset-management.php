@@ -75,6 +75,7 @@ return [
         'n_selected'         => '{count} selecionados',
         'clear_selection'    => 'Limpar',
         'print_labels'       => 'Imprimir etiquetas',
+        'assign_tags'        => 'Atribuir etiquetas',
     ],
 
     // Asset detail panel (right pane)

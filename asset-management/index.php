@@ -103,6 +103,14 @@ $translationNamespaces = ['common', 'asset-management'];
             box-shadow: inset 3px 0 0 var(--success-accent, #16a34a);
         }
 
+        .assets-tag-link {
+            float: right;
+            font-size: 12px;
+            color: var(--accent, #0078d4);
+            text-decoration: none;
+        }
+        .assets-tag-link:hover { text-decoration: underline; }
+
         .asset-tag-chip {
             display: inline-block;
             margin-right: 6px;
@@ -975,7 +983,12 @@ $translationNamespaces = ['common', 'asset-management'];
             <div class="assets-list-header">
                 <h3><?php echo htmlspecialchars(t('asset-management.nav.assets')); ?></h3>
                 <input type="text" class="search-box" id="assetSearch" placeholder="<?php echo htmlspecialchars(t('asset-management.list.search_placeholder')); ?>" oninput="searchAssets()" autocomplete="off">
-                <div class="asset-count" id="assetCount"></div>
+                <div class="asset-count" id="assetCount">
+                    <?php /* Bulk tagging (#935) — an occasional job, so a quiet link
+                             beside the count rather than a nav item competing with
+                             the things people use every day. */ ?>
+                    <a class="assets-tag-link" href="assign-tags.php"><?php echo htmlspecialchars(t('asset-management.list.assign_tags')); ?></a>
+                </div>
                 <?php /* Appears only once more than one asset is picked with
                          Ctrl/Shift — see handleAssetRowClick(). Hidden by default
                          so the list is unchanged for anyone not using it. */ ?>
@@ -1269,6 +1282,21 @@ $translationNamespaces = ['common', 'asset-management'];
         let assetSelection = new Set();
         let assetSelectionAnchor = null;
 
+        /**
+         * Stop Shift-click smearing the browser's text selection across the list.
+         *
+         * The selection starts on MOUSEDOWN, so a `user-select: none` class
+         * toggled in the click handler is always one beat too late — the text is
+         * already highlighted by then. Cancelling the mousedown default is what
+         * actually prevents it, and it takes Edge's selection mini-menu with it:
+         * that popup is triggered BY having text selected, so the two symptoms
+         * are one cause.
+         */
+        document.addEventListener('mousedown', function (e) {
+            if (!e.shiftKey) return;
+            if (e.target.closest && e.target.closest('#assetsList')) e.preventDefault();
+        });
+
         function handleAssetRowClick(event, assetId) {
             const ctrl = event.ctrlKey || event.metaKey;
 
@@ -1286,12 +1314,9 @@ $translationNamespaces = ['common', 'asset-management'];
                     for (let i = lo; i <= hi; i++) assetSelection.add(ids[i]);
                 }
             } else {
-                // Plain click: unchanged behaviour — open it, drop any selection.
-                assetSelection.clear();
-                assetSelectionAnchor = assetId;
+                // Plain click: open it. selectAsset() reseeds the selection to
+                // just this asset, so a following Ctrl-click gives you two.
                 selectAsset(assetId);
-                renderAssetSelectionBar();
-                paintAssetSelection();
                 return;
             }
 
@@ -1301,6 +1326,11 @@ $translationNamespaces = ['common', 'asset-management'];
 
         /** Toggle the highlight in place — no re-render, so the list doesn't jump. */
         function paintAssetSelection() {
+            // Belt and braces: if a selection did start (a drag, or a browser
+            // that ignores the mousedown cancel), clear it rather than leave the
+            // list looking smeared.
+            const sel = window.getSelection && window.getSelection();
+            if (sel && !sel.isCollapsed) sel.removeAllRanges();
             document.querySelectorAll('#assetsList .asset-item').forEach(el => {
                 const id = Number(el.dataset.assetId);
                 el.classList.toggle('multi-selected', assetSelection.has(id));
@@ -1318,9 +1348,15 @@ $translationNamespaces = ['common', 'asset-management'];
             bar.hidden = false;
         }
 
+        /**
+         * Drop the extras, back to just the asset that's open.
+         * NOT back to nothing: something is on screen, and a list where the row
+         * you are looking at claims not to be selected is the same inconsistency
+         * this whole fix is about.
+         */
         function clearAssetSelection() {
-            assetSelection.clear();
-            assetSelectionAnchor = null;
+            assetSelection = selectedAssetId ? new Set([Number(selectedAssetId)]) : new Set();
+            assetSelectionAnchor = selectedAssetId ? Number(selectedAssetId) : null;
             paintAssetSelection();
             renderAssetSelectionBar();
         }
@@ -1344,6 +1380,15 @@ $translationNamespaces = ['common', 'asset-management'];
         async function selectAsset(assetId) {
             selectedAssetId = assetId;
             selectedAsset = assets.find(a => a.id == assetId);
+
+            // The asset you have OPEN is part of the selection — the way the
+            // highlighted row is in Explorer and Outlook. Opening one and then
+            // Ctrl-clicking a second must give you two, not one; seeding here
+            // (rather than in the click handler) also covers arriving by deep
+            // link, so the rule holds however the asset came to be open.
+            assetSelection = new Set([Number(assetId)]);
+            assetSelectionAnchor = Number(assetId);
+
             renderAssetsList();
 
             if (!selectedAsset) return;

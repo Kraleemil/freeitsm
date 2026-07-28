@@ -82,6 +82,7 @@ return [
         'n_selected'         => '{count} selected',
         'clear_selection'    => 'Clear',
         'print_labels'       => 'Print labels',
+        'assign_tags'        => 'Assign tags',
     ],
 
     // Asset detail panel (right pane)

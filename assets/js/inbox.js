@@ -1313,8 +1313,15 @@ function renderSelectionUi() {
     });
     // Suppress the browser's blue text-drag highlight while a block is selected —
     // Shift+click across rows would otherwise smear text selection over the list.
+    // NOTE: this class alone cannot prevent the FIRST shift-click's smear, because
+    // the browser starts selecting on mousedown and this runs on click. The
+    // mousedown handler further down is what actually prevents it; this stays for
+    // the drag case.
     const list = document.getElementById('emailList');
     if (list) list.classList.toggle('multi-selecting', selectedEmailIds.size > 1);
+    // If a selection did start anyway, clear it rather than leave it smeared.
+    const sel = window.getSelection && window.getSelection();
+    if (sel && !sel.isCollapsed && selectedEmailIds.size > 1) sel.removeAllRanges();
     updateSelectionSurfaces();
 }
 
@@ -7049,6 +7056,19 @@ async function emptyTrash() {
         if (currentFilter.type === 'trash') loadEmails();
     } catch (e) { showToast('Empty trash failed: ' + e.message, 'error'); }
 }
+
+/**
+ * Shift+click in the ticket list must not smear the browser's text selection
+ * across the rows — and in Edge that selection also pops the "mini menu"
+ * toolbar, so the two symptoms share one cause. The selection begins on
+ * MOUSEDOWN, which is why the `.multi-selecting` class (applied on click) can't
+ * prevent the first one; cancelling the default here does. Reported by Ed
+ * against the assets list, fixed in both.
+ */
+document.addEventListener('mousedown', function (e) {
+    if (!e.shiftKey) return;
+    if (e.target.closest && e.target.closest('#emailList')) e.preventDefault();
+});
 
 // Outside click + Escape close the menus
 document.addEventListener('mousedown', function (e) {
