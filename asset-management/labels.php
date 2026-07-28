@@ -64,6 +64,56 @@ $sheets = [
 $sheetKey = (isset($_GET['sheet']) && isset($sheets[$_GET['sheet']])) ? (string)$_GET['sheet'] : '40';
 $sheet = $sheets[$sheetKey];
 
+/**
+ * CSV for a professional print house.
+ *
+ * There is no ITAM standard for handing labels to a printer, but there IS a
+ * standard *process*: variable data printing. You send one row per label and
+ * they merge it into their own template — so the deliverable is a plain CSV
+ * with the QR payload as a literal URL (which any print system can encode) plus
+ * the human text, not a picture of a QR code.
+ *
+ * Emitted before any HTML so the download isn't a page with a file bolted on.
+ */
+if (isset($_GET['csv'])) {
+    $rows = [];
+    if ($ready && $ids) {
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        [$tSql, $tArgs] = activeTenantFilter($conn, $analystId, 'a');
+        $stmt = $conn->prepare(
+            "SELECT a.id, a.asset_tag, a.hostname, a.service_tag
+               FROM assets a WHERE a.id IN ($place)" . $tSql . "
+              ORDER BY a.asset_tag IS NULL, a.asset_tag, a.hostname"
+        );
+        $stmt->execute(array_merge($ids, $tArgs));
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="asset-labels.csv"');
+    $out = fopen('php://output', 'w');
+    // BOM: without it Excel opens UTF-8 as mojibake, and a print house working
+    // from a mangled asset tag prints a mangled label 500 times.
+    fwrite($out, "\xEF\xBB\xBF");
+    // ⚠️ $escape is passed EXPLICITLY. PHP 8.4 deprecates relying on its default,
+    // and on a server with display_errors on, that notice is written INTO the
+    // download — a CSV with an HTML warning in the middle of it, which a print
+    // house would merge straight onto 500 labels. Empty string also disables
+    // backslash escaping, which is what Excel and every CSV reader expects.
+    fputcsv($out, ['asset_tag', 'hostname', 'serial', 'qr_url'], ',', '"', '');
+    foreach ($rows as $r) {
+        $token = assetEnsureToken($conn, (int)$r['id']);
+        fputcsv($out, [
+            $r['asset_tag'] ?? '',
+            $r['hostname'] ?? '',
+            $r['service_tag'] ?? '',
+            $token ? assetLabelUrl($token) : '',
+        ], ',', '"', '');
+    }
+    fclose($out);
+    exit;
+}
+
 $assets = [];
 if ($ready && $ids) {
     $place = implode(',', array_fill(0, count($ids), '?'));
@@ -156,6 +206,9 @@ if ($ready && $ids) {
         </select>
     </label>
     <button class="primary" onclick="window.print()">Print</button>
+    <?php /* For a print house: one row per label, the QR payload as a literal
+             URL for their variable-data merge. */ ?>
+    <a class="btn" href="?csv=1&amp;ids=<?php echo htmlspecialchars(implode(',', $ids)); ?>">CSV for a printer</a>
     <a class="btn" href="./">Back to Assets</a>
     <span style="opacity:0.85;font-size:13px;"><?php echo count($assets); ?> label(s)</span>
 </div>

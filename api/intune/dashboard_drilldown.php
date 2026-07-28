@@ -205,11 +205,15 @@ try {
         $out = fopen('php://output', 'w');
         // UTF-8 BOM so Excel opens it correctly
         fwrite($out, "\xEF\xBB\xBF");
+        // ⚠️ $escape passed explicitly: PHP 8.4 deprecates relying on its
+        // default, and on a server with display_errors on that notice lands
+        // INSIDE the downloaded file. Empty string also turns off backslash
+        // escaping, which is what Excel expects. (Same fix as #935's label CSV.)
         fputcsv($out, [
             'Device Name', 'User', 'User Email', 'OS', 'OS Version',
             'Compliance', 'Owner Type', 'Manufacturer', 'Model',
             'Encrypted', 'Last Sync', 'Enrolled'
-        ]);
+        ], ',', '"', '');
         while ($r = $stmt->fetch(PDO::FETCH_ASSOC)) {
             fputcsv($out, [
                 $r['device_name'],
@@ -224,7 +228,7 @@ try {
                 $r['is_encrypted'] === null ? '' : ($r['is_encrypted'] ? 'Yes' : 'No'),
                 $r['last_sync_datetime'],
                 $r['enrolled_datetime'],
-            ]);
+            ], ',', '"', '');
         }
         fclose($out);
         exit;

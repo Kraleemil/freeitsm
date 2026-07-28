@@ -71,6 +71,10 @@ return [
         'search_placeholder' => 'Pesquisar por nome de host...',
         'no_assets'          => 'Nenhum ativo encontrado',
         'count'              => '{count} ativos',
+        // Selecionar vários para um lote de etiquetas (#935)
+        'n_selected'         => '{count} selecionados',
+        'clear_selection'    => 'Limpar',
+        'print_labels'       => 'Imprimir etiquetas',
     ],
 
     // Asset detail panel (right pane)

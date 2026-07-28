@@ -95,6 +95,44 @@ $translationNamespaces = ['common', 'asset-management'];
             border-left: 3px solid var(--accent, #0078d4);
         }
 
+        /* Picked for a batch (#935). Deliberately a different treatment from
+           .selected — that means "this is the one you're looking at", this means
+           "this is in the pile" — and both can be true of the same row. */
+        .asset-item.multi-selected {
+            background-color: var(--surface-hover, #eef2f6);
+            box-shadow: inset 3px 0 0 var(--success-accent, #16a34a);
+        }
+
+        .asset-tag-chip {
+            display: inline-block;
+            margin-right: 6px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            background: var(--surface-3, #eef1f4);
+            color: var(--text-muted, #556);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .asset-select-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: var(--surface-hover, #eef2f6);
+            border: 1px solid var(--border, #dde3ea);
+            font-size: 12.5px;
+            font-weight: 600;
+            color: var(--text, #333);
+        }
+        .asset-select-bar[hidden] { display: none; }
+        .asset-select-actions { display: flex; gap: 6px; }
+
         .asset-hostname {
             font-weight: 600;
             color: var(--text, #333);
@@ -938,6 +976,17 @@ $translationNamespaces = ['common', 'asset-management'];
                 <h3><?php echo htmlspecialchars(t('asset-management.nav.assets')); ?></h3>
                 <input type="text" class="search-box" id="assetSearch" placeholder="<?php echo htmlspecialchars(t('asset-management.list.search_placeholder')); ?>" oninput="searchAssets()" autocomplete="off">
                 <div class="asset-count" id="assetCount"></div>
+                <?php /* Appears only once more than one asset is picked with
+                         Ctrl/Shift — see handleAssetRowClick(). Hidden by default
+                         so the list is unchanged for anyone not using it. */ ?>
+                <div class="asset-select-bar" id="assetSelectBar" hidden>
+                    <span id="assetSelectCount"></span>
+                    <span class="asset-select-actions">
+                        <?php /* Plural: this bar only ever appears for 2+. */ ?>
+                        <button class="btn btn-outline btn-sm" onclick="printSelectedLabels()"><?php echo htmlspecialchars(t('asset-management.list.print_labels')); ?></button>
+                        <button class="btn btn-outline btn-sm" onclick="clearAssetSelection()"><?php echo htmlspecialchars(t('asset-management.list.clear_selection')); ?></button>
+                    </span>
+                </div>
             </div>
             <div class="assets-list" id="assetsList">
                 <div class="loading">
@@ -1194,15 +1243,92 @@ $translationNamespaces = ['common', 'asset-management'];
             countEl.textContent = window.t('asset-management.list.count', { count: assets.length });
 
             container.innerHTML = assets.map(asset => `
-                <div class="asset-item ${selectedAssetId == asset.id ? 'selected' : ''}" onclick="selectAsset(${asset.id})">
+                <div class="asset-item ${selectedAssetId == asset.id ? 'selected' : ''} ${assetSelection.has(asset.id) ? 'multi-selected' : ''}"
+                     data-asset-id="${asset.id}" onclick="handleAssetRowClick(event, ${asset.id})">
                     <div class="asset-hostname">${escapeHtml(asset.hostname)}</div>
                     <div class="asset-meta">
+                        ${asset.asset_tag ? `<span class="asset-tag-chip">${escapeHtml(asset.asset_tag)}</span>` : ''}
                         <span class="${asset.user_count > 0 ? 'asset-assigned' : 'asset-unassigned'}">
                             ${asset.user_count > 0 ? window.t('asset-management.status.assigned') : window.t('asset-management.status.unassigned')}
                         </span>
                     </div>
                 </div>
             `).join('');
+
+            renderAssetSelectionBar();
+        }
+
+        // ===================================================================
+        // Picking several assets — for printing a batch of labels (#935)
+        // ===================================================================
+        //
+        // Same idiom as the ticket inbox (#910): a plain click still OPENS the
+        // asset, exactly as before, and Ctrl/Shift build a selection on top.
+        // No checkboxes and no "selection mode" toggle — both would change the
+        // list for everyone to serve an occasional job.
+        let assetSelection = new Set();
+        let assetSelectionAnchor = null;
+
+        function handleAssetRowClick(event, assetId) {
+            const ctrl = event.ctrlKey || event.metaKey;
+
+            if (ctrl) {
+                if (assetSelection.has(assetId)) assetSelection.delete(assetId);
+                else assetSelection.add(assetId);
+                assetSelectionAnchor = assetId;
+            } else if (event.shiftKey && assetSelectionAnchor !== null) {
+                // A block, from the anchor to here, in the order the list is in.
+                const ids = assets.map(a => a.id);
+                const from = ids.indexOf(assetSelectionAnchor);
+                const to   = ids.indexOf(assetId);
+                if (from !== -1 && to !== -1) {
+                    const [lo, hi] = from <= to ? [from, to] : [to, from];
+                    for (let i = lo; i <= hi; i++) assetSelection.add(ids[i]);
+                }
+            } else {
+                // Plain click: unchanged behaviour — open it, drop any selection.
+                assetSelection.clear();
+                assetSelectionAnchor = assetId;
+                selectAsset(assetId);
+                renderAssetSelectionBar();
+                paintAssetSelection();
+                return;
+            }
+
+            paintAssetSelection();
+            renderAssetSelectionBar();
+        }
+
+        /** Toggle the highlight in place — no re-render, so the list doesn't jump. */
+        function paintAssetSelection() {
+            document.querySelectorAll('#assetsList .asset-item').forEach(el => {
+                const id = Number(el.dataset.assetId);
+                el.classList.toggle('multi-selected', assetSelection.has(id));
+            });
+        }
+
+        function renderAssetSelectionBar() {
+            const bar = document.getElementById('assetSelectBar');
+            if (!bar) return;
+            const n = assetSelection.size;
+            // One picked asset is just "the open one" — the bar would be noise.
+            if (n < 2) { bar.hidden = true; return; }
+            document.getElementById('assetSelectCount').textContent =
+                window.t('asset-management.list.n_selected', { count: n });
+            bar.hidden = false;
+        }
+
+        function clearAssetSelection() {
+            assetSelection.clear();
+            assetSelectionAnchor = null;
+            paintAssetSelection();
+            renderAssetSelectionBar();
+        }
+
+        /** Print labels for everything picked, in one sheet. */
+        function printSelectedLabels() {
+            if (!assetSelection.size) return;
+            window.open('labels.php?ids=' + encodeURIComponent(Array.from(assetSelection).join(',')), '_blank');
         }
 
         // Search assets with debounce

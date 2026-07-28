@@ -78,6 +78,10 @@ return [
         'search_placeholder' => 'Search by hostname...',
         'no_assets'          => 'No assets found',
         'count'              => '{count} assets',
+        // Picking several for a batch of labels (#935)
+        'n_selected'         => '{count} selected',
+        'clear_selection'    => 'Clear',
+        'print_labels'       => 'Print labels',
     ],
 
     // Asset detail panel (right pane)
