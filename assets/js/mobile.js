@@ -14,7 +14,125 @@
 
     var mq = window.matchMedia('(max-width: 768px)');
     var mc = document.querySelector('.main-container');
-    if (!mc) return;   // not the inbox page — nothing to do
+    if (!mc) return;   // not a two/three-pane module page — nothing to do
+
+    /**
+     * The views hamburger (top-right) -> right-side slide-in drawer.
+     *
+     * Shared, because every module header is the same component: `.header` with
+     * a `.header-nav` of sub-views. Assets needs it as much as Tickets does, so
+     * it is a function rather than a copy.
+     */
+    function injectViewsHamburger() {
+        var headerEl = document.querySelector('.header');
+        if (!headerEl || !document.querySelector('.header-nav')) return;
+        if (document.querySelector('.mobile-views-btn')) return;   // idempotent
+
+        var vBtn = document.createElement('button');
+        vBtn.type = 'button';
+        vBtn.className = 'mobile-views-btn';
+        vBtn.setAttribute('aria-label', 'Views');
+        vBtn.textContent = '☰';
+        headerEl.appendChild(vBtn);
+
+        var vOverlay = document.createElement('div');
+        vOverlay.className = 'mobile-views-overlay';
+        document.body.appendChild(vOverlay);
+
+        vBtn.addEventListener('click', function () { document.body.classList.toggle('mobile-views-open'); });
+        vOverlay.addEventListener('click', function () { document.body.classList.remove('mobile-views-open'); });
+    }
+
+    /** Company switcher into the waffle drawer — also shared, also a no-op at N=1. */
+    function moveTenantIntoWaffle() {
+        if (!mq.matches) return;
+        var wafflePanel = document.getElementById('wafflePanel');
+        var tenant = document.querySelector('.tenant-switcher');
+        if (!wafflePanel || !tenant) return;
+        var wHead = wafflePanel.querySelector('.waffle-panel-header');
+        if (wHead) wHead.insertAdjacentElement('afterend', tenant);
+        else wafflePanel.insertBefore(tenant, wafflePanel.firstChild);
+    }
+
+    // ------------------------------------------------------------------
+    // ASSETS (#936) — the second module brought along.
+    //
+    // Two panes, not three, so the stack is list <-> detail with no folder
+    // tree and no Folders button. Everything below the branch is inbox-only,
+    // hence the early return: running the ticket wiring on this page would
+    // wrap functions that don't exist and inject a Folders button that leads
+    // nowhere.
+    // ------------------------------------------------------------------
+    if (document.querySelector('.assets-container')) { initAssetsMobile(); return; }
+
+    function initAssetsMobile() {
+        function setPane(p) { document.body.setAttribute('data-mobile-pane', p); }
+        function currentPane() { return document.body.getAttribute('data-mobile-pane') || 'list'; }
+        function pushPane(p) {
+            setPane(p);
+            if (mq.matches) history.pushState({ nmPane: p }, '');
+        }
+        setPane('list');
+
+        window.addEventListener('popstate', function (e) {
+            if (!mq.matches) return;
+            setPane((e.state && e.state.nmPane) ? e.state.nmPane : 'list');
+        });
+
+        // Sub-bar: Back only. The asset's name goes on the right so you can see
+        // what you're looking at once the list has slid away.
+        var aBar = document.createElement('div');
+        aBar.className = 'mobile-subbar';
+        aBar.innerHTML =
+            '<button type="button" class="msb-back" aria-label="Back">‹ Back</button>' +
+            '<span class="msb-ref" aria-label="Asset"></span>';
+        mc.parentNode.insertBefore(aBar, mc);
+
+        aBar.querySelector('.msb-back').addEventListener('click', function () {
+            if (currentPane() === 'list') return;
+            // Force the pane first so Back works even with nothing to pop.
+            setPane('list');
+            if (history.state && history.state.nmPane) history.back();
+        });
+
+        // Wrap selectAsset — never edit the module's own renderer.
+        if (typeof window.selectAsset === 'function') {
+            var _selectAsset = window.selectAsset;
+            window.selectAsset = function (assetId) {
+                var r = _selectAsset.apply(this, arguments);
+                // Only when genuinely navigating list -> detail. selectAsset is
+                // also called to re-render in place, and those must not stack
+                // history entries.
+                if (mq.matches && currentPane() !== 'detail') pushPane('detail');
+                var show = function () {
+                    var name = document.querySelector('.asset-detail-hostname');
+                    var ref  = aBar.querySelector('.msb-ref');
+                    if (ref) ref.textContent = name ? name.textContent.trim() : '';
+                };
+                if (r && typeof r.then === 'function') r.then(show); else show();
+                return r;
+            };
+        }
+
+        injectViewsHamburger();
+        moveTenantIntoWaffle();
+
+        function syncAssetsBar() {
+            var on = mq.matches;
+            aBar.style.display = on ? 'flex' : 'none';
+            var vb = document.querySelector('.mobile-views-btn');
+            if (vb) vb.style.display = on ? '' : 'none';
+            if (!on) {
+                document.body.classList.remove('mobile-views-open');
+                document.body.removeAttribute('data-mobile-pane');   // desktop shows both panes
+            } else if (!document.body.getAttribute('data-mobile-pane')) {
+                setPane('list');
+            }
+        }
+        syncAssetsBar();
+        if (mq.addEventListener) { mq.addEventListener('change', syncAssetsBar); }
+        else if (mq.addListener) { mq.addListener(syncAssetsBar); }
+    }
 
     // ---- pane state, mirrored on <body> so CSS ancestor selectors can react ----
     function setPane(p) { document.body.setAttribute('data-mobile-pane', p); }
@@ -110,36 +228,14 @@
     // ---- Views hamburger (top-right) -> right-side slide-in drawer ----
     // The tickets sub-views (Inbox/Dashboard/Users/Calendar/...) live in
     // .header-nav; on mobile that becomes a right drawer opened by this button.
-    var headerEl = document.querySelector('.header');
-    if (headerEl && document.querySelector('.header-nav')) {
-        var vBtn = document.createElement('button');
-        vBtn.type = 'button';
-        vBtn.className = 'mobile-views-btn';
-        vBtn.setAttribute('aria-label', 'Views');
-        vBtn.textContent = '☰';           // ☰
-        headerEl.appendChild(vBtn);
-
-        var vOverlay = document.createElement('div');
-        vOverlay.className = 'mobile-views-overlay';
-        document.body.appendChild(vOverlay);
-
-        vBtn.addEventListener('click', function () { document.body.classList.toggle('mobile-views-open'); });
-        vOverlay.addEventListener('click', function () { document.body.classList.remove('mobile-views-open'); });
-    }
+    // Shared with Assets — see injectViewsHamburger() above.
+    injectViewsHamburger();
 
     // ---- Company switcher -> into the module (waffle) drawer on mobile ----
     // Declutters the tight top bar. The switcher only exists on multi-company
     // installs (renderTenantSwitcher emits nothing at N=1), so this is a no-op
-    // on single-company setups. Styled for the light drawer in mobile.css.
-    if (mq.matches) {
-        var wafflePanel = document.getElementById('wafflePanel');
-        var tenant = document.querySelector('.tenant-switcher');
-        if (wafflePanel && tenant) {
-            var wHead = wafflePanel.querySelector('.waffle-panel-header');
-            if (wHead) wHead.insertAdjacentElement('afterend', tenant);
-            else wafflePanel.insertBefore(tenant, wafflePanel.firstChild);
-        }
-    }
+    // on single-company setups. Shared with Assets — see moveTenantIntoWaffle().
+    moveTenantIntoWaffle();
 
     // ---- Gmail-style collapsible ticket header ----
     // The reading pane re-renders on each open, so delegate off the document.

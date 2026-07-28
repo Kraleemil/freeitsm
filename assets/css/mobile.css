@@ -795,4 +795,107 @@
         background: #2f2430;
         color: #f472b6;
     }
+
+    /* ====================================================================
+       LAYER 14 — ASSETS module (#936)
+       The second module brought along after Tickets. Same techniques, same
+       hard rule: everything here is inside the one @media block, so the
+       desktop two-pane split is byte-identical.
+
+       Assets is SIMPLER than the inbox — two panes, not three (list and
+       detail; there is no folder tree) — so the stack has two states rather
+       than three and needs no Folders button.
+       ==================================================================== */
+
+    /* The pane area fills what's left under the (possibly wrapped) header and
+       the injected sub-bar. Same column-flex body as LAYER 2 — that rule is
+       shared, not repeated. */
+    .assets-container {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .assets-container > .assets-list-container,
+    .assets-container > .asset-detail-container {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        max-width: none;
+        min-width: 0;                    /* desktop sets min-width:300px */
+        border-right: none;
+        transition: transform 0.25s ease;
+    }
+
+    /* Default = the list; the detail is parked off to the right. */
+    .assets-container > .assets-list-container { transform: translateX(0);    z-index: 1; }
+    .assets-container > .asset-detail-container { transform: translateX(100%); z-index: 3; }
+
+    body[data-mobile-pane="detail"] .assets-container > .assets-list-container  { transform: translateX(-100%); }
+    body[data-mobile-pane="detail"] .assets-container > .asset-detail-container { transform: translateX(0); }
+
+    /* ---- The list ---- */
+
+    /* 16px stops iOS zooming the page when the search box takes focus — and a
+       zoomed page reflows to desktop width, at which point none of these rules
+       match any more (the trap in Mobile-Friendly-Techniques §3). */
+    .assets-list-container .search-box { font-size: 16px; min-height: 44px; }
+
+    .asset-item { padding: 14px 15px; }          /* a thumb, not a mouse */
+    .asset-hostname { font-size: 15px; }
+
+    /* Count + Assign-tags sit on one row; give the link a real tap height
+       rather than leaving it a 12px text target. */
+    .assets-tag-link { padding: 6px 0; }
+
+    /* Batch-select bar: buttons get their own row so they stay tappable. */
+    .asset-select-bar { flex-direction: column; align-items: stretch; }
+    .asset-select-actions button { min-height: 42px; flex: 1; }
+
+    /* ---- The detail pane ---- */
+
+    .asset-detail-sticky { padding-left: 14px; padding-right: 14px; }
+    .asset-detail-body   { padding-left: 14px; padding-right: 14px; }
+    .asset-detail-hostname { font-size: 19px; word-break: break-word; }
+
+    /* The action buttons (History / Custody / Print label) wrap instead of
+       running off the side. */
+    .asset-detail-header > div { display: flex; flex-wrap: wrap; gap: 6px; }
+    .asset-detail-header .btn-sm { min-height: 38px; }
+
+    /* Tabs scroll sideways rather than squashing. */
+    .detail-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        flex-wrap: nowrap;
+    }
+    .detail-tabs::-webkit-scrollbar { display: none; }
+    .detail-tab { white-space: nowrap; flex: 0 0 auto; }
+
+    /* The 4-column info grid becomes one column: at 360px, four columns of
+       label+value is unreadable and two still truncates the values. */
+    .asset-info-grid { grid-template-columns: 1fr !important; gap: 12px; }
+
+    /* Every editable field in the detail pane: 16px (anti-zoom, as above) and a
+       real touch height. */
+    .asset-info-grid .info-value-select,
+    .asset-info-grid .info-value-input {
+        font-size: 16px;
+        min-height: 44px;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Native date inputs ignore width:100% and use their intrinsic width unless
+       the appearance is reset — the #767 spill, same fix. */
+    .asset-info-grid input[type="date"] {
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    /* The assigned-user bar stacks rather than squeezing the button. */
+    .asset-assigned-bar { flex-wrap: wrap; gap: 8px; }
 }

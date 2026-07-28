@@ -103,8 +103,15 @@ $translationNamespaces = ['common', 'asset-management'];
             box-shadow: inset 3px 0 0 var(--success-accent, #16a34a);
         }
 
+        .asset-count-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
         .assets-tag-link {
-            float: right;
+            flex: 0 0 auto;
             font-size: 12px;
             color: var(--accent, #0078d4);
             text-decoration: none;
@@ -973,6 +980,11 @@ $translationNamespaces = ['common', 'asset-management'];
             color: #e65100;
         }
     </style>
+    <?php /* Mobile-friendly opt-in (#936). Deliberately AFTER this page's own
+             <style> block so its @media rules win on ties — the ordering rule
+             from the wiki's Mobile-Friendly-Techniques. Every rule inside it is
+             gated at 768px, so the desktop layout is untouched. */ ?>
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=30">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -983,7 +995,11 @@ $translationNamespaces = ['common', 'asset-management'];
             <div class="assets-list-header">
                 <h3><?php echo htmlspecialchars(t('asset-management.nav.assets')); ?></h3>
                 <input type="text" class="search-box" id="assetSearch" placeholder="<?php echo htmlspecialchars(t('asset-management.list.search_placeholder')); ?>" oninput="searchAssets()" autocomplete="off">
-                <div class="asset-count" id="assetCount">
+                <?php /* The count and the bulk-tagging link are SIBLINGS, not
+                         nested: renderAssetsList() sets #assetCount's textContent,
+                         which would wipe any child element on the first render. */ ?>
+                <div class="asset-count-row">
+                    <div class="asset-count" id="assetCount"></div>
                     <?php /* Bulk tagging (#935) — an occasional job, so a quiet link
                              beside the count rather than a nav item competing with
                              the things people use every day. */ ?>
@@ -2194,5 +2210,10 @@ $translationNamespaces = ['common', 'asset-management'];
             }
         });
     </script>
+    <?php /* Loaded LAST so it can wrap this page's own selectAsset() from the
+             outside rather than editing it — the wrap-don't-edit rule. Every
+             behaviour inside is gated on matchMedia(768px), so on desktop it is
+             inert. (#936) */ ?>
+    <script src="../assets/js/mobile.js?v=13"></script>
 </body>
 </html>
