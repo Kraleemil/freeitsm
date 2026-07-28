@@ -1350,10 +1350,27 @@ CREATE TABLE IF NOT EXISTS `assets` (
     -- hostname uniqueness is enforced PER COMPANY in application code (two clients
     -- may each legitimately have a "LAPTOP-01").
     `tenant_id`         INT NULL,
+    -- QR labels (#935). `asset_tag` is the human-readable number printed on the
+    -- label ("LT0001") and is unique PER COMPANY — enforced in application code,
+    -- exactly as hostname is, and for the same reason plus one more: a UNIQUE
+    -- (tenant_id, asset_tag) index would NOT hold for the Default company,
+    -- because MySQL treats NULLs as distinct in a unique index, so two default
+    -- assets could both be LT0001 while the index looked like it was guarding
+    -- them. A unique index that silently doesn't apply is worse than none.
+    `asset_tag`         VARCHAR(64) NULL,
+    -- What the QR actually encodes: an opaque token, install-wide unique, minted
+    -- on first label print. Deliberately NOT the id (…/a/4711 invites 4712) and
+    -- deliberately NOT the asset tag (two companies may both use LT0001).
+    `qr_token`          VARCHAR(64) NULL,
     PRIMARY KEY (`id`),
     KEY `idx_assets_location` (`location_id`),
     KEY `idx_assets_supplier` (`supplier_id`),
     KEY `idx_assets_tenant` (`tenant_id`),
+    -- Lookup only. See the asset_tag comment for why this one is NOT unique.
+    KEY `idx_assets_tag` (`tenant_id`, `asset_tag`),
+    -- This one IS safe to make unique: the token is install-wide and never NULL
+    -- once minted, so there is no NULL-distinctness trap.
+    UNIQUE KEY `uq_assets_qr_token` (`qr_token`),
     CONSTRAINT `fk_assets_location` FOREIGN KEY (`location_id`) REFERENCES `asset_locations` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_assets_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE SET NULL
     -- fk_assets_supplier (supplier_id -> suppliers.id) is added in db_verify.php:

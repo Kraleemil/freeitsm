@@ -88,6 +88,8 @@ return [
     ['assets', 'idx_assets_location', false, '(`location_id`)'],
     ['assets', 'idx_assets_supplier', false, '(`supplier_id`)'],
     ['assets', 'idx_assets_tenant', false, '(`tenant_id`)'],
+    ['assets', 'idx_assets_tag', false, '(`tenant_id`,`asset_tag`)'],
+    ['assets', 'uq_assets_qr_token', true, '(`qr_token`)'],
     ['users_assets', 'uq_user_asset', true, '(`user_id`,`asset_id`)'],
     ['asset_checkout_log', 'idx_acl_asset', false, '(`asset_id`)'],
     ['asset_devices', 'idx_asset_devices_asset', false, '(`asset_id`)'],

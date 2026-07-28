@@ -986,6 +986,11 @@ return [
         'warranty_expiry'   => 'DATE NULL',
         // Multi-tenancy: the company this asset belongs to (NULL = Default).
         'tenant_id'         => 'INT NULL',
+        // QR labels (#935). asset_tag is the printed human number, unique per
+        // company in application code (a UNIQUE index can't hold it — NULL
+        // tenant_id defeats it). qr_token is what the QR encodes.
+        'asset_tag'         => 'VARCHAR(64) NULL',
+        'qr_token'          => 'VARCHAR(64) NULL',
     ],
 
     'asset_types' => [

@@ -32,6 +32,12 @@ RewriteRule ^forgot-password$    auth/forgot-password.php       [L]
 RewriteRule ^reset-password$     auth/reset-password.php        [L]
 RewriteRule ^csat$               tickets/csat/survey.php        [L]
 
+# --- Asset QR labels (#935). Short on purpose: every character is another QR
+#     module, and these are printed at ~15mm on the side of a laptop that then
+#     spends three years being knocked about. /a/<token> keeps the code coarse
+#     and forgiving where /asset-management/scan.php?token=… would not.
+RewriteRule ^a/([A-Za-z0-9]+)$   asset-management/scan.php?token=$1 [L,QSA]
+
 # --- Phantom-folder forms of the pretty URLs (the old MultiViews bug):
 #     /login/, /login/index.php, /login/anything -> the pretty URL.
 #     %1 captures the URL base ("/freeitsm-app/" locally, "/" in Docker)
