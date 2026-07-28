@@ -27,12 +27,19 @@
     // Generic icons for the search-result types (modules carry their own).
     var ICONS = {
         ticket: '<path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>',
+        change: '<polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line>',
+        problem: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+        knowledge: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>',
+        contract: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>',
         ci: '<path d="M2 22V8l10-6 10 6v14"></path><path d="M2 12h20"></path><line x1="12" y1="2" x2="12" y2="22"></line>',
         asset: '<rect x="2" y="3" width="20" height="14" rx="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
         command: '<polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>',
         search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>'
     };
-    var TYPE_LABEL = { ticket: 'Ticket', ci: 'Config item', asset: 'Asset' };
+    var TYPE_LABEL = {
+        ticket: 'Ticket', change: 'Change', problem: 'Problem',
+        knowledge: 'Article', contract: 'Contract', ci: 'Config item', asset: 'Asset'
+    };
 
     // Static quick actions. Each has a matcher label and a run().
     var COMMANDS = [
@@ -171,7 +178,7 @@
 
         if (serverResults && serverResults.length) {
             // Group the entity results by type, in a stable order.
-            ['ticket', 'asset', 'ci'].forEach(function (type) {
+            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci'].forEach(function (type) {
                 var group = serverResults.filter(function (r) { return r.type === type; });
                 if (!group.length) return;
                 html += '<div class="cmdp-group-label">' + esc(pluralType(type)) + '</div>';
@@ -207,7 +214,11 @@
     }
 
     function pluralType(type) {
-        return { ticket: 'Tickets', asset: 'Assets', ci: 'Configuration items' }[type] || type;
+        return {
+            ticket: 'Tickets', change: 'Changes', problem: 'Problems',
+            knowledge: 'Knowledge', contract: 'Contracts',
+            asset: 'Assets', ci: 'Configuration items'
+        }[type] || type;
     }
 
     function row(idx, iconSvg, title, sub, tag) {

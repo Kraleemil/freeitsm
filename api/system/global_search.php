@@ -135,6 +135,115 @@ try {
         } catch (Exception $e) { /* table not ready — no asset results */ }
     }
 
+    // Digits pulled from the query, used where a record's reference is derived
+    // from its id rather than stored (changes: "CHG-0047" isn't a column, so
+    // searching "47" or "CHG-47" must match id 47).
+    $digits = preg_replace('/\D+/', '', $q);
+
+    // --- Changes: by title, or by id via its CHG-#### reference ----------
+    if ($can('changes')) {
+        try {
+            [$tSql, $tArgs] = activeTenantFilter($conn, $analystId, 'c');
+            $idClause = $digits !== '' ? ' OR c.id = ?' : '';
+            $sql = "SELECT c.id, c.title
+                      FROM changes c
+                     WHERE (c.title LIKE ?" . $idClause . ")" . $tSql . "
+                     ORDER BY c.modified_datetime DESC
+                     LIMIT " . $perType;
+            $params = $digits !== '' ? [$like, (int) $digits] : [$like];
+            $stmt = $conn->prepare($sql);
+            $stmt->execute(array_merge($params, $tArgs));
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $results[] = [
+                    'type'     => 'change',
+                    'module'   => 'changes',
+                    'id'       => (int) $r['id'],
+                    'title'    => $r['title'],
+                    'subtitle' => sprintf('CHG-%04d', (int) $r['id']),
+                    'url'      => 'change-management/?change_id=' . (int) $r['id'],
+                ];
+            }
+        } catch (Exception $e) { /* table not ready — no change results */ }
+    }
+
+    // --- Problems: by reference or title --------------------------------
+    if ($can('problems')) {
+        try {
+            [$tSql, $tArgs] = ticketTenantFilter($conn, $analystId, 'p');
+            $sql = "SELECT p.id, p.problem_number, p.title
+                      FROM problems p
+                     WHERE (p.problem_number LIKE ? OR p.title LIKE ?)" . $tSql . "
+                     ORDER BY p.updated_datetime DESC
+                     LIMIT " . $perType;
+            $stmt = $conn->prepare($sql);
+            $stmt->execute(array_merge([$like, $like], $tArgs));
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $results[] = [
+                    'type'     => 'problem',
+                    'module'   => 'problems',
+                    'id'       => (int) $r['id'],
+                    'title'    => $r['title'],
+                    'subtitle' => (string) ($r['problem_number'] ?? ''),
+                    'url'      => 'problem-management/?problem_id=' . (int) $r['id'],
+                ];
+            }
+        } catch (Exception $e) { /* table not ready — no problem results */ }
+    }
+
+    // --- Knowledge articles: by title -----------------------------------
+    // knowledgeTenantFilter, NOT activeTenantFilter — for Knowledge a NULL
+    // tenant means "shared with every company", the opposite of tickets/assets.
+    // Archived articles are excluded; unpublished drafts are kept (analysts
+    // should still find their own work-in-progress).
+    if ($can('knowledge')) {
+        try {
+            [$tSql, $tArgs] = knowledgeTenantFilter($conn, $analystId, 'a');
+            $sql = "SELECT a.id, a.title
+                      FROM knowledge_articles a
+                     WHERE a.title LIKE ?
+                       AND (a.is_archived = 0 OR a.is_archived IS NULL)" . $tSql . "
+                     ORDER BY a.modified_datetime DESC
+                     LIMIT " . $perType;
+            $stmt = $conn->prepare($sql);
+            $stmt->execute(array_merge([$like], $tArgs));
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $results[] = [
+                    'type'     => 'knowledge',
+                    'module'   => 'knowledge',
+                    'id'       => (int) $r['id'],
+                    'title'    => $r['title'],
+                    'subtitle' => '',
+                    'url'      => 'knowledge/?article=' . (int) $r['id'],
+                ];
+            }
+        } catch (Exception $e) { /* table not ready — no knowledge results */ }
+    }
+
+    // --- Contracts: by reference or title -------------------------------
+    // Contracts are install-wide (no tenant_id column), so there is no company
+    // scope to apply here.
+    if ($can('contracts')) {
+        try {
+            $sql = "SELECT k.id, k.contract_number, k.title
+                      FROM contracts k
+                     WHERE (k.contract_number LIKE ? OR k.title LIKE ?)
+                     ORDER BY k.title
+                     LIMIT " . $perType;
+            $stmt = $conn->prepare($sql);
+            $stmt->execute([$like, $like]);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $results[] = [
+                    'type'     => 'contract',
+                    'module'   => 'contracts',
+                    'id'       => (int) $r['id'],
+                    'title'    => $r['title'],
+                    'subtitle' => (string) ($r['contract_number'] ?? ''),
+                    'url'      => 'contracts/view.php?id=' . (int) $r['id'],
+                ];
+            }
+        } catch (Exception $e) { /* table not ready — no contract results */ }
+    }
+
     echo json_encode(['success' => true, 'results' => $results]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

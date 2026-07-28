@@ -96,7 +96,7 @@ A **System Wiki** module also auto-documents the codebase from within the app, a
 - **[Security](https://github.com/edmozley/freeitsm/wiki/Security)** — AES-256-GCM encryption at rest for secrets, TOTP MFA, brute-force protection, role-based permissions down to individual settings tabs, and audit trails throughout.
 - **[Multi-tenancy](https://github.com/edmozley/freeitsm/wiki/Multi-Tenancy)** — host multiple client companies in one install (built for MSPs), each walled off from the others. Invisible until you add a second company.
 - **[Webhooks](https://github.com/edmozley/freeitsm/wiki/Webhooks)** — push any event to Slack, Teams, Discord or any endpoint, with HMAC signing, retries and a delivery dashboard.
-- **Command palette** — press **⌘K / Ctrl-K** anywhere to jump to any module, search tickets, assets and CMDB items by name, or run a quick action, all from the keyboard. Results respect your module access and active company.
+- **Command palette** — press **⌘K / Ctrl-K** anywhere to jump to any module, search across tickets, changes, problems, knowledge, contracts, assets and CMDB items by name or reference, or run a quick action, all from the keyboard. Results respect your module access and active company.
 - **Internationalisation** — [21 languages](https://github.com/edmozley/freeitsm/wiki/Internationalisation) with per-analyst locale, plus [per-analyst timezones](https://github.com/edmozley/freeitsm/wiki/Timezones-and-Time-Handling), [theming and dark mode](https://github.com/edmozley/freeitsm/wiki/Theming-and-Dark-Mode), and a [mobile-friendly](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly) core flow.
 
 ## Documentation

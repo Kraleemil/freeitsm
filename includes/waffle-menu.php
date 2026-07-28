@@ -531,7 +531,7 @@ function renderWaffleMenuJS() {
         window.CP_BASE = <?php echo json_encode(BASE_URL); ?>;
         window.CP_MODULES = <?php echo json_encode($cpModules, JSON_UNESCAPED_SLASHES); ?>;
     </script>
-    <script src="<?php echo BASE_URL; ?>assets/js/command-palette.js?v=1"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/command-palette.js?v=2"></script>
     <script>
     // Per-analyst toast preferences pushed from PHP — toast.js reads
     // these before falling back to localStorage / default.
