@@ -48,6 +48,8 @@ return [
     ['tickets', 'ix_tickets_created_datetime', false, '(`created_datetime`)'],
     ['tickets', 'ix_tickets_tenant_id', false, '(`tenant_id`)'],
     ['tickets', 'ix_tickets_deleted_datetime', false, '(`deleted_datetime`)'],
+    ['ticket_presence', 'uq_ticket_presence', true, '(`ticket_id`,`analyst_id`)'],
+    ['ticket_presence', 'ix_ticket_presence_last_seen', false, '(`last_seen`)'],
     ['ticket_splits', 'ix_ticket_splits_source', false, '(`source_ticket_id`)'],
     ['ticket_splits', 'ix_ticket_splits_new', false, '(`new_ticket_id`)'],
     ['ticket_merges', 'ix_ticket_merges_source', false, '(`source_ticket_id`)'],

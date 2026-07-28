@@ -192,6 +192,18 @@ return [
         'wake'             => 'Wake now',
     ],
 
+    // Collision detection (#934). Wording is deliberately informational, not
+    // accusatory — a colleague being here is normal, and this is a heads-up.
+    'presence' => [
+        'and'               => 'and',
+        'also_viewing'      => '%s is also viewing this ticket',
+        'also_viewing_many' => '%s are also viewing this ticket',
+        'is_replying'       => '%s is writing a reply…',
+        'are_replying'      => '%s are writing replies…',
+        'warn_one'          => '%s is writing a reply to this ticket right now — check with them before you send.',
+        'warn_many'         => '%s are writing replies to this ticket right now — check with them before you send.',
+    ],
+
     // Snoozing a ticket (#933). Every wake time is shown WITH its time of day —
     // "Thursday" alone leaves an analyst guessing whether it's back first thing.
     'snooze' => [

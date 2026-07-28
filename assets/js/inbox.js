@@ -2173,6 +2173,9 @@ function displayEmail(email, recordings) {
         </div>
         ${buildSnoozeBanner(email)}
         ${buildMergeBanner(email)}
+        <!-- Collision detection (#934). Left empty by the render and filled by the
+             presence poll, so a re-render never flashes a stale set of faces. -->
+        <div class="presence-strip" id="presenceStrip" hidden></div>
         ${buildLinksSection(email)}
         ${buildRecordingsStrip(currentRecordings)}
         <div class="action-toolbar">
@@ -2230,6 +2233,11 @@ function displayEmail(email, recordings) {
     loadCmdbObjects(email.ticket_id);
     loadTimeEntries(email.ticket_id);
     loadSlaState(email.ticket_id);
+
+    // Announce ourselves on this ticket, and start listening for anyone else
+    // (#934). Moving between tickets stops the old announcement first, so a
+    // colleague never sees us lingering on a ticket we have left.
+    startPresence(email.ticket_id);
 
     // A ticket is now displayed — apply popout class if the saved pref says so.
     syncPopoutToTicketState(true);
@@ -3368,6 +3376,7 @@ function clearReadingPaneIfTicket(ticketId) {
         currentEmail = null;
         selectedEmailId = null;
         document.getElementById('readingPane').innerHTML = '<div class="reading-pane-empty">Select an email to read</div>';
+        stopPresence();   // nothing is open, so stop announcing (#934)
     }
 }
 
@@ -3976,11 +3985,15 @@ function openNoteModal() {
     }
 
     document.getElementById('noteModal').classList.add('active');
+    // A note counts as writing too — a colleague should know before they type
+    // the same thing (#934).
+    setPresenceComposing(true);
 }
 
 // Close note modal
 function closeNoteModal() {
     document.getElementById('noteModal').classList.remove('active');
+    setPresenceComposing(false);
 }
 
 // Save note
@@ -4066,6 +4079,9 @@ function openReplyModal() {
 
     setReplyCleanupVisibility('reply');
     document.getElementById('emailModal').classList.add('active');
+    // Tell colleagues we're writing, and show their warning if they already are.
+    setPresenceComposing(true);
+    renderComposerCollisionWarning();
 }
 
 // Open forward modal
@@ -4090,11 +4106,14 @@ function openForwardModal() {
 
     setReplyCleanupVisibility('forward');
     document.getElementById('emailModal').classList.add('active');
+    setPresenceComposing(true);
+    renderComposerCollisionWarning();
 }
 
 // Close email modal
 function closeEmailModal() {
     document.getElementById('emailModal').classList.remove('active');
+    setPresenceComposing(false);   // we've stopped writing (#934)
     composeMode = 'new';
     // Clear the TinyMCE content
     if (emailEditor) {
@@ -6791,6 +6810,204 @@ function buildSnoozeBanner(email) {
                     onclick="wakeTickets([${Number(email.ticket_id)}])">${escapeHtml(t('tickets.context.wake'))}</button>
         </div>`;
 }
+
+// ===========================================================================
+// Collision detection — who else is in this ticket (#934)
+// ===========================================================================
+//
+// Two analysts answering the same customer is the oldest service-desk annoyance
+// there is, and until now nothing said a word about it. The open ticket sends a
+// heartbeat; the same request comes back with everyone else who is here.
+//
+// Presence is a HEARTBEAT, not a session: a row counts only while it is fresh,
+// so a closed tab, a crashed browser or a dead network clears itself after one
+// stale window with nothing having to run. The explicit leave below is only an
+// optimisation to make that instant.
+//
+// It WARNS, it never blocks. Two people may legitimately both need to write.
+
+const PRESENCE_BEAT_MS = 10000;   // three beats inside the server's 30s stale window
+let presenceTicketId = null;      // the ticket we are currently announcing on
+let presenceTimer    = null;
+let presenceOthers   = [];        // last known others, for the composer warning
+let presenceComposing = false;    // is OUR reply/forward/note composer open?
+
+/** Start (or move) the heartbeat to a ticket. Safe to call repeatedly. */
+function startPresence(ticketId) {
+    ticketId = Number(ticketId) || 0;
+    if (!ticketId) return;
+    if (presenceTicketId === ticketId) return;      // already announcing there
+
+    // Moving between tickets: stop announcing on the old one straight away, so a
+    // colleague doesn't see us lingering on a ticket we have left.
+    if (presenceTicketId) leavePresence(presenceTicketId);
+
+    presenceTicketId = ticketId;
+    presenceOthers = [];
+    presenceComposing = false;
+    renderPresenceStrip();
+
+    beatPresence();
+    if (presenceTimer) clearInterval(presenceTimer);
+    presenceTimer = setInterval(beatPresence, PRESENCE_BEAT_MS);
+}
+
+/** Stop announcing entirely (the reading pane emptied). */
+function stopPresence() {
+    if (presenceTimer) { clearInterval(presenceTimer); presenceTimer = null; }
+    if (presenceTicketId) leavePresence(presenceTicketId);
+    presenceTicketId = null;
+    presenceOthers = [];
+    presenceComposing = false;
+    renderPresenceStrip();
+}
+
+async function beatPresence() {
+    const id = presenceTicketId;
+    if (!id) return;
+    // A hidden tab is not "here" — a background tab left open all afternoon
+    // would otherwise keep announcing a colleague who walked away hours ago.
+    // Skipping the beat lets them go stale naturally, and the next visible beat
+    // brings them straight back.
+    if (document.hidden) return;
+    try {
+        const res = await fetch(API_BASE + 'ticket_presence.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket_id: id, composing: presenceComposing })
+        });
+        const data = await res.json();
+        // The reply may land after the analyst has moved on; painting it would
+        // put the previous ticket's faces on the current one.
+        if (!data.success || presenceTicketId !== id) return;
+        presenceOthers = data.others || [];
+        renderPresenceStrip();
+        renderComposerCollisionWarning();
+    } catch (e) {
+        // A failed heartbeat is not worth a toast. The strip simply keeps its
+        // last state and the next beat corrects it.
+    }
+}
+
+/** Fire-and-forget leave. Uses sendBeacon during teardown, when fetch is unreliable. */
+function leavePresence(ticketId) {
+    const body = JSON.stringify({ ticket_id: Number(ticketId) || 0, leave: true });
+    try {
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon(API_BASE + 'ticket_presence.php', new Blob([body], { type: 'application/json' }));
+            return;
+        }
+    } catch (e) { /* fall through to fetch */ }
+    try {
+        fetch(API_BASE + 'ticket_presence.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: body, keepalive: true
+        });
+    } catch (e) { /* nothing depends on this arriving */ }
+}
+
+/**
+ * Tell the server whether our composer is open.
+ *
+ * Beats immediately rather than waiting for the next tick: "is writing a reply"
+ * is only useful if it appears while they are still writing it.
+ */
+function setPresenceComposing(on) {
+    const next = !!on;
+    if (next === presenceComposing) return;
+    presenceComposing = next;
+    beatPresence();
+}
+
+/**
+ * Join names the way a person would: "A", "A and B", "A, B and C".
+ * The conjunction is translated — t() returns the KEY when a string is missing,
+ * so it must be a real one rather than a `|| 'and'` fallback that would render
+ * the literal text "common.and" on screen.
+ */
+function joinNames(names) {
+    const and = t('tickets.presence.and');
+    if (names.length <= 1) return names[0] || '';
+    if (names.length === 2) return `${names[0]} ${and} ${names[1]}`;
+    return `${names.slice(0, -1).join(', ')} ${and} ${names[names.length - 1]}`;
+}
+
+/**
+ * Paint the strip. Two states, because they deserve different weight: someone
+ * merely having the ticket open is information, someone WRITING is the moment
+ * your work becomes duplicated effort.
+ */
+function renderPresenceStrip() {
+    const el = document.getElementById('presenceStrip');
+    if (!el) return;
+    if (!presenceOthers.length) { el.hidden = true; el.innerHTML = ''; return; }
+
+    const composing = presenceOthers.filter(p => p.composing);
+    const viewing   = presenceOthers.filter(p => !p.composing);
+
+    const faces = presenceOthers.map(p => `
+        <span class="presence-face ${p.composing ? 'is-composing' : ''}" title="${escapeHtml(p.name)}">
+            ${escapeHtml(p.initials)}
+        </span>`).join('');
+
+    let message;
+    if (composing.length) {
+        const names = joinNames(composing.map(p => p.name));
+        message = `<strong>${escapeHtml(
+            composing.length > 1
+                ? t('tickets.presence.are_replying').replace('%s', names)
+                : t('tickets.presence.is_replying').replace('%s', names)
+        )}</strong>`;
+        if (viewing.length) {
+            message += ' ' + escapeHtml(
+                viewing.length > 1
+                    ? t('tickets.presence.also_viewing_many').replace('%s', joinNames(viewing.map(p => p.name)))
+                    : t('tickets.presence.also_viewing').replace('%s', viewing[0].name)
+            );
+        }
+    } else {
+        const names = joinNames(viewing.map(p => p.name));
+        message = escapeHtml(
+            viewing.length > 1
+                ? t('tickets.presence.also_viewing_many').replace('%s', names)
+                : t('tickets.presence.also_viewing').replace('%s', names)
+        );
+    }
+
+    el.className = 'presence-strip' + (composing.length ? ' presence-strip-composing' : '');
+    el.innerHTML = `<span class="presence-faces">${faces}</span><span class="presence-text">${message}</span>`;
+    el.hidden = false;
+}
+
+/**
+ * The warning inside our own composer.
+ *
+ * Deliberately a line of text above the editor and NOT a block: two analysts may
+ * genuinely both need to write (an escalation and a holding reply), so this is a
+ * "did you know" and never a refusal. It appears and disappears live, because
+ * the person you would collide with may start or stop typing while you draft.
+ */
+function renderComposerCollisionWarning() {
+    const slot = document.getElementById('composerCollisionWarning');
+    if (!slot) return;
+    const composing = presenceOthers.filter(p => p.composing);
+    if (!composing.length) { slot.hidden = true; slot.innerHTML = ''; return; }
+    const names = joinNames(composing.map(p => p.name));
+    slot.innerHTML = `⚠️ ${escapeHtml(
+        composing.length > 1
+            ? t('tickets.presence.warn_many').replace('%s', names)
+            : t('tickets.presence.warn_one').replace('%s', names)
+    )}`;
+    slot.hidden = false;
+}
+
+// Leave properly when the page goes away. `pagehide` fires where `unload`
+// doesn't (bfcache, mobile Safari), and `visibilitychange` covers the tab being
+// hidden — the beat already skips hidden tabs, this just makes it immediate.
+window.addEventListener('pagehide', () => { if (presenceTicketId) leavePresence(presenceTicketId); });
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (presenceTicketId) leavePresence(presenceTicketId); }
+    else { beatPresence(); }
+});
 
 // ===== Trash folder context menu (Empty trash) =====
 function openTrashContextMenu(event) {

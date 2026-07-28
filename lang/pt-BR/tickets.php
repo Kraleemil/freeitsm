@@ -168,6 +168,18 @@ return [
         'wake'             => 'Reativar agora',
     ],
 
+    // Detecção de colisão (#934). O tom é informativo, não acusatório — ter um
+    // colega no mesmo ticket é normal, isto é só um aviso.
+    'presence' => [
+        'and'               => 'e',
+        'also_viewing'      => '%s também está vendo este ticket',
+        'also_viewing_many' => '%s também estão vendo este ticket',
+        'is_replying'       => '%s está escrevendo uma resposta…',
+        'are_replying'      => '%s estão escrevendo respostas…',
+        'warn_one'          => '%s está escrevendo uma resposta para este ticket agora — combine com essa pessoa antes de enviar.',
+        'warn_many'         => '%s estão escrevendo respostas para este ticket agora — combine com essas pessoas antes de enviar.',
+    ],
+
     // Adiar um ticket (#933). Todo horário de retorno é mostrado COM a hora —
     // só "quinta-feira" deixa o analista sem saber se volta logo cedo.
     'snooze' => [

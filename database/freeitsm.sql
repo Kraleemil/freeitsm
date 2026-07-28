@@ -599,6 +599,27 @@ CREATE TABLE IF NOT EXISTS `tickets` (
     CONSTRAINT `fk_tickets_merged_into` FOREIGN KEY (`merged_into_id`) REFERENCES `tickets` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Collision detection (#934). Who has which ticket open right now, so two
+-- analysts don't answer the same customer twice. Ephemeral: one row per
+-- (ticket, analyst), refreshed by a heartbeat, ignored once `last_seen` goes
+-- stale, and purged opportunistically. Nothing here is an audit trail — rows
+-- are overwritten and deleted freely, so CASCADE on both parents is right.
+-- Must follow `tickets` and `analysts`: it points at both.
+CREATE TABLE IF NOT EXISTS `ticket_presence` (
+    `id`           INT NOT NULL AUTO_INCREMENT,
+    `ticket_id`    INT NOT NULL,
+    `analyst_id`   INT NOT NULL,
+    `last_seen`    DATETIME NULL,
+    `is_composing` TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    -- One row per person per ticket: the heartbeat is an upsert onto this key,
+    -- so a long-open ticket can never accumulate rows.
+    UNIQUE KEY `uq_ticket_presence` (`ticket_id`, `analyst_id`),
+    KEY `ix_ticket_presence_last_seen` (`last_seen`),
+    CONSTRAINT `fk_ticket_presence_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ticket_presence_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- One split: messages moved OUT of a ticket into a new one. The mirror of
 -- ticket_merges. Note the asymmetry: a split creates a reference nobody has ever
 -- seen, so unlike a merge there is nothing to redirect and both tickets stay live.

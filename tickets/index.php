@@ -30,7 +30,7 @@ $translationNamespaces = ['common', 'tickets'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(t('tickets.title')); ?> - <?php echo htmlspecialchars(t('tickets.nav.inbox')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
-    <link rel="stylesheet" href="../assets/css/inbox.css?v=52">
+    <link rel="stylesheet" href="../assets/css/inbox.css?v=53">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=29">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
@@ -135,6 +135,11 @@ $translationNamespaces = ['common', 'tickets'];
     <div class="modal" id="emailModal">
         <div class="modal-content">
             <div class="modal-body">
+                <?php /* Collision warning (#934). A line of text, never a block: two
+                         analysts may legitimately both need to write, so this tells
+                         you and gets out of the way. Filled live by the presence
+                         poll, so it can appear (or clear) while you are drafting. */ ?>
+                <div class="composer-collision" id="composerCollisionWarning" hidden></div>
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                     <div class="form-group">
                         <label class="form-label"><?php echo htmlspecialchars(t('tickets.reply_modal.to')); ?></label>
@@ -695,7 +700,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=75"></script>
+    <script src="../assets/js/inbox.js?v=76"></script>
     <script src="../assets/js/mobile.js?v=12"></script>
     <script>
     // Auto-check mailboxes every 60 seconds
