@@ -77,6 +77,11 @@ function apiSerializeTicket(array $r): array {
         'updated_at'    => apiIsoDate($r['updated_datetime']),
         'closed_at'     => apiIsoDate($r['closed_datetime']),
         'work_start_at' => apiIsoDate($r['work_start_datetime']),
+        // Read-only (#933). Reported only while it is still in the future, which is
+        // the same definition of "asleep" the inbox uses — an elapsed snooze is a
+        // ticket that has already come back, and reporting it would say otherwise.
+        'snoozed_until' => (!empty($r['snoozed_until']) && strtotime($r['snoozed_until'] . ' UTC') > time())
+                            ? apiIsoDate($r['snoozed_until']) : null,
         'deleted_at'    => apiIsoDate($r['deleted_datetime']),
     ];
 }

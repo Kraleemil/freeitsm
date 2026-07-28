@@ -158,7 +158,7 @@ return [
             'cap'          => Cap::TICKETS_GENERAL,
             'label_key'    => 'tickets.settings.tabs.general',
             'grant'        => 'Manage general ticket settings',
-            'setting_keys' => ['system_name', 'reopen_on_customer_reply'],
+            'setting_keys' => ['system_name', 'reopen_on_customer_reply', 'snooze_wake_hour'],
         ],
         [
             'id'           => 'privacy',

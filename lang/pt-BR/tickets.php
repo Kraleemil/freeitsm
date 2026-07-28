@@ -64,6 +64,7 @@ return [
         // Rótulos das pastas do painel esquerdo + títulos de lista correspondentes
         'unassigned'         => 'Não atribuídos',
         'unassigned_tickets' => 'Tickets não atribuídos',
+        'snoozed'            => 'Adiados',
         'trash'              => 'Lixeira',
     ],
     'reading_pane' => [
@@ -163,6 +164,38 @@ return [
         'clear_department' => '(sem departamento)',
         'clear_type'       => '(sem tipo)',
         'clear_assignee'   => '(não atribuído)',
+        'snooze'           => 'Adiar',
+        'wake'             => 'Reativar agora',
+    ],
+
+    // Adiar um ticket (#933). Todo horário de retorno é mostrado COM a hora —
+    // só "quinta-feira" deixa o analista sem saber se volta logo cedo.
+    'snooze' => [
+        'three_hours'   => 'Em 3 horas',
+        'tonight'       => 'Hoje à noite',
+        'tomorrow'      => 'Amanhã',
+        'next_week'     => 'Semana que vem',
+        'pick'          => 'Escolher data…',
+        'modal_title'   => 'Adiar',
+        'date'          => 'Reativar em',
+        'time'          => 'Às',
+        'reason'        => 'O que você está aguardando?',
+        'reason_ph'     => 'ex.: entrega do fornecedor, usuário de férias',
+        'reason_help'   => 'Opcional. Aparece no ticket para que um colega saiba por que ele está adiado.',
+        'confirm'       => 'Adiar',
+        'until'         => 'Adiado até %s',
+        'by'            => 'Adiado por %s.',
+        'banner_hint'   => 'Ele volta para a fila automaticamente.',
+        'today_at'      => 'Hoje %s',
+        'tomorrow_at'   => 'Amanhã %s',
+        'toast_one'     => 'Adiado até %s',
+        'toast_many'    => '%d tickets adiados até %s',
+        'failed'        => 'Não foi possível adiar',
+        'need_datetime' => 'Escolha uma data e um horário',
+        'wake_one'      => 'De volta à fila',
+        'wake_many'     => '%d tickets de volta à fila',
+        'wake_none'     => 'Nada para reativar',
+        'wake_failed'   => 'Não foi possível reativar',
     ],
 
     'note_modal' => [
@@ -957,6 +990,8 @@ Obrigado por entrar em contato conosco…',
             'system_name_help' => 'Este nome aparece no cabeçalho e nos títulos das páginas.',
             'reopen_label' => 'Reabertura',
             'reopen_toggle' => 'Reabrir um ticket fechado quando o solicitante responder',
+            'snooze_hour_label' => 'Início do dia de trabalho',
+            'snooze_hour_help' => 'O horário em que um ticket adiado para "Amanhã" ou "Semana que vem" volta. Lido no fuso horário de cada analista, então uma equipe espalhada por vários fusos tem cada uma a sua manhã.',
             'reopen_help' => 'Vale para qualquer forma de retorno do solicitante — o portal de autoatendimento, uma resposta ao seu e-mail de notificação, WhatsApp ou chat do site. O ticket volta para o seu primeiro status aberto. Apenas tickets em um status marcado como fechado são afetados (defina quais em Status).',
         ],
 

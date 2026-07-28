@@ -227,6 +227,15 @@ try {
         $email['split_from'] = $si['split_from'];
     } catch (Exception $e) { /* pre-upgrade install */ }
 
+    // Snooze state (#933). Null unless the ticket is asleep RIGHT NOW — the helper
+    // tests snoozed_until > UTC_TIMESTAMP(), so an expired snooze produces no
+    // banner without anything having had to clear the columns.
+    $email['snooze'] = null;
+    try {
+        require_once '../../includes/ticket_snooze.php';
+        $email['snooze'] = snoozeStateFor($conn, (int) $email['ticket_id']);
+    } catch (Exception $e) { /* pre-upgrade install */ }
+
     // Screen recordings attached to the ticket
     $recordings = [];
     try {

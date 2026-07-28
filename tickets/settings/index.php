@@ -1026,6 +1026,16 @@ $translationNamespaces = ['common', 'tickets'];
                     <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.reopen_help')); ?></small>
                 </div>
 
+                <div class="form-group">
+                    <label for="snoozeWakeHour"><?php echo htmlspecialchars(t('tickets.settings.general.snooze_hour_label')); ?></label>
+                    <select id="snoozeWakeHour">
+                        <?php for ($h = 0; $h < 24; $h++): ?>
+                        <option value="<?php echo $h; ?>"><?php echo sprintf('%02d:00', $h); ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.snooze_hour_help')); ?></small>
+                </div>
+
                 <div style="display: flex; gap: 10px; justify-content: flex-start; margin-top: 30px;">
                     <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
                 </div>
@@ -4478,6 +4488,11 @@ $translationNamespaces = ['common', 'tickets'];
                     const reopen = data.settings.reopen_on_customer_reply;
                     document.getElementById('reopenOnCustomerReply').checked =
                         (reopen === null || reopen === undefined || reopen === '') ? true : (reopen === '1');
+                    // Snooze wake hour (#933) — 09:00 when never saved, matching
+                    // snoozeWakeHour() in includes/ticket_snooze.php.
+                    const wakeHour = parseInt(data.settings.snooze_wake_hour, 10);
+                    document.getElementById('snoozeWakeHour').value =
+                        (Number.isInteger(wakeHour) && wakeHour >= 0 && wakeHour <= 23) ? String(wakeHour) : '9';
                 } else {
                     console.error('Error loading settings:', data.error);
                 }
@@ -4586,7 +4601,8 @@ $translationNamespaces = ['common', 'tickets'];
 
             const settings = {
                 system_name: document.getElementById('systemName').value,
-                reopen_on_customer_reply: document.getElementById('reopenOnCustomerReply').checked ? '1' : '0'
+                reopen_on_customer_reply: document.getElementById('reopenOnCustomerReply').checked ? '1' : '0',
+                snooze_wake_hour: document.getElementById('snoozeWakeHour').value
             };
 
             try {

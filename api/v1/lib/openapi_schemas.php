@@ -8332,19 +8332,26 @@ return array (
           'format' => 'date-time',
           'nullable' => true,
         ),
-        'work_start_at' => 
+        'work_start_at' =>
         array (
           'type' => 'string',
           'format' => 'date-time',
           'nullable' => true,
         ),
-        'deleted_at' => 
+        'snoozed_until' =>
+        array (
+          'type' => 'string',
+          'format' => 'date-time',
+          'nullable' => true,
+          'description' => 'When a snoozed ticket returns to the working queue. Null when the ticket is not asleep. Read-only: snooze from the inbox.',
+        ),
+        'deleted_at' =>
         array (
           'type' => 'string',
           'format' => 'date-time',
           'nullable' => true,
         ),
-        'description_html' => 
+        'description_html' =>
         array (
           'type' => 'string',
           'nullable' => true,

@@ -19,6 +19,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/ticket_reply.php';
+require_once '../../includes/ticket_snooze.php';
 require_once '../../includes/ticket_recordings.php';
 
 header('Content-Type: application/json');
@@ -181,6 +182,8 @@ try {
     // Reopen AFTER the commit: the reply is the thing that must not be lost, and
     // the helper is deliberately non-fatal for the same reason.
     $reopened = reopenTicketForCustomerReply($conn, $ticketId);
+    // Same door, same rule: a requester replying wakes a snoozed ticket (#933).
+    wakeSnoozedTicketOnCustomerReply($conn, $ticketId);
 
     echo json_encode([
         'success'    => true,

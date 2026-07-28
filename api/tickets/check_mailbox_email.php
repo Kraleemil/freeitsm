@@ -10,6 +10,7 @@ require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/ticket_reply.php';
+require_once '../../includes/ticket_snooze.php';
 require_once '../../includes/mailbox_graph.php';
 
 header('Content-Type: application/json');
@@ -1009,6 +1010,10 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
             // portal so both doors behave identically; non-fatal by design, so a
             // reopen problem can never cost us the inbound message.
             reopenTicketForCustomerReply($conn, (int)$ticketId);
+
+            // …and if it was asleep, wake it. A snooze is nearly always "waiting on
+            // them", so their reply is the very event it was waiting for.
+            wakeSnoozedTicketOnCustomerReply($conn, (int)$ticketId);
 
             // For replies to existing tickets, strip the quoted thread
             // Look for our reply marker and store only the new content above it

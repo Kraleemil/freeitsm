@@ -7,6 +7,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/ticket_snooze.php';
 
 header('Content-Type: application/json');
 
@@ -24,6 +25,11 @@ try {
 
     // Connect to database
     $conn = connectToDatabase();
+
+    // Pre-upgrade installs have no snooze columns; the busiest query in the
+    // product must not name them until Database Verification has run.
+    $snoozeReady = snoozeSchemaReady($conn);
+    $snoozeCols  = $snoozeReady ? "t.snoozed_until, t.snooze_reason," : "NULL AS snoozed_until, NULL AS snooze_reason,";
 
     // Build query with filters - show only the most recent email per ticket
     $sql = "WITH LatestEmails AS (
@@ -55,6 +61,7 @@ try {
                 ts.name AS status,
                 t.department_id,
                 t.assigned_analyst_id,
+                $snoozeCols
                 tp.name AS priority,
                 (SELECT COUNT(*) FROM emails WHERE ticket_id = t.id) as email_count
             FROM LatestEmails le
@@ -95,7 +102,20 @@ try {
         ? " AND t.deleted_datetime IS NOT NULL"
         : " AND t.deleted_datetime IS NULL";
 
-    $sql .= " ORDER BY le.received_datetime DESC";
+    // Snoozed (#933): sleeping tickets leave every folder and gather in their own,
+    // exactly as trashed ones do. The Trash view is excepted so a ticket that was
+    // snoozed and then binned is still findable where it was put last.
+    if (!empty($_GET['snoozed'])) {
+        $sql .= snoozeOnlySql($conn, 't');
+    } elseif (empty($_GET['trashed'])) {
+        $sql .= snoozeHiddenSql($conn, 't');
+    }
+
+    // The Snoozed folder sorts by when each ticket comes back — the only order
+    // that answers the question you open that folder to ask ("what's next?").
+    $sql .= (!empty($_GET['snoozed']) && $snoozeReady)
+        ? " ORDER BY t.snoozed_until ASC"
+        : " ORDER BY le.received_datetime DESC";
 
     $stmt = $conn->prepare($sql);
     $stmt->execute($params);
@@ -109,6 +129,12 @@ try {
         // Convert bit fields to boolean
         $email['is_read'] = (bool)$email['is_read'];
         $email['has_attachments'] = (bool)$email['has_attachments'];
+        // Only report a snooze that is still in the future — an expired one has
+        // already woken, and a row badge saying "until last Tuesday" is noise.
+        if (!empty($email['snoozed_until']) && strtotime($email['snoozed_until'] . ' UTC') <= time()) {
+            $email['snoozed_until'] = null;
+            $email['snooze_reason'] = null;
+        }
     }
 
     echo json_encode([

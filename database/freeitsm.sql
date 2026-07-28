@@ -567,9 +567,17 @@ CREATE TABLE IF NOT EXISTS `tickets` (
     -- The banner, search redirect and inbound-email redirect key off this column,
     -- never off a status name (statuses are user-configurable).
     `merged_into_id`        INT NULL,
+    -- Snooze (#933). "Asleep" is `snoozed_until > UTC_TIMESTAMP()` and nothing else,
+    -- so a ticket returns to the queue on time with no cron involved; a past value
+    -- just means it has already woken.
+    `snoozed_until`         DATETIME NULL,
+    `snoozed_at`            DATETIME NULL,
+    `snoozed_by`            INT NULL,
+    `snooze_reason`         VARCHAR(255) NULL,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_tickets_number` (`ticket_number`),
     KEY `ix_tickets_merged_into_id` (`merged_into_id`),
+    KEY `ix_tickets_snoozed_until` (`snoozed_until`),
     KEY `ix_tickets_status_id` (`status_id`),
     KEY `ix_tickets_priority_id` (`priority_id`),
     KEY `ix_tickets_assigned_analyst_id` (`assigned_analyst_id`),

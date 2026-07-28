@@ -640,10 +640,26 @@ function renderFolders() {
         });
     }
 
+    html += '<div class="folder-divider"></div>';
+
+    // Snoozed folder (#933) — tickets that have left the queue until their time
+    // comes. Pinned above Trash: both are "not in the working queue", and this is
+    // the one you actually visit. Not a drop target, because dropping a ticket
+    // here would have to invent a wake time.
+    html += `
+        <div class="folder-item ${currentFilter.type === 'snoozed' ? 'active' : ''}" data-folder-key="snoozed"
+             onclick="selectFolder('snoozed')">
+            <div class="folder-name">
+                <span class="folder-icon">🌙</span>
+                <span>${escapeHtml(t('tickets.list.snoozed'))}</span>
+            </div>
+            <span class="folder-count">${folderCounts.snoozed_count || 0}</span>
+        </div>
+    `;
+
     // Trash folder — soft-deleted tickets, restorable. Pinned to the bottom.
     // It's a drop target (drag a ticket here to trash it) and has its own
     // right-click menu (Empty trash).
-    html += '<div class="folder-divider"></div>';
     html += `
         <div class="folder-item drop-zone ${currentFilter.type === 'trash' ? 'active' : ''}" data-folder-key="trash" data-drop-type="trash"
              onclick="selectFolder('trash')" oncontextmenu="openTrashContextMenu(event)">
@@ -685,6 +701,10 @@ function updateActiveFolderClasses() {
     } else if (currentFilter.type === 'analyst_status') {
         const sel = `.subfolder-item[data-analyst-id="${currentFilter.analyst_id}"][data-status="${CSS.escape(currentFilter.status)}"]`;
         list.querySelector(sel)?.classList.add('active');
+    } else if (currentFilter.type === 'snoozed') {
+        list.querySelector('[data-folder-key="snoozed"]')?.classList.add('active');
+    } else if (currentFilter.type === 'trash') {
+        list.querySelector('[data-folder-key="trash"]')?.classList.add('active');
     }
 }
 
@@ -744,6 +764,9 @@ function selectFolder(type, id = null) {
     } else if (type === 'trash') {
         currentFilter = { type: 'trash' };
         document.getElementById('emailListTitle').textContent = t('tickets.list.trash');
+    } else if (type === 'snoozed') {
+        currentFilter = { type: 'snoozed' };
+        document.getElementById('emailListTitle').textContent = t('tickets.list.snoozed');
     }
 
     updateActiveFolderClasses();
@@ -1068,6 +1091,8 @@ async function loadEmails() {
             url += `assignee_id=${currentFilter.analyst_id}&status=${encodeURIComponent(currentFilter.status)}`;
         } else if (currentFilter.type === 'trash') {
             url += 'trashed=1';
+        } else if (currentFilter.type === 'snoozed') {
+            url += 'snoozed=1';
         }
 
         const response = await fetch(url);
@@ -1096,6 +1121,7 @@ function renderEmailList() {
 
     const inTrash = currentFilter.type === 'trash';
     emailListEl.innerHTML = emails.map(email => {
+        const snoozePill = snoozeRowPill(email.snoozed_until, email.snooze_reason);
         const emailCount = email.email_count || 1;
         const countBadge = emailCount > 1 ? `<span class="email-count-badge">${emailCount}</span>` : '';
         const ticketId = email.ticket_id || email.id;
@@ -1116,6 +1142,7 @@ function renderEmailList() {
                 <div class="email-preview">${escapeHtml(email.body_preview || '')}</div>
                 <div class="email-footer-row">
                     <div class="email-time">${formatDateTime(email.received_datetime)}</div>
+                    ${snoozePill}
                     <div class="email-sla-slot" data-sla-slot="${ticketId}"></div>
                 </div>${trashActions}
             </div>
@@ -2144,6 +2171,7 @@ function displayEmail(email, recordings) {
         <div class="attachment-info-bar" id="attachmentInfoBar" onclick="showAttachmentList()" style="display: none;">
             <span>${escapeHtml(t('tickets.actions.loading_attachments'))}</span>
         </div>
+        ${buildSnoozeBanner(email)}
         ${buildMergeBanner(email)}
         ${buildLinksSection(email)}
         ${buildRecordingsStrip(currentRecordings)}
@@ -6012,6 +6040,17 @@ function openTicketContextMenu(event, ticketId, ticketRef) {
     const subjItem = document.getElementById('ctxSubjectItem');
     if (subjItem) subjItem.style.display = ctxActsOnSelection ? 'none' : '';
 
+    // Wake appears only when there is something to wake. On a selection that is
+    // any sleeping ticket in it — Wake is harmless on the ones already awake, and
+    // hiding it because the first row happens to be awake would be worse.
+    const wakeItem = document.getElementById('ctxWakeItem');
+    if (wakeItem) {
+        const anyAsleep = ctxActsOnSelection
+            ? selectedTicketIds().some(id => (emails.find(e => e.ticket_id == id) || {}).snoozed_until)
+            : ctxTargetIsSnoozed();
+        wakeItem.style.display = anyAsleep ? '' : 'none';
+    }
+
     document.getElementById('ticketContextMenuHeader').textContent = ctxActsOnSelection
         ? t('tickets.bulk.n_selected').replace('%d', String(selectionCount()))
         : ctxTargetTicketRef;
@@ -6020,6 +6059,7 @@ function openTicketContextMenu(event, ticketId, ticketRef) {
     // their lookups. Rebuilt each time so newly-added entries appear
     // without a page refresh, and so the current value gets a tick when
     // right-clicking the ticket that's already open in the reading pane.
+    populateContextSnoozeSubmenu();
     populateContextStatusSubmenu();
     populateContextPrioritySubmenu();
     populateContextDepartmentSubmenu();
@@ -6490,6 +6530,266 @@ async function contextMoveToTrash() {
         loadFolderCounts();
         loadEmails();
     } catch (e) { showToast('Move to trash failed: ' + e.message, 'error'); }
+}
+
+// ===========================================================================
+// Snoozing tickets (#933)
+// ===========================================================================
+//
+// "I can't do anything with this until Thursday." Snoozing takes the ticket out
+// of every folder and puts it in Snoozed until its time comes, so the morning
+// queue is work rather than a list of things to re-decide you can't touch.
+//
+// The wake time is computed SERVER-SIDE from a preset key — the labels here are
+// only labels. That keeps one definition of what "tomorrow morning" means (the
+// analyst's zone, the install's wake hour) instead of two that drift, and means
+// a stale page can't snooze a ticket to yesterday.
+//
+// Waking is the clock: a ticket is asleep while snoozed_until is in the future
+// and awake the moment it isn't. Nothing has to run for it to come back.
+
+// The presets, in the order they appear. `key` is what the server understands;
+// `at` computes the same instant locally so the row can show what it means.
+//
+// `available` drops a preset whose name would stop being true. "This evening"
+// after 18:00 can only mean tomorrow evening, and a row reading "This evening —
+// Tomorrow 18:00" is a menu arguing with itself. Gmail hides its presets the
+// same way, and "In 3 hours" already covers the rest of the night.
+const SNOOZE_PRESETS = [
+    { key: 'three_hours', label: 'tickets.snooze.three_hours', at: () => new Date(Date.now() + 3 * 3600 * 1000) },
+    { key: 'tonight',     label: 'tickets.snooze.tonight',     at: () => atHourLocal(18, 0),
+      available: () => new Date().getHours() < 18 },
+    { key: 'tomorrow',    label: 'tickets.snooze.tomorrow',    at: () => atHourLocal(snoozeWakeHour(), 1) },
+    { key: 'next_week',   label: 'tickets.snooze.next_week',   at: () => nextMondayLocal(snoozeWakeHour()) },
+];
+
+function availableSnoozePresets() {
+    return SNOOZE_PRESETS.filter(p => !p.available || p.available());
+}
+
+function snoozeWakeHour() {
+    const h = Number(window.SNOOZE_WAKE_HOUR);
+    return (Number.isInteger(h) && h >= 0 && h <= 23) ? h : 9;
+}
+
+// A Date at `hour` today plus `addDays`. Mirrors the server's "tonight"/"tomorrow"
+// arithmetic; "tonight" rolls forward a day when 18:00 has already gone.
+function atHourLocal(hour, addDays) {
+    const d = new Date();
+    d.setDate(d.getDate() + (addDays || 0));
+    d.setHours(hour, 0, 0, 0);
+    if (!addDays && d <= new Date()) d.setDate(d.getDate() + 1);
+    return d;
+}
+
+function nextMondayLocal(hour) {
+    const d = new Date();
+    // 1..7 days forward — never today, so "next week" can't mean "in ten minutes".
+    const delta = ((8 - d.getDay()) % 7) || 7;
+    d.setDate(d.getDate() + delta);
+    d.setHours(hour, 0, 0, 0);
+    return d;
+}
+
+// "Today 15:00" / "Tomorrow 09:00" / "Mon 4 Aug, 09:00" — in the analyst's zone.
+// Deliberately always carries the time: "Thursday" alone leaves them wondering
+// whether the ticket is back first thing or at the end of the day.
+function formatWakeTime(value) {
+    if (!value) return '';
+    const d = (value instanceof Date) ? value : parseUTCDate(value);
+    if (!d || isNaN(d.getTime())) return '';
+    const time = d.toLocaleTimeString('en-GB', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+    const ymd = ymdInZone(d);
+    const now = new Date();
+    if (ymd === ymdInZone(now)) return t('tickets.snooze.today_at').replace('%s', time);
+    if (ymd === ymdInZone(new Date(now.getTime() + 86400000))) return t('tickets.snooze.tomorrow_at').replace('%s', time);
+    const day = d.toLocaleDateString('en-GB', tzOpts({ weekday: 'short', day: 'numeric', month: 'short' }));
+    return `${day}, ${time}`;
+}
+
+// The small moon pill on a list row. Only rendered for a snooze still in the
+// future — the endpoint already nulls expired ones, and this is the second belt.
+function snoozeRowPill(snoozedUntil, reason) {
+    if (!snoozedUntil) return '';
+    const d = parseUTCDate(snoozedUntil);
+    if (!d || isNaN(d.getTime()) || d <= new Date()) return '';
+    const when = formatWakeTime(d);
+    const title = reason
+        ? `${t('tickets.snooze.until').replace('%s', when)} — ${reason}`
+        : t('tickets.snooze.until').replace('%s', when);
+    return `<span class="email-snooze-pill" title="${escapeHtml(title)}">🌙 ${escapeHtml(when)}</span>`;
+}
+
+// Build the Snooze flyout. Rebuilt on every open so the labels carry live times —
+// a menu built at page load would still be offering "Tomorrow · Wed 09:00" on
+// Thursday, and an analyst reads the label, not the key behind it.
+function populateContextSnoozeSubmenu() {
+    const sub = document.getElementById('ctxSnoozeSubmenu');
+    if (!sub) return;
+    const rows = availableSnoozePresets().map(p => {
+        const when = formatWakeTime(p.at());
+        return `<div class="ticket-context-submenu-item" onclick="snoozeFromContext('${p.key}')">
+            <span class="ctx-status-name">${escapeHtml(t(p.label))}</span>
+            <span class="ctx-snooze-when">${escapeHtml(when)}</span>
+        </div>`;
+    }).join('');
+    sub.innerHTML = rows +
+        `<div class="ticket-context-submenu-item" onclick="openSnoozeModal()">
+            <span class="ctx-status-name" style="font-style: italic;">${escapeHtml(t('tickets.snooze.pick'))}</span>
+        </div>`;
+}
+
+// Is the context-menu target asleep? Read from the loaded list row, or from the
+// open ticket when the menu was raised on the one in the reading pane.
+function ctxTargetIsSnoozed() {
+    const rec = emails.find(e => e.ticket_id == ctxTargetTicketId);
+    if (rec && rec.snoozed_until) return true;
+    return !!(currentEmail && currentEmail.ticket_id == ctxTargetTicketId && currentEmail.snooze);
+}
+
+// Which tickets does a snooze/wake act on? Same rule as every other context
+// action: the whole selection when the menu was raised inside it, else the one row.
+function ctxSnoozeTargets() {
+    return ctxActsOnSelection ? selectedTicketIds() : (ctxTargetTicketId ? [ctxTargetTicketId] : []);
+}
+
+async function snoozeFromContext(preset, untilLocal, reason) {
+    const ids = ctxSnoozeTargets();
+    closeTicketContextMenu();
+    if (!ids.length) return;
+    try {
+        const res = await fetch(API_BASE + 'snooze_ticket.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ticket_ids: ids,
+                preset: preset,
+                until_local: untilLocal || null,
+                reason: reason || ''
+            })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'failed');
+
+        const when = formatWakeTime(data.snoozed_until);
+        showToast(
+            data.snoozed > 1
+                ? t('tickets.snooze.toast_many').replace('%d', String(data.snoozed)).replace('%s', when)
+                : t('tickets.snooze.toast_one').replace('%s', when),
+            'success'
+        );
+        // The ticket has left the current folder, so the reading pane would be
+        // showing something the list no longer holds.
+        ids.forEach(id => clearReadingPaneIfTicket(id));
+        clearMultiSelection({ repaint: false });
+        loadFolderCounts();
+        loadEmails();
+    } catch (e) {
+        showToast(t('tickets.snooze.failed') + ': ' + e.message, 'error');
+    }
+}
+
+async function wakeFromContext() {
+    const ids = ctxSnoozeTargets();
+    closeTicketContextMenu();
+    await wakeTickets(ids);
+}
+
+// Shared by the context menu and the reading-pane banner button.
+async function wakeTickets(ids) {
+    if (!ids || !ids.length) return;
+    try {
+        const res = await fetch(API_BASE + 'wake_ticket.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket_ids: ids })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'failed');
+        // Report what actually happened. "Woke 0 tickets" is a real outcome when
+        // the snooze expired a second earlier, and claiming otherwise is a lie.
+        if (!data.woken) { showToast(t('tickets.snooze.wake_none'), 'info'); }
+        else {
+            showToast(
+                data.woken > 1
+                    ? t('tickets.snooze.wake_many').replace('%d', String(data.woken))
+                    : t('tickets.snooze.wake_one'),
+                'success'
+            );
+        }
+        const openId = (currentEmail && ids.includes(Number(currentEmail.ticket_id))) ? currentEmail.id : null;
+        loadFolderCounts();
+        await loadEmails();
+        if (openId) selectEmail(openId);
+    } catch (e) {
+        showToast(t('tickets.snooze.wake_failed') + ': ' + e.message, 'error');
+    }
+}
+
+// --- Snooze until a specific time -----------------------------------------
+let snoozeModalTargets = [];
+
+function openSnoozeModal() {
+    snoozeModalTargets = ctxSnoozeTargets();
+    closeTicketContextMenu();
+    if (!snoozeModalTargets.length) return;
+
+    document.getElementById('snoozeTicketRef').textContent = snoozeModalTargets.length > 1
+        ? t('tickets.bulk.n_selected').replace('%d', String(snoozeModalTargets.length))
+        : ctxTargetTicketRef;
+
+    // Default to tomorrow at the install's wake hour — the most likely answer,
+    // and it means the dialog opens on a valid future time rather than on today
+    // at 00:00, which the server would (correctly) refuse.
+    const d = atHourLocal(snoozeWakeHour(), 1);
+    document.getElementById('snoozeDate').value = ymdInZone(d);
+    document.getElementById('snoozeTime').value =
+        String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    document.getElementById('snoozeReason').value = '';
+    document.getElementById('snoozeSaveBtn').disabled = false;
+    document.getElementById('snoozeModal').classList.add('active');
+    setTimeout(() => document.getElementById('snoozeDate').focus(), 50);
+}
+
+function closeSnoozeModal() {
+    document.getElementById('snoozeModal').classList.remove('active');
+    snoozeModalTargets = [];
+}
+
+async function saveCustomSnooze() {
+    const date = document.getElementById('snoozeDate').value;
+    const time = document.getElementById('snoozeTime').value;
+    const reason = document.getElementById('snoozeReason').value.trim();
+    if (!date || !time) { showToast(t('tickets.snooze.need_datetime'), 'error'); return; }
+
+    const ids = snoozeModalTargets.slice();
+    const btn = document.getElementById('snoozeSaveBtn');
+    btn.disabled = true;
+    closeSnoozeModal();
+    // Reuse the one write path. The ids are passed through ctxSnoozeTargets() by
+    // way of the module-level context, which the modal has not disturbed.
+    ctxTargetTicketId = ids.length === 1 ? ids[0] : ctxTargetTicketId;
+    await snoozeFromContext('custom', `${date} ${time}`, reason);
+    btn.disabled = false;
+}
+
+// Reading-pane banner on a sleeping ticket. Quiet like the split banners rather
+// than loud like merged-away: nothing is wrong here, the ticket is just resting,
+// and the one thing an analyst wants is the way out of it.
+function buildSnoozeBanner(email) {
+    const s = email && email.snooze;
+    if (!s || !s.snoozed_until) return '';
+    const when = formatWakeTime(s.snoozed_until);
+    const who = s.snoozed_by_name ? t('tickets.snooze.by').replace('%s', s.snoozed_by_name) : '';
+    const why = s.reason ? ` — ${escapeHtml(s.reason)}` : '';
+    return `
+        <div class="merge-banner merge-banner-snooze">
+            <span class="merge-banner-icon">🌙</span>
+            <div class="merge-banner-text">
+                <strong>${escapeHtml(t('tickets.snooze.until').replace('%s', when))}</strong>${why}
+                <div>${escapeHtml(who)} ${escapeHtml(t('tickets.snooze.banner_hint'))}</div>
+            </div>
+            <button type="button" class="btn btn-secondary merge-banner-btn"
+                    onclick="wakeTickets([${Number(email.ticket_id)}])">${escapeHtml(t('tickets.context.wake'))}</button>
+        </div>`;
 }
 
 // ===== Trash folder context menu (Empty trash) =====

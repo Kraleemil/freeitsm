@@ -9,6 +9,7 @@ require_once '../includes/functions.php';
 require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
 require_once '../includes/timezone.php';
+require_once '../includes/ticket_snooze.php';
 I18n::initFromSession();
 Tz::init();
 
@@ -29,10 +30,18 @@ $translationNamespaces = ['common', 'tickets'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(t('tickets.title')); ?> - <?php echo htmlspecialchars(t('tickets.nav.inbox')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
-    <link rel="stylesheet" href="../assets/css/inbox.css?v=51">
+    <link rel="stylesheet" href="../assets/css/inbox.css?v=52">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=29">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
+    <?php
+    /* The install's snooze wake hour, so the flyout can label "Tomorrow" with the
+       actual time it means. The server resolves the preset either way — this is
+       for the label only, and a failed lookup just falls back to 09:00. */
+    $snoozeWakeHour = 9;
+    try { $snoozeWakeHour = snoozeWakeHour(connectToDatabase()); } catch (Exception $e) {}
+    ?>
+    <script>window.SNOOZE_WAKE_HOUR = <?php echo (int)$snoozeWakeHour; ?>;</script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
 </head>
@@ -418,6 +427,34 @@ $translationNamespaces = ['common', 'tickets'];
         </div>
     </div>
 
+    <!-- Snooze until a specific time (#933). Reached from the last row of the
+         Snooze flyout; the presets cover the common cases without it. -->
+    <div class="modal" id="snoozeModal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header"><?php echo htmlspecialchars(t('tickets.snooze.modal_title')); ?> <span id="snoozeTicketRef"></span></div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label"><?php echo htmlspecialchars(t('tickets.snooze.date')); ?> *</label>
+                    <input type="date" class="form-input" id="snoozeDate" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?php echo htmlspecialchars(t('tickets.snooze.time')); ?> *</label>
+                    <input type="time" class="form-input" id="snoozeTime" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?php echo htmlspecialchars(t('tickets.snooze.reason')); ?></label>
+                    <input type="text" class="form-input" id="snoozeReason" maxlength="255"
+                           placeholder="<?php echo htmlspecialchars(t('tickets.snooze.reason_ph')); ?>">
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.snooze.reason_help')); ?></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSnoozeModal()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+                <button class="btn btn-primary" id="snoozeSaveBtn" onclick="saveCustomSnooze()"><?php echo htmlspecialchars(t('tickets.snooze.confirm')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Right-click context menu for email rows. Positioned in JS at cursor. -->
     <div class="ticket-context-menu" id="ticketContextMenu" role="menu">
         <div class="ticket-context-menu-header" id="ticketContextMenuHeader"></div>
@@ -448,6 +485,25 @@ $translationNamespaces = ['common', 'tickets'];
         <button class="ticket-context-menu-item" type="button" onclick="openContextLinkTicket()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
             <span><?php echo htmlspecialchars(t('tickets.context.link_ticket')); ?></span>
+        </button>
+        <?php /* Snooze (#933). A parent with the presets as a flyout, so the common
+                 case ("tomorrow morning") is one hover and one click, and the custom
+                 date lives behind the last row rather than in front of everything. */ ?>
+        <div class="ticket-context-menu-item ticket-context-menu-parent" id="ctxSnoozeParent" role="menuitem" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span><?php echo htmlspecialchars(t('tickets.context.snooze')); ?></span>
+            <svg class="ctx-sub-arrow" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+            <div class="ticket-context-submenu" id="ctxSnoozeSubmenu" role="menu">
+                <!-- Populated by openTicketContextMenu() — the labels carry the real
+                     dates ("Tomorrow · Wed 09:00"), computed in the analyst's zone. -->
+            </div>
+        </div>
+        <?php /* Only shown when the target is actually asleep — a permanently visible
+                 "Wake" that usually does nothing is clutter, and the same reasoning
+                 hides Merge for a single ticket. */ ?>
+        <button class="ticket-context-menu-item" type="button" id="ctxWakeItem" style="display:none;" onclick="wakeFromContext()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <span><?php echo htmlspecialchars(t('tickets.context.wake')); ?></span>
         </button>
         <button class="ticket-context-menu-item" type="button" onclick="openContextRecordTime()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -639,7 +695,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=74"></script>
+    <script src="../assets/js/inbox.js?v=75"></script>
     <script src="../assets/js/mobile.js?v=12"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

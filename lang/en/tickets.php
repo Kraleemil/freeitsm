@@ -80,6 +80,7 @@ return [
         // Left-panel folder labels + matching list titles
         'unassigned'         => 'Unassigned',
         'unassigned_tickets' => 'Unassigned Tickets',
+        'snoozed'            => 'Snoozed',
         'trash'              => 'Trash',
     ],
 
@@ -187,6 +188,38 @@ return [
         'clear_department' => '(no department)',
         'clear_type'       => '(no type)',
         'clear_assignee'   => '(unassigned)',
+        'snooze'           => 'Snooze',
+        'wake'             => 'Wake now',
+    ],
+
+    // Snoozing a ticket (#933). Every wake time is shown WITH its time of day —
+    // "Thursday" alone leaves an analyst guessing whether it's back first thing.
+    'snooze' => [
+        'three_hours'   => 'In 3 hours',
+        'tonight'       => 'This evening',
+        'tomorrow'      => 'Tomorrow',
+        'next_week'     => 'Next week',
+        'pick'          => 'Pick a date…',
+        'modal_title'   => 'Snooze',
+        'date'          => 'Wake on',
+        'time'          => 'At',
+        'reason'        => 'What are you waiting for?',
+        'reason_ph'     => 'e.g. supplier delivery, user on holiday',
+        'reason_help'   => 'Optional. Shown on the ticket so a colleague knows why it is asleep.',
+        'confirm'       => 'Snooze',
+        'until'         => 'Snoozed until %s',
+        'by'            => 'Snoozed by %s.',
+        'banner_hint'   => 'It comes back to the queue automatically.',
+        'today_at'      => 'Today %s',
+        'tomorrow_at'   => 'Tomorrow %s',
+        'toast_one'     => 'Snoozed until %s',
+        'toast_many'    => '%d tickets snoozed until %s',
+        'failed'        => 'Could not snooze',
+        'need_datetime' => 'Pick a date and a time',
+        'wake_one'      => 'Back in the queue',
+        'wake_many'     => '%d tickets back in the queue',
+        'wake_none'     => 'Nothing to wake',
+        'wake_failed'   => 'Could not wake',
     ],
 
     'note_modal' => [
@@ -1047,6 +1080,8 @@ return [
             'system_name_help'    => 'This name appears in the header and page titles.',
             'reopen_label'        => 'Reopening',
             'reopen_toggle'       => 'Reopen a closed ticket when the requester replies',
+            'snooze_hour_label'   => 'Start of the working day',
+            'snooze_hour_help'    => 'The time a ticket snoozed until "Tomorrow" or "Next week" comes back. Read in each analyst\'s own timezone, so a desk spread across zones each gets their own morning.',
             'reopen_help'         => 'Applies wherever a requester comes back — the self-service portal, a reply to your notification email, WhatsApp or web chat. The ticket returns to your first open status. Only tickets in a status marked as closed are affected (set which those are under Statuses).',
         ],
 

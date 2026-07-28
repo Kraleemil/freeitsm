@@ -426,6 +426,14 @@ return [
         // in settings — the same trap the reopen-on-reply rule avoids by reading
         // ticket_statuses.is_closed rather than hardcoding "Closed".
         'merged_into_id'        => 'INT NULL',
+        // Snooze (#933): the ticket is out of the working queue until this instant.
+        // "Asleep" is `snoozed_until > UTC_TIMESTAMP()` and nothing else — no cron
+        // clears it, so a ticket returns on time even on an install with the
+        // schedulers switched off. A past value simply means it has woken.
+        'snoozed_until'         => 'DATETIME NULL',
+        'snoozed_at'            => 'DATETIME NULL',
+        'snoozed_by'            => 'INT NULL',
+        'snooze_reason'         => 'VARCHAR(255) NULL',
     ],
 
     'ticket_audit' => [

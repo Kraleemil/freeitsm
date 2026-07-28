@@ -8,6 +8,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/ticket_snooze.php';
 
 header('Content-Type: application/json');
 
@@ -40,6 +41,11 @@ try {
     // Hide trashed (soft-deleted) tickets from every count below. No placeholder,
     // so $ttParams is unchanged; appended wherever $ttSql is used (WHERE + ON).
     $ttSql .= " AND t.deleted_datetime IS NULL";
+    // Snoozed (#933) likewise: a sleeping ticket is out of the working queue, so it
+    // must not be counted in the folder it left — otherwise the department badge
+    // says 12 and the list shows 11, and the analyst hunts for a ticket that is
+    // deliberately hidden. Same no-placeholder property as the line above.
+    $ttSql .= snoozeHiddenSql($conn, 't');
 
     if ($hasTeamFilter) {
         // User has team assignments - filter to only their departments
@@ -344,10 +350,21 @@ try {
     $trashStmt->execute($trashTtParams);
     $trashCount = (int)$trashStmt->fetchColumn();
 
+    // Snoozed count — company-scoped and not team-filtered, matching the Snoozed
+    // list (and Trash before it). Trashed tickets are excluded: a ticket that was
+    // snoozed and then binned belongs in one place, and that place is the bin.
+    list($snoozeTtSql, $snoozeTtParams) = ticketTenantFilter($conn, $analystId, 't');
+    $snoozeStmt = $conn->prepare(
+        "SELECT COUNT(*) FROM tickets t WHERE t.deleted_datetime IS NULL" . $snoozeTtSql . snoozeOnlySql($conn, 't')
+    );
+    $snoozeStmt->execute($snoozeTtParams);
+    $snoozedCount = (int)$snoozeStmt->fetchColumn();
+
     echo json_encode([
         'success' => true,
         'total_count' => $totalCount,
         'trash_count' => $trashCount,
+        'snoozed_count' => $snoozedCount,
         'unassigned_count' => (int)$unassignedResult['count'],
         'unassigned_analyst_count' => $unassignedAnalystCount,
         'statuses' => $statusMeta,
