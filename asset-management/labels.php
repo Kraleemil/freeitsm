@@ -213,6 +213,25 @@ if ($ready && $ids) {
     <span style="opacity:0.85;font-size:13px;"><?php echo count($assets); ?> label(s)</span>
 </div>
 
+<?php
+/**
+ * A label is printed once and stuck on a machine for years, so a URL that only
+ * works on the server itself is the most expensive mistake this page can make —
+ * you find out after 500 labels are on 500 laptops. `localhost` in a QR code
+ * means "this phone" to the phone that scans it, so it can never work.
+ */
+$labelHost = parse_url(assetPublicBaseUrl(), PHP_URL_HOST) ?: '';
+$hostIsLocal = in_array(strtolower($labelHost), ['localhost', '127.0.0.1', '::1'], true);
+?>
+<?php if ($ready && $hostIsLocal): ?>
+    <div class="hint" style="background:#fdeceb;border-bottom-color:#f5c6cb;color:#8a1f1a;">
+        <strong>These codes point at <code><?php echo htmlspecialchars($labelHost); ?></code> — a phone scanning them will fail.</strong>
+        To a phone, <code>localhost</code> means the phone itself. Set the address this install is reached on
+        (<strong>Tickets → Settings → Messaging → Public base URL</strong>) and reprint — the codes themselves
+        don't change, only the address inside them.
+    </div>
+<?php endif; ?>
+
 <?php if (!$ready): ?>
     <div class="hint">Asset labels need a database update first — an administrator can run <strong>System → Database Verification</strong>.</div>
 <?php elseif (!$ids): ?>
