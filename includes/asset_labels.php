@@ -161,6 +161,17 @@ function assetPublicBaseUrl(): string {
     // The app root — the same derivation messagingWebhookUrl() uses, so a
     // sub-folder install ("/freeitsm-app/") is handled identically.
     $root = defined('BASE_URL') ? rtrim(BASE_URL, '/') : '';
-    $base = rtrim($host, '/') . $root;
+    $host = rtrim($host, '/');
+
+    // ⚠️ The setting is documented as scheme://host, but people paste the URL
+    // they actually use — which on a sub-folder install carries the folder, and
+    // on a tunnel (ngrok et al) is copied wholesale from the address bar. Adding
+    // the root again would encode …/freeitsm-app/freeitsm-app/a/<token> into a
+    // code that then gets printed onto physical labels. Accept both forms.
+    if ($root !== '' && substr($host, -strlen($root)) === $root) {
+        $root = '';
+    }
+
+    $base = $host . $root;
     return $base;
 }
