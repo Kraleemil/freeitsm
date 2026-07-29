@@ -65,6 +65,16 @@ function aiSettingsRegistry(): array
             'default_provider'=> 'anthropic',
             'default_model'   => 'claude-sonnet-4-6',
         ],
+        // The Knowledge assistant: judging whether a closed ticket contains an
+        // article, and drafting one when it does. Sonnet rather than Haiku
+        // because the valuable half of this feature is the REFUSAL — deciding
+        // "there is no article here, and here is what I'd need to know" is a
+        // harder judgement than writing the prose once that's settled.
+        'knowledge_writeup' => [
+            'label'           => 'Knowledge Assistant',
+            'default_provider'=> 'anthropic',
+            'default_model'   => 'claude-sonnet-4-6',
+        ],
         // Deferred: 'rfp_ai' (RFP Builder) — needs real OpenRouter SSE streaming first.
     ];
 }

@@ -27,14 +27,21 @@ try {
     // LEFT JOIN (not INNER) so articles authored by a since-deleted analyst
     // still show up — otherwise they vanish from the list but stay counted in
     // the tag sidebar, causing the count mismatch reported in #391.
+    // ⚠️ Unpublished articles ARE listed here, deliberately, and this is the ONLY
+    // reader where that is true. The Knowledge assistant saves its AI-written
+    // work as an unpublished draft, and a draft nobody can find is a draft
+    // nobody will ever publish — the feature would appear to lose your work.
+    // Analysts see drafts with a badge; every reader that faces a customer
+    // (includes/knowledge/portal_reader.php, and KB_VISIBLE_SQL in
+    // includes/knowledge/kb_ai.php for web chat + AI answers) still requires
+    // is_published = 1, so nothing unreviewed can reach a requester.
     $sql = "SELECT DISTINCT a.id, a.title, a.created_datetime, a.modified_datetime, a.view_count,
-                   a.tenant_id, a.audience,
+                   a.tenant_id, a.audience, a.is_published,
                    LEFT(a.body, 300) as preview,
                    COALESCE(an.full_name, '(deleted analyst)') as author_name
             FROM knowledge_articles a
             LEFT JOIN analysts an ON an.id = a.author_id
-            WHERE a.is_published = 1
-              AND (a.is_archived = 0 OR a.is_archived IS NULL)";
+            WHERE (a.is_archived = 0 OR a.is_archived IS NULL)";
 
     $params = [];
 

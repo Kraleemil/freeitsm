@@ -2315,6 +2315,71 @@ CREATE TABLE IF NOT EXISTS `knowledge_article_tags` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------
+-- Knowledge gaps — the Knowledge assistant
+--
+-- One closed ticket at a time tells you almost nothing: "reset password, asked
+-- user to log in again" is not an article. Fourteen of them is a different
+-- statement entirely. These three tables hold the answer to "what has this
+-- service desk answered over and over that the knowledge base never learned?"
+--
+-- knowledge_gap_tickets is a CACHE, not a source of truth: every row can be
+-- deleted and rebuilt by re-running the analysis. It exists because embedding
+-- a ticket costs a paid API call, so we do it once.
+-- ----------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `knowledge_gap_tickets` (
+    `ticket_id`             INT NOT NULL,
+    `embedding`             LONGTEXT NULL,
+    `embedded_datetime`     DATETIME NULL,
+    -- Similarity to the CLOSEST published article. Low = nothing in the KB
+    -- answers this ticket, which is what makes it a gap candidate.
+    `best_article_id`       INT NULL,
+    `best_similarity`       FLOAT NULL,
+    -- 0-100: how much an article could actually be written from this one
+    -- ticket. Drives which ticket in a cluster gets drafted from, and whether
+    -- the assistant has to interview the analyst instead.
+    `richness`              INT NOT NULL DEFAULT 0,
+    `analysed_datetime`     DATETIME NULL,
+    `tenant_id`             INT NULL,
+    PRIMARY KEY (`ticket_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `knowledge_gap_clusters` (
+    `id`                    INT NOT NULL AUTO_INCREMENT,
+    `label`                 VARCHAR(255) NOT NULL,
+    `seed_ticket_id`        INT NULL,
+    -- The ticket the assistant would draft FROM — the richest in the cluster,
+    -- not the newest. A thin ticket counts towards the total but never gets
+    -- handed to the model as the source.
+    `best_ticket_id`        INT NULL,
+    `max_richness`          INT NOT NULL DEFAULT 0,
+    `ticket_count`          INT NOT NULL DEFAULT 0,
+    `first_ticket_datetime` DATETIME NULL,
+    `last_ticket_datetime`  DATETIME NULL,
+    -- open | dismissed | written. 'dismissed' must survive a re-analysis, which
+    -- is why clusters are stored at all rather than recomputed on each view.
+    `status`                VARCHAR(20) NOT NULL DEFAULT 'open',
+    `dismissed_by_id`       INT NULL,
+    `dismissed_datetime`    DATETIME NULL,
+    `article_id`            INT NULL,
+    `signature`             VARCHAR(64) NULL,
+    `tenant_id`             INT NULL,
+    `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_kgc_status` (`status`),
+    KEY `ix_kgc_signature` (`signature`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `knowledge_gap_cluster_tickets` (
+    `cluster_id`    INT NOT NULL,
+    `ticket_id`     INT NOT NULL,
+    `similarity`    FLOAT NULL,
+    PRIMARY KEY (`cluster_id`, `ticket_id`),
+    CONSTRAINT `fk_kgct_cluster` FOREIGN KEY (`cluster_id`) REFERENCES `knowledge_gap_clusters` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------
 -- Software Inventory & Licences
 -- ----------------------------------------------------------
 

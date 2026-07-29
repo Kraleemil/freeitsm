@@ -1972,6 +1972,58 @@ return [
         'tag_id'        => 'INT NOT NULL',
     ],
 
+    // Knowledge gaps — the Knowledge assistant. One closed ticket says almost
+    // nothing ("reset password, asked user to log in again" is not an article);
+    // fourteen of them is a different statement. This is a CACHE — every row
+    // can be dropped and rebuilt by re-running the analysis. It exists only
+    // because embedding a ticket costs a paid API call.
+    'knowledge_gap_tickets' => [
+        'ticket_id'             => 'INT NOT NULL',
+        'embedding'             => 'LONGTEXT NULL',
+        'embedded_datetime'     => 'DATETIME NULL',
+        // Similarity to the CLOSEST published article — low means nothing in
+        // the KB answers this ticket, which is what makes it a gap candidate.
+        'best_article_id'       => 'INT NULL',
+        'best_similarity'       => 'FLOAT NULL',
+        // 0-100: how much of an article could actually be written from this one
+        // ticket. Picks which ticket in a cluster gets drafted from, and decides
+        // whether the assistant has to interview the analyst instead.
+        'richness'              => 'INT NOT NULL DEFAULT 0',
+        'analysed_datetime'     => 'DATETIME NULL',
+        'tenant_id'             => 'INT NULL',
+    ],
+
+    'knowledge_gap_clusters' => [
+        'id'                    => 'INT NOT NULL AUTO_INCREMENT',
+        'label'                 => 'VARCHAR(255) NOT NULL',
+        'seed_ticket_id'        => 'INT NULL',
+        // The ticket the assistant drafts FROM — the richest in the cluster, not
+        // the newest. A thin ticket counts towards the total but is never handed
+        // to the model as the source.
+        'best_ticket_id'        => 'INT NULL',
+        'max_richness'          => 'INT NOT NULL DEFAULT 0',
+        'ticket_count'          => 'INT NOT NULL DEFAULT 0',
+        'first_ticket_datetime' => 'DATETIME NULL',
+        'last_ticket_datetime'  => 'DATETIME NULL',
+        // open | dismissed | written. 'dismissed' has to survive a re-analysis,
+        // which is the whole reason clusters are stored rather than recomputed
+        // on every view.
+        'status'                => "VARCHAR(20) NOT NULL DEFAULT 'open'",
+        'dismissed_by_id'       => 'INT NULL',
+        'dismissed_datetime'    => 'DATETIME NULL',
+        'article_id'            => 'INT NULL',
+        'signature'             => 'VARCHAR(64) NULL',
+        'tenant_id'             => 'INT NULL',
+        'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    ],
+
+    'knowledge_gap_cluster_tickets' => [
+        'cluster_id'    => 'INT NOT NULL',
+        'ticket_id'     => 'INT NOT NULL',
+        'similarity'    => 'FLOAT NULL',
+    ],
+
     'software_inventory_apps' => [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'display_name'      => 'VARCHAR(512) NOT NULL',

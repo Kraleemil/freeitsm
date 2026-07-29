@@ -376,6 +376,45 @@ $translationNamespaces = ['common', 'knowledge'];
             <h3 style="font-size: 16px; margin-bottom: 15px;"><?php echo htmlspecialchars(t('knowledge.settings.ai_chat_heading')); ?></h3>
             <?php renderAiSettingsPanel('knowledge_ai'); ?>
 
+            <!-- The assistant: judging whether a ticket contains an article, and
+                 drafting it. Its own provider/model/key so the spend is its own
+                 line on the bill — but it falls back to the chat key above if
+                 left blank, so nobody has to configure two things to get going
+                 (see writeupAiConfig() in includes/knowledge/writeup_ai.php). -->
+            <h3 style="font-size: 16px; margin: 25px 0 15px 0; padding-top: 20px; border-top: 1px solid var(--border, #e0e0e0);">Assistant</h3>
+            <p style="color: var(--text-muted, #666); margin-bottom: 15px; font-size: 13px;">
+                Finds the questions your service desk keeps answering that the knowledge base
+                does not cover, and drafts the article. Leave the key blank to reuse the one above.
+            </p>
+            <?php renderAiSettingsPanel('knowledge_writeup'); ?>
+
+            <h4 style="font-size: 14px; margin: 22px 0 12px 0;">When the assistant speaks up</h4>
+            <form id="assistantSettingsForm">
+                <div class="form-group">
+                    <label for="gapMinCluster">Ask the same question this many times before suggesting an article</label>
+                    <input type="number" id="gapMinCluster" min="2" max="50" step="1">
+                    <small>Lower it if you want an article for anything that comes up twice; raise it on a busy desk.</small>
+                </div>
+                <div class="form-group">
+                    <label for="gapLookback">How far back to read (days)</label>
+                    <input type="number" id="gapLookback" min="7" max="730" step="1">
+                    <small>Older than this and the answer has usually changed anyway.</small>
+                </div>
+                <div class="form-group">
+                    <label for="gapArticleThreshold">How close an existing article must be to count as covering a ticket</label>
+                    <input type="number" id="gapArticleThreshold" min="0.3" max="0.95" step="0.01">
+                    <small>Higher means stricter, so more tickets are treated as gaps. 0.75 is a sensible default. Only used when an OpenAI key is set.</small>
+                </div>
+                <div class="form-group">
+                    <label for="gapClusterThreshold">How alike two tickets must be to count as the same question</label>
+                    <input type="number" id="gapClusterThreshold" min="0.5" max="0.99" step="0.01">
+                    <small>Higher means tighter groups. Too low and unrelated tickets get lumped together. Only used when an OpenAI key is set.</small>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+
             <!-- OpenAI key for semantic-search embeddings — a separate concern from the chat provider. -->
             <h3 style="font-size: 16px; margin: 25px 0 15px 0; padding-top: 20px; border-top: 1px solid var(--border, #e0e0e0);"><?php echo htmlspecialchars(t('knowledge.settings.ai_openai_heading')); ?></h3>
             <form id="aiSettingsForm">
@@ -702,6 +741,61 @@ $translationNamespaces = ['common', 'knowledge'];
                 console.error('Error loading AI settings:', error);
             }
         }
+
+        /* The assistant's tunables. Values are clamped server-side too — the
+           number inputs' min/max are a convenience, not the guard. */
+        (function initAssistantSettings() {
+            const form = document.getElementById('assistantSettingsForm');
+            if (!form) return;
+
+            const fields = {
+                gapMinCluster:       'knowledge_gap_min_cluster',
+                gapLookback:         'knowledge_gap_lookback_days',
+                gapArticleThreshold: 'knowledge_gap_article_threshold',
+                gapClusterThreshold: 'knowledge_gap_cluster_threshold'
+            };
+
+            fetch(API_BASE + 'assistant_settings.php')
+                .then(r => r.json())
+                .then(d => {
+                    if (!d.success) return;
+                    Object.entries(fields).forEach(([id, key]) => {
+                        const el = document.getElementById(id);
+                        if (el && d.settings[key] !== undefined) el.value = d.settings[key];
+                    });
+                })
+                .catch(() => { /* defaults still apply server-side */ });
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const payload = {};
+                Object.entries(fields).forEach(([id, key]) => {
+                    const el = document.getElementById(id);
+                    if (el && el.value !== '') payload[key] = el.value;
+                });
+                try {
+                    const res = await fetch(API_BASE + 'assistant_settings.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        // Reflect what the server actually stored — a value it
+                        // clamped must not keep showing the number you typed.
+                        Object.entries(fields).forEach(([id, key]) => {
+                            const el = document.getElementById(id);
+                            if (el && data.saved[key] !== undefined) el.value = data.saved[key];
+                        });
+                        showToast('Saved', 'success');
+                    } else {
+                        showToast(data.error || 'Could not save', 'error');
+                    }
+                } catch (err) {
+                    showToast('Could not save', 'error');
+                }
+            });
+        })();
 
         document.getElementById('aiSettingsForm').addEventListener('submit', async function(e) {
             e.preventDefault();

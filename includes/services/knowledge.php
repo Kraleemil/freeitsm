@@ -13,8 +13,10 @@
  * must be a real active analyst, next_review_date validated, updating an
  * archived article is refused (409), and the recycle-bin guards (archive an
  * archived article / restore a live one / purge a live one → 409). Articles are
- * always created *published* — the product has no draft workflow. Bodies are
- * TinyMCE HTML stored verbatim (no sanitisation exists anywhere).
+ * created *published* unless the caller passes is_published => false; the only
+ * caller that does is the Knowledge assistant, whose AI-written drafts must
+ * reach a human before a reader. Bodies are TinyMCE HTML stored verbatim (no
+ * sanitisation exists anywhere).
  *
  * ⚙️ Side effect: after a save, the OpenAI search embedding is regenerated so
  * AI chat / vector search keep working. It is deliberately BEST-EFFORT — it runs
@@ -215,6 +217,13 @@ class KnowledgeService
         $tenantId = self::resolveTenantId($conn, $ctx, $in['tenant_id'] ?? null);
         $audience = self::resolveAudience($in['audience'] ?? null);
 
+        // Published unless the caller explicitly asks for a draft. Defaulting to
+        // 1 keeps every existing caller (the editor, the REST API, the importer)
+        // behaving exactly as before; the Knowledge assistant is the first caller
+        // that needs the other answer, because an AI-written article must always
+        // land in front of a human before anyone can read it.
+        $isPublished = array_key_exists('is_published', $in) ? (int)(bool)$in['is_published'] : 1;
+
         $conn->beginTransaction();
         try {
             $conn->prepare(
@@ -222,8 +231,8 @@ class KnowledgeService
                     (title, body, author_id, owner_id, next_review_date,
                      created_datetime, modified_datetime, is_published, view_count,
                      tenant_id, audience)
-                 VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP(), 1, 0, ?, ?)"
-            )->execute([$title, $bodyHtml, $ctx->actorId, $ownerId, $nextReview, $tenantId, $audience]);
+                 VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP(), ?, 0, ?, ?)"
+            )->execute([$title, $bodyHtml, $ctx->actorId, $ownerId, $nextReview, $isPublished, $tenantId, $audience]);
             $articleId = (int)$conn->lastInsertId();
 
             if (isset($in['tags']) && is_array($in['tags'])) {
@@ -236,12 +245,18 @@ class KnowledgeService
         }
         $embGen = self::updateEmbedding($conn, $articleId, $title, $bodyHtml);
 
-        try {
-            WorkflowEngine::dispatch('knowledge.published', [
-                'article' => ['id' => $articleId, 'title' => $title],
-            ]);
-        } catch (Exception $wfEx) {
-            error_log('Workflow dispatch error in knowledge service (published): ' . $wfEx->getMessage());
+        // ⚠️ Only a genuinely published article fires knowledge.published. A draft
+        // has not been published to anyone, and a workflow that announces new
+        // articles would otherwise email the whole company about a page nobody
+        // can open.
+        if ($isPublished) {
+            try {
+                WorkflowEngine::dispatch('knowledge.published', [
+                    'article' => ['id' => $articleId, 'title' => $title],
+                ]);
+            } catch (Exception $wfEx) {
+                error_log('Workflow dispatch error in knowledge service (published): ' . $wfEx->getMessage());
+            }
         }
 
         return ['id' => $articleId, 'created' => true, 'embedding_generated' => $embGen];

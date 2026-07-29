@@ -55,6 +55,7 @@ define('ENCRYPTED_SETTING_KEYS', [
     // the next time it is saved.
     'problem_ai_api_key',
     'lms_ai_api_key',
+    'knowledge_writeup_api_key',
 ]);
 
 /**
@@ -78,6 +79,7 @@ define('MASKED_SETTING_KEYS', [
     'forms_ai_api_key',
     'problem_ai_api_key',
     'lms_ai_api_key',
+    'knowledge_writeup_api_key',
 ]);
 
 /**

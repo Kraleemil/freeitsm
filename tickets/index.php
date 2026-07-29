@@ -697,10 +697,16 @@ $translationNamespaces = ['common', 'tickets'];
     <script>
         window.API_BASE = '../api/tickets/';
         window.CURRENT_ANALYST_ID = <?php echo (int)($_SESSION['analyst_id'] ?? 0); ?>;
+        // The "Write up" button posts to the Knowledge module and saves an
+        // article, so it is hidden from anyone who could only be refused. The
+        // endpoint enforces this too — this flag only stops us offering a
+        // button that cannot work.
+        window.KB_WRITEUP_ENABLED = <?php echo analystCanAccessModule(connectToDatabase(), (int)($_SESSION['analyst_id'] ?? 0), 'knowledge') ? 'true' : 'false'; ?>;
+        window.KB_BASE = '../api/knowledge/';
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=77"></script>
+    <script src="../assets/js/inbox.js?v=78"></script>
     <script src="../assets/js/mobile.js?v=14"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

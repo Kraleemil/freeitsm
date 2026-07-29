@@ -46,6 +46,12 @@ require_once $path_prefix . 'includes/waffle-menu.php';
             </svg>
             <span><?php echo htmlspecialchars(function_exists('t') ? t('knowledge.nav.review') : 'Review'); ?></span>
         </a>
+        <a href="<?php echo BASE_URL; ?>knowledge/assistant/" class="nav-btn <?php echo $current_page === 'assistant' ? 'active' : ''; ?>" title="What the knowledge base is missing">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l2.09 6.26L20 9.27l-4 3.9.94 5.83L12 16.25 7.06 19l.94-5.83-4-3.9 5.91-1.01L12 2z"></path>
+            </svg>
+            <span>Assistant</span>
+        </a>
         <button class="nav-btn" onclick="openAiChatOrNavigate()" title="<?php echo htmlspecialchars(function_exists('t') ? t('knowledge.nav_title.ask_ai') : 'Ask AI Assistant'); ?>">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>

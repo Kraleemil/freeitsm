@@ -2210,6 +2210,7 @@ function displayEmail(email, recordings) {
                 <span class="action-btn-icon">📋</span>
                 <span>${escapeHtml(t('tickets.actions.audit'))}</span>
             </button>
+            ${buildWriteUpButton(email)}
             <button class="action-btn" onclick="requestCsatSurvey()" title="Send a satisfaction survey to the requester">
                 <span class="action-btn-icon">⭐</span>
                 <span>${escapeHtml(t('tickets.actions.request_feedback'))}</span>
@@ -7307,4 +7308,226 @@ function renderSlaPanel(sla) {
             ${renderRow('Resolution', sla.resolution)}
         </div>
     `;
+}
+
+/* ====================================================================== *
+ * Write this up — the Knowledge assistant, from the ticket side
+ *
+ * The Tickets module owns the MOMENT (an analyst has just solved something and
+ * it is fresh in their head); the Knowledge module owns the JUDGEMENT (is there
+ * an article here, and is it worth having). Everything below is a thin client
+ * for api/knowledge/writeup_stream.php — no prompt, no policy and no opinion
+ * about what makes a good article lives on this side.
+ *
+ * ⚠️ The button deliberately only appears on a CLOSED ticket. Offering it
+ * mid-conversation invites a write-up of a problem nobody has finished solving,
+ * which is exactly the kind of half-true article that teaches people to stop
+ * trusting the knowledge base.
+ * ====================================================================== */
+
+/** Is this ticket in a status the admin has marked as closed? */
+function ticketIsClosed(email) {
+    if (!email || !email.status) return false;
+    const s = ticketStatuses.find(x => x.name === email.status);
+    return !!(s && s.is_closed);
+}
+
+function buildWriteUpButton(email) {
+    if (!window.KB_WRITEUP_ENABLED || !ticketIsClosed(email)) return '';
+    return `
+            <button class="action-btn" onclick="openWriteUpModal()" title="Turn this into a knowledge base article">
+                <span class="action-btn-icon">📖</span>
+                <span>Write up</span>
+            </button>`;
+}
+
+let wuDraftHtml = '';
+let wuTicketId = 0;
+
+function openWriteUpModal() {
+    if (!currentEmail) return;
+    wuTicketId = currentEmail.ticket_id || currentEmail.id;
+    wuDraftHtml = '';
+
+    let modal = document.getElementById('writeUpModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'writeUpModal';
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width:820px;">
+                <div class="modal-header">
+                    <h2>Write this up</h2>
+                    <button class="modal-close" onclick="closeWriteUpModal()">&times;</button>
+                </div>
+                <div class="modal-body" id="wuBody" style="max-height:60vh;overflow-y:auto;">
+                    <div id="wuStatus" style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Reading the ticket…</div>
+                    <div id="wuContent"></div>
+                </div>
+                <div class="modal-footer" id="wuFoot"></div>
+            </div>`;
+        document.body.appendChild(modal);
+    }
+    document.getElementById('wuStatus').textContent = 'Reading the ticket…';
+    document.getElementById('wuContent').innerHTML = '';
+    document.getElementById('wuFoot').innerHTML = '';
+    modal.style.display = 'flex';
+
+    wuStream({ ticket_id: wuTicketId });
+}
+
+function closeWriteUpModal() {
+    const m = document.getElementById('writeUpModal');
+    if (m) m.style.display = 'none';
+}
+
+function wuRetryWithAnswers() {
+    const answers = Array.from(document.querySelectorAll('#wuContent .wu-q')).map(q => {
+        const label = q.querySelector('label').textContent;
+        const val = q.querySelector('textarea').value.trim();
+        return val ? ('Q: ' + label + '\nA: ' + val) : '';
+    }).filter(Boolean).join('\n\n');
+
+    if (!answers) { showToast('Answer at least one question first', 'error'); return; }
+
+    document.getElementById('wuStatus').textContent = 'Writing it up…';
+    document.getElementById('wuContent').innerHTML = '';
+    document.getElementById('wuFoot').innerHTML = '';
+    wuStream({ ticket_id: wuTicketId, answers });
+}
+
+/**
+ * Stream the write-up. The server sends the verdict as its own event before any
+ * prose, so nothing is rendered until we know whether this is an article or a
+ * refusal — otherwise the words "VERDICT: ARTICLE" land in the analyst's draft.
+ */
+async function wuStream(payload) {
+    wuDraftHtml = '';
+    const statusEl = () => document.getElementById('wuStatus');
+    const contentEl = () => document.getElementById('wuContent');
+    let verdict = null;
+    let buffer = '';
+
+    let res;
+    try {
+        res = await fetch((window.KB_BASE || '../api/knowledge/') + 'writeup_stream.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        statusEl().textContent = 'Could not reach the assistant.';
+        return;
+    }
+
+    const handle = (event, data) => {
+        if (event === 'error') { statusEl().textContent = data.message || 'Something went wrong.'; return; }
+        if (event === 'verdict') {
+            verdict = data.verdict;
+            statusEl().textContent = verdict === 'article' ? 'Writing it up…' : 'There is not enough in this ticket yet.';
+            contentEl().innerHTML = verdict === 'article'
+                ? '<div id="wuPreview" style="border:1px solid var(--border);border-radius:8px;padding:16px 18px;line-height:1.6;"></div>'
+                : '<div id="wuRefusal" style="border-left:3px solid var(--accent);padding:2px 0 2px 14px;margin-bottom:16px;line-height:1.55;"></div>';
+            return;
+        }
+        if (event === 'text') {
+            buffer += (data.delta || '');
+            if (verdict === 'article') {
+                wuDraftHtml = buffer;
+                const p = document.getElementById('wuPreview');
+                // Model output still goes through the one shared sanitiser
+                // before it touches innerHTML — same rule as every message body.
+                if (p) p.innerHTML = safeHtmlFragment(buffer);
+            } else {
+                const r = document.getElementById('wuRefusal');
+                if (r) r.textContent = buffer;
+            }
+            return;
+        }
+        if (event === 'done') wuFinish(data);
+    };
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuf = '';
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuf += decoder.decode(value, { stream: true });
+        const chunks = sseBuf.split('\n\n');
+        sseBuf = chunks.pop();
+        chunks.forEach(chunk => {
+            const ev = (chunk.match(/^event: (.+)$/m) || [])[1];
+            const dm = (chunk.match(/^data: (.+)$/m) || [])[1];
+            if (!ev || !dm) return;
+            try { handle(ev, JSON.parse(dm)); } catch (e) { /* partial frame */ }
+        });
+    }
+}
+
+function wuFinish(data) {
+    const statusEl = document.getElementById('wuStatus');
+    const contentEl = document.getElementById('wuContent');
+    const footEl = document.getElementById('wuFoot');
+
+    if (data.verdict === 'article') {
+        statusEl.textContent = 'Draft ready — read it before publishing.';
+        contentEl.insertAdjacentHTML('beforeend',
+            '<div style="font-size:12px;color:var(--text-muted);margin-top:12px;">' +
+            'Saving puts this in the knowledge base as an unpublished draft. Nobody can read it until you publish it.</div>');
+        footEl.innerHTML =
+            '<button class="btn btn-secondary" onclick="closeWriteUpModal()">Cancel</button>' +
+            '<button class="btn btn-primary" id="wuSaveBtn" onclick="wuSaveDraft()">Save</button>';
+        return;
+    }
+
+    statusEl.textContent = 'Not enough to write from yet.';
+    const refusal = document.getElementById('wuRefusal');
+    if (refusal) {
+        refusal.textContent = data.explanation || 'This ticket does not say what caused the problem or how it was fixed.';
+    }
+    if ((data.questions || []).length) {
+        contentEl.insertAdjacentHTML('beforeend',
+            '<p style="font-size:13px;color:var(--text-muted);margin:0 0 14px;">Answer what you can and it will try again.</p>' +
+            data.questions.map(q =>
+                '<div class="wu-q" style="margin-bottom:14px;">' +
+                '<label style="display:block;font-size:13px;margin-bottom:5px;line-height:1.45;">' + escapeHtml(q) + '</label>' +
+                '<textarea class="form-textarea" style="width:100%;box-sizing:border-box;min-height:58px;"></textarea></div>').join(''));
+        footEl.innerHTML =
+            '<button class="btn btn-secondary" onclick="closeWriteUpModal()">Close</button>' +
+            '<button class="btn btn-primary" onclick="wuRetryWithAnswers()">Retry</button>';
+    } else {
+        footEl.innerHTML = '<button class="btn btn-secondary" onclick="closeWriteUpModal()">Close</button>';
+    }
+}
+
+async function wuSaveDraft() {
+    const btn = document.getElementById('wuSaveBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+    // The <h1> the model opened with is the title; everything after it is body.
+    const tmp = document.createElement('div');
+    tmp.innerHTML = safeHtmlFragment(wuDraftHtml);
+    const h1 = tmp.querySelector('h1');
+    const title = h1 ? h1.textContent.trim() : (currentEmail ? currentEmail.subject : 'Untitled');
+    if (h1) h1.remove();
+
+    try {
+        const res = await fetch((window.KB_BASE || '../api/knowledge/') + 'writeup_save.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, body_html: tmp.innerHTML, ticket_id: wuTicketId })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+            showToast(data.error || 'Could not save', 'error');
+            return;
+        }
+        closeWriteUpModal();
+        showToast('Saved as a draft in Knowledge', 'success');
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+        showToast('Could not save', 'error');
+    }
 }
