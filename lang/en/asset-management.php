@@ -83,6 +83,7 @@ return [
         'clear_selection'    => 'Clear',
         'print_labels'       => 'Print labels',
         'assign_tags'        => 'Assign tags',
+        'scan'               => 'Scan',
     ],
 
     // Asset detail panel (right pane)

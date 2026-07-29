@@ -110,6 +110,13 @@ $translationNamespaces = ['common', 'asset-management'];
             gap: 8px;
         }
 
+        .asset-count-actions {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
         .assets-tag-link {
             flex: 0 0 auto;
             font-size: 12px;
@@ -1002,8 +1009,16 @@ $translationNamespaces = ['common', 'asset-management'];
                     <div class="asset-count" id="assetCount"></div>
                     <?php /* Bulk tagging (#935) — an occasional job, so a quiet link
                              beside the count rather than a nav item competing with
-                             the things people use every day. */ ?>
-                    <a class="assets-tag-link" href="assign-tags.php"><?php echo htmlspecialchars(t('asset-management.list.assign_tags')); ?></a>
+                             the things people use every day. Scanning (#938) sits
+                             here for the same reason, and next to it because the
+                             two are the same kind of standing-up-with-a-phone job. */ ?>
+                    <?php /* Grouped in one span: the row is space-between, so two
+                             loose links would sit at opposite ends of it with the
+                             count stranded in the middle. */ ?>
+                    <span class="asset-count-actions">
+                        <a class="assets-tag-link" href="scanner.php"><?php echo htmlspecialchars(t('asset-management.list.scan')); ?></a>
+                        <a class="assets-tag-link" href="assign-tags.php"><?php echo htmlspecialchars(t('asset-management.list.assign_tags')); ?></a>
+                    </span>
                 </div>
                 <?php /* Appears only once more than one asset is picked with
                          Ctrl/Shift — see handleAssetRowClick(). Hidden by default

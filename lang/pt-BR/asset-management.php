@@ -76,6 +76,7 @@ return [
         'clear_selection'    => 'Limpar',
         'print_labels'       => 'Imprimir etiquetas',
         'assign_tags'        => 'Atribuir etiquetas',
+        'scan'               => 'Escanear',
     ],
 
     // Asset detail panel (right pane)
