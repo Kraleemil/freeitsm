@@ -898,4 +898,351 @@
 
     /* The assigned-user bar stacks rather than squeezing the button. */
     .asset-assigned-bar { flex-wrap: wrap; gap: 8px; }
+
+
+    /* ====================================================================
+       LAYER 15 — ASSETS round 2 (#937)
+
+       Round 1 brought the list and the detail pane along. What was left was
+       everything WIDE: the Devices and Software tabs, the History and Custody
+       trails, and the module's three flat pages (table view, dashboard,
+       settings) plus the Servers view — none of which had been touched, so a
+       phone got the desktop layout at desktop widths.
+
+       Two techniques do most of the work here, and which one applies depends
+       on whether the columns are known:
+
+         - Columns we KNOW (Devices, Software, History, Custody) stop being a
+           table at all and become a card feed. Nothing can spill, because
+           nothing is laid out side by side.
+         - Columns we DON'T know (the table view's user-chosen column set, the
+           servers table) keep the table and get a CONTAINED horizontal
+           scroller — the LAYER 12 pattern. The table scrolls inside its
+           wrapper; the page itself never widens.
+
+       Both exist to dodge the same trap: a table that spills off-screen makes
+       iOS Safari reflow the page to desktop width, at which point this entire
+       @media block stops matching and the mobile layout vanishes
+       (Mobile-Friendly-Techniques §3 — the same bug as the #855 audit table).
+       ==================================================================== */
+
+    /* --------------------------------------------------------------------
+       15a — Devices and Software tabs: tables become card feeds.
+
+       Four columns (Devices) and three (Software) of free text do not fit
+       360px. No CSS-generated column labels here: they would have to be
+       hardcoded English and this module is translated, so the reading order
+       carries the meaning instead — name first and prominent, supporting
+       values beneath it.
+       -------------------------------------------------------------------- */
+    .devices-table,
+    .devices-table tbody,
+    .software-table,
+    .software-table tbody { display: block; width: 100%; }
+
+    .devices-table thead,
+    .software-table thead { display: none; }
+
+    .devices-table tbody tr,
+    .software-table tbody tr {
+        display: block;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--surface-hover, #f0f0f0);
+    }
+
+    .devices-table tbody td,
+    .software-table tbody td {
+        display: inline;
+        padding: 0 !important;    /* the devices renderer inlines padding-left:36px */
+        border: none;
+        font-size: 13px;
+        color: var(--text-muted, #666);
+    }
+
+    /* The name is the card's heading. */
+    .devices-table tbody td:first-child,
+    .software-table tbody td:first-child {
+        display: block;
+        margin-bottom: 3px;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+        word-break: break-word;
+    }
+
+    /* Manufacturer · driver version, publisher · version: one line, separated
+       rather than stacked — two short values don't each need a row. */
+    .devices-table tbody td:nth-child(3)::before,
+    .software-table tbody td:nth-child(3)::before { content: " · "; }
+
+    /* The device status badge gets its own line rather than being lost at the
+       end of a sentence. */
+    .devices-table tbody td:nth-child(4) { display: block; margin-top: 5px; }
+    /* …but when there is no status the renderer emits a bare "-", which on its
+       own line reads as a stray dash. Drop the line entirely in that case. If a
+       browser doesn't understand :has() it ignores this rule and shows the dash,
+       which is exactly what it would have shown anyway. */
+    .devices-table tbody td:nth-child(4):not(:has(.device-status)) { display: none; }
+
+    /* The device-class grouping row is a heading, not a card: full-bleed and
+       shaded, the same treatment as the audit sheet's day headings (LAYER 10).
+       It has to out-specify the :first-child heading rule above, hence the
+       table prefix — it is otherwise the same weight and would lose. */
+    .devices-table tbody tr.device-class-row { padding: 0; border-bottom: none; }
+    .devices-table tbody tr.device-class-row td {
+        display: block;
+        margin: 0;
+        padding: 8px 14px !important;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted, #555);
+        background: var(--surface-3, #f8f9fa);
+        border-bottom: 1px solid var(--border, #e0e0e0);
+    }
+
+    /* The tab's own filter controls: 16px (anti-zoom, as everywhere) and the
+       software sub-tabs scroll rather than squash. */
+    .devices-search { padding: 10px 14px; }
+    .devices-search input { font-size: 16px; min-height: 44px; }
+
+    .sw-filter-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        flex-wrap: nowrap;
+    }
+    .sw-filter-tabs::-webkit-scrollbar { display: none; }
+    .sw-filter-tab { white-space: nowrap; flex: 0 0 auto; }
+
+    /* --------------------------------------------------------------------
+       15b — History and Custody trails: the same card feed.
+
+       Both render `.history-table`, but with different columns (4 and 5), so
+       nothing here may depend on a column INDEX. It keys on the renderers'
+       own `.history-meta` class instead: the small print (date, due-back,
+       analyst) goes inline and small, everything else is a block.
+
+       These live in modals, which LAYER 3 already promotes to full-screen
+       sheets — but a full-screen sheet containing a 5-column table still
+       spills, which is exactly how the #855 audit bug worked. The table had
+       to stop being wide; the sheet was never the problem.
+       -------------------------------------------------------------------- */
+    .history-table,
+    .history-table tbody { display: block; width: 100%; }
+    .history-table thead { display: none; }
+
+    .history-table tbody tr {
+        display: block;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--surface-hover, #f0f0f0);
+    }
+    .history-table tbody td {
+        display: block;
+        padding: 2px 0;
+        border: none;
+    }
+    /* Adjacent small-print cells share a line; a block cell between them (the
+       badge, the user) breaks it, which is what puts date on its own row and
+       pairs due-back with analyst. */
+    .history-table tbody td.history-meta {
+        display: inline-block;
+        margin-right: 12px;
+        font-size: 12px;
+    }
+    .history-value-old,
+    .history-value-new { word-break: break-word; }
+
+    /* --------------------------------------------------------------------
+       15c — The full-screen table view (table.php).
+
+       This one keeps its table. The columns are user-chosen and their labels
+       live in the header row, so card-ifying would leave a stack of values
+       with nothing to say what they are. A contained horizontal scroller is
+       the honest answer: rows stay readable, the phone swipes sideways, and
+       the page itself never widens.
+
+       These rules are named for the shared data-table engine rather than for
+       Assets, so any other module's table view inherits them the moment it
+       links this file.
+       -------------------------------------------------------------------- */
+    /* width/min-width pin it against the flex-item minimum-size growth
+       described under 15e — cheap insurance on every flat page. */
+    .dt-page { height: auto; flex: 1 1 auto; min-height: 0; width: 100%; min-width: 0; }
+
+    .dt-toolbar { padding: 8px 10px; gap: 8px; }
+    .dt-toolbar .dt-search {
+        flex: 1 1 100%;
+        max-width: none;
+        font-size: 16px;
+        min-height: 42px;
+    }
+    .dt-toolbar .dt-btn { min-height: 38px; flex: 1; justify-content: center; }
+    .dt-toolbar .dt-count { flex-basis: 100%; margin-left: 0; }
+
+    .dt-wrap {
+        margin: 8px;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* Let the table take the width it needs INSIDE the scroller instead of
+       cramming every column into 360px — one word per line is not a table. */
+    .dt-table thead th,
+    .dt-table tbody td { white-space: nowrap; }
+    .dt-table tbody td { padding: 10px 8px; }
+
+    /* The column and filter popovers are desktop-anchored boxes; cap them so
+       they can't hang off the side of the screen. */
+    .dt-pop { max-width: calc(100vw - 20px); }
+    .dt-pop input, .dt-pop select { font-size: 16px; }
+
+    /* --------------------------------------------------------------------
+       15d — The dashboard.
+       -------------------------------------------------------------------- */
+    .dashboard-page { height: auto; flex: 1 1 auto; min-height: 0; width: 100%; min-width: 0; }
+
+    .dashboard-toolbar { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+    .dashboard-toolbar h2 { font-size: 17px; }
+    .dashboard-toolbar-actions { flex: 1 1 100%; }
+    .dashboard-toolbar-actions .btn { flex: 1; justify-content: center; min-height: 40px; }
+
+    /* Two charts side by side at 360px are two unreadable charts. */
+    .widget-grid { grid-template-columns: 1fr; gap: 14px; padding: 14px; }
+    .widget-header { padding: 14px 14px 0 14px; }
+    .widget-filter { padding: 8px 14px; }
+    .widget-filter select { font-size: 16px; min-height: 40px; }
+    .widget-chart { padding: 8px 10px 12px 10px; min-height: 210px; }
+    .widget-chart canvas { max-height: 230px; }
+
+    /* --------------------------------------------------------------------
+       15e — The settings page.
+
+       Scoped to body[data-mobile-page="settings"] because `.container` is far
+       too common a class name to style globally — the marker attribute is set
+       on the page itself, so only pages that ask for this get it. Other
+       modules' settings pages can opt in the same way.
+       -------------------------------------------------------------------- */
+    body[data-mobile-page="settings"] .container {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 14px;
+        /* LAYER 2 makes <body> a flex column, and a flex item's automatic
+           minimum size is its CONTENT width — so a wide tab strip inside this
+           container stretched the container itself to 776px at a 360px
+           viewport (measured), taking the whole page with it. Pinning the
+           width is what actually contains the overflow; the scrollers below
+           only work once their parent has stopped growing. */
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    /* The shared settings tab bar (renderSettingsTabBar emits `.tabs`/`.tab`)
+       has more tabs than fit — scroll it sideways rather than wrap it into a
+       four-line block that pushes the content off the screen. */
+    body[data-mobile-page="settings"] .tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    body[data-mobile-page="settings"] .tabs::-webkit-scrollbar { display: none; }
+    body[data-mobile-page="settings"] .tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        min-height: 42px;
+    }
+
+    body[data-mobile-page="settings"] .settings-section { margin-bottom: 14px; }
+    body[data-mobile-page="settings"] .settings-section-header { padding: 14px; }
+    body[data-mobile-page="settings"] .settings-section-body { padding: 14px; }
+
+    /* Anti-zoom on every field, and buttons wide enough for a thumb. */
+    body[data-mobile-page="settings"] .form-input,
+    body[data-mobile-page="settings"] .form-select,
+    body[data-mobile-page="settings"] .form-textarea,
+    body[data-mobile-page="settings"] input[type="text"],
+    body[data-mobile-page="settings"] input[type="number"],
+    body[data-mobile-page="settings"] input[type="password"],
+    body[data-mobile-page="settings"] select {
+        font-size: 16px;
+        min-height: 44px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    body[data-mobile-page="settings"] textarea { font-size: 16px; max-width: 100%; }
+    body[data-mobile-page="settings"] .btn { min-height: 42px; }
+
+    /* Settings tables (tag ranges, custom fields, …) scroll rather than spill. */
+    body[data-mobile-page="settings"] .settings-section-body table {
+        display: block;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        white-space: nowrap;
+    }
+
+    /* --------------------------------------------------------------------
+       15f — The Servers view.
+
+       .servers-container is ALSO .main-container, so LAYER 2 has already given
+       it overflow:hidden for the pane stack — which this page doesn't have and
+       which would leave it unscrollable. Putting the scroll back is the first
+       rule here for that reason.
+       -------------------------------------------------------------------- */
+    .servers-container { overflow-y: auto; overflow-x: hidden; }
+    .servers-content { padding: 12px; }
+
+    /* Eight summary cards go two-up rather than auto-fitting to one giant
+       column of eight. */
+    .summary-cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+    .servers-toolbar { flex-wrap: wrap; gap: 10px; }
+    .servers-toolbar .search-box {
+        flex: 1 1 100%;
+        max-width: none;
+        font-size: 16px;
+        min-height: 44px;
+    }
+    .filter-chips {
+        flex: 1 1 100%;
+        margin-left: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .filter-chips::-webkit-scrollbar { display: none; }
+    .filter-chip { flex: 0 0 auto; min-height: 34px; display: inline-flex; align-items: center; }
+
+    /* Unknown-width inventory columns: contained scroller, as 15c. */
+    .servers-table-wrapper {
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+    .servers-table th,
+    .servers-table td { white-space: nowrap; }
+
+    /* The server detail modal is hand-rolled (.detail-overlay/.detail-modal),
+       not a `.modal-content`, so LAYER 3 doesn't reach it — promote it to a
+       full-screen sheet here in the same way. */
+    .detail-overlay { padding: 0; }
+    .detail-modal {
+        max-width: none;
+        max-height: none;
+        height: 100dvh;
+        border-radius: 0;
+    }
+    .detail-header { padding: 14px; }
+    .detail-body { padding: 14px; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .detail-disks-table,
+    .detail-nics-table {
+        display: block;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        white-space: nowrap;
+    }
+    .raw-json { font-size: 11px; overflow-x: auto; }
 }

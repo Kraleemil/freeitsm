@@ -44,6 +44,9 @@ $translationNamespaces = ['common', 'asset-management'];
     <!-- jsPDF + autotable (same versions as morning-checks) for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <?php /* Mobile-friendly opt-in (#937). Last stylesheet so its @media rules
+             win on ties. Every rule inside is gated at 768px. */ ?>
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=31">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -54,5 +57,7 @@ $translationNamespaces = ['common', 'asset-management'];
 
     <script src="../assets/js/data-table.js?v=2"></script>
     <script src="../assets/js/asset-table.js?v=4"></script>
+    <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
+    <script src="../assets/js/mobile.js?v=14"></script>
 </body>
 </html>

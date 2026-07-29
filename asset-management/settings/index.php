@@ -241,8 +241,13 @@ $translationNamespaces = ['common', 'asset-management'];
             flex-wrap: wrap;
         }
     </style>
+    <?php /* Mobile-friendly opt-in (#937). AFTER this page's own <style> so its
+             @media rules win on ties. Every rule inside is gated at 768px. */ ?>
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=31">
 </head>
-<body>
+<?php /* The marker mobile.css LAYER 15e keys on. `.container` is far too common
+         a class to restyle globally, so a settings page opts in by name. */ ?>
+<body data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
 
     <div class="container">
@@ -1611,5 +1616,7 @@ $translationNamespaces = ['common', 'asset-management'];
             return div.innerHTML;
         }
     </script>
+    <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
+    <script src="../../assets/js/mobile.js?v=14"></script>
 </body>
 </html>

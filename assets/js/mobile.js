@@ -14,7 +14,6 @@
 
     var mq = window.matchMedia('(max-width: 768px)');
     var mc = document.querySelector('.main-container');
-    if (!mc) return;   // not a two/three-pane module page — nothing to do
 
     /**
      * The views hamburger (top-right) -> right-side slide-in drawer.
@@ -55,6 +54,27 @@
     }
 
     // ------------------------------------------------------------------
+    // The shell every opted-in page gets (#937).
+    //
+    // Modules via the waffle on the left, the module's own views via an
+    // injected hamburger on the right, company switcher tucked into the waffle
+    // drawer. That is true of the inbox, of Assets, and of the flat pages
+    // (table view / dashboard / settings / servers) alike, so it runs before
+    // any page-specific branch rather than inside each one.
+    // ------------------------------------------------------------------
+    injectViewsHamburger();
+    moveTenantIntoWaffle();
+
+    function syncShell() {
+        var vb = document.querySelector('.mobile-views-btn');
+        if (vb) vb.style.display = mq.matches ? '' : 'none';
+        if (!mq.matches) document.body.classList.remove('mobile-views-open');
+    }
+    syncShell();
+    if (mq.addEventListener) { mq.addEventListener('change', syncShell); }
+    else if (mq.addListener) { mq.addListener(syncShell); }
+
+    // ------------------------------------------------------------------
     // ASSETS (#936) — the second module brought along.
     //
     // Two panes, not three, so the stack is list <-> detail with no folder
@@ -64,6 +84,13 @@
     // nowhere.
     // ------------------------------------------------------------------
     if (document.querySelector('.assets-container')) { initAssetsMobile(); return; }
+
+    // Flat pages (Assets' table view, dashboard, settings, servers — #937) have
+    // no pane stack: the shell above is the whole of their JS. The servers page
+    // is the reason this test isn't just `!mc` — it DOES carry .main-container
+    // (as .servers-container) but has no email list, and letting it fall into
+    // the inbox wiring below would inject a Folders button onto a flat page.
+    if (!mc || !document.querySelector('.email-list-container')) return;
 
     function initAssetsMobile() {
         function setPane(p) { document.body.setAttribute('data-mobile-pane', p); }
@@ -113,9 +140,6 @@
                 return r;
             };
         }
-
-        injectViewsHamburger();
-        moveTenantIntoWaffle();
 
         function syncAssetsBar() {
             var on = mq.matches;
@@ -225,17 +249,8 @@
     });
     bar.querySelector('.msb-folders').addEventListener('click', function () { pushPane('folders'); });
 
-    // ---- Views hamburger (top-right) -> right-side slide-in drawer ----
-    // The tickets sub-views (Inbox/Dashboard/Users/Calendar/...) live in
-    // .header-nav; on mobile that becomes a right drawer opened by this button.
-    // Shared with Assets — see injectViewsHamburger() above.
-    injectViewsHamburger();
-
-    // ---- Company switcher -> into the module (waffle) drawer on mobile ----
-    // Declutters the tight top bar. The switcher only exists on multi-company
-    // installs (renderTenantSwitcher emits nothing at N=1), so this is a no-op
-    // on single-company setups. Shared with Assets — see moveTenantIntoWaffle().
-    moveTenantIntoWaffle();
+    // The views hamburger (top-right -> right drawer) and the company switcher
+    // move are part of the shared shell now (#937) — see the top of the file.
 
     // ---- Gmail-style collapsible ticket header ----
     // The reading pane re-renders on each open, so delegate off the document.

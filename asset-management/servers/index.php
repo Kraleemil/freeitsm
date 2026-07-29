@@ -546,6 +546,9 @@ $translationNamespaces = ['common', 'asset-management'];
             border-bottom: 1px solid var(--app-bg, #f5f5f5);
         }
     </style>
+    <?php /* Mobile-friendly opt-in (#937). AFTER this page's own <style> so its
+             @media rules win on ties. Every rule inside is gated at 768px. */ ?>
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=31">
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
@@ -1132,5 +1135,7 @@ $translationNamespaces = ['common', 'asset-management'];
             if (e.key === 'Escape') closeDetail();
         });
     </script>
+    <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
+    <script src="../../assets/js/mobile.js?v=14"></script>
 </body>
 </html>
