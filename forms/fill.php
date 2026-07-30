@@ -29,7 +29,7 @@ $translationNamespaces = ['common', 'forms'];
     <script src="../assets/js/tz.js?v=1"></script>
     <!-- Shared with the builder preview and the portal: field types + conditional
          visibility. Mirrors includes/form_logic.php, which decides on submit. -->
-    <script src="../assets/js/form-logic.js?v=1"></script>
+    <script src="../assets/js/form-logic.js?v=2"></script>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../assets/css/inbox.css">
     <style>
@@ -121,6 +121,9 @@ $translationNamespaces = ['common', 'forms'];
         .form-field input[type="text"],
         .form-field input[type="email"],
         .form-field input[type="number"],
+        .form-field input[type="date"],
+        .form-field input[type="time"],
+        .form-field input[type="datetime-local"],
         .form-field textarea,
         .form-field select {
             width: 100%;
@@ -370,6 +373,17 @@ $translationNamespaces = ['common', 'forms'];
                             <div class="field-error">${esc(window.t('forms.fill.err_number'))}</div>
                         </div>`;
                         break;
+                    case 'datetime': {
+                        // One field type, three shapes — date / time / date and time.
+                        // The browser's own picker produces exactly the value we store.
+                        const dtMode = FormLogic.dateMode(f);
+                        html += `<div class="form-field" ${wrap} ${reqAttr}>
+                            <label>${esc(f.label)}${reqStar}</label>
+                            <input type="${FormLogic.dateInputType(dtMode)}" name="field_${f.id}" data-field-id="${f.id}">
+                            <div class="field-error">${esc(window.t('forms.fill.err_' + dtMode))}</div>
+                        </div>`;
+                        break;
+                    }
                     case 'checkbox':
                         html += `<div class="form-field checkbox-field" ${wrap} ${reqAttr}>
                             <input type="checkbox" name="field_${f.id}" data-field-id="${f.id}" id="cb_${f.id}">

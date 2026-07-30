@@ -276,6 +276,81 @@ check('positive control: that is a different field from the original\'s', $newTr
     'the version fork reused the original field row');
 
 // ══════════════════════════════════════════════════════════════════════
+echo "\n── Date / time fields ──\n";
+// ══════════════════════════════════════════════════════════════════════
+
+$dateForm = makeForm($conn, $ctx, 'dates', [
+    ['field_type' => 'datetime', 'label' => 'Needed by',      'is_required' => 1, 'config' => ['date_mode' => 'date']],
+    ['field_type' => 'datetime', 'label' => 'Preferred time',                     'config' => ['date_mode' => 'time']],
+    ['field_type' => 'datetime', 'label' => 'When did it happen',                 'config' => ['date_mode' => 'datetime']],
+    ['field_type' => 'datetime', 'label' => 'Mode not stated'],
+]);
+$df = liveFields($conn, $dateForm);
+[$dOnly, $tOnly, $dt, $noMode] = array_map(fn($r) => (int)$r['id'], $df);
+
+check('a date field with no mode falls back to a plain date',
+    FormsService::dateModeOf($df[3]) === 'date', FormsService::dateModeOf($df[3]));
+check('each mode round-trips through save',
+    FormsService::dateModeOf($df[0]) === 'date'
+    && FormsService::dateModeOf($df[1]) === 'time'
+    && FormsService::dateModeOf($df[2]) === 'datetime');
+
+$badMode = false;
+try { makeForm($conn, $ctx, 'bad_mode', [['field_type' => 'datetime', 'label' => 'X', 'config' => ['date_mode' => 'fortnight']]]); }
+catch (ServiceError $e) { $badMode = true; }
+check('an unknown date_mode is rejected', $badMode);
+
+// date_mode is meaningless on anything else and must not be stored there.
+$mixForm = makeForm($conn, $ctx, 'mode_on_text', [['field_type' => 'text', 'label' => 'Plain', 'config' => ['date_mode' => 'time']]]);
+$mixCfg = liveFields($conn, $mixForm)[0]['config'];
+check('date_mode is dropped from a non-date field',
+    $mixCfg === null || !isset(json_decode((string)$mixCfg, true)['date_mode']), (string)$mixCfg);
+
+// Format enforcement, per mode.
+$formatCases = [
+    ['a date accepts YYYY-MM-DD',            $dOnly, '2026-08-14',       true],
+    ['a date rejects a datetime',            $dOnly, '2026-08-14T09:00', false],
+    ['a date rejects free text',             $dOnly, 'next Tuesday',     false],
+    ['a time accepts HH:MM',                 $tOnly, '09:30',            true],
+    ['a time rejects a date',                $tOnly, '2026-08-14',       false],
+    ['a datetime accepts the full value',    $dt,    '2026-08-14T09:00', true],
+    ['a datetime rejects a bare date',       $dt,    '2026-08-14',       false],
+];
+foreach ($formatCases as [$name, $fid, $value, $shouldPass]) {
+    $accepted = true;
+    try { FormsService::submitForm($conn, $ctx, $dateForm, [$dOnly => '2026-01-01', $fid => $value]); }
+    catch (ServiceError $e) { $accepted = false; }
+    check($name, $accepted === $shouldPass);
+}
+
+// 🔑 The trap this whole feature had to avoid: a form answer is a NAIVE local value.
+$naiveSub = FormsService::submitForm($conn, $ctx, $dateForm, [$dOnly => '2026-08-14', $dt => '2026-08-14T23:30']);
+$naive = answersByLabel($conn, $naiveSub);
+check('a date is stored EXACTLY as typed, with no timezone conversion',
+    ($naive['Needed by'] ?? null) === '2026-08-14', json_encode($naive));
+check('a late-evening datetime does not roll into the next day',
+    ($naive['When did it happen'] ?? null) === '2026-08-14T23:30', json_encode($naive));
+
+// A date can drive a condition.
+$dateCond = makeForm($conn, $ctx, 'date_cond', [
+    ['field_type' => 'datetime', 'label' => 'Start date', 'config' => ['date_mode' => 'date']],
+    ['field_type' => 'textarea', 'label' => 'Why so urgent?', 'is_required' => 1,
+     'config' => ['visible_if' => ['match' => 'all', 'rules' => [['field' => 'idx:0', 'op' => 'is_before', 'value' => '2026-09-01']]]]],
+]);
+$dcf = liveFields($conn, $dateCond);
+$startId = (int)$dcf[0]['id'];
+
+$urgentEnforced = false;
+try { FormsService::submitForm($conn, $ctx, $dateCond, [$startId => '2026-08-14']); }
+catch (ServiceError $e) { $urgentEnforced = true; }
+check('is_before shows the follow-up for an early date', $urgentEnforced);
+
+$notUrgent = true;
+try { FormsService::submitForm($conn, $ctx, $dateCond, [$startId => '2026-12-01']); }
+catch (ServiceError $e) { $notUrgent = false; }
+check('positive control: a later date leaves it hidden and unrequired', $notUrgent);
+
+// ══════════════════════════════════════════════════════════════════════
 echo "\n── The evaluator: PHP and JS must agree ──\n";
 // ══════════════════════════════════════════════════════════════════════
 
@@ -284,8 +359,9 @@ $evalFields = [
     ['id' => 1, 'field_type' => 'text',       'config' => null],
     ['id' => 2, 'field_type' => 'checkboxes', 'config' => null],
     ['id' => 3, 'field_type' => 'number',     'config' => null],
+    ['id' => 4, 'field_type' => 'datetime',   'config' => null],
 ];
-$values = [1 => 'Yes please', 2 => '["Monitor","Dock"]', 3 => '7'];
+$values = [1 => 'Yes please', 2 => '["Monitor","Dock"]', 3 => '7', 4 => '2026-08-14'];
 
 $cases = [
     ['equals on text',              ['field' => 1, 'op' => 'equals',       'value' => 'Yes please'], true],
@@ -304,6 +380,15 @@ $cases = [
     ['less_than',                   ['field' => 3, 'op' => 'less_than',    'value' => '10'],         true],
     ['numeric ops ignore text',     ['field' => 1, 'op' => 'greater_than', 'value' => '5'],          false],
     ['unknown op never hides',      ['field' => 1, 'op' => 'equals',       'value' => 'Yes please'],  true],
+    // Dates compare as plain strings — ISO-8601's lexical order IS chronological order,
+    // which is what lets both engines agree without either parsing a timezone.
+    ['is_before an later date',     ['field' => 4, 'op' => 'is_before',    'value' => '2026-09-01'], true],
+    ['is_before an earlier date',   ['field' => 4, 'op' => 'is_before',    'value' => '2026-01-01'], false],
+    ['is_after an earlier date',    ['field' => 4, 'op' => 'is_after',     'value' => '2026-01-01'], true],
+    ['is_after is not inclusive',   ['field' => 4, 'op' => 'is_after',     'value' => '2026-08-14'], false],
+    ['is_before crosses the year',  ['field' => 4, 'op' => 'is_before',    'value' => '2027-01-01'], true],
+    ['date ops need an answer',     ['field' => 9, 'op' => 'is_before',    'value' => '2027-01-01'], false],
+    ['equals still works on a date',['field' => 4, 'op' => 'equals',       'value' => '2026-08-14'], true],
 ];
 
 $phpResults = [];

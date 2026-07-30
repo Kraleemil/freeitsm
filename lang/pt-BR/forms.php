@@ -165,6 +165,7 @@ return [
         'radio'      => 'Botões de opção (um item)',
         'checkbox'   => 'Caixa de seleção (sim/não)',
         'checkboxes' => 'Caixas de seleção (vários itens)',
+        'datetime'   => 'Data / hora',
         'section'    => 'Título de seção',
     ],
 
@@ -178,7 +179,12 @@ return [
         'number'     => 'Número',
         'checkboxes' => 'Caixas de seleção',
         'radio'      => 'Opção',
+        'datetime'   => 'Data / hora',
         'section'    => 'Seção',
+        // The badge shows the MODE — see the EN file.
+        'date_date'     => 'Data',
+        'date_time'     => 'Hora',
+        'date_datetime' => 'Data + hora',
     ],
 
     // Field row editing UI (forms/edit/index.php)
@@ -192,6 +198,10 @@ return [
         'add_option'        => '+ Adicionar opção',
         'label_ph'          => 'Rótulo do campo...',
         'section_ph'        => 'Título da seção...',
+        'date_mode'          => 'Solicitar',
+        'date_mode_date'     => 'Uma data',
+        'date_mode_time'     => 'Um horário',
+        'date_mode_datetime' => 'Data e hora',
         'required'          => 'Obrigatório',
         'remove_field'      => 'Remover campo',
         'untitled_field'    => 'Campo sem título',
@@ -219,6 +229,8 @@ return [
             'is_not_empty' => 'não está vazio',
             'greater_than' => 'é maior que',
             'less_than'    => 'é menor que',
+            'is_after'     => 'é depois de',
+            'is_before'    => 'é antes de',
         ],
     ],
 
@@ -345,6 +357,10 @@ return [
         'err_email'        => 'Informe um endereço de e-mail válido',
         'err_number'       => 'Informe um número',
         'err_checkboxes'   => 'Marque pelo menos uma opção',
+        // One per date mode — err_<mode>, chosen by the field's own setting.
+        'err_date'         => 'Escolha uma data',
+        'err_time'         => 'Escolha um horário',
+        'err_datetime'     => 'Escolha uma data e hora',
         'submit'           => 'Enviar',
         'cancel'           => 'Cancelar',
         'fill_required'    => 'Preencha todos os campos obrigatórios',

@@ -27,6 +27,9 @@ $translationNamespaces = ['common', 'forms'];
     <script src="../assets/js/i18n.js?v=2"></script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
+    <!-- For FormLogic.formatDateValue() — date answers are naive local values and must
+         NOT go through Tz, which would shift them into the reader's timezone. -->
+    <script src="../assets/js/form-logic.js?v=2"></script>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../assets/css/inbox.css">
     <style>
@@ -510,6 +513,9 @@ $translationNamespaces = ['common', 'forms'];
                         const list = decodeMultiValue(val);
                         const display = list.length ? list.join(', ') : '';
                         html += `<td title="${esc(display)}">${esc(display) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
+                    } else if (f.field_type === 'datetime') {
+                        const shown = FormLogic.formatDateValue(val);
+                        html += `<td title="${esc(shown)}">${esc(shown) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
                     } else {
                         html += `<td title="${esc(val)}">${esc(val) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
                     }
@@ -551,6 +557,9 @@ $translationNamespaces = ['common', 'forms'];
                     } else {
                         html += `<div class="detail-field-value"><ul style="margin:0; padding-left: 18px;">${list.map(v => `<li>${esc(v)}</li>`).join('')}</ul></div>`;
                     }
+                } else if (f.field_type === 'datetime') {
+                    const shown = FormLogic.formatDateValue(val);
+                    html += `<div class="detail-field-value ${!shown ? 'empty' : ''}">${esc(shown) || esc(window.t('forms.subs.no_response'))}</div>`;
                 } else {
                     html += `<div class="detail-field-value ${!val ? 'empty' : ''}">${esc(val) || esc(window.t('forms.subs.no_response'))}</div>`;
                 }
@@ -613,6 +622,11 @@ $translationNamespaces = ['common', 'forms'];
                         row.push(val === '1' ? window.t('forms.subs.csv_yes') : window.t('forms.subs.csv_no'));
                     } else if (f.field_type === 'checkboxes') {
                         row.push(decodeMultiValue(val).join('; '));
+                    } else if (f.field_type === 'datetime') {
+                        // 'T' swapped for a space so Excel recognises it as a date/time
+                        // rather than importing it as a lump of text. Still not
+                        // timezone-converted — see FormLogic.formatDateValue().
+                        row.push(FormLogic.formatDateValue(val));
                     } else {
                         row.push(val);
                     }

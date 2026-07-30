@@ -66,6 +66,14 @@ function formLogicTestRule(array $rule, array $valuesByFieldId): bool
             return $want !== '' && mb_stripos($scalar, $want) !== false;
         case 'greater_than':  return is_numeric($scalar) && is_numeric($want) && (float)$scalar >  (float)$want;
         case 'less_than':     return is_numeric($scalar) && is_numeric($want) && (float)$scalar <  (float)$want;
+
+        // Date-shaped comparison. A plain string compare is CORRECT here rather than
+        // lazy: every stored date/time value is ISO-8601 (YYYY-MM-DD, HH:MM,
+        // YYYY-MM-DDTHH:MM), and ISO-8601 is designed so lexical order IS chronological
+        // order. Parsing to a timestamp would drag in a timezone these naive values
+        // deliberately do not have.
+        case 'is_after':      return $scalar !== '' && $want !== '' && strcmp($scalar, $want) > 0;
+        case 'is_before':     return $scalar !== '' && $want !== '' && strcmp($scalar, $want) < 0;
     }
     // An operator we don't recognise must not silently hide a question.
     return true;

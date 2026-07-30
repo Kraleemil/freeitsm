@@ -178,6 +178,7 @@ return [
         'radio'      => 'Radio buttons (one of)',
         'checkbox'   => 'Checkbox (yes/no)',
         'checkboxes' => 'Checkboxes (many of)',
+        'datetime'   => 'Date / time',
         'section'    => 'Section heading',
     ],
 
@@ -191,7 +192,13 @@ return [
         'number'     => 'Number',
         'checkboxes' => 'Checkboxes',
         'radio'      => 'Radio',
+        'datetime'   => 'Date / time',
         'section'    => 'Section',
+        // The badge shows the MODE, so a glance down the field list tells you what
+        // each date field actually asks for without opening it.
+        'date_date'     => 'Date',
+        'date_time'     => 'Time',
+        'date_datetime' => 'Date + time',
     ],
 
     // Field row editing UI (forms/edit/index.php)
@@ -205,6 +212,10 @@ return [
         'add_option'        => '+ Add option',
         'label_ph'          => 'Field label...',
         'section_ph'        => 'Section heading...',
+        'date_mode'          => 'Ask for',
+        'date_mode_date'     => 'A date',
+        'date_mode_time'     => 'A time',
+        'date_mode_datetime' => 'Date and time',
         'required'          => 'Required',
         'remove_field'      => 'Remove field',
         'untitled_field'    => 'Untitled field',
@@ -232,6 +243,8 @@ return [
             'is_not_empty' => 'is not empty',
             'greater_than' => 'is more than',
             'less_than'    => 'is less than',
+            'is_after'     => 'is after',
+            'is_before'    => 'is before',
         ],
     ],
 
@@ -358,6 +371,10 @@ return [
         'err_email'        => 'Please enter a valid email address',
         'err_number'       => 'Please enter a number',
         'err_checkboxes'   => 'Please tick at least one option',
+        // One per date mode — err_<mode>, chosen by the field's own setting.
+        'err_date'         => 'Please choose a date',
+        'err_time'         => 'Please choose a time',
+        'err_datetime'     => 'Please choose a date and time',
         'submit'           => 'Submit',
         'cancel'           => 'Cancel',
         'fill_required'    => 'Please fill in all required fields',

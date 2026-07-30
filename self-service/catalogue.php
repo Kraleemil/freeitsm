@@ -107,6 +107,9 @@ $pageStyles = <<<'CSS'
         .cat-field input[type="text"],
         .cat-field input[type="email"],
         .cat-field input[type="number"],
+        .cat-field input[type="date"],
+        .cat-field input[type="time"],
+        .cat-field input[type="datetime-local"],
         .cat-field select,
         .cat-field textarea {
             width: 100%;
@@ -233,6 +236,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         break;
                     case 'number':
                         input = '<input type="number" id="f' + f.id + '" data-field-id="' + f.id + '">';
+                        break;
+                    case 'datetime':
+                        // date / time / datetime-local, per the field's own mode.
+                        input = '<input type="' + FormLogic.dateInputType(FormLogic.dateMode(f))
+                              + '" id="f' + f.id + '" data-field-id="' + f.id + '">';
                         break;
                     case 'checkbox':
                         input = '<label class="cat-option"><input type="checkbox" id="f' + f.id + '" data-field-id="' + f.id + '"> '

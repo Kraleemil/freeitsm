@@ -500,6 +500,10 @@ $translationNamespaces = ['common', 'forms'];
                             <button onclick="addField('radio')"><span class="field-type-badge radio">&#9673;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.radio')); ?></button>
                             <button onclick="addField('checkbox')"><span class="field-type-badge checkbox">Chk</span> <?php echo htmlspecialchars(t('forms.fieldtypes.checkbox')); ?></button>
                             <button onclick="addField('checkboxes')"><span class="field-type-badge checkboxes">&#9745;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.checkboxes')); ?></button>
+                            <!-- ONE date field with a mode (date / time / date and time),
+                                 not three types: field_type can't be changed after a field
+                                 exists, so a wrong guess would mean retiring it. -->
+                            <button onclick="addField('datetime')"><span class="field-type-badge datetime">&#128197;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.datetime')); ?></button>
                             <!-- A heading rather than a question: it groups everything
                                  below it until the next one, and a condition on it
                                  hides that whole group at once. -->
@@ -952,13 +956,63 @@ $translationNamespaces = ['common', 'forms'];
         // "required" toggle, and nothing may depend on what was typed into it.
         function isSection(type) { return type === 'section'; }
 
+        // ===== Date / time fields =====
+        // One field type carrying a mode, rather than three separate types. field_type
+        // cannot be changed once a field exists, so three types would force an
+        // irreversible guess at add-time: realising later that you needed the time too
+        // would mean deleting the field, which retires it and strands every answer
+        // already given to it under a separate column. A mode is just a setting.
+        const DATE_MODES = ['date', 'time', 'datetime'];
+        function isDateField(type) { return type === 'datetime'; }
+        function dateModeOf(f) {
+            const m = f.config && f.config.date_mode;
+            return DATE_MODES.includes(m) ? m : 'date';
+        }
+        function setDateMode(i, mode) {
+            if (!DATE_MODES.includes(mode)) return;
+            if (!fields[i].config) fields[i].config = {};
+            fields[i].config.date_mode = mode;
+            // Any condition testing THIS field holds a value in the old shape (a date
+            // where a time is now wanted), so those rules are cleared rather than left
+            // pointing at something that can never match again.
+            const key = fields[i]._key;
+            fields.forEach(other => {
+                const vif = other.config && other.config.visible_if;
+                if (!vif) return;
+                vif.rules.forEach(r => { if (r._ref === key) r.value = ''; });
+            });
+            markDirty(); renderFields(); updatePreview();
+        }
+
         // ===== Conditional visibility =====
         // Stored shape (server + API):  rules[].field = form_fields.id
         // Builder shape (this file):    rules[]._ref  = a field's _key
         // The two conversions live in rehydrateRuleRefs() and buildRulesForSave().
 
-        const CONDITION_OPS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty', 'greater_than', 'less_than'];
+        const CONDITION_OPS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty', 'greater_than', 'less_than', 'is_after', 'is_before'];
         function opNeedsValue(op) { return op !== 'is_empty' && op !== 'is_not_empty'; }
+
+        /**
+         * The operators worth offering for a given trigger field.
+         *
+         * All of them are valid on anything — the server accepts the full list — but a
+         * menu that offers "is more than" against a date, or "is after" against a
+         * dropdown, is a menu that invites nonsense. This narrows the CHOICE without
+         * narrowing what the engine can do.
+         */
+        function opsFor(trigger) {
+            if (!trigger) return CONDITION_OPS;
+            if (isDateField(trigger.field_type)) {
+                return ['equals', 'not_equals', 'is_after', 'is_before', 'is_empty', 'is_not_empty'];
+            }
+            if (trigger.field_type === 'number') {
+                return ['equals', 'not_equals', 'greater_than', 'less_than', 'is_empty', 'is_not_empty'];
+            }
+            if (hasOptions(trigger.field_type) || trigger.field_type === 'checkbox') {
+                return ['equals', 'not_equals', 'is_empty', 'is_not_empty'];
+            }
+            return ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty'];
+        }
 
         /** Stored field ids -> builder _keys, once after a load. */
         function rehydrateRuleRefs(list) {
@@ -978,25 +1032,32 @@ $translationNamespaces = ['common', 'forms'];
          * reaches the payload) is dropped rather than sent as a dangling reference.
          */
         function buildRulesForSave(f, payloadFields) {
+            // Start from everything else the field's config holds (today: date_mode) so
+            // that adding a condition to a date field doesn't wipe the mode it is in.
+            const out = {};
+            if (isDateField(f.field_type)) out.date_mode = dateModeOf(f);
+
             const vif = f.config && f.config.visible_if;
-            if (!vif || !Array.isArray(vif.rules) || !vif.rules.length) return null;
+            if (vif && Array.isArray(vif.rules) && vif.rules.length) {
+                const posByKey = {};
+                payloadFields.forEach((pf, i) => { posByKey[pf._key] = i; });
 
-            const posByKey = {};
-            payloadFields.forEach((pf, i) => { posByKey[pf._key] = i; });
-
-            const rules = [];
-            vif.rules.forEach(r => {
-                const pos = posByKey[r._ref];
-                if (pos === undefined) return;
-                const target = payloadFields[pos];
-                rules.push({
-                    field: target.id ? target.id : ('idx:' + pos),
-                    op: r.op || 'equals',
-                    value: opNeedsValue(r.op) ? (r.value || '') : ''
+                const rules = [];
+                vif.rules.forEach(r => {
+                    const pos = posByKey[r._ref];
+                    if (pos === undefined) return;
+                    const target = payloadFields[pos];
+                    rules.push({
+                        field: target.id ? target.id : ('idx:' + pos),
+                        op: r.op || 'equals',
+                        value: opNeedsValue(r.op) ? (r.value || '') : ''
+                    });
                 });
-            });
-            if (!rules.length) return null;
-            return { visible_if: { match: vif.match === 'any' ? 'any' : 'all', rules: rules } };
+                if (rules.length) {
+                    out.visible_if = { match: vif.match === 'any' ? 'any' : 'all', rules: rules };
+                }
+            }
+            return Object.keys(out).length ? out : null;
         }
 
         /**
@@ -1073,6 +1134,13 @@ $translationNamespaces = ['common', 'forms'];
                     <option value="0" ${rule.value === '0' ? 'selected' : ''}>${esc(window.t('forms.cond.no'))}</option>
                 </select>`;
             }
+            if (trigger && isDateField(trigger.field_type)) {
+                // The same picker the person filling the form will see, so the value
+                // stored in the rule is in exactly the shape their answer will be.
+                const t = dateModeOf(trigger) === 'time' ? 'time'
+                        : (dateModeOf(trigger) === 'datetime' ? 'datetime-local' : 'date');
+                return `<input type="${t}" value="${escAttr(rule.value || '')}" ${onchange}>`;
+            }
             return `<input type="text" value="${escAttr(rule.value || '')}"
                            placeholder="${escAttr(window.t('forms.cond.value_ph'))}" ${onchange}>`;
         }
@@ -1091,17 +1159,26 @@ $translationNamespaces = ['common', 'forms'];
                        <option value="any" ${(vif && vif.match === 'any') ? 'selected' : ''}>${esc(window.t('forms.cond.match_any'))}</option>
                    </select>` : '';
 
-            const rows = rules.map((rule, ri) => `
+            const rows = rules.map((rule, ri) => {
+                const trigger = fields.find(x => x._key === rule._ref);
+                // Keep whatever op is stored in the list even if it isn't one this
+                // trigger would normally be offered (an op set before the field's type
+                // or date mode changed), so switching a field never silently rewrites
+                // a rule the author wrote deliberately.
+                const ops = opsFor(trigger);
+                if (rule.op && !ops.includes(rule.op)) ops.push(rule.op);
+                return `
                 <div class="cond-row">
                     <select onchange="updateConditionRef(${i}, ${ri}, this.value)">
                         ${triggers.map(x => `<option value="${x.f._key}" ${x.f._key === rule._ref ? 'selected' : ''}>${esc(x.f.label)}</option>`).join('')}
                     </select>
                     <select onchange="updateConditionOp(${i}, ${ri}, this.value)">
-                        ${CONDITION_OPS.map(op => `<option value="${op}" ${rule.op === op ? 'selected' : ''}>${esc(window.t('forms.cond.op.' + op))}</option>`).join('')}
+                        ${ops.map(op => `<option value="${op}" ${rule.op === op ? 'selected' : ''}>${esc(window.t('forms.cond.op.' + op))}</option>`).join('')}
                     </select>
                     ${conditionValueControl(i, ri, rule)}
                     <button class="option-remove" onclick="removeCondition(${i}, ${ri})" title="${escAttr(window.t('forms.cond.remove'))}">&times;</button>
-                </div>`).join('');
+                </div>`;
+            }).join('');
 
             return `
                 <div class="field-conditions">
@@ -1166,6 +1243,25 @@ $translationNamespaces = ['common', 'forms'];
                             <button class="add-option-btn" onclick="addOption(${i})">${esc(window.t('forms.field.add_option'))}</button>
                         </div>`;
                 }
+                // What this date field actually asks for. Sits with the field rather
+                // than in the add menu, so it stays changeable.
+                let dateModeHtml = '';
+                if (isDateField(f.field_type)) {
+                    const mode = dateModeOf(f);
+                    dateModeHtml = `
+                        <div class="field-options">
+                            <div class="field-options-label">${esc(window.t('forms.field.date_mode'))}</div>
+                            <div class="date-mode-row">
+                                ${DATE_MODES.map(m => `
+                                    <label class="date-mode-opt">
+                                        <input type="radio" name="dm_${i}" value="${m}" ${mode === m ? 'checked' : ''}
+                                               onchange="setDateMode(${i}, this.value)">
+                                        ${esc(window.t('forms.field.date_mode_' + m))}
+                                    </label>`).join('')}
+                            </div>
+                        </div>`;
+                }
+
                 // A heading has no answer, so "required" would mean nothing — the
                 // server rejects it outright, and the toggle is left off here.
                 const requiredToggle = isSection(f.field_type) ? '' : `
@@ -1184,7 +1280,7 @@ $translationNamespaces = ['common', 'forms'];
                             <span class="field-drag" title="${escAttr(window.t('forms.field.drag_reorder'))}">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
                             </span>
-                            <span class="field-type-badge ${f.field_type}">${typeName(f.field_type)}</span>
+                            <span class="field-type-badge ${f.field_type}">${isDateField(f.field_type) ? esc(window.t('forms.typename.date_' + dateModeOf(f))) : typeName(f.field_type)}</span>
                             <input type="text" class="field-label-input" value="${esc(f.label)}" placeholder="${escAttr(isSection(f.field_type) ? window.t('forms.field.section_ph') : window.t('forms.field.label_ph'))}" onchange="updateLabel(${i}, this.value)">
                             <div class="field-controls">
                                 ${requiredToggle}
@@ -1194,12 +1290,13 @@ $translationNamespaces = ['common', 'forms'];
                             </div>
                         </div>
                         ${optionsHtml}
+                        ${dateModeHtml}
                         ${renderConditionEditor(f, i)}
                     </li>`;
             }).join('');
         }
         function typeName(type) {
-            const known = ['text', 'textarea', 'checkbox', 'dropdown', 'email', 'number', 'checkboxes', 'radio', 'section'];
+            const known = ['text', 'textarea', 'checkbox', 'dropdown', 'email', 'number', 'checkboxes', 'radio', 'datetime', 'section'];
             return known.includes(type) ? window.t('forms.typename.' + type) : type;
         }
         function updateLabel(i, val)    { fields[i].label = val;       markDirty(); updatePreview(); }
@@ -1392,6 +1489,11 @@ $translationNamespaces = ['common', 'forms'];
                         return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="email" disabled placeholder="${escAttr(window.t('forms.preview.email_ph'))}"></div>`;
                     case 'number':
                         return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="number" disabled placeholder="${escAttr(window.t('forms.preview.number_ph'))}"></div>`;
+                    case 'datetime': {
+                        const m = dateModeOf(f);
+                        const t = m === 'time' ? 'time' : (m === 'datetime' ? 'datetime-local' : 'date');
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="${t}" disabled></div>`;
+                    }
                     case 'checkbox':
                         return `<div class="preview-field"><div class="checkbox-row"><input type="checkbox" disabled> <label>${label}${reqStar}${condFlag}</label></div></div>`;
                     case 'dropdown': {
@@ -1827,6 +1929,22 @@ $translationNamespaces = ['common', 'forms'];
                 aiAbortController = null;
             }
         }
+        /**
+         * The author's existing config wins on everything except date_mode, which only
+         * the generator has an opinion about. Returns null rather than an empty object
+         * so a field with nothing to say still stores NULL config.
+         */
+        function mergeGeneratedConfig(prevConfig, generated) {
+            const out = Object.assign({}, prevConfig || {});
+            if (generated.field_type === 'datetime') {
+                const m = generated.config && generated.config.date_mode;
+                out.date_mode = DATE_MODES.includes(m) ? m : (out.date_mode || 'date');
+            } else {
+                delete out.date_mode;
+            }
+            return Object.keys(out).length ? out : null;
+        }
+
         function applyGeneratedForm(form) {
             document.getElementById('formTitle').value = form.title || '';
             document.getElementById('formDesc').value  = form.description || '';
@@ -1853,9 +1971,11 @@ $translationNamespaces = ['common', 'forms'];
                     label:       f.label || '',
                     options:     Array.isArray(f.options) ? f.options.slice() : [],
                     is_required: !!f.is_required,
-                    // The generator doesn't propose conditions, so a field it kept
-                    // keeps the rule the author had already put on it.
-                    config:      prev ? prev.config : null
+                    // The generator doesn't propose conditions, so a field it kept keeps
+                    // the rule the author had already put on it. It DOES propose a
+                    // date_mode, which has to survive onto the field or every generated
+                    // date question would silently fall back to a plain date.
+                    config:      mergeGeneratedConfig(prev ? prev.config : null, f)
                 };
             });
 

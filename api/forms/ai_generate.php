@@ -105,9 +105,9 @@ Return EXACTLY ONE JSON object with this shape:
 
 # FIELD TYPES
 
-You may use ONLY these eight field types — no others exist:
+You may use ONLY these field types — no others exist:
 
-- "text" — single-line free text. Use for names, short answers, phone numbers, reference numbers, dates formatted as text.
+- "text" — single-line free text. Use for names, short answers, phone numbers, reference numbers.
 - "textarea" — multi-line text input. Use for longer free-text answers like descriptions, comments, notes, justifications, explanations.
 - "email" — text input with email-address format validation. PREFER over "text" whenever the question asks for an email address.
 - "number" — numeric input (rejects letters). Use for quantities, ages, counts, amounts, hours, days. PREFER over "text" whenever the question asks for a number.
@@ -115,6 +115,8 @@ You may use ONLY these eight field types — no others exist:
 - "checkboxes" — MULTI-SELECT from a list of options (zero or more can be picked). Use when the user wants to capture "tick everything that applies". ALWAYS provide an "options" array with 2-12 items.
 - "radio" — SINGLE-select from a small visible list of 2-5 options (radio buttons). Use when there are a small number of mutually-exclusive choices and you want them all visible at once. ALWAYS provide an "options" array with 2-5 items. For more than 5 options prefer "dropdown".
 - "dropdown" — SINGLE-select from a fixed list of options (collapsed dropdown). Use when there are 6+ mutually-exclusive choices, or when space is tight. ALWAYS provide an "options" array with 2-12 items.
+- "datetime" — a real date and/or time picker. ALWAYS use this for any date or time question — start dates, needed-by dates, appointment slots, last working day, when an error occurred. NEVER ask for a date as "text". Set "date_mode" to one of: "date" (a calendar date — the usual choice), "time" (a clock time only, with no date), "datetime" (both together, for a specific moment).
+- "section" — NOT a question. A heading that groups every field after it until the next "section". It collects no answer, so it must NEVER be "is_required": true and its "options" must be []. Use 2-4 of these to break a long form (roughly 8+ fields) into named groups such as "Your details", "Equipment needed", "Approval". Do not use any on a short form.
 
 # RULES
 
@@ -124,7 +126,7 @@ You may use ONLY these eight field types — no others exist:
 - Mark a field as "is_required": true ONLY when the field is clearly essential to the form's purpose (e.g. requester name on a request form, dates on a leave request, the confirmation checkbox on a consent form). Default to false otherwise.
 - For "dropdown", "radio" and "checkboxes" fields, the "options" array must contain real, sensible choices the user would expect to see — do not output placeholder values like "Option 1" / "Option 2".
 - For all other field types, "options" should be an empty array [].
-- If the user mentions something that doesn't fit the available types (e.g. file upload, date picker, signature), pick the closest type and reflect the constraint in the label. For example, a date question becomes "text" with a label like "Start date (DD/MM/YYYY)".
+- If the user mentions something that doesn't fit the available types (e.g. file upload, signature), pick the closest type and reflect the constraint in the label.
 - Use British English spelling.
 - Use clear, professional, neutral language for labels and the description. No marketing copy.
 - Order the fields in a sensible flow: identifying information first (name, email, reference), then context (dates, type, category), then free-text fields (descriptions, notes), then any agreement / consent checkbox at the end.
@@ -241,8 +243,11 @@ try {
     // 'section' is allowed so the generator can group a long form under headings.
     // It is presentational — no options, never required — and the generator is not
     // asked to propose conditional rules, which stay something the author sets.
-    $allowedTypes = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'radio', 'dropdown', 'section'];
+    $allowedTypes = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'radio', 'dropdown', 'datetime', 'section'];
     $typesWithOptions = ['dropdown', 'radio', 'checkboxes'];
+    // A 'datetime' field may arrive with a mode. Anything else is dropped, and an
+    // absent or unrecognised one falls back to a plain date — the common case.
+    $dateModes = ['date', 'time', 'datetime'];
     $cleanFields  = [];
     foreach (($payload['fields'] ?? []) as $f) {
         if (!is_array($f)) continue;
@@ -264,12 +269,19 @@ try {
             $options = [];
         }
 
-        $cleanFields[] = [
+        $clean = [
             'field_type'  => $type,
             'label'       => $label,
-            'is_required' => !empty($f['is_required']),
+            // A section is a heading and collects nothing, so it can never be required
+            // however the model labelled it — the service rejects that outright.
+            'is_required' => $type !== 'section' && !empty($f['is_required']),
             'options'     => $options,
         ];
+        if ($type === 'datetime') {
+            $mode = $f['date_mode'] ?? '';
+            $clean['config'] = ['date_mode' => in_array($mode, $dateModes, true) ? $mode : 'date'];
+        }
+        $cleanFields[] = $clean;
     }
 
     if (empty($cleanFields)) {

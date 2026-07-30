@@ -30,13 +30,54 @@ require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 class FormsService
 {
     // 'section' is a heading, not a question — see ANSWERABLE_TYPES.
-    const FIELD_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'section'];
+    const FIELD_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime', 'section'];
 
     /** The types that actually collect an answer. A 'section' never produces submission data. */
-    const ANSWERABLE_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio'];
+    const ANSWERABLE_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime'];
+
+    /**
+     * What a 'datetime' field actually asks for, held in config.date_mode.
+     *
+     * ONE field type with a mode rather than three separate types, because a field's
+     * field_type cannot be changed once it exists: picking `date` and later wanting the
+     * time too would mean deleting the field and adding a new one, which retires the old
+     * one and strands every answer already given to it under a separate column. A mode
+     * is a setting you can flip, and the field keeps its identity.
+     */
+    const DATE_MODES = ['date', 'time', 'datetime'];
+    const DATE_MODE_DEFAULT = 'date';
+
+    /**
+     * Accepted stored formats per mode — exactly what the matching HTML input produces.
+     * ⚠️ These are NAIVE local values, deliberately. See dateModeOf().
+     */
+    const DATE_MODE_PATTERNS = [
+        'date'     => '/^\d{4}-\d{2}-\d{2}$/',
+        'time'     => '/^\d{2}:\d{2}$/',
+        'datetime' => '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/',
+    ];
 
     /** Operators a conditional-visibility rule may use. Mirrors assets/js/form-logic.js. */
-    const CONDITION_OPS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty', 'greater_than', 'less_than'];
+    const CONDITION_OPS = [
+        'equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty',
+        'greater_than', 'less_than',
+        // Date-shaped aliases of greater_than / less_than. Same comparison — ISO-8601
+        // values sort correctly as plain strings — but "is more than 2026-08-14" reads
+        // like nonsense next to a date, so the operator gets a name that doesn't.
+        'is_after', 'is_before',
+    ];
+
+    /**
+     * The mode a 'datetime' field is in, defaulting for a field saved before modes
+     * existed or by an adapter that didn't send one.
+     */
+    public static function dateModeOf(array $field): string
+    {
+        $config = $field['config'] ?? null;
+        if (is_string($config)) $config = json_decode($config, true);
+        $mode = is_array($config) ? ($config['date_mode'] ?? null) : null;
+        return in_array($mode, self::DATE_MODES, true) ? $mode : self::DATE_MODE_DEFAULT;
+    }
 
     // ======================================================================
     //  Forms
@@ -390,6 +431,23 @@ class FormsService
                     throw new ServiceError('validation', 'invalid_field', '"' . $field['label'] . '" must be a number.');
                 }
 
+                // A date/time answer must match the shape its own mode asks for. The
+                // browser's date input already produces exactly this, so a mismatch means
+                // either an unsupported browser's text fallback or a hand-made request.
+                if ($type === 'datetime') {
+                    $mode = self::dateModeOf($field);
+                    if (!preg_match(self::DATE_MODE_PATTERNS[$mode], (string)$val)) {
+                        $expected = ['date' => 'a date', 'time' => 'a time', 'datetime' => 'a date and time'][$mode];
+                        throw new ServiceError('validation', 'invalid_field',
+                            '"' . $field['label'] . '" must be ' . $expected . '.');
+                    }
+                    // ⚠️ NOT converted to UTC, and deliberately so. A form answer is a
+                    // NAIVE local value: "needed by 14 August" means the 14th to whoever
+                    // typed it and to whoever reads it. Storing it as an instant and
+                    // rendering it in the reader's timezone would show an analyst in
+                    // another zone the 13th. Stored, exported and displayed verbatim.
+                }
+
                 // A choice field must be answered with one of ITS OWN choices.
                 // This was never checked: the value was whatever the client
                 // posted, so a select could carry arbitrary text straight into
@@ -608,7 +666,7 @@ class FormsService
                 'label'       => $label,
                 'options'     => $options,
                 'is_required' => $isRequired,
-                'config'      => self::validateFieldConfig($field['config'] ?? null, $i, $fields, $indexById),
+                'config'      => self::validateFieldConfig($field['config'] ?? null, $i, $fields, $indexById, $type),
             ];
         }
         return $out;
@@ -624,10 +682,10 @@ class FormsService
      * (A shows when B is set, B shows when A is set) structurally impossible, so
      * neither evaluator ever has to detect a cycle at render time.
      */
-    private static function validateFieldConfig($config, int $i, array $fields, array $indexById): ?array
+    private static function validateFieldConfig($config, int $i, array $fields, array $indexById, string $type = 'text'): ?array
     {
         if ($config === null || $config === '') {
-            return null;
+            $config = [];
         }
         if (is_string($config)) {
             $config = json_decode($config, true);
@@ -637,6 +695,19 @@ class FormsService
         }
         if (!is_array($config)) {
             throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: 'config' must be an object.");
+        }
+
+        // date_mode belongs to a 'datetime' field and nowhere else — dropped rather
+        // than stored on other types, so it can never sit there looking meaningful.
+        if ($type === 'datetime') {
+            $mode = $config['date_mode'] ?? self::DATE_MODE_DEFAULT;
+            if (!in_array($mode, self::DATE_MODES, true)) {
+                throw new ServiceError('validation', 'invalid_field',
+                    "fields[{$i}]: unknown date_mode '{$mode}'. One of: " . implode(', ', self::DATE_MODES) . '.');
+            }
+            $config['date_mode'] = $mode;
+        } else {
+            unset($config['date_mode']);
         }
 
         $vif = $config['visible_if'] ?? null;

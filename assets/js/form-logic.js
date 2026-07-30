@@ -17,13 +17,45 @@
 
     // Every type the module knows. 'section' is presentational — a heading that owns
     // the fields below it until the next section, and never produces an answer.
-    var TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'section'];
+    var TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime', 'section'];
     var WITH_OPTIONS = ['dropdown', 'radio', 'checkboxes'];
     var MULTI_VALUE  = ['checkboxes'];
+
+    // What a 'datetime' field asks for, held in config.date_mode. ONE type with a mode
+    // rather than three types, because field_type cannot be changed once a field exists.
+    var DATE_MODES = ['date', 'time', 'datetime'];
+    var DATE_MODE_DEFAULT = 'date';
 
     function isAnswerable(type) { return type !== 'section'; }
     function hasOptions(type)   { return WITH_OPTIONS.indexOf(type) !== -1; }
     function isMultiValue(type) { return MULTI_VALUE.indexOf(type) !== -1; }
+
+    /** The mode of a datetime field, defaulting when unset. Mirrors FormsService::dateModeOf(). */
+    function dateMode(field) {
+        var cfg = field && field.config;
+        if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch (e) { cfg = null; } }
+        var mode = cfg && cfg.date_mode;
+        return DATE_MODES.indexOf(mode) !== -1 ? mode : DATE_MODE_DEFAULT;
+    }
+
+    /** The HTML input type a given mode needs. */
+    function dateInputType(mode) {
+        return mode === 'time' ? 'time' : (mode === 'datetime' ? 'datetime-local' : 'date');
+    }
+
+    /**
+     * Render a stored value for READING (submissions table, CSV, detail drawer).
+     *
+     * ⚠️ Deliberately does NOT parse to a Date. These are naive local values — "needed
+     * by 14 August" means the 14th to whoever typed it — and new Date() would apply the
+     * reader's timezone, showing an analyst in another zone the 13th. The only change
+     * made is swapping the ISO 'T' for a space so it reads as text rather than a
+     * machine format. ISO order is also kept on purpose: dd/mm vs mm/dd is ambiguous
+     * across the 21 locales this product ships in, and this is never ambiguous.
+     */
+    function formatDateValue(raw) {
+        return String(raw == null ? '' : raw).replace('T', ' ');
+    }
 
     /** Options come back as a JSON string from the API but as a live array in the builder. */
     function parseOptions(raw) {
@@ -81,6 +113,13 @@
             case 'less_than':
                 return scalar !== '' && want !== '' && !isNaN(parseFloat(scalar)) && !isNaN(parseFloat(want))
                     && parseFloat(scalar) < parseFloat(want);
+
+            // Date-shaped comparison. A plain string compare is CORRECT rather than
+            // lazy: stored date/time values are ISO-8601, whose lexical order IS
+            // chronological order. new Date() would drag in a timezone these naive
+            // values deliberately do not have.
+            case 'is_after':  return scalar !== '' && want !== '' && scalar > want;
+            case 'is_before': return scalar !== '' && want !== '' && scalar < want;
         }
         // Unknown operator must never silently hide a question.
         return true;
@@ -123,9 +162,14 @@
 
     global.FormLogic = {
         TYPES: TYPES,
+        DATE_MODES: DATE_MODES,
+        DATE_MODE_DEFAULT: DATE_MODE_DEFAULT,
         isAnswerable: isAnswerable,
         hasOptions: hasOptions,
         isMultiValue: isMultiValue,
+        dateMode: dateMode,
+        dateInputType: dateInputType,
+        formatDateValue: formatDateValue,
         parseOptions: parseOptions,
         normaliseValue: normaliseValue,
         testRule: testRule,
