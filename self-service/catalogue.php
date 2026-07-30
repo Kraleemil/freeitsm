@@ -20,6 +20,10 @@ $activeNav    = 'catalogue';
 // PHP tag inside it is emitted verbatim and kills the whole block).
 $pageData = ['formId' => (int)($_GET['id'] ?? 0)];
 
+// Loads assets/js/form-logic.js (see includes/footer.php) — the shared field-type
+// and conditional-visibility rules this page's renderer calls into.
+$needsFormLogic = true;
+
 $pageStyles = <<<'CSS'
 .cat-header { margin-bottom: 20px; }
         .cat-header h1 {
@@ -74,6 +78,24 @@ $pageStyles = <<<'CSS'
             line-height: 1.5;
         }
         .cat-field { margin-bottom: 18px; }
+
+        /* A section heading — groups the fields beneath it, and hiding it hides
+           that whole group. */
+        .cat-section {
+            margin: 26px 0 14px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border, #e5e7eb);
+        }
+        .cat-section:first-child { margin-top: 0; }
+        .cat-section h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text, #333);
+            margin: 0;
+        }
+
+        /* Conditionally hidden — toggled by applyVisibility() as answers change. */
+        .cat-field.is-hidden, .cat-section.is-hidden { display: none; }
         .cat-field label.cat-label {
             display: block;
             font-size: 13px;
@@ -183,10 +205,20 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (e) { catError(); }
         }
 
+        // The form currently on screen — applyVisibility() needs its field list
+        // (with each field's condition) after render, not just during it.
+        let currentForm = null;
+
         // Mirrors the analyst renderer (forms/fill.php) one case per field type.
         function renderForm(form) {
             const container = document.getElementById('catContent');
+            currentForm = form;
             const fields = (form.fields || []).map(f => {
+                // A section is a heading, not a question: no label element, no answer.
+                if (f.field_type === 'section') {
+                    return '<div class="cat-section" data-wrap-id="' + f.id + '"><h2>'
+                         + esc(f.label || '') + '</h2></div>';
+                }
                 const req = f.is_required == 1
                     ? '<span class="cat-req" title="' + esc(window.t('self-service.catalogue.required')) + '">*</span>' : '';
                 const label = '<label class="cat-label" for="f' + f.id + '">' + esc(f.label || '') + req + '</label>';
@@ -228,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     default:   // text
                         input = '<input type="text" id="f' + f.id + '" data-field-id="' + f.id + '">';
                 }
-                return '<div class="cat-field">' + label + input + '</div>';
+                return '<div class="cat-field" data-wrap-id="' + f.id + '">' + label + input + '</div>';
             }).join('');
 
             container.innerHTML = backBtn()
@@ -241,21 +273,43 @@ document.addEventListener('DOMContentLoaded', function () {
                 +       esc(window.t('self-service.catalogue.submit')) + '</button>'
                 +   '</div>'
                 + '</div>';
+
+            // Any answer can trigger a condition, so re-evaluate on every edit.
+            const formEl = document.getElementById('catForm');
+            formEl.addEventListener('input', applyVisibility);
+            formEl.addEventListener('change', applyVisibility);
+            applyVisibility();
         }
 
         function parseOptions(raw) {
-            if (!raw) return [];
-            try {
-                const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                return Array.isArray(parsed) ? parsed : [];
-            } catch (e) { return []; }
+            return FormLogic.parseOptions(raw);
+        }
+
+        /**
+         * Show or hide fields to match the answers so far. The service re-derives
+         * this on submit — this copy only exists so the page reacts as someone types.
+         */
+        function applyVisibility() {
+            const vis = FormLogic.visibility(currentForm.fields || [], collectAnswers(true));
+            (currentForm.fields || []).forEach(f => {
+                const wrap = document.querySelector('[data-wrap-id="' + f.id + '"]');
+                if (wrap) wrap.classList.toggle('is-hidden', vis[f.id] === false);
+            });
+            return vis;
         }
 
         // Collect answers in the shape the service expects: field_id => value.
-        function collectAnswers() {
+        // includeHidden is for the evaluator itself, which needs every current answer
+        // to decide what should be shown; the submit path leaves hidden fields out,
+        // so what is recorded is what the person was actually asked.
+        function collectAnswers(includeHidden) {
             const data = {};
             document.querySelectorAll('#catForm [data-field-id]').forEach(el => {
                 const id = el.getAttribute('data-field-id');
+                if (!includeHidden) {
+                    const wrap = el.closest('.cat-field');
+                    if (wrap && wrap.classList.contains('is-hidden')) return;
+                }
                 const group = el.getAttribute('data-group');
                 if (group === 'radio') {
                     const picked = el.querySelector('input[type="radio"]:checked');

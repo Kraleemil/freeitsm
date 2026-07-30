@@ -27,6 +27,9 @@ $translationNamespaces = ['common', 'forms'];
     <script src="../assets/js/i18n.js?v=2"></script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
+    <!-- Shared with the builder preview and the portal: field types + conditional
+         visibility. Mirrors includes/form_logic.php, which decides on submit. -->
+    <script src="../assets/js/form-logic.js?v=1"></script>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../assets/css/inbox.css">
     <style>
@@ -82,6 +85,25 @@ $translationNamespaces = ['common', 'forms'];
         .form-field {
             margin-bottom: 18px;
         }
+
+        /* A section heading. Not a question — it groups the fields beneath it,
+           and hiding it hides that whole group. */
+        .form-section {
+            margin: 26px 0 14px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border, #ddd);
+        }
+        .form-section:first-child { margin-top: 0; }
+        .form-section h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text, #333);
+            margin: 0;
+        }
+
+        /* Conditionally hidden — set by applyVisibility() as answers change. */
+        .form-field.is-hidden,
+        .form-section.is-hidden { display: none; }
 
         .form-field label {
             display: block;
@@ -310,46 +332,54 @@ $translationNamespaces = ['common', 'forms'];
                 const req = f.is_required == 1;
                 const reqStar = req ? '<span class="required-star">*</span>' : '';
                 const reqAttr = req ? 'data-required="1"' : '';
+                // data-wrap-id goes on EVERY wrapper so applyVisibility() has one
+                // thing to look for. It is deliberately separate from data-field-id,
+                // which the value-reading code below already uses with two different
+                // meanings (on the input for simple types, on the wrapper for groups).
+                const wrap = `data-wrap-id="${f.id}"`;
 
                 switch (f.field_type) {
+                    case 'section':
+                        html += `<div class="form-section" ${wrap}><h2>${esc(f.label)}</h2></div>`;
+                        break;
                     case 'text':
-                        html += `<div class="form-field" ${reqAttr}>
+                        html += `<div class="form-field" ${wrap} ${reqAttr}>
                             <label>${esc(f.label)}${reqStar}</label>
                             <input type="text" name="field_${f.id}" data-field-id="${f.id}">
                             <div class="field-error">${esc(window.t('forms.fill.err_required'))}</div>
                         </div>`;
                         break;
                     case 'textarea':
-                        html += `<div class="form-field" ${reqAttr}>
+                        html += `<div class="form-field" ${wrap} ${reqAttr}>
                             <label>${esc(f.label)}${reqStar}</label>
                             <textarea name="field_${f.id}" data-field-id="${f.id}"></textarea>
                             <div class="field-error">${esc(window.t('forms.fill.err_required'))}</div>
                         </div>`;
                         break;
                     case 'email':
-                        html += `<div class="form-field" ${reqAttr}>
+                        html += `<div class="form-field" ${wrap} ${reqAttr}>
                             <label>${esc(f.label)}${reqStar}</label>
                             <input type="email" name="field_${f.id}" data-field-id="${f.id}" placeholder="${escAttr(window.t('forms.fill.email_ph'))}">
                             <div class="field-error">${esc(window.t('forms.fill.err_email'))}</div>
                         </div>`;
                         break;
                     case 'number':
-                        html += `<div class="form-field" ${reqAttr}>
+                        html += `<div class="form-field" ${wrap} ${reqAttr}>
                             <label>${esc(f.label)}${reqStar}</label>
                             <input type="number" name="field_${f.id}" data-field-id="${f.id}" inputmode="decimal" step="any">
                             <div class="field-error">${esc(window.t('forms.fill.err_number'))}</div>
                         </div>`;
                         break;
                     case 'checkbox':
-                        html += `<div class="form-field checkbox-field" ${reqAttr}>
+                        html += `<div class="form-field checkbox-field" ${wrap} ${reqAttr}>
                             <input type="checkbox" name="field_${f.id}" data-field-id="${f.id}" id="cb_${f.id}">
                             <label for="cb_${f.id}">${esc(f.label)}${reqStar}</label>
                             <div class="field-error">${esc(window.t('forms.fill.err_required'))}</div>
                         </div>`;
                         break;
                     case 'dropdown': {
-                        const opts = f.options ? JSON.parse(f.options) : [];
-                        html += `<div class="form-field" ${reqAttr}>
+                        const opts = FormLogic.parseOptions(f.options);
+                        html += `<div class="form-field" ${wrap} ${reqAttr}>
                             <label>${esc(f.label)}${reqStar}</label>
                             <select name="field_${f.id}" data-field-id="${f.id}">
                                 <option value="">${esc(window.t('forms.fill.select_ph'))}</option>
@@ -360,12 +390,12 @@ $translationNamespaces = ['common', 'forms'];
                         break;
                     }
                     case 'radio': {
-                        const opts = f.options ? JSON.parse(f.options) : [];
+                        const opts = FormLogic.parseOptions(f.options);
                         // Radios share a name so the browser enforces
                         // single-select. data-field-id on the wrapper
                         // (not the individual inputs) so submitForm can
                         // read the chosen value via name=field_X.
-                        html += `<div class="form-field choice-field" ${reqAttr} data-field-id="${f.id}" data-field-kind="radio">
+                        html += `<div class="form-field choice-field" ${wrap} ${reqAttr} data-field-id="${f.id}" data-field-kind="radio">
                             <label>${esc(f.label)}${reqStar}</label>
                             ${opts.map((o, i) => `
                                 <div class="choice-row">
@@ -378,12 +408,12 @@ $translationNamespaces = ['common', 'forms'];
                         break;
                     }
                     case 'checkboxes': {
-                        const opts = f.options ? JSON.parse(f.options) : [];
+                        const opts = FormLogic.parseOptions(f.options);
                         // Multi-checkbox group — each option is its own
                         // <input type="checkbox">; submitForm reads the
                         // wrapper's [data-field-kind="checkboxes"] and
                         // collects every checked value into an array.
-                        html += `<div class="form-field choice-field" ${reqAttr} data-field-id="${f.id}" data-field-kind="checkboxes">
+                        html += `<div class="form-field choice-field" ${wrap} ${reqAttr} data-field-id="${f.id}" data-field-kind="checkboxes">
                             <label>${esc(f.label)}${reqStar}</label>
                             ${opts.map((o, i) => `
                                 <div class="choice-row">
@@ -406,6 +436,74 @@ $translationNamespaces = ['common', 'forms'];
             html += '<div class="submit-message" id="submitMessage"></div>';
 
             card.innerHTML = html;
+
+            // Any answer can be the trigger for a condition, so re-evaluate on every
+            // edit. 'input' covers typing, 'change' covers ticking and selecting.
+            const formEl = document.getElementById('fillForm');
+            formEl.addEventListener('input', applyVisibility);
+            formEl.addEventListener('change', applyVisibility);
+            applyVisibility();
+        }
+
+        /**
+         * Read one field's current answer from the DOM.
+         *
+         * The wrapper carries data-field-id for radio + checkboxes groups; for
+         * everything else it's on the input itself. Read the wrapper first so the
+         * lookup works for both shapes. Returns null when the field isn't on the page.
+         */
+        function readField(f) {
+            const wrapper = document.querySelector(`.form-field[data-field-id="${f.id}"]`);
+            const el = wrapper ? null : document.querySelector(`[data-field-id="${f.id}"]`);
+
+            if (f.field_type === 'checkbox') {
+                // Single yes/no toggle — '1' or '0'.
+                if (!el) return null;
+                return { value: el.checked ? '1' : '0', isEmpty: !el.checked, wrapper, el };
+            }
+            if (f.field_type === 'radio') {
+                // Single-select from a group — the checked radio's value, or ''.
+                const picked = wrapper && wrapper.querySelector('input[type="radio"]:checked');
+                return { value: picked ? picked.value : '', isEmpty: !picked, wrapper, el };
+            }
+            if (f.field_type === 'checkboxes') {
+                // Multi-select — every ticked value, serialised as JSON. The service
+                // stores that string; submissions.php decodes it for display.
+                const picked = wrapper ? wrapper.querySelectorAll('input[type="checkbox"]:checked') : [];
+                const arr = Array.from(picked).map(p => p.value);
+                return { value: JSON.stringify(arr), isEmpty: arr.length === 0, wrapper, el };
+            }
+            if (!el) return null;
+            const value = (el.value || '').trim();
+            return { value, isEmpty: !value, wrapper, el };
+        }
+
+        /** field_id => current answer, for the condition evaluator. */
+        function collectValues() {
+            const values = {};
+            formData.fields.forEach(f => {
+                if (f.field_type === 'section') return;
+                const read = readField(f);
+                if (read) values[f.id] = read.value;
+            });
+            return values;
+        }
+
+        /**
+         * Show or hide fields to match the answers so far. The server re-derives this
+         * on submit — this copy only exists so the page reacts as someone types.
+         */
+        function applyVisibility() {
+            const vis = FormLogic.visibility(formData.fields, collectValues());
+            formData.fields.forEach(f => {
+                const wrap = document.querySelector(`[data-wrap-id="${f.id}"]`);
+                if (!wrap) return;
+                const hidden = vis[f.id] === false;
+                wrap.classList.toggle('is-hidden', hidden);
+                // A hidden field can't be the thing standing between you and Submit.
+                if (hidden) wrap.classList.remove('has-error');
+            });
+            return vis;
         }
 
         async function submitForm(e) {
@@ -414,50 +512,22 @@ $translationNamespaces = ['common', 'forms'];
             // Clear errors
             document.querySelectorAll('.form-field.has-error').forEach(el => el.classList.remove('has-error'));
 
-            // Collect values
+            const vis = applyVisibility();
             const data = {};
             let valid = true;
 
             formData.fields.forEach(f => {
-                // The wrapper carries data-field-id for radio +
-                // checkboxes groups; for everything else it's on the
-                // input itself. Read the wrapper first so the lookup
-                // works for both shapes.
-                const wrapper = document.querySelector(`.form-field[data-field-id="${f.id}"]`);
-                const el = wrapper ? null : document.querySelector(`[data-field-id="${f.id}"]`);
+                // Headings collect nothing; a question that was never shown was never
+                // asked, so it is neither sent nor required.
+                if (f.field_type === 'section' || vis[f.id] === false) return;
 
-                let value;
-                let isEmpty = false;
-                if (f.field_type === 'checkbox') {
-                    // Single yes/no toggle — '1' or '0'.
-                    if (!el) return;
-                    value = el.checked ? '1' : '0';
-                    isEmpty = !el.checked;
-                } else if (f.field_type === 'radio') {
-                    // Single-select from a group — the value is the
-                    // checked radio's value (or empty string if none).
-                    const picked = wrapper && wrapper.querySelector('input[type="radio"]:checked');
-                    value = picked ? picked.value : '';
-                    isEmpty = !picked;
-                } else if (f.field_type === 'checkboxes') {
-                    // Multi-select — collect every ticked value into
-                    // an array and serialise as JSON. submit_form.php
-                    // stores it as a JSON string; submissions.php
-                    // decodes for display.
-                    const picked = wrapper ? wrapper.querySelectorAll('input[type="checkbox"]:checked') : [];
-                    const arr = Array.from(picked).map(p => p.value);
-                    value = JSON.stringify(arr);
-                    isEmpty = arr.length === 0;
-                } else {
-                    if (!el) return;
-                    value = (el.value || '').trim();
-                    isEmpty = !value;
-                }
+                const read = readField(f);
+                if (!read) return;
 
-                data[f.id] = value;
+                data[f.id] = read.value;
 
-                if (f.is_required == 1 && isEmpty) {
-                    (wrapper || el.closest('.form-field')).classList.add('has-error');
+                if (f.is_required == 1 && read.isEmpty) {
+                    (read.wrapper || read.el.closest('.form-field')).classList.add('has-error');
                     valid = false;
                 }
             });

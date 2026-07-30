@@ -38,6 +38,13 @@ $pageData    = $pageData ?? [];
          confirmations look and behave exactly like the rest of FreeITSM instead
          of each page inventing its own little message strip. -->
     <script src="../assets/js/toast.js"></script>
+    <?php if (!empty($needsFormLogic)): ?>
+    <!-- Field types + conditional visibility for catalogue forms. Shared with the
+         analyst side (forms/fill.php, the builder preview) and mirroring
+         includes/form_logic.php, which is what actually decides on submit. Loaded
+         per-page: only the catalogue renders a form. -->
+    <script src="../assets/js/form-logic.js?v=1"></script>
+    <?php endif; ?>
     <?php if (!empty($needsRecorder)): ?>
     <!-- Screen recording, for the pages that offer it (raising a ticket and
          replying to one). Loaded per-page rather than globally: it is dead

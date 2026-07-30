@@ -51,8 +51,11 @@ try {
         exit;
     }
 
-    $stmt = $conn->prepare("SELECT id, field_type, label, options, is_required, sort_order
-                            FROM form_fields WHERE form_id = ? ORDER BY sort_order");
+    // is_deleted = 0: a retired field is kept only so old submissions stay readable
+    // (see forms/submissions.php). It must not come back into the builder or the
+    // fill page, or removing a question would look like it hadn't worked.
+    $stmt = $conn->prepare("SELECT id, field_type, label, options, is_required, sort_order, config
+                            FROM form_fields WHERE form_id = ? AND is_deleted = 0 ORDER BY sort_order, id");
     $stmt->execute([$formId]);
     $form['fields'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

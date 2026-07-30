@@ -5,11 +5,16 @@
  * Mirrors the module's internal endpoints:
  *   - GET /forms is get_forms.php: ONE row per version chain (the leaf — the
  *     current editable version), with field + submission counts;
- *   - PATCH replicates save_form.php's positional field sync EXACTLY
- *     (existing fields updated in sort order so their ids — and therefore
- *     historical submission data — survive; trailing removed fields have
- *     their submission data deleted), and refuses to touch a frozen
- *     historical version (409, like the server-side leaf check);
+ *   - PATCH replicates save_form.php's field sync EXACTLY, and refuses to touch
+ *     a frozen historical version (409, like the server-side leaf check).
+ *     ⚠️ That sync is now BY ID, not positional. Send each field's `id` back (as
+ *     GET returns it) and it is updated in place. A field with no `id` is treated
+ *     as new, and any field you omit is RETIRED — soft-deleted, keeping the
+ *     answers people already gave it. A client that rebuilds the field list from
+ *     scratch without ids therefore replaces the questions rather than renaming
+ *     them; that is deliberate, and the opposite of the old behaviour, which
+ *     quietly re-pointed historical answers at whichever question had landed in
+ *     that position;
  *   - POST /forms/{id}/versions is create_version.php: fork the leaf into a
  *     new row (parent_form_id chain, version_number + 1), fields cloned;
  *   - POST /forms/{id}/submissions is submit_form.php: per-type required +
@@ -64,13 +69,22 @@ function apiSerializeFormField(array $r): array {
         $decoded = json_decode($r['options'], true);
         $options = is_array($decoded) ? $decoded : $r['options'];
     }
+    $config = null;
+    if (!empty($r['config'])) {
+        $decoded = json_decode((string)$r['config'], true);
+        $config  = is_array($decoded) ? $decoded : null;
+    }
     return [
         'id'          => (int)$r['id'],
+        // 'section' is a heading — presentational, collects no answer.
         'field_type'  => $r['field_type'],
         'label'       => $r['label'],
         'options'     => $options,
         'is_required' => (bool)$r['is_required'],
         'sort_order'  => (int)$r['sort_order'],
+        // Conditional visibility, or null when the field is always shown.
+        // rules[].field is a form_fields.id on this same form.
+        'config'      => $config,
     ];
 }
 
@@ -94,7 +108,9 @@ function apiSerializeForm(PDO $conn, array $r, bool $withFields = true): array {
         'modified_at' => apiIsoDate($r['modified_date']),
     ];
     if ($withFields) {
-        $stmt = $conn->prepare("SELECT * FROM form_fields WHERE form_id = ? ORDER BY sort_order, id");
+        // Retired fields stay out of the API's view of the form for the same reason
+        // they stay out of the builder: the form no longer asks them.
+        $stmt = $conn->prepare("SELECT * FROM form_fields WHERE form_id = ? AND is_deleted = 0 ORDER BY sort_order, id");
         $stmt->execute([(int)$r['id']]);
         $form['fields'] = array_map('apiSerializeFormField', $stmt->fetchAll(PDO::FETCH_ASSOC));
     }
@@ -200,7 +216,7 @@ function apiFormsCreate(PDO $conn, array $apiKey, array $params, array $body): v
     } catch (ServiceError $e) { apiFailFromService($e); }
 }
 
-// PATCH /forms/{id} — save_form.php's in-place save (positional field sync).
+// PATCH /forms/{id} — save_form.php's in-place save (id-based field sync).
 function apiFormsUpdate(PDO $conn, array $apiKey, array $params, array $body): void {
     try {
         $res = FormsService::saveForm($conn, ActorContext::fromApiKey($apiKey), array_merge($body, ['id' => (int)$params[0]]));

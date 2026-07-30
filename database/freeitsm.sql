@@ -2667,11 +2667,29 @@ CREATE TABLE IF NOT EXISTS `forms` (
 CREATE TABLE IF NOT EXISTS `form_fields` (
     `id`            INT NOT NULL AUTO_INCREMENT,
     `form_id`       INT NOT NULL,
+    -- One of FormsService::FIELD_TYPES. 'section' is a PRESENTATIONAL item, not a
+    -- question: it renders as a heading, never produces a form_submission_data row,
+    -- and owns every field below it until the next 'section'. Modelled as a row here
+    -- rather than its own table so one flat sort_order still describes the whole form
+    -- and the builder's existing drag-and-drop keeps working untouched.
     `field_type`    VARCHAR(50) NOT NULL,
     `label`         VARCHAR(255) NOT NULL,
     `options`       LONGTEXT NULL,
     `is_required`   TINYINT(1) NOT NULL DEFAULT 0,
     `sort_order`    INT NOT NULL DEFAULT 0,
+    -- Per-field JSON settings. Today it holds only the conditional-visibility rule:
+    --   {"visible_if":{"match":"all|any","rules":[{"field":<id>,"op":...,"value":...}]}}
+    -- `field` is a form_fields.id, which is exactly why field identity had to be fixed
+    -- first — a rule pointing at "the third question" would not survive a reorder.
+    -- NULL = always visible, which is every pre-existing row, so an upgraded form
+    -- renders identically.
+    `config`        LONGTEXT NULL,
+    -- Soft delete. Removing a field from the builder sets this instead of dropping the
+    -- row, because form_submission_data.field_id points at it: a hard delete silently
+    -- destroyed the answers every past respondent gave to that question. Hidden
+    -- everywhere a form is filled in; still shown in the submissions view so history
+    -- stays readable.
+    `is_deleted`    TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_form_fields_form` FOREIGN KEY (`form_id`) REFERENCES `forms` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -80,7 +80,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | [Morning Checks](https://github.com/edmozley/freeitsm/wiki/Morning-Checks) | Daily infrastructure health checks with trend charts and PDF export |
 | [Reporting](https://github.com/edmozley/freeitsm/wiki/Reporting) | System logs, audit trails, and an Intune device dashboard with drill-down |
 | [Software](https://github.com/edmozley/freeitsm/wiki/Software) | Software inventory from an agent script, plus licence management |
-| [Forms](https://github.com/edmozley/freeitsm/wiki/Forms) | Dynamic form builder with AI assist, versioning and submissions reporting |
+| [Forms](https://github.com/edmozley/freeitsm/wiki/Forms) | Dynamic form builder with AI assist, section headings, conditional questions, versioning and submissions reporting |
 | [Contracts](https://github.com/edmozley/freeitsm/wiki/Contracts) | Supplier and contract lifecycle, plus an AI-powered RFP Builder |
 | [Service Status](https://github.com/edmozley/freeitsm/wiki/Service-Status) | Service health dashboard driven by incident tracking |
 | [LMS](https://github.com/edmozley/freeitsm/wiki/LMS) | Author courses in-app (with AI) or upload SCORM; assign, take and track them |

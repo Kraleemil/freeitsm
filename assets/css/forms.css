@@ -410,6 +410,7 @@
 .field-type-badge.number     { background: #fce4ec; color: #ad1457; }
 .field-type-badge.checkboxes { background: #dcedc8; color: #33691e; }
 .field-type-badge.radio      { background: #fff8e1; color: #ff8f00; }
+.field-type-badge.section    { background: #eceff1; color: #455a64; }
 
 [data-theme-mode="dark"] .field-type-badge.text       { background: #14283a; color: #8ec5f0; }
 [data-theme-mode="dark"] .field-type-badge.textarea   { background: #2a1a33; color: #d6a5e8; }
@@ -419,6 +420,7 @@
 [data-theme-mode="dark"] .field-type-badge.number     { background: #331a24; color: #e88bb0; }
 [data-theme-mode="dark"] .field-type-badge.checkboxes { background: #22300f; color: #a8cf6a; }
 [data-theme-mode="dark"] .field-type-badge.radio      { background: #332a10; color: #e0b95a; }
+[data-theme-mode="dark"] .field-type-badge.section    { background: #263238; color: #b0bec5; }
 
 /* Field items */
 .field-list {
@@ -611,6 +613,119 @@
 }
 
 .add-option-btn:hover { border-color: var(--forms-accent, #00897b); color: var(--forms-accent, #00897b); }
+
+/* ==========================================================================
+   Sections + conditional visibility
+   ========================================================================== */
+
+/* A section row in the builder — visually the divider it will be on the form,
+   so a long list of fields reads as the groups the author is creating. */
+.field-item.field-item-section {
+    background: var(--surface-2, #f7f9fa);
+    border-left: 3px solid var(--forms-accent, #00897b);
+}
+.field-item.field-item-section .field-label-input {
+    font-weight: 600;
+}
+
+/* The "Only show this when…" editor beneath a field. Mirrors .field-options so
+   the two stacked blocks read as one panel rather than two competing ones. */
+.field-conditions {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-soft, #eee);
+}
+
+.field-conditions .field-options-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cond-match {
+    font-size: 11px;
+    padding: 1px 4px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 3px;
+    background: var(--surface, #fff);
+    color: var(--text, #333);
+    font-weight: 600;
+}
+
+.cond-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.cond-row select,
+.cond-row input[type="text"] {
+    flex: 1 1 0;
+    min-width: 0;               /* let the three controls share the row evenly */
+    padding: 5px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 3px;
+    background: var(--surface, #fff);
+    color: var(--text, #333);
+}
+
+.cond-row select:focus,
+.cond-row input[type="text"]:focus {
+    outline: none;
+    border-color: var(--forms-accent, #00897b);
+}
+
+/* Preview marker. Conditional fields are shown rather than evaluated in the
+   preview — nothing has been answered there, so every rule would be false and
+   the form would look empty. The badge says "this one comes and goes". */
+.preview-section {
+    margin: 22px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border, #ddd);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.preview-section:first-child { margin-top: 0; }
+.preview-section h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text, #333);
+    margin: 0;
+}
+
+.preview-cond {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--surface-2, #eceff1);
+    color: var(--text-dim, #607d8b);
+    vertical-align: middle;
+    cursor: help;
+}
+
+/* A question that has since been removed from the form. Its column stays in the
+   submissions view because the answers people gave it are still real — this just
+   says "nobody is being asked this any more". */
+.col-retired {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--surface-2, #eceff1);
+    color: var(--text-dim, #78909c);
+    vertical-align: middle;
+    cursor: help;
+}
+
+.subs-table th.th-retired { color: var(--text-dim, #888); font-style: italic; }
 
 .no-fields {
     text-align: center;

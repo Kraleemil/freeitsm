@@ -178,6 +178,7 @@ return [
         'radio'      => 'Radio buttons (one of)',
         'checkbox'   => 'Checkbox (yes/no)',
         'checkboxes' => 'Checkboxes (many of)',
+        'section'    => 'Section heading',
     ],
 
     // Short type-name badges shown on each field row + proposal diff
@@ -190,6 +191,7 @@ return [
         'number'     => 'Number',
         'checkboxes' => 'Checkboxes',
         'radio'      => 'Radio',
+        'section'    => 'Section',
     ],
 
     // Field row editing UI (forms/edit/index.php)
@@ -202,21 +204,49 @@ return [
         'default_option'    => 'Option 1',
         'add_option'        => '+ Add option',
         'label_ph'          => 'Field label...',
+        'section_ph'        => 'Section heading...',
         'required'          => 'Required',
         'remove_field'      => 'Remove field',
         'untitled_field'    => 'Untitled field',
     ],
 
+    // Conditional visibility editor (forms/edit/index.php)
+    'cond' => [
+        'show_when'            => 'Only show this when',
+        'show_section_when'    => 'Only show this section when',
+        'add'                  => '+ Add condition',
+        'remove'               => 'Remove condition',
+        'match_all'            => 'all match',
+        'match_any'            => 'any match',
+        'pick_value'           => 'Choose...',
+        'value_ph'             => 'Value',
+        'yes'                  => 'Ticked',
+        'no'                   => 'Not ticked',
+        'needs_earlier_field'  => 'Add a question above this one first — a condition can only depend on an earlier answer.',
+        'dropped_forward'      => '{count} condition(s) removed: they depended on a question that now comes later.',
+        'op' => [
+            'equals'       => 'is',
+            'not_equals'   => 'is not',
+            'contains'     => 'contains',
+            'is_empty'     => 'is empty',
+            'is_not_empty' => 'is not empty',
+            'greater_than' => 'is more than',
+            'less_than'    => 'is less than',
+        ],
+    ],
+
     // Live preview (forms/edit/index.php)
     'preview' => [
-        'untitled_form'  => 'Untitled form',
-        'logo_alt'       => 'Company logo',
-        'text_ph'        => 'Text input...',
-        'textarea_ph'    => 'Text area...',
-        'email_ph'       => 'name@example.com',
-        'number_ph'      => '0',
-        'select_ph'      => 'Select...',
-        'no_options'     => 'No options yet',
+        'untitled_form'     => 'Untitled form',
+        'logo_alt'          => 'Company logo',
+        'text_ph'           => 'Text input...',
+        'textarea_ph'       => 'Text area...',
+        'email_ph'          => 'name@example.com',
+        'number_ph'         => '0',
+        'select_ph'         => 'Select...',
+        'no_options'        => 'No options yet',
+        'conditional'       => 'Conditional',
+        'conditional_hint'  => 'This only appears when its condition is met. The preview shows everything so you can see the whole form.',
     ],
 
     // Versions dropdown (forms/edit/index.php)
@@ -360,6 +390,8 @@ return [
         'col_submitted_by'  => 'Submitted By',
         'col_date'          => 'Date',
         'unknown_user'      => 'Unknown',
+        'retired'           => 'removed',
+        'retired_hint'      => 'This question was removed from the form. The answers people already gave it are kept.',
         'delete'            => 'Delete',
         'detail_heading'    => 'Submission Detail',
         'detail_submitted_by' => 'Submitted by:',

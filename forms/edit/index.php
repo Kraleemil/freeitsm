@@ -500,6 +500,10 @@ $translationNamespaces = ['common', 'forms'];
                             <button onclick="addField('radio')"><span class="field-type-badge radio">&#9673;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.radio')); ?></button>
                             <button onclick="addField('checkbox')"><span class="field-type-badge checkbox">Chk</span> <?php echo htmlspecialchars(t('forms.fieldtypes.checkbox')); ?></button>
                             <button onclick="addField('checkboxes')"><span class="field-type-badge checkboxes">&#9745;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.checkboxes')); ?></button>
+                            <!-- A heading rather than a question: it groups everything
+                                 below it until the next one, and a condition on it
+                                 hides that whole group at once. -->
+                            <button onclick="addField('section')"><span class="field-type-badge section">&#9647;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.section')); ?></button>
                         </div>
                     </div>
                 </div>
@@ -573,6 +577,14 @@ $translationNamespaces = ['common', 'forms'];
         let isDirty = false;
         let logoAlignment = 'center';
 
+        // Client-side identity for a field, handed out on load and on add. Conditions
+        // point at a _key rather than at an id or an index: an id doesn't exist yet for
+        // a field added in this session, and an index changes the moment anything is
+        // dragged. _key is never sent — buildRulesForSave() converts it at the last
+        // moment into either the real field id or "idx:N".
+        let nextFieldKey = 1;
+        function newFieldKey() { return nextFieldKey++; }
+
         // Track which element initiated a drag — the drag handle on a
         // field row vs an option row — so dragstart on the wrong target
         // doesn't fire.
@@ -640,12 +652,21 @@ $translationNamespaces = ['common', 'forms'];
                 }
                 document.getElementById('formTitle').value = data.form.title;
                 document.getElementById('formDesc').value = data.form.description || '';
+                // `id` is carried through the whole edit and sent back on save. It is
+                // what keeps each answer attached to the question it was given for:
+                // without it the server can only match fields by position, so dragging
+                // one silently re-pointed every historical submission.
                 fields = data.form.fields.map(f => ({
+                    id: f.id ? parseInt(f.id, 10) : null,
+                    _key: newFieldKey(),
                     field_type: f.field_type,
                     label: f.label,
                     options: f.options ? JSON.parse(f.options) : [],
-                    is_required: f.is_required == 1
+                    is_required: f.is_required == 1,
+                    config: f.config ? (typeof f.config === 'string' ? JSON.parse(f.config) : f.config) : null
                 }));
+                // Stored conditions reference field IDs; the builder works in _key.
+                rehydrateRuleRefs(fields);
                 renderFields();
                 updatePreview();
                 renderFormMeta(data.form);
@@ -927,13 +948,183 @@ $translationNamespaces = ['common', 'forms'];
         const FIELD_TYPES_MULTI_VALUE = ['checkboxes'];
         function isMultiValue(type) { return FIELD_TYPES_MULTI_VALUE.includes(type); }
 
+        // A section is a heading: it takes no answer, so it has no options, no
+        // "required" toggle, and nothing may depend on what was typed into it.
+        function isSection(type) { return type === 'section'; }
+
+        // ===== Conditional visibility =====
+        // Stored shape (server + API):  rules[].field = form_fields.id
+        // Builder shape (this file):    rules[]._ref  = a field's _key
+        // The two conversions live in rehydrateRuleRefs() and buildRulesForSave().
+
+        const CONDITION_OPS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty', 'greater_than', 'less_than'];
+        function opNeedsValue(op) { return op !== 'is_empty' && op !== 'is_not_empty'; }
+
+        /** Stored field ids -> builder _keys, once after a load. */
+        function rehydrateRuleRefs(list) {
+            const keyById = {};
+            list.forEach(f => { if (f.id) keyById[f.id] = f._key; });
+            list.forEach(f => {
+                const rules = (f.config && f.config.visible_if && f.config.visible_if.rules) || [];
+                rules.forEach(r => { r._ref = keyById[parseInt(r.field, 10)]; });
+            });
+        }
+
+        /**
+         * Builder _keys -> what the server stores. A rule pointing at a field that
+         * already exists sends its id; one pointing at a field being created by this
+         * same save sends "idx:N", which syncFields resolves once the ids exist.
+         * A rule whose trigger has since been deleted (or left unlabelled, so it never
+         * reaches the payload) is dropped rather than sent as a dangling reference.
+         */
+        function buildRulesForSave(f, payloadFields) {
+            const vif = f.config && f.config.visible_if;
+            if (!vif || !Array.isArray(vif.rules) || !vif.rules.length) return null;
+
+            const posByKey = {};
+            payloadFields.forEach((pf, i) => { posByKey[pf._key] = i; });
+
+            const rules = [];
+            vif.rules.forEach(r => {
+                const pos = posByKey[r._ref];
+                if (pos === undefined) return;
+                const target = payloadFields[pos];
+                rules.push({
+                    field: target.id ? target.id : ('idx:' + pos),
+                    op: r.op || 'equals',
+                    value: opNeedsValue(r.op) ? (r.value || '') : ''
+                });
+            });
+            if (!rules.length) return null;
+            return { visible_if: { match: vif.match === 'any' ? 'any' : 'all', rules: rules } };
+        }
+
+        /**
+         * The fields a condition on `index` may point at: earlier ones only, and only
+         * ones that collect an answer. Restricting it to earlier fields is what makes
+         * a circular condition impossible to build in the first place — the server
+         * enforces the same rule, so a hand-crafted API call can't sneak one in.
+         */
+        function availableTriggers(index) {
+            return fields.slice(0, index)
+                .map((f, i) => ({ f: f, i: i }))
+                .filter(x => !isSection(x.f.field_type) && x.f.label.trim());
+        }
+
+        function conditionRules(i) {
+            const f = fields[i];
+            return (f.config && f.config.visible_if && f.config.visible_if.rules) || [];
+        }
+        function ensureCondition(i) {
+            const f = fields[i];
+            if (!f.config) f.config = {};
+            if (!f.config.visible_if) f.config.visible_if = { match: 'all', rules: [] };
+            return f.config.visible_if;
+        }
+        function addCondition(i) {
+            const triggers = availableTriggers(i);
+            if (!triggers.length) {
+                showToast(window.t('forms.cond.needs_earlier_field'), 'error');
+                return;
+            }
+            ensureCondition(i).rules.push({ _ref: triggers[0].f._key, op: 'equals', value: '' });
+            markDirty(); renderFields(); updatePreview();
+        }
+        function removeCondition(i, ri) {
+            const vif = fields[i].config && fields[i].config.visible_if;
+            if (!vif) return;
+            vif.rules.splice(ri, 1);
+            if (!vif.rules.length) delete fields[i].config.visible_if;
+            markDirty(); renderFields(); updatePreview();
+        }
+        function updateConditionMatch(i, val) {
+            ensureCondition(i).match = val === 'any' ? 'any' : 'all';
+            markDirty(); updatePreview();
+        }
+        function updateConditionRef(i, ri, key) {
+            conditionRules(i)[ri]._ref = parseInt(key, 10);
+            conditionRules(i)[ri].value = '';   // the old value belonged to another question
+            markDirty(); renderFields(); updatePreview();
+        }
+        function updateConditionOp(i, ri, op) {
+            conditionRules(i)[ri].op = op;
+            markDirty(); renderFields(); updatePreview();
+        }
+        function updateConditionValue(i, ri, val) {
+            conditionRules(i)[ri].value = val;
+            markDirty(); updatePreview();
+        }
+
+        /** The value control matches the TRIGGER field's type — a list for a list, Yes/No for a tickbox. */
+        function conditionValueControl(i, ri, rule) {
+            if (!opNeedsValue(rule.op)) return '';
+            const trigger = fields.find(f => f._key === rule._ref);
+            const onchange = `onchange="updateConditionValue(${i}, ${ri}, this.value)"`;
+            if (trigger && hasOptions(trigger.field_type)) {
+                const opts = (trigger.options || []).filter(o => o && o.trim());
+                return `<select ${onchange}>
+                    <option value="">${esc(window.t('forms.cond.pick_value'))}</option>
+                    ${opts.map(o => `<option value="${escAttr(o)}" ${rule.value === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+                </select>`;
+            }
+            if (trigger && trigger.field_type === 'checkbox') {
+                return `<select ${onchange}>
+                    <option value="1" ${rule.value === '1' ? 'selected' : ''}>${esc(window.t('forms.cond.yes'))}</option>
+                    <option value="0" ${rule.value === '0' ? 'selected' : ''}>${esc(window.t('forms.cond.no'))}</option>
+                </select>`;
+            }
+            return `<input type="text" value="${escAttr(rule.value || '')}"
+                           placeholder="${escAttr(window.t('forms.cond.value_ph'))}" ${onchange}>`;
+        }
+
+        function renderConditionEditor(f, i) {
+            const rules = conditionRules(i);
+            const triggers = availableTriggers(i);
+            // The first field on a form has nothing earlier to depend on, so the
+            // control would only ever be able to say no.
+            if (!triggers.length && !rules.length) return '';
+
+            const vif = f.config && f.config.visible_if;
+            const matchSel = rules.length > 1
+                ? `<select class="cond-match" onchange="updateConditionMatch(${i}, this.value)">
+                       <option value="all" ${(!vif || vif.match !== 'any') ? 'selected' : ''}>${esc(window.t('forms.cond.match_all'))}</option>
+                       <option value="any" ${(vif && vif.match === 'any') ? 'selected' : ''}>${esc(window.t('forms.cond.match_any'))}</option>
+                   </select>` : '';
+
+            const rows = rules.map((rule, ri) => `
+                <div class="cond-row">
+                    <select onchange="updateConditionRef(${i}, ${ri}, this.value)">
+                        ${triggers.map(x => `<option value="${x.f._key}" ${x.f._key === rule._ref ? 'selected' : ''}>${esc(x.f.label)}</option>`).join('')}
+                    </select>
+                    <select onchange="updateConditionOp(${i}, ${ri}, this.value)">
+                        ${CONDITION_OPS.map(op => `<option value="${op}" ${rule.op === op ? 'selected' : ''}>${esc(window.t('forms.cond.op.' + op))}</option>`).join('')}
+                    </select>
+                    ${conditionValueControl(i, ri, rule)}
+                    <button class="option-remove" onclick="removeCondition(${i}, ${ri})" title="${escAttr(window.t('forms.cond.remove'))}">&times;</button>
+                </div>`).join('');
+
+            return `
+                <div class="field-conditions">
+                    <div class="field-options-label">
+                        ${esc(isSection(f.field_type) ? window.t('forms.cond.show_section_when') : window.t('forms.cond.show_when'))}
+                        ${matchSel}
+                    </div>
+                    ${rows}
+                    <button class="add-option-btn" onclick="addCondition(${i})">${esc(window.t('forms.cond.add'))}</button>
+                </div>`;
+        }
+
         function addField(type) {
             document.getElementById('addFieldMenu').classList.remove('open');
             fields.push({
+                // No id yet — the server mints one on save and hands it back.
+                id: null,
+                _key: newFieldKey(),
                 field_type: type,
                 label: '',
                 options: hasOptions(type) ? [window.t('forms.field.default_option')] : [],
-                is_required: false
+                is_required: false,
+                config: null
             });
             markDirty();
             renderFields();
@@ -975,8 +1166,16 @@ $translationNamespaces = ['common', 'forms'];
                             <button class="add-option-btn" onclick="addOption(${i})">${esc(window.t('forms.field.add_option'))}</button>
                         </div>`;
                 }
+                // A heading has no answer, so "required" would mean nothing — the
+                // server rejects it outright, and the toggle is left off here.
+                const requiredToggle = isSection(f.field_type) ? '' : `
+                                <label class="field-required-toggle">
+                                    <input type="checkbox" ${f.is_required ? 'checked' : ''} onchange="toggleRequired(${i}, this.checked)">
+                                    ${esc(window.t('forms.field.required'))}
+                                </label>`;
+
                 return `
-                    <li class="field-item" data-index="${i}" draggable="true"
+                    <li class="field-item${isSection(f.field_type) ? ' field-item-section' : ''}" data-index="${i}" draggable="true"
                         ondragstart="onFieldDragStart(event, ${i})"
                         ondragend="onFieldDragEnd(event)"
                         ondragover="onFieldDragOver(event, ${i})"
@@ -986,29 +1185,36 @@ $translationNamespaces = ['common', 'forms'];
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
                             </span>
                             <span class="field-type-badge ${f.field_type}">${typeName(f.field_type)}</span>
-                            <input type="text" class="field-label-input" value="${esc(f.label)}" placeholder="${escAttr(window.t('forms.field.label_ph'))}" onchange="updateLabel(${i}, this.value)">
+                            <input type="text" class="field-label-input" value="${esc(f.label)}" placeholder="${escAttr(isSection(f.field_type) ? window.t('forms.field.section_ph') : window.t('forms.field.label_ph'))}" onchange="updateLabel(${i}, this.value)">
                             <div class="field-controls">
-                                <label class="field-required-toggle">
-                                    <input type="checkbox" ${f.is_required ? 'checked' : ''} onchange="toggleRequired(${i}, this.checked)">
-                                    ${esc(window.t('forms.field.required'))}
-                                </label>
+                                ${requiredToggle}
                                 <button class="field-delete-btn" onclick="deleteField(${i})" title="${escAttr(window.t('forms.field.remove_field'))}">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                 </button>
                             </div>
                         </div>
                         ${optionsHtml}
+                        ${renderConditionEditor(f, i)}
                     </li>`;
             }).join('');
         }
         function typeName(type) {
-            const known = ['text', 'textarea', 'checkbox', 'dropdown', 'email', 'number', 'checkboxes', 'radio'];
+            const known = ['text', 'textarea', 'checkbox', 'dropdown', 'email', 'number', 'checkboxes', 'radio', 'section'];
             return known.includes(type) ? window.t('forms.typename.' + type) : type;
         }
         function updateLabel(i, val)    { fields[i].label = val;       markDirty(); updatePreview(); }
         function toggleRequired(i, val) { fields[i].is_required = val; markDirty(); updatePreview(); }
         function deleteField(i) {
+            const goneKey = fields[i]._key;
             fields.splice(i, 1);
+            // Drop any condition that pointed at it, so nothing is left referring to a
+            // question that is no longer on the form.
+            fields.forEach(f => {
+                const vif = f.config && f.config.visible_if;
+                if (!vif) return;
+                vif.rules = vif.rules.filter(r => r._ref !== goneKey);
+                if (!vif.rules.length) delete f.config.visible_if;
+            });
             markDirty(); renderFields(); updatePreview();
         }
         function addOption(fi) {
@@ -1074,7 +1280,36 @@ $translationNamespaces = ['common', 'forms'];
             const [moved] = fields.splice(dragFieldIndex, 1);
             fields.splice(targetIndex, 0, moved);
             dragFieldIndex = null;
+            pruneInvalidConditions();
             markDirty(); renderFields(); updatePreview();
+        }
+
+        /**
+         * Drop any condition that now points at a LATER question.
+         *
+         * Dragging is the only way to create one: a condition can only ever be built
+         * against an earlier field, but moving either field can invert that. The
+         * server rejects a forwards reference, so without this a reorder would fail
+         * to save with a message about a question the user wasn't thinking about.
+         * Dropping it is the honest outcome — the rule genuinely can't be answered
+         * before it is needed.
+         */
+        function pruneInvalidConditions() {
+            const posByKey = {};
+            fields.forEach((f, i) => { posByKey[f._key] = i; });
+            let dropped = 0;
+            fields.forEach((f, i) => {
+                const vif = f.config && f.config.visible_if;
+                if (!vif) return;
+                const before = vif.rules.length;
+                vif.rules = vif.rules.filter(r => {
+                    const pos = posByKey[r._ref];
+                    return pos !== undefined && pos < i;
+                });
+                dropped += before - vif.rules.length;
+                if (!vif.rules.length) delete f.config.visible_if;
+            });
+            if (dropped) showToast(window.t('forms.cond.dropped_forward', { count: dropped }), 'error');
         }
 
         // ===== Option drag & drop =====
@@ -1140,30 +1375,38 @@ $translationNamespaces = ['common', 'forms'];
             html += fields.map(f => {
                 const reqStar = f.is_required ? '<span class="required-star">*</span>' : '';
                 const label = esc(f.label || window.t('forms.field.untitled_field'));
+                // Conditional fields are SHOWN here, with a marker, rather than
+                // evaluated. Nothing has been answered in a preview, so every
+                // condition would be false and the form would look broken — the
+                // author needs to see what they have built, not an empty page.
+                const condFlag = (f.config && f.config.visible_if && f.config.visible_if.rules.length)
+                    ? `<span class="preview-cond" title="${escAttr(window.t('forms.preview.conditional_hint'))}">${esc(window.t('forms.preview.conditional'))}</span>` : '';
                 switch (f.field_type) {
+                    case 'section':
+                        return `<div class="preview-section"><h3>${label}</h3>${condFlag}</div>`;
                     case 'text':
-                        return `<div class="preview-field"><label>${label}${reqStar}</label><input type="text" disabled placeholder="${escAttr(window.t('forms.preview.text_ph'))}"></div>`;
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="text" disabled placeholder="${escAttr(window.t('forms.preview.text_ph'))}"></div>`;
                     case 'textarea':
-                        return `<div class="preview-field"><label>${label}${reqStar}</label><textarea disabled placeholder="${escAttr(window.t('forms.preview.textarea_ph'))}"></textarea></div>`;
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><textarea disabled placeholder="${escAttr(window.t('forms.preview.textarea_ph'))}"></textarea></div>`;
                     case 'email':
-                        return `<div class="preview-field"><label>${label}${reqStar}</label><input type="email" disabled placeholder="${escAttr(window.t('forms.preview.email_ph'))}"></div>`;
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="email" disabled placeholder="${escAttr(window.t('forms.preview.email_ph'))}"></div>`;
                     case 'number':
-                        return `<div class="preview-field"><label>${label}${reqStar}</label><input type="number" disabled placeholder="${escAttr(window.t('forms.preview.number_ph'))}"></div>`;
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="number" disabled placeholder="${escAttr(window.t('forms.preview.number_ph'))}"></div>`;
                     case 'checkbox':
-                        return `<div class="preview-field"><div class="checkbox-row"><input type="checkbox" disabled> <label>${label}${reqStar}</label></div></div>`;
+                        return `<div class="preview-field"><div class="checkbox-row"><input type="checkbox" disabled> <label>${label}${reqStar}${condFlag}</label></div></div>`;
                     case 'dropdown': {
                         const opts = (f.options || []).filter(o => o).map(o => `<option>${esc(o)}</option>`).join('');
-                        return `<div class="preview-field"><label>${label}${reqStar}</label><select disabled><option value="">${esc(window.t('forms.preview.select_ph'))}</option>${opts}</select></div>`;
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><select disabled><option value="">${esc(window.t('forms.preview.select_ph'))}</option>${opts}</select></div>`;
                     }
                     case 'radio': {
                         const items = (f.options || []).filter(o => o).map(o =>
                             `<div class="checkbox-row"><input type="radio" disabled> <label>${esc(o)}</label></div>`).join('');
-                        return `<div class="preview-field"><label>${label}${reqStar}</label>${items || '<small style="color:var(--text-faint, #999)">' + esc(window.t('forms.preview.no_options')) + '</small>'}</div>`;
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label>${items || '<small style="color:var(--text-faint, #999)">' + esc(window.t('forms.preview.no_options')) + '</small>'}</div>`;
                     }
                     case 'checkboxes': {
                         const items = (f.options || []).filter(o => o).map(o =>
                             `<div class="checkbox-row"><input type="checkbox" disabled> <label>${esc(o)}</label></div>`).join('');
-                        return `<div class="preview-field"><label>${label}${reqStar}</label>${items || '<small style="color:var(--text-faint, #999)">' + esc(window.t('forms.preview.no_options')) + '</small>'}</div>`;
+                        return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label>${items || '<small style="color:var(--text-faint, #999)">' + esc(window.t('forms.preview.no_options')) + '</small>'}</div>`;
                     }
                     default:
                         return '';
@@ -1188,6 +1431,11 @@ $translationNamespaces = ['common', 'forms'];
                 title: title,
                 description: document.getElementById('formDesc').value.trim(),
                 fields: validFields.map(f => ({
+                    // THE important line. Sending the id back is what lets the server
+                    // update this exact field instead of whatever now sits in this
+                    // position — which is how a reorder used to re-point every
+                    // historical answer at the wrong question. null = a new field.
+                    id: f.id || null,
                     field_type: f.field_type,
                     label: f.label.trim(),
                     // hasOptions() covers dropdown + radio + checkboxes
@@ -1195,7 +1443,8 @@ $translationNamespaces = ['common', 'forms'];
                     // Without this the new types from #441 would lose
                     // their options on save.
                     options: hasOptions(f.field_type) ? f.options.filter(o => o && o.trim()) : null,
-                    is_required: f.is_required ? 1 : 0
+                    is_required: (f.is_required && !isSection(f.field_type)) ? 1 : 0,
+                    config: buildRulesForSave(f, validFields)
                 }))
             };
             if (currentFormId) payload.id = currentFormId;
@@ -1581,12 +1830,58 @@ $translationNamespaces = ['common', 'forms'];
         function applyGeneratedForm(form) {
             document.getElementById('formTitle').value = form.title || '';
             document.getElementById('formDesc').value  = form.description || '';
-            fields = (form.fields || []).map(f => ({
-                field_type:  f.field_type || 'text',
-                label:       f.label || '',
-                options:     Array.isArray(f.options) ? f.options.slice() : [],
-                is_required: !!f.is_required
-            }));
+
+            // Carry existing field ids across by label, the same way the proposal diff
+            // decides what counts as "unchanged". Without this, asking the AI to tweak
+            // a live form would hand back a list with no ids — and the server would
+            // read that as "retire every question and create new ones", quietly
+            // detaching the form from every answer already given to it.
+            const prevByLabel = new Map();
+            const prevByKey   = new Map();
+            fields.forEach(f => {
+                const key = (f.label || '').trim().toLowerCase();
+                if (key) prevByLabel.set(key, f);
+                prevByKey.set(f._key, f);
+            });
+
+            fields = (form.fields || []).map(f => {
+                const prev = prevByLabel.get((f.label || '').trim().toLowerCase());
+                return {
+                    id:          prev ? prev.id : null,
+                    _key:        newFieldKey(),
+                    field_type:  f.field_type || 'text',
+                    label:       f.label || '',
+                    options:     Array.isArray(f.options) ? f.options.slice() : [],
+                    is_required: !!f.is_required,
+                    // The generator doesn't propose conditions, so a field it kept
+                    // keeps the rule the author had already put on it.
+                    config:      prev ? prev.config : null
+                };
+            });
+
+            // Every field object was just replaced, so a carried-over rule's _ref
+            // points at a _key that no longer exists. Re-point it via the LABEL of the
+            // field it used to mean, which works for rules loaded from the server and
+            // for ones the author added in this session but hasn't saved yet.
+            const newKeyByLabel = new Map();
+            fields.forEach(f => {
+                const key = (f.label || '').trim().toLowerCase();
+                if (key) newKeyByLabel.set(key, f._key);
+            });
+            fields.forEach(f => {
+                const vif = f.config && f.config.visible_if;
+                if (!vif) return;
+                vif.rules = vif.rules
+                    .map(r => {
+                        const oldTrigger = prevByKey.get(r._ref);
+                        const label = oldTrigger ? (oldTrigger.label || '').trim().toLowerCase() : '';
+                        return Object.assign({}, r, { _ref: newKeyByLabel.get(label) });
+                    })
+                    .filter(r => r._ref !== undefined);   // the AI removed the trigger
+                if (!vif.rules.length) delete f.config.visible_if;
+            });
+
+            pruneInvalidConditions();
             renderFields();
             updatePreview();
             markDirty();

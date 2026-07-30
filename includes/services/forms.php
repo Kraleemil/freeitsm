@@ -1,7 +1,7 @@
 <?php
 /**
  * FormsService — the single home for the forms module's write rules:
- * form save (create + positional-sync update), version fork, delete
+ * form save (create + id-based field sync), version fork, delete
  * (leaf/chain), submission create (with the form.submitted workflow dispatch)
  * and submission delete.
  *
@@ -24,11 +24,19 @@
  */
 
 require_once __DIR__ . '/../service_context.php';
+require_once __DIR__ . '/../form_logic.php';
 require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 
 class FormsService
 {
-    const FIELD_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio'];
+    // 'section' is a heading, not a question — see ANSWERABLE_TYPES.
+    const FIELD_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'section'];
+
+    /** The types that actually collect an answer. A 'section' never produces submission data. */
+    const ANSWERABLE_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio'];
+
+    /** Operators a conditional-visibility rule may use. Mirrors assets/js/form-logic.js. */
+    const CONDITION_OPS = ['equals', 'not_equals', 'contains', 'is_empty', 'is_not_empty', 'greater_than', 'less_than'];
 
     // ======================================================================
     //  Forms
@@ -117,12 +125,9 @@ class FormsService
                 $ctx->actorId,
             ]);
             $formId = (int)$conn->lastInsertId();
-            $ins = $conn->prepare(
-                "INSERT INTO form_fields (form_id, field_type, label, options, is_required, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
-            );
-            foreach ($fields as $i => $f) {
-                $ins->execute([$formId, $f['field_type'], $f['label'], $f['options'], $f['is_required'], $i]);
-            }
+            // Same path as an update, so a brand-new form's conditions get resolved
+            // and stored by exactly the same code rather than a second copy of it.
+            self::syncFields($conn, $formId, $fields);
             $conn->commit();
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -221,11 +226,45 @@ class FormsService
                 (int)$src['version_number'] + 1,
             ]);
             $newId = (int)$conn->lastInsertId();
-            $conn->prepare(
-                "INSERT INTO form_fields (form_id, field_type, label, options, is_required, sort_order)
-                 SELECT ?, field_type, label, options, is_required, sort_order
-                 FROM form_fields WHERE form_id = ? ORDER BY sort_order, id"
-            )->execute([$newId, $parentId]);
+
+            // Copied row by row rather than INSERT..SELECT because a condition stores
+            // the form_fields.id it depends on: a bulk copy would leave the new
+            // version's rules pointing at the OLD version's fields, so editing the
+            // copy would change what the frozen original shows. Retired (soft-deleted)
+            // fields are left behind — they exist to keep old answers readable on the
+            // version they belong to, not to follow the form forward.
+            // NOT $src — that already holds the source form's row, and this method
+            // still reads $src['version_number'] after the copy is done.
+            $srcStmt = $conn->prepare(
+                "SELECT id, field_type, label, options, is_required, sort_order, config
+                   FROM form_fields
+                  WHERE form_id = ? AND is_deleted = 0
+                  ORDER BY sort_order, id"
+            );
+            $srcStmt->execute([$parentId]);
+            $srcFields = $srcStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $ins = $conn->prepare(
+                "INSERT INTO form_fields (form_id, field_type, label, options, is_required, sort_order, config)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+            $idMap = [];
+            foreach ($srcFields as $i => $f) {
+                $ins->execute([$newId, $f['field_type'], $f['label'], $f['options'], $f['is_required'], $i, $f['config']]);
+                $idMap[(int)$f['id']] = (int)$conn->lastInsertId();
+            }
+
+            $updCfg = $conn->prepare("UPDATE form_fields SET config = ? WHERE id = ?");
+            foreach ($srcFields as $f) {
+                if (empty($f['config'])) continue;
+                $config = json_decode((string)$f['config'], true);
+                if (!is_array($config) || !isset($config['visible_if']['rules'])) continue;
+                foreach ($config['visible_if']['rules'] as $r => $rule) {
+                    $oldRef = (int)($rule['field'] ?? 0);
+                    $config['visible_if']['rules'][$r]['field'] = $idMap[$oldRef] ?? $oldRef;
+                }
+                $updCfg->execute([json_encode($config), $idMap[(int)$f['id']]]);
+            }
             $conn->commit();
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -265,7 +304,15 @@ class FormsService
             throw new ServiceError('not_found', 'not_found', 'Form not found.');
         }
 
-        $stmt = $conn->prepare("SELECT id, label, field_type, is_required, options FROM form_fields WHERE form_id = ?");
+        // Ordered, and without retired fields: a soft-deleted question is no longer
+        // asked, so it can neither be answered nor be required. Order matters because
+        // conditions are evaluated in it (a rule may only look backwards).
+        $stmt = $conn->prepare(
+            "SELECT id, label, field_type, is_required, options, config, sort_order
+               FROM form_fields
+              WHERE form_id = ? AND is_deleted = 0
+              ORDER BY sort_order, id"
+        );
         $stmt->execute([$formId]);
         $fields = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $fieldsById = [];
@@ -277,6 +324,9 @@ class FormsService
         foreach (array_keys($data) as $fieldId) {
             if (!isset($fieldsById[(int)$fieldId])) {
                 throw new ServiceError('validation', 'invalid_field', "Unknown field id for this form: {$fieldId}");
+            }
+            if ($fieldsById[(int)$fieldId]['field_type'] === 'section') {
+                throw new ServiceError('validation', 'invalid_field', "Field {$fieldId} is a section heading and takes no answer.");
             }
         }
 
@@ -292,11 +342,31 @@ class FormsService
             $normalised[(int)$fieldId] = (string)$value;
         }
 
+        // Which questions were actually ASKED, given the answers given. Re-derived here
+        // rather than trusted from the client, because "required" has to mean something
+        // even when the browser never ran our JS: without this, hiding a required field
+        // client-side would still 422 on submit, and a crafted post could skip a
+        // required question by pretending it was hidden.
+        $visible = formLogicVisibility($fields, $normalised);
+
+        // An answer to a question that was never shown is dropped, so what we store is
+        // what the person was actually asked.
+        foreach (array_keys($normalised) as $fieldId) {
+            if (empty($visible[$fieldId])) {
+                unset($normalised[$fieldId]);
+            }
+        }
+
         // Per-type required + format validation.
         foreach ($fields as $field) {
             $fid  = (int)$field['id'];
             $val  = array_key_exists($fid, $normalised) ? $normalised[$fid] : '';
             $type = $field['field_type'];
+
+            // Headings collect nothing; hidden questions were never asked.
+            if ($type === 'section' || empty($visible[$fid])) {
+                continue;
+            }
 
             if ($field['is_required']) {
                 $isEmpty = false;
@@ -480,10 +550,28 @@ class FormsService
 
     /**
      * Validate an incoming fields array — 422s where the raw UI silently drops
-     * or blindly stores. Returns rows ready for the positional sync.
+     * or blindly stores. Returns rows ready for the id-based sync.
+     *
+     * Each row may carry an `id`: the form_fields.id it is editing. Absent (or null)
+     * means a brand-new field. That id is what keeps a respondent's answer attached
+     * to the question they actually answered when the builder reorders things.
+     *
+     * A conditional rule's `field` may be either an existing form_fields.id or the
+     * string "idx:N", meaning "the field at position N of THIS payload" — needed
+     * because a rule can point at a question that is itself being created by this
+     * same save and has no id yet. syncFields() resolves "idx:N" once the ids exist.
      */
     private static function validateFields(array $fields): array
     {
+        // Position of each already-saved field in this payload, so a rule can be
+        // checked against the order the user is actually looking at.
+        $indexById = [];
+        foreach ($fields as $i => $field) {
+            if (is_array($field) && !empty($field['id'])) {
+                $indexById[(int)$field['id']] = $i;
+            }
+        }
+
         $out = [];
         foreach ($fields as $i => $field) {
             if (!is_array($field)) {
@@ -503,35 +591,192 @@ class FormsService
             } elseif ($options !== null && !is_string($options)) {
                 throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: 'options' must be an array.");
             }
+
+            // A heading collects nothing, so "required" would be a promise we could
+            // never keep — reject it rather than store a flag the renderers ignore.
+            $isRequired = (int)(bool)($field['is_required'] ?? false);
+            if ($type === 'section') {
+                if ($isRequired) {
+                    throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: a 'section' heading cannot be required.");
+                }
+                $options = null;
+            }
+
             $out[] = [
+                'id'          => !empty($field['id']) ? (int)$field['id'] : null,
                 'field_type'  => $type,
                 'label'       => $label,
                 'options'     => $options,
-                'is_required' => (int)(bool)($field['is_required'] ?? false),
+                'is_required' => $isRequired,
+                'config'      => self::validateFieldConfig($field['config'] ?? null, $i, $fields, $indexById),
             ];
         }
         return $out;
     }
 
-    /** The UI's positional field sync: update existing ids in order, append extras, delete trailing leftovers (+ their submission data). */
-    private static function syncFields(PDO $conn, int $formId, array $fields): void
+    /**
+     * Validate one field's `config` JSON (today: the conditional-visibility rule).
+     * Returns the config as an array, or null for "no settings" — which is what every
+     * pre-existing field has, and why upgrading changes nothing about how a form looks.
+     *
+     * The important rule enforced here: a condition may only reference an EARLIER
+     * answerable field. That single constraint is what makes circular conditions
+     * (A shows when B is set, B shows when A is set) structurally impossible, so
+     * neither evaluator ever has to detect a cycle at render time.
+     */
+    private static function validateFieldConfig($config, int $i, array $fields, array $indexById): ?array
     {
-        $stmt = $conn->prepare("SELECT id FROM form_fields WHERE form_id = ? ORDER BY sort_order");
-        $stmt->execute([$formId]);
-        $existingIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-        $upd = $conn->prepare("UPDATE form_fields SET field_type = ?, label = ?, options = ?, is_required = ?, sort_order = ? WHERE id = ?");
-        $ins = $conn->prepare("INSERT INTO form_fields (form_id, field_type, label, options, is_required, sort_order) VALUES (?, ?, ?, ?, ?, ?)");
-        foreach ($fields as $i => $f) {
-            if ($i < count($existingIds)) {
-                $upd->execute([$f['field_type'], $f['label'], $f['options'], $f['is_required'], $i, $existingIds[$i]]);
-            } else {
-                $ins->execute([$formId, $f['field_type'], $f['label'], $f['options'], $f['is_required'], $i]);
+        if ($config === null || $config === '') {
+            return null;
+        }
+        if (is_string($config)) {
+            $config = json_decode($config, true);
+            if (!is_array($config)) {
+                throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: 'config' is not valid JSON.");
             }
         }
-        foreach (array_slice($existingIds, count($fields)) as $removeId) {
-            $conn->prepare("DELETE FROM form_submission_data WHERE field_id = ?")->execute([$removeId]);
-            $conn->prepare("DELETE FROM form_fields WHERE id = ?")->execute([$removeId]);
+        if (!is_array($config)) {
+            throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: 'config' must be an object.");
+        }
+
+        $vif = $config['visible_if'] ?? null;
+        if ($vif === null) {
+            return $config ?: null;
+        }
+        if (!is_array($vif) || !isset($vif['rules']) || !is_array($vif['rules'])) {
+            throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: 'visible_if' needs a 'rules' array.");
+        }
+        if (!$vif['rules']) {
+            // An empty rule list means "no condition" — drop it rather than store a
+            // shape that later reads as a condition that can never be satisfied.
+            unset($config['visible_if']);
+            return $config ?: null;
+        }
+
+        $match = (($vif['match'] ?? 'all') === 'any') ? 'any' : 'all';
+        $clean = [];
+        foreach ($vif['rules'] as $r => $rule) {
+            if (!is_array($rule)) {
+                throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: rule {$r} must be an object.");
+            }
+            $op = (string)($rule['op'] ?? 'equals');
+            if (!in_array($op, self::CONDITION_OPS, true)) {
+                throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: unknown condition operator '{$op}'. One of: " . implode(', ', self::CONDITION_OPS) . '.');
+            }
+
+            // Resolve the referenced field to a position in this payload.
+            $ref = $rule['field'] ?? null;
+            if (is_string($ref) && strpos($ref, 'idx:') === 0) {
+                $refIndex = (int)substr($ref, 4);
+                $refValue = $ref;
+            } else {
+                $refId = (int)$ref;
+                if (!isset($indexById[$refId])) {
+                    throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: condition references field {$refId}, which is not on this form.");
+                }
+                $refIndex = $indexById[$refId];
+                $refValue = $refId;
+            }
+            if (!isset($fields[$refIndex])) {
+                throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: condition references position {$refIndex}, which does not exist.");
+            }
+            if ($refIndex >= $i) {
+                throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: a condition can only depend on an earlier question.");
+            }
+            $refType = (string)($fields[$refIndex]['field_type'] ?? 'text');
+            if (!in_array($refType, self::ANSWERABLE_TYPES, true)) {
+                throw new ServiceError('validation', 'invalid_field', "fields[{$i}]: a condition cannot depend on a '{$refType}', which collects no answer.");
+            }
+
+            $clean[] = [
+                'field' => $refValue,
+                'op'    => $op,
+                'value' => (string)($rule['value'] ?? ''),
+            ];
+        }
+
+        $config['visible_if'] = ['match' => $match, 'rules' => $clean];
+        return $config;
+    }
+
+    /**
+     * Sync a form's fields BY ID.
+     *
+     * This used to be positional — it updated the existing rows in order, so dragging
+     * a question to a new place rewrote the labels while the answers stayed put, and
+     * every historic submission silently started reading against the wrong questions.
+     * Removing a field hard-deleted the trailing row's answers outright. Now each
+     * payload row carries the id it is editing, a field with no id is genuinely new,
+     * and a field that disappears is SOFT deleted so past answers survive.
+     *
+     * Two passes: the ids have to exist before a condition that points at a
+     * brand-new field ("idx:N") can be resolved to one.
+     */
+    private static function syncFields(PDO $conn, int $formId, array $fields): void
+    {
+        // Ids that really belong to this form. A payload id outside this set is
+        // ignored rather than trusted — otherwise a crafted save could re-point
+        // another form's field (and, with it, another form's answers).
+        $stmt = $conn->prepare("SELECT id FROM form_fields WHERE form_id = ?");
+        $stmt->execute([$formId]);
+        $ownIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $ownIds = array_flip($ownIds);
+
+        $upd = $conn->prepare(
+            "UPDATE form_fields
+                SET field_type = ?, label = ?, options = ?, is_required = ?, sort_order = ?, is_deleted = 0
+              WHERE id = ? AND form_id = ?"
+        );
+        $ins = $conn->prepare(
+            "INSERT INTO form_fields (form_id, field_type, label, options, is_required, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?)"
+        );
+
+        // ---- Pass 1: write the fields, remember which id each position ended up as.
+        $idByIndex = [];
+        $keptIds   = [];
+        foreach ($fields as $i => $f) {
+            $id = $f['id'] ?? null;
+            if ($id !== null && isset($ownIds[$id])) {
+                $upd->execute([$f['field_type'], $f['label'], $f['options'], $f['is_required'], $i, $id, $formId]);
+            } else {
+                $ins->execute([$formId, $f['field_type'], $f['label'], $f['options'], $f['is_required'], $i]);
+                $id = (int)$conn->lastInsertId();
+            }
+            $idByIndex[$i] = $id;
+            $keptIds[]     = $id;
+        }
+
+        // ---- Retire whatever is no longer on the form, WITHOUT touching its answers.
+        if ($keptIds) {
+            $place = implode(',', array_fill(0, count($keptIds), '?'));
+            $conn->prepare("UPDATE form_fields SET is_deleted = 1 WHERE form_id = ? AND id NOT IN ($place)")
+                 ->execute(array_merge([$formId], $keptIds));
+        } else {
+            $conn->prepare("UPDATE form_fields SET is_deleted = 1 WHERE form_id = ?")->execute([$formId]);
+        }
+
+        // ---- Pass 2: store the conditions, now that every referenced field has an id.
+        $updCfg = $conn->prepare("UPDATE form_fields SET config = ? WHERE id = ? AND form_id = ?");
+        foreach ($fields as $i => $f) {
+            $config = $f['config'] ?? null;
+            if (is_array($config) && isset($config['visible_if']['rules'])) {
+                foreach ($config['visible_if']['rules'] as $r => $rule) {
+                    $ref = $rule['field'] ?? null;
+                    if (is_string($ref) && strpos($ref, 'idx:') === 0) {
+                        $refIndex = (int)substr($ref, 4);
+                        // validateFields already proved this position exists and is earlier.
+                        $config['visible_if']['rules'][$r]['field'] = $idByIndex[$refIndex] ?? 0;
+                    } else {
+                        $config['visible_if']['rules'][$r]['field'] = (int)$ref;
+                    }
+                }
+            }
+            $updCfg->execute([
+                $config ? json_encode($config) : null,
+                $idByIndex[$i],
+                $formId,
+            ]);
         }
     }
 }

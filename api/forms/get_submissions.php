@@ -12,6 +12,11 @@ if (!isset($_SESSION['analyst_id'])) {
     echo json_encode(['success' => false, 'error' => 'Not authenticated']);
     exit;
 }
+// Submissions carry whatever people typed into a form — names, addresses, start
+// dates. Every other endpoint in this folder gates on Forms access; this one only
+// checked that SOME analyst was logged in, so any analyst could read every
+// submission of every form with a direct call.
+requireModuleAccessJson('forms');
 
 $formId = (int)($_GET['form_id'] ?? 0);
 if ($formId <= 0) {
@@ -32,8 +37,19 @@ try {
         exit;
     }
 
-    // Get fields (for column headers)
-    $stmt = $conn->prepare("SELECT id, field_type, label FROM form_fields WHERE form_id = ? ORDER BY sort_order");
+    // Get fields (for column headers).
+    //
+    // Retired fields ARE included here, unlike everywhere else. This is the one view
+    // that looks backwards: a question someone removed last month still has answers
+    // attached to it, and dropping its column would make those answers vanish from
+    // the record without anything having actually deleted them. Sections are excluded
+    // — they are headings and never held an answer.
+    $stmt = $conn->prepare(
+        "SELECT id, field_type, label, is_deleted
+           FROM form_fields
+          WHERE form_id = ? AND field_type <> 'section'
+          ORDER BY is_deleted, sort_order, id"
+    );
     $stmt->execute([$formId]);
     $fields = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

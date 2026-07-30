@@ -238,7 +238,10 @@ try {
     // Validate + sanitise the shape so the front-end can trust it.
     // Allowed types must stay in sync with the renderer in
     // forms/edit/index.php's FIELD_TYPES_WITH_OPTIONS / preview switch.
-    $allowedTypes = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'radio', 'dropdown'];
+    // 'section' is allowed so the generator can group a long form under headings.
+    // It is presentational — no options, never required — and the generator is not
+    // asked to propose conditional rules, which stay something the author sets.
+    $allowedTypes = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'radio', 'dropdown', 'section'];
     $typesWithOptions = ['dropdown', 'radio', 'checkboxes'];
     $cleanFields  = [];
     foreach (($payload['fields'] ?? []) as $f) {

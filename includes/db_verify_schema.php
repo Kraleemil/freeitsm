@@ -2215,11 +2215,22 @@ return [
     'form_fields' => [
         'id'            => 'INT NOT NULL AUTO_INCREMENT',
         'form_id'       => 'INT NOT NULL',
+        // 'section' is a presentational item, not a question: it renders as a
+        // heading, never produces submission data, and owns the fields below it
+        // until the next 'section'. Kept in this table so one flat sort_order
+        // still describes the whole form.
         'field_type'    => 'VARCHAR(50) NOT NULL',
         'label'         => 'VARCHAR(255) NOT NULL',
         'options'       => 'LONGTEXT NULL',
         'is_required'   => 'TINYINT(1) NOT NULL DEFAULT 0',
         'sort_order'    => 'INT NOT NULL DEFAULT 0',
+        // Per-field JSON. Today: the conditional-visibility rule, whose `field`
+        // key is a form_fields.id. NULL = always visible = every pre-existing
+        // row, so an upgraded form renders exactly as it did.
+        'config'        => 'LONGTEXT NULL',
+        // Soft delete — form_submission_data.field_id points at this row, so a
+        // hard delete destroyed past respondents' answers. See freeitsm.sql.
+        'is_deleted'    => 'TINYINT(1) NOT NULL DEFAULT 0',
     ],
 
     'form_submissions' => [

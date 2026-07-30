@@ -480,8 +480,13 @@ $translationNamespaces = ['common', 'forms'];
             html += '<th>' + esc(window.t('forms.subs.col_submitted_by')) + '</th>';
             html += '<th>' + esc(window.t('forms.subs.col_date')) + '</th>';
 
+            // Retired questions keep their column. The answers people gave them are
+            // still here, and a heading that just disappeared would make those answers
+            // look like they had never been given.
             formData.fields.forEach(f => {
-                html += `<th>${esc(f.label)}</th>`;
+                const retired = f.is_deleted == 1
+                    ? ` <span class="col-retired" title="${escAttr(window.t('forms.subs.retired_hint'))}">${esc(window.t('forms.subs.retired'))}</span>` : '';
+                html += `<th${f.is_deleted == 1 ? ' class="th-retired"' : ''}>${esc(f.label)}${retired}</th>`;
             });
 
             html += '<th></th>';
@@ -531,8 +536,10 @@ $translationNamespaces = ['common', 'forms'];
 
             formData.fields.forEach(f => {
                 const val = sub.data[f.id] ?? '';
+                const retired = f.is_deleted == 1
+                    ? ` <span class="col-retired" title="${escAttr(window.t('forms.subs.retired_hint'))}">${esc(window.t('forms.subs.retired'))}</span>` : '';
                 html += `<div class="detail-field">
-                    <div class="detail-field-label">${esc(f.label)}</div>`;
+                    <div class="detail-field-label">${esc(f.label)}${retired}</div>`;
 
                 if (f.field_type === 'checkbox') {
                     const checked = val === '1';

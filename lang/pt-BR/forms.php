@@ -165,6 +165,7 @@ return [
         'radio'      => 'Botões de opção (um item)',
         'checkbox'   => 'Caixa de seleção (sim/não)',
         'checkboxes' => 'Caixas de seleção (vários itens)',
+        'section'    => 'Título de seção',
     ],
 
     // Short type-name badges shown on each field row + proposal diff
@@ -177,6 +178,7 @@ return [
         'number'     => 'Número',
         'checkboxes' => 'Caixas de seleção',
         'radio'      => 'Opção',
+        'section'    => 'Seção',
     ],
 
     // Field row editing UI (forms/edit/index.php)
@@ -189,21 +191,49 @@ return [
         'default_option'    => 'Opção 1',
         'add_option'        => '+ Adicionar opção',
         'label_ph'          => 'Rótulo do campo...',
+        'section_ph'        => 'Título da seção...',
         'required'          => 'Obrigatório',
         'remove_field'      => 'Remover campo',
         'untitled_field'    => 'Campo sem título',
     ],
 
+    // Conditional visibility editor (forms/edit/index.php)
+    'cond' => [
+        'show_when'            => 'Mostrar somente quando',
+        'show_section_when'    => 'Mostrar esta seção somente quando',
+        'add'                  => '+ Adicionar condição',
+        'remove'               => 'Remover condição',
+        'match_all'            => 'todas corresponderem',
+        'match_any'            => 'qualquer uma corresponder',
+        'pick_value'           => 'Escolha...',
+        'value_ph'             => 'Valor',
+        'yes'                  => 'Marcada',
+        'no'                   => 'Não marcada',
+        'needs_earlier_field'  => 'Adicione uma pergunta acima desta primeiro — uma condição só pode depender de uma resposta anterior.',
+        'dropped_forward'      => '{count} condição(ões) removida(s): dependiam de uma pergunta que agora vem depois.',
+        'op' => [
+            'equals'       => 'é',
+            'not_equals'   => 'não é',
+            'contains'     => 'contém',
+            'is_empty'     => 'está vazio',
+            'is_not_empty' => 'não está vazio',
+            'greater_than' => 'é maior que',
+            'less_than'    => 'é menor que',
+        ],
+    ],
+
     // Live preview (forms/edit/index.php)
     'preview' => [
-        'untitled_form'  => 'Formulário sem título',
-        'logo_alt'       => 'Logotipo da empresa',
-        'text_ph'        => 'Campo de texto...',
-        'textarea_ph'    => 'Área de texto...',
-        'email_ph'       => 'nome@exemplo.com',
-        'number_ph'      => '0',
-        'select_ph'      => 'Selecione...',
-        'no_options'     => 'Nenhuma opção ainda',
+        'untitled_form'     => 'Formulário sem título',
+        'logo_alt'          => 'Logotipo da empresa',
+        'text_ph'           => 'Campo de texto...',
+        'textarea_ph'       => 'Área de texto...',
+        'email_ph'          => 'nome@exemplo.com',
+        'number_ph'         => '0',
+        'select_ph'         => 'Selecione...',
+        'no_options'        => 'Nenhuma opção ainda',
+        'conditional'       => 'Condicional',
+        'conditional_hint'  => 'Isto só aparece quando a condição é atendida. A pré-visualização mostra tudo para você ver o formulário inteiro.',
     ],
 
     // Versions dropdown (forms/edit/index.php)
@@ -347,6 +377,8 @@ return [
         'col_submitted_by'  => 'Enviado Por',
         'col_date'          => 'Data',
         'unknown_user'      => 'Desconhecido',
+        'retired'           => 'removida',
+        'retired_hint'      => 'Esta pergunta foi removida do formulário. As respostas já enviadas são mantidas.',
         'delete'            => 'Excluir',
         'detail_heading'    => 'Detalhe do Envio',
         'detail_submitted_by' => 'Enviado por:',

@@ -48,9 +48,10 @@ try {
         exit;
     }
 
+    // Retired fields are excluded — they exist only to keep old submissions readable.
     $fStmt = $conn->prepare(
-        "SELECT id, field_type, label, options, is_required, sort_order
-         FROM form_fields WHERE form_id = ? ORDER BY sort_order, id"
+        "SELECT id, field_type, label, options, is_required, sort_order, config
+         FROM form_fields WHERE form_id = ? AND is_deleted = 0 ORDER BY sort_order, id"
     );
     $fStmt->execute([$formId]);
     $form['fields'] = $fStmt->fetchAll(PDO::FETCH_ASSOC);
