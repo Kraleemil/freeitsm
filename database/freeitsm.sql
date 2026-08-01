@@ -1062,6 +1062,96 @@ CREATE TABLE IF NOT EXISTS `webchat_widgets` (
     CONSTRAINT `fk_webchat_widget_channel` FOREIGN KEY (`channel_id`) REFERENCES `messaging_channels` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ----------------------------------------------------------
+-- External issue trackers (Jira first; GitHub/GitLab/DevOps behind the same contract)
+-- ----------------------------------------------------------
+
+-- One configured tracker instance: a Jira site, a GitHub org, an Azure DevOps
+-- organisation.
+--
+-- ⚠️ TENANCY: this is a CONNECTION-shaped table, the same shape as
+-- messaging_channels and mailboxes — NOT scoped data and NOT a config list.
+--   tenant_id NULL = SHARED: serves every company (an MSP's own Jira).
+--   tenant_id set  = PINNED to that one company (a client with their own Jira).
+-- So the admin list is deliberately UNFILTERED; what is gated is WRITING (you may
+-- only pin to a company you can reach). Do NOT scope reads with
+-- activeTenantFilter() — it treats NULL as Default-owned and would hide every
+-- shared connection from every client company. See the wiki,
+-- Multi-Tenancy-Developer-Guide §1, for all three meanings of NULL.
+--
+-- ⚠️ A read that returns credentials is the exception to "capabilities guard
+-- writes, not reads": the list endpoint must return a has_credentials boolean and
+-- never the token itself, exactly as api/messaging/get_channels.php does.
+CREATE TABLE IF NOT EXISTS `integration_connections` (
+    `id`                    INT NOT NULL AUTO_INCREMENT,
+    `name`                  VARCHAR(100) NOT NULL,
+    `provider`              VARCHAR(20) NOT NULL DEFAULT 'jira',   -- jira | github | gitlab | devops
+    `base_url`              VARCHAR(500) NOT NULL,
+    `auth_type`             VARCHAR(20) NOT NULL DEFAULT 'api_token', -- api_token | pat | oauth
+    -- Encrypted at rest (AES-256-GCM, ENC: prefix) like messaging_channels.credentials.
+    `credentials`           LONGTEXT NULL,
+    -- Inbound signature secret, also encrypted. NULL while ingress_mode='poll'.
+    -- Note this is the OPPOSITE of webhook_deliveries, which deliberately does not
+    -- persist its signing secret: outbound signs at enqueue and forgets, inbound
+    -- must keep the secret in order to verify.
+    `webhook_secret`        VARCHAR(2000) NULL,
+    -- 'webhook' needs the provider to reach this install; 'poll' is the
+    -- firewalled fallback. Both produce the same canonical events downstream.
+    `ingress_mode`          VARCHAR(10) NOT NULL DEFAULT 'poll',
+    `inbound_enabled`       TINYINT(1) NOT NULL DEFAULT 0,   -- master "accept updates" switch
+    `poll_interval_minutes` INT NOT NULL DEFAULT 5,
+    -- The account our token authenticates as, captured at connection test.
+    -- Half of echo suppression: an inbound event authored by this identity is our
+    -- own write coming back. Populated from V1 even though nothing reads it until
+    -- comment sync, because back-filling it later is miserable.
+    `account_identity`      VARCHAR(255) NULL,
+    `tenant_id`             INT NULL,
+    `is_active`             TINYINT(1) NOT NULL DEFAULT 1,
+    `last_poll_datetime`    DATETIME NULL,
+    `last_poll_watermark`   VARCHAR(100) NULL,   -- provider-native "changed since" cursor
+    `created_by`            INT NULL,
+    `created_datetime`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_integration_connections_tenant` (`tenant_id`),
+    KEY `ix_integration_connections_active` (`is_active`),
+    CONSTRAINT `fk_integration_connections_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The spine: one row per "our work item ↔ their issue".
+--
+-- `entity_type` is polymorphic from day one although V1 only ever writes 'ticket'
+-- — Problems and Changes cost nothing now and a migration later.
+--
+-- `external_id` is the provider's STABLE id, not the key: PROJ-412 becomes
+-- OPS-412 when a Jira project is renamed, so the key is display only.
+--
+-- `status_category` is one of todo|in_progress|done|cancelled and is what every
+-- decision keys off; `status_name` is raw and for display only. Jira statuses are
+-- per-project and freely renamed — branching on the name is the mistake
+-- tickets.merged_into_id exists to avoid.
+CREATE TABLE IF NOT EXISTS `integration_links` (
+    `id`                   INT NOT NULL AUTO_INCREMENT,
+    `connection_id`        INT NOT NULL,
+    `entity_type`          VARCHAR(20) NOT NULL DEFAULT 'ticket',  -- ticket | problem | change
+    `entity_id`            INT NOT NULL,
+    `external_id`          VARCHAR(100) NOT NULL,
+    `external_key`         VARCHAR(100) NULL,
+    `external_url`         VARCHAR(1000) NULL,
+    `status_name`          VARCHAR(100) NULL,
+    `status_category`      VARCHAR(20) NULL,
+    `assignee_name`        VARCHAR(255) NULL,
+    `last_synced_datetime` DATETIME NULL,
+    `last_error`           VARCHAR(500) NULL,
+    `created_by`           INT NULL,
+    `created_datetime`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    -- One issue may legitimately link to two tickets; never twice to the same one.
+    UNIQUE KEY `uq_integration_link` (`connection_id`, `external_id`, `entity_type`, `entity_id`),
+    KEY `ix_integration_links_entity` (`entity_type`, `entity_id`),
+    KEY `ix_integration_links_connection` (`connection_id`),
+    CONSTRAINT `fk_integration_links_connection` FOREIGN KEY (`connection_id`) REFERENCES `integration_connections` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- One website chat conversation. Created when a visitor opens the widget and (if the
 -- widget asks for it) gives their name + email. `token` is the browser's capability
 -- for THIS conversation — it is stored in the visitor's browser and presented on every

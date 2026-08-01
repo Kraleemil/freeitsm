@@ -589,6 +589,51 @@ return [
         'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // External issue trackers — see freeitsm.sql for the full commentary.
+    //
+    // ⚠️ CONNECTION-shaped tenancy (same as messaging_channels): tenant_id NULL =
+    // SHARED across every company, set = PINNED to one. Never scope reads with
+    // activeTenantFilter(), which treats NULL as Default-owned.
+    'integration_connections' => [
+        'id'                    => 'INT NOT NULL AUTO_INCREMENT',
+        'name'                  => 'VARCHAR(100) NOT NULL',
+        'provider'              => "VARCHAR(20) NOT NULL DEFAULT 'jira'",
+        'base_url'              => 'VARCHAR(500) NOT NULL',
+        'auth_type'             => "VARCHAR(20) NOT NULL DEFAULT 'api_token'",
+        'credentials'           => 'LONGTEXT NULL',
+        'webhook_secret'        => 'VARCHAR(2000) NULL',
+        'ingress_mode'          => "VARCHAR(10) NOT NULL DEFAULT 'poll'",
+        'inbound_enabled'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'poll_interval_minutes' => 'INT NOT NULL DEFAULT 5',
+        'account_identity'      => 'VARCHAR(255) NULL',
+        'tenant_id'             => 'INT NULL',
+        'is_active'             => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'last_poll_datetime'    => 'DATETIME NULL',
+        'last_poll_watermark'   => 'VARCHAR(100) NULL',
+        'created_by'            => 'INT NULL',
+        'created_datetime'      => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // The ticket ↔ external issue spine. entity_type is polymorphic from day one
+    // (V1 only writes 'ticket'). status_category (todo|in_progress|done|cancelled)
+    // drives every decision; status_name is display only.
+    'integration_links' => [
+        'id'                   => 'INT NOT NULL AUTO_INCREMENT',
+        'connection_id'        => 'INT NOT NULL',
+        'entity_type'          => "VARCHAR(20) NOT NULL DEFAULT 'ticket'",
+        'entity_id'            => 'INT NOT NULL',
+        'external_id'          => 'VARCHAR(100) NOT NULL',
+        'external_key'         => 'VARCHAR(100) NULL',
+        'external_url'         => 'VARCHAR(1000) NULL',
+        'status_name'          => 'VARCHAR(100) NULL',
+        'status_category'      => 'VARCHAR(20) NULL',
+        'assignee_name'        => 'VARCHAR(255) NULL',
+        'last_synced_datetime' => 'DATETIME NULL',
+        'last_error'           => 'VARCHAR(500) NULL',
+        'created_by'           => 'INT NULL',
+        'created_datetime'     => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     // Pre-ticket chat transcript (AI 'deflect' mode) — see freeitsm.sql. sender is
     // 'visitor'|'ai'|'agent'|'system'. Source for the ticket opening message + .txt log.
     'webchat_messages' => [

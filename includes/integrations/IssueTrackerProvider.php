@@ -1,0 +1,244 @@
+<?php
+/**
+ * IssueTrackerProvider — the provider-agnostic contract for an external issue
+ * tracker (Jira first; GitHub, GitLab and Azure DevOps behind the same door).
+ *
+ * Everything above this line — the link registry, the outbound queue, the
+ * inbound event pipeline, echo suppression, the workflow action, the settings
+ * and ticket UI — talks to this interface and never knows which tracker is live.
+ * That is the same split as includes/messaging/MessagingProvider.php, which
+ * already puts Twilio and Meta Cloud behind one contract, and it is deliberately
+ * copied rather than reinvented.
+ *
+ * Concrete providers are constructed with a DECRYPTED integration_connections
+ * row (credentials already a PHP array).
+ *
+ * ── Conventions, both borrowed from MessagingProvider ────────────────────────
+ *
+ *  1. Only the genuinely universal methods are abstract. Optional ones default
+ *     to throwing "not supported for this provider", so the contract never
+ *     collapses to a lowest common denominator just because one tracker lacks a
+ *     concept.
+ *
+ *  2. supports() answers the same question for the UI. A thrown exception is the
+ *     wrong way for a settings screen to discover that GitHub has no issue
+ *     types — it needs to know BEFORE it renders the field.
+ *
+ * ── The canonical event shape (what normaliseEvent/pollChanges return) ───────
+ *
+ *   [
+ *     'event_id'   => 'jira-evt-8837',   // provider's id, for dedupe; required
+ *     'type'       => 'status_changed',  // status_changed | comment_added |
+ *                                        // issue_created | field_changed
+ *     'external_id'=> '10042',           // the issue this is about
+ *     'status_name'     => 'In Progress',       // status_changed only
+ *     'status_category' => 'in_progress',       // status_changed only; see below
+ *     'comment_id'      => '10101',             // comment_added only
+ *     'comment_body'    => 'Need repro steps',  // comment_added only
+ *     'author_identity' => 'svc@acme.com',      // WHO did it — drives echo suppression
+ *     'occurred_at'     => 1785600000,          // unix seconds, or null
+ *   ]
+ *
+ * ⚠️ status_category is one of the four STATUS_* constants and nothing else.
+ * Every decision in the system keys off it; status_name is for display only.
+ * Jira statuses are per-project and freely renamed, so branching on the name is
+ * the same mistake as keying a rule on a ticket status name — see the comment on
+ * tickets.merged_into_id for the last time that bit us.
+ */
+
+abstract class IssueTrackerProvider
+{
+    const STATUS_TODO        = 'todo';
+    const STATUS_IN_PROGRESS = 'in_progress';
+    const STATUS_DONE        = 'done';
+    const STATUS_CANCELLED   = 'cancelled';
+
+    /** Capability keys for supports(). */
+    const CAP_ISSUE_TYPES = 'issue_types';
+    const CAP_PRIORITIES  = 'priorities';
+    const CAP_ATTACHMENTS = 'attachments';
+    const CAP_WEBHOOKS    = 'webhooks';
+    const CAP_POLLING     = 'polling';
+    const CAP_CUSTOM_FIELDS = 'custom_fields';
+
+    /** @var array decrypted integration_connections row */
+    protected $connection;
+
+    public function __construct(array $connection)
+    {
+        $this->connection = $connection;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->connection['provider'] ?? '';
+    }
+
+    // ------------------------------------------------------------- outbound
+
+    /**
+     * Create an issue and return the bits we store on the link.
+     *
+     * @param array    $target  provider-shaped destination — Jira: ['project'=>'OPS',
+     *                          'issue_type'=>'Bug']; GitHub: ['repo'=>'org/name'];
+     *                          DevOps: ['project'=>…,'area_path'=>…,'work_item_type'=>…].
+     *                          Opaque to core on purpose: the arity genuinely differs.
+     * @param string   $summary plain text
+     * @param IssueDoc $body
+     * @param array    $fields  extra mapped fields (V3+); [] in V1
+     * @return array ['external_id'=>…, 'external_key'=>…, 'external_url'=>…,
+     *                'status_name'=>…, 'status_category'=>…]
+     */
+    abstract public function createIssue(array $target, string $summary, IssueDoc $body, array $fields = []): array;
+
+    /**
+     * Read one issue's current state. Same return shape as createIssue().
+     * Throws if the issue is gone — the caller decides whether that orphans the link.
+     */
+    abstract public function fetchIssue(string $externalId): array;
+
+    /** Post a comment. Returns the provider's comment id (recorded for echo suppression). */
+    public function addComment(string $externalId, IssueDoc $body): string
+    {
+        throw new Exception('Comments are not supported for this provider.');
+    }
+
+    /** @param array $file ['data'=>binary, 'filename'=>string, 'content_type'=>string] */
+    public function addAttachment(string $externalId, array $file): void
+    {
+        throw new Exception('Attachments are not supported for this provider.');
+    }
+
+    public function updateFields(string $externalId, array $fields): void
+    {
+        throw new Exception('Field updates are not supported for this provider.');
+    }
+
+    // -------------------------------------------------------------- inbound
+
+    /**
+     * Verify an inbound webhook really came from the provider. Return false to
+     * reject — the endpoint 403s.
+     *
+     * ⚠️ Verify against the RAW body, before json_decode: the provider signs
+     * bytes, and a re-encoded array is not the same bytes.
+     */
+    public function verifyWebhook(string $rawBody, array $headers): bool
+    {
+        throw new Exception('Webhooks are not supported for this provider.');
+    }
+
+    /** Raw webhook payload → zero or more canonical events (see the file header). */
+    public function normaliseEvent(array $raw): array
+    {
+        throw new Exception('Webhooks are not supported for this provider.');
+    }
+
+    /**
+     * The firewalled-install path: ask the provider what changed since $since
+     * and return the SAME canonical events a webhook would have produced.
+     *
+     * Polling is a degraded webhook, not a second pipeline — everything
+     * downstream of here cannot tell which one produced the event.
+     *
+     * @param string|null $since ISO-8601 / provider-native watermark; null = first run
+     */
+    public function pollChanges(?string $since): array
+    {
+        throw new Exception('Polling is not supported for this provider.');
+    }
+
+    // ------------------------------------------------------ discovery / setup
+
+    /**
+     * Verify the connection with a lightweight read-only call and return BOTH a
+     * human-readable detail for the settings screen and the authenticated
+     * account's identity.
+     *
+     * ⚠️ account_identity is not cosmetic. It is half of echo suppression: an
+     * inbound event authored by this identity is our own write coming back, and
+     * must be dropped rather than re-imported. It is captured in V1 — before
+     * anything reads it — because back-filling it for links that already exist
+     * is miserable.
+     *
+     * @return array ['detail' => 'Connected to Acme Jira as svc@acme.com',
+     *                'account_identity' => 'svc@acme.com']
+     */
+    abstract public function testConnection(): array;
+
+    /** @return array [['key'=>'OPS','name'=>'Operations'], …] */
+    public function listProjects(): array
+    {
+        throw new Exception('Project discovery is not supported for this provider.');
+    }
+
+    /** @return array [['id'=>'10001','name'=>'Bug'], …] */
+    public function listIssueTypes(string $project): array
+    {
+        throw new Exception('Issue types are not supported for this provider.');
+    }
+
+    // ------------------------------------------------------------- rendering
+
+    /**
+     * Render a body into whatever this provider's API wants. Usually one line
+     * delegating to IssueDoc — $doc->toAdf(), ->toMarkdown(), ->toHtml(),
+     * ->toWikiMarkup() — which is why adding a provider rarely means writing a
+     * renderer.
+     *
+     * @return mixed array (ADF) or string (Markdown / HTML / wiki markup)
+     */
+    abstract public function renderDoc(IssueDoc $doc);
+
+    // ---------------------------------------------------------- capabilities
+
+    /** Does this provider have $capability? Default: no. */
+    public function supports(string $capability): bool
+    {
+        return in_array($capability, $this->capabilities(), true);
+    }
+
+    /** @return string[] the CAP_* keys this provider offers */
+    protected function capabilities(): array
+    {
+        return [];
+    }
+
+    // ---------------------------------------------------------------- helper
+
+    /**
+     * Shared cURL. Returns [httpCode, bodyString]; an HTTP error code is NOT an
+     * exception, because the caller knows what a 404 means for the call it made.
+     *
+     * ⚠️ sslApplyCurl() is mandatory — it honours the app-wide SSL_VERIFY_PEER
+     * setting and ships the CA bundle. Never write raw CURLOPT_SSL_VERIFYPEER.
+     *
+     * @param array $opts ['method'=>'POST','headers'=>[],'body'=>string,'auth'=>'user:pass']
+     */
+    protected function httpRequest(string $url, array $opts = []): array
+    {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        sslApplyCurl($ch);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $opts['method'] ?? 'GET');
+        if (!empty($opts['headers'])) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $opts['headers']);
+        }
+        if (isset($opts['body'])) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $opts['body']);
+        }
+        if (!empty($opts['auth'])) {
+            curl_setopt($ch, CURLOPT_USERPWD, $opts['auth']);
+        }
+        $body = curl_exec($ch);
+        if ($body === false) {
+            $err = curl_error($ch);
+            curl_close($ch);
+            throw new Exception('Network error talking to the issue tracker: ' . $err);
+        }
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return [$code, $body];
+    }
+}
