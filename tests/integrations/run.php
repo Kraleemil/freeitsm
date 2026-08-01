@@ -448,6 +448,61 @@ ok('Jira supports issue types', $cloud->supports(IssueTrackerProvider::CAP_ISSUE
 ok('Jira supports attachments', $cloud->supports(IssueTrackerProvider::CAP_ATTACHMENTS));
 
 // ---------------------------------------------------------------------------
+echo "6. The cross-company isolation boundary\n";
+// ---------------------------------------------------------------------------
+
+// integrationsCompaniesCompatible() is the outbound twin of the inbound routing
+// membrane: escalation is driven by a WORKFLOW, and workflow conditions are
+// editable, so the company check must live in code that nobody can edit.
+//
+// ⚠️ Every "cannot" below is paired with a "can". A guard that refuses
+// EVERYTHING would pass all the negative assertions and be completely broken.
+
+// Load the REAL service file, not a copy of the function — the whole point is to
+// test what ships. Nothing in it runs at load time and the DB is only touched
+// inside functions we do not call here, so a plain require is safe.
+require_once __DIR__ . '/../../includes/integrations/integrations.php';
+
+$ACME = 1; $GLOBEX = 2; $DEFAULT = 1;
+
+// A SHARED connection (tenant NULL) serves every company — the MSP's own Jira.
+ok('Shared connection accepts Acme',   integrationsCompaniesCompatible($ACME,   null, $DEFAULT));
+ok('Shared connection accepts Globex', integrationsCompaniesCompatible($GLOBEX, null, $DEFAULT));
+ok('Shared connection accepts an unrouted ticket', integrationsCompaniesCompatible(null, null, $DEFAULT));
+
+// A PINNED connection takes only its own company's work. This is the leak.
+ok('PINNED to Acme REFUSES Globex\'s ticket',  !integrationsCompaniesCompatible($GLOBEX, $ACME, $DEFAULT));
+ok('PINNED to Globex REFUSES Acme\'s ticket',  !integrationsCompaniesCompatible($ACME, $GLOBEX, $DEFAULT));
+// ...positive control: the same pinned connection MUST accept its own.
+ok('POSITIVE CONTROL: pinned to Acme accepts Acme',   integrationsCompaniesCompatible($ACME, $ACME, $DEFAULT));
+ok('POSITIVE CONTROL: pinned to Globex accepts Globex', integrationsCompaniesCompatible($GLOBEX, $GLOBEX, $DEFAULT));
+
+// A NULL work item means "unrouted, treated as the Default company's". It must
+// reach a connection pinned to Default, and no other.
+ok('Unrouted ticket reaches a Default-pinned connection',
+   integrationsCompaniesCompatible(null, $DEFAULT, $DEFAULT));
+ok('Unrouted ticket REFUSED by a Globex-pinned connection',
+   !integrationsCompaniesCompatible(null, $GLOBEX, $DEFAULT));
+
+// With no Default resolvable (pre-tenancy install) a pinned target must refuse
+// rather than guess. Paired with the shared case, which must still work.
+ok('No default + pinned target → refuse', !integrationsCompaniesCompatible(null, $ACME, null));
+ok('POSITIVE CONTROL: no default + shared target → allow',
+   integrationsCompaniesCompatible(null, null, null));
+
+// Single-company install: one company, so everything is trivially compatible —
+// correct rather than a bypass, since there is nothing to leak to.
+ok('Single company: ticket 1 → connection 1', integrationsCompaniesCompatible(1, 1, 1));
+ok('Single company: unrouted → shared',       integrationsCompaniesCompatible(null, null, 1));
+
+// The guard must not be fooled by loose comparison — '2' and 2, or 0 and null,
+// are exactly the sort of thing PDO hands back as strings.
+ok('String tenant id still refuses cross-company',
+   !integrationsCompaniesCompatible((int)'2', (int)'1', $DEFAULT));
+ok('POSITIVE CONTROL: string tenant id still allows same-company',
+   integrationsCompaniesCompatible((int)'2', (int)'2', $DEFAULT));
+
+// ---------------------------------------------------------------------------
 echo "\n" . str_repeat('=', 62) . "\n";
 echo "  passed: $pass\n";
 echo "  failed: $fail\n";
