@@ -773,6 +773,10 @@ class WorkflowEngine
         'team_id'                    => ['table' => 'teams',             'label_col' => 'name',      'where' => 'is_active = 1', 'order' => 'name'],
         'task.priority_id'           => ['table' => 'task_priorities',   'label_col' => 'name',      'where' => 'is_active = 1', 'order' => 'display_order, name'],
         'task.status_id'             => ['table' => 'task_statuses',     'label_col' => 'name',      'where' => 'is_active = 1', 'order' => 'display_order, name'],
+        // External tracker connections (#949). Not a ticket field — it exists
+        // only to feed the escalate action's dropdown, which is why it has no
+        // counterpart in the trigger payload.
+        'integration.connection_id'  => ['table' => 'integration_connections', 'label_col' => 'name', 'where' => 'is_active = 1', 'order' => 'name'],
         'task.assignee_id'           => ['table' => 'analysts',          'label_col' => 'full_name', 'where' => 'is_active = 1', 'order' => 'full_name'],
         'form.id'                    => ['table' => 'forms',             'label_col' => 'name',      'order' => 'name'],
         'approver.id'                => ['table' => 'analysts',          'label_col' => 'full_name', 'where' => 'is_active = 1', 'order' => 'full_name'],
@@ -1035,6 +1039,42 @@ class WorkflowEngine
                     'secret'  => ['type' => 'text', 'label' => 'Signing secret (optional)', 'supports_vars' => false],
                 ],
             ],
+
+            // --- External issue trackers (#949) ---------------------------------
+            // Escalation is a workflow action rather than code in the tickets
+            // module, so "when a ticket becomes type Bug, raise it in Jira" is a
+            // rule someone writes rather than a feature we ship. The triggers,
+            // conditions, variables, dry run and audit trail all already exist.
+            'escalate_to_tracker' => [
+                'label'       => 'Escalate to issue tracker',
+                'description' => 'Raise an issue in an external tracker (Jira) from this ticket and remember the link, so its status shows on the ticket. Configure connections under System → Integrations.',
+                'args'        => [
+                    'connection_id' => ['type' => 'lookup', 'label' => 'Tracker connection', 'lookup' => 'integration_connection', 'required' => true],
+                    // ⚠️ Project and issue type are TEXT, not dropdowns, on purpose.
+                    // Their valid values depend on which connection was chosen and
+                    // have to be fetched from the tracker's API, but the editor
+                    // builds every dropdown once at page load — there is no
+                    // cascade mechanism. Rather than invent one for V1, the admin
+                    // types the key. Routing (V3) removes the need entirely.
+                    'project'       => ['type' => 'text', 'label' => 'Project key (e.g. OPS)', 'required' => true, 'supports_vars' => true],
+                    'issue_type'    => ['type' => 'text', 'label' => 'Issue type (e.g. Bug)', 'required' => true, 'supports_vars' => true, 'default' => 'Bug'],
+                    'summary'       => ['type' => 'text', 'label' => 'Summary', 'required' => true, 'supports_vars' => true, 'default' => '{{ticket.subject}}'],
+                    'body'          => ['type' => 'textarea', 'label' => 'Description', 'supports_vars' => true],
+                    // Default ON: a status-change trigger can fire repeatedly on
+                    // the same ticket, and without this each firing would mint
+                    // another duplicate issue for the dev team to close.
+                    'skip_if_linked' => ['type' => 'bool', 'label' => 'Skip if this ticket already has an issue on that connection', 'default' => true],
+                    'ticket_id'     => $ticketIdArg,
+                ],
+            ],
+            'send_note_to_tracker' => [
+                'label'       => 'Send note to issue tracker',
+                'description' => 'Post a comment onto the issue this ticket is already linked to. Does nothing if there is no link yet.',
+                'args'        => [
+                    'note'      => ['type' => 'textarea', 'label' => 'Note', 'required' => true, 'supports_vars' => true],
+                    'ticket_id' => $ticketIdArg,
+                ],
+            ],
         ];
     }
 
@@ -1053,6 +1093,10 @@ class WorkflowEngine
         'ticket_type'     => 'ticket.type_id',
         'task_status'     => 'task.status_id',
         'task_priority'   => 'task.priority_id',
+        // External issue trackers (#949). availableValuesForField() returns null
+        // when the table is absent, so an install that has not run Database
+        // Verification gets an empty dropdown rather than a broken editor.
+        'integration_connection' => 'integration.connection_id',
     ];
 
     /**
@@ -1457,6 +1501,8 @@ class WorkflowEngine
             case 'create_task':         return self::action_create_task($args, $payload);
             case 'create_ticket':       return self::action_create_ticket($args, $payload);
             case 'send_webhook':        return self::action_send_webhook($args, $payload);
+            case 'escalate_to_tracker':  return self::action_escalate_to_tracker($args, $payload);
+            case 'send_note_to_tracker': return self::action_send_note_to_tracker($args, $payload);
             default:
                 throw new Exception("Unknown action type: {$type}");
         }
@@ -1502,6 +1548,25 @@ class WorkflowEngine
         $s = self::argString($args, $key, $payload);
         if ($s === '' || !is_numeric($s)) return null;
         return (int)$s;
+    }
+
+    /**
+     * Resolve a checkbox arg (`'type' => 'bool'`).
+     *
+     * The editor stores it as a real JSON boolean, but a workflow saved before
+     * the arg existed simply has no key at all — hence $default, which lets a
+     * safety-shaped option like skip_if_linked default to ON for rules written
+     * before it was added. Strings are tolerated because hand-edited JSON and
+     * older saves can carry "0"/"false".
+     */
+    private static function argBool(array $args, string $key, array $payload, bool $default = false): bool
+    {
+        if (!array_key_exists($key, $args)) return $default;
+        $raw = $args[$key];
+        if (is_bool($raw)) return $raw;
+        if ($raw === null || $raw === '') return $default;
+        $s = strtolower(trim((string)$raw));
+        return !in_array($s, ['0', 'false', 'no', 'off'], true);
     }
 
     private static function action_log_message(array $args, array $payload): array
@@ -1866,6 +1931,120 @@ class WorkflowEngine
             'signed'      => $req['signed'],
             'bytes'       => strlen($req['body']),
         ];
+    }
+
+    // -----------------------------------------------------------------
+    //  External issue trackers (#949)
+    // -----------------------------------------------------------------
+
+    /**
+     * Raise an issue in an external tracker from this ticket.
+     *
+     * ⚠️ Everything that decides whether this is SAFE lives in
+     * integrationsEscalate(), not here — most importantly the company guard that
+     * refuses to escalate one client's ticket into another client's tracker.
+     * This handler deliberately does no checking of its own: a second copy of
+     * that logic is a second copy to get wrong, and a workflow's args are
+     * editable by anyone who can author workflows.
+     *
+     * Dry run never reaches this method — runInner() short-circuits before
+     * executeAction(), so a workflow test cannot mint a real issue.
+     */
+    private static function action_escalate_to_tracker(array $args, array $payload): array
+    {
+        $ticketId     = self::argInt($args, 'ticket_id', $payload);
+        $connectionId = self::argInt($args, 'connection_id', $payload);
+        $project      = self::argString($args, 'project',    $payload);
+        $issueType    = self::argString($args, 'issue_type', $payload);
+        $summary      = self::argString($args, 'summary',    $payload);
+        $bodyText     = self::argString($args, 'body',       $payload);
+
+        if (!$ticketId)     throw new Exception('ticket_id is required');
+        if (!$connectionId) throw new Exception('a tracker connection is required');
+        if ($project === '') throw new Exception('a project key is required');
+
+        require_once __DIR__ . '/../../includes/integrations/integrations.php';
+        $conn = connectToDatabase();
+
+        // The description: what the admin typed, or a sensible default built from
+        // the ticket. Either way it becomes an IssueDoc, so the connector decides
+        // the format (ADF for Jira Cloud, wiki markup for Data Center) and this
+        // code never has to know which.
+        $doc = new IssueDoc();
+        if ($bodyText !== '') {
+            $doc->para($bodyText);
+        } else {
+            $doc->heading('Raised in FreeITSM');
+            $ref = (string)($payload['ticket']['ticket_number'] ?? $payload['ticket']['id'] ?? $ticketId);
+            $doc->para('Ticket ' . $ref);
+            $requester = (string)($payload['ticket']['requester_email'] ?? '');
+            if ($requester !== '') $doc->para('Reported by: ' . $requester);
+            $doc->rule();
+            // ⚠️ Public request text only. ticket_notes.is_internal exists for a
+            // reason and an internal note must never cross into a system the
+            // whole dev org can read.
+            $desc = (string)($payload['ticket']['description'] ?? $payload['ticket']['subject'] ?? '');
+            if ($desc !== '') $doc->para($desc);
+        }
+
+        $result = integrationsEscalate($conn, [
+            'entity_type'    => 'ticket',
+            'entity_id'      => $ticketId,
+            'connection_id'  => $connectionId,
+            'target'         => ['project' => $project, 'issue_type' => $issueType ?: 'Bug'],
+            'summary'        => $summary,
+            'body'           => $doc,
+            'skip_if_linked' => self::argBool($args, 'skip_if_linked', $payload, true),
+            'analyst_id'     => null,   // unattended: the workflow is the actor
+        ]);
+
+        if (!empty($result['skipped'])) {
+            return ['skipped' => true, 'reason' => $result['reason'] ?? 'already_linked', 'ticket_id' => $ticketId];
+        }
+        return [
+            'ticket_id'    => $ticketId,
+            'external_key' => $result['external_key'] ?? null,
+            'external_url' => $result['external_url'] ?? null,
+            'status'       => $result['status_category'] ?? null,
+        ];
+    }
+
+    /**
+     * Post a comment onto the issue this ticket is already linked to.
+     *
+     * Does nothing (rather than failing) when there is no link: a rule like "when
+     * the status changes, tell the dev team" will fire on plenty of tickets that
+     * were never escalated, and that is not an error.
+     */
+    private static function action_send_note_to_tracker(array $args, array $payload): array
+    {
+        $ticketId = self::argInt($args, 'ticket_id', $payload);
+        $note     = self::argString($args, 'note', $payload);
+        if (!$ticketId)  throw new Exception('ticket_id is required');
+        if ($note === '') throw new Exception('note is required');
+
+        require_once __DIR__ . '/../../includes/integrations/integrations.php';
+        $conn  = connectToDatabase();
+        $links = integrationsLinksFor($conn, 'ticket', $ticketId);
+        if (!$links) {
+            return ['skipped' => true, 'reason' => 'no_linked_issue', 'ticket_id' => $ticketId];
+        }
+
+        $posted = [];
+        foreach ($links as $link) {
+            $connection = integrationsLoadConnection($conn, (int)$link['connection_id']);
+            if (!$connection || empty($connection['is_active'])) continue;
+            try {
+                $provider  = integrationsProviderFor($connection);
+                $commentId = $provider->addComment((string)$link['external_id'], (new IssueDoc)->para($note));
+                $posted[]  = ['key' => $link['external_key'], 'comment_id' => $commentId];
+            } catch (Exception $e) {
+                // One unreachable tracker must not lose the others, and must not
+                // fail the whole workflow run.
+                error_log('send_note_to_tracker: ' . $e->getMessage());
+            }
+        }
+        return ['ticket_id' => $ticketId, 'posted' => $posted, 'count' => count($posted)];
     }
 
     /**

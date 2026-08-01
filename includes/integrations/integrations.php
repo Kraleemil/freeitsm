@@ -17,6 +17,15 @@ require_once __DIR__ . '/IssueTrackerProvider.php';
 require_once __DIR__ . '/IssueDoc.php';
 require_once __DIR__ . '/JiraProvider.php';
 
+// ⚠️ Self-contained on purpose. These were originally left to the caller, which
+// worked only because the first callers (the settings endpoints) happened to
+// require them already — the workflow engine does not, and the escalate action
+// fataled on decryptValue() the first time it was actually run. A shared service
+// cannot assume anything about who called it.
+require_once __DIR__ . '/../encryption.php';   // decryptValue()
+require_once __DIR__ . '/../ssl.php';          // sslApplyCurl(), used by every provider's httpRequest()
+require_once __DIR__ . '/../tenancy.php';      // getDefaultTenantId(), for the company guard
+
 /**
  * Are the integration tables present?
  *
