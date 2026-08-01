@@ -97,6 +97,30 @@ abstract class IssueTrackerProvider
      */
     abstract public function fetchIssue(string $externalId): array;
 
+    /**
+     * Read several issues at once. The default loops fetchIssue(), which is
+     * always correct; providers that can do it in one call (Jira via JQL) should
+     * override, because the poll cron is the hot path.
+     *
+     * A single issue failing must not lose the rest — its id is simply absent
+     * from the result, and the caller decides what a missing issue means.
+     *
+     * @param  string[] $externalIds
+     * @return array    external_id => issue array (same shape as fetchIssue)
+     */
+    public function fetchIssues(array $externalIds): array
+    {
+        $out = [];
+        foreach ($externalIds as $id) {
+            try {
+                $out[$id] = $this->fetchIssue($id);
+            } catch (Exception $e) {
+                // Skipped deliberately — see the docblock.
+            }
+        }
+        return $out;
+    }
+
     /** Post a comment. Returns the provider's comment id (recorded for echo suppression). */
     public function addComment(string $externalId, IssueDoc $body): string
     {
@@ -141,9 +165,17 @@ abstract class IssueTrackerProvider
      * Polling is a degraded webhook, not a second pipeline — everything
      * downstream of here cannot tell which one produced the event.
      *
-     * @param string|null $since ISO-8601 / provider-native watermark; null = first run
+     * $externalIds is the watch list: the issues we actually hold links to.
+     * Polling is scoped to them rather than to "everything that changed", because
+     * an unscoped poll on a busy Jira site returns thousands of issues we have no
+     * interest in. (V4, where an issue raised in Jira creates a ticket, is the
+     * case that will need an unscoped variant — it can pass an empty list and a
+     * project scope then.)
+     *
+     * @param string|null $since       provider-native watermark; null = first run
+     * @param string[]    $externalIds issues to check
      */
-    public function pollChanges(?string $since): array
+    public function pollChanges(?string $since, array $externalIds = []): array
     {
         throw new Exception('Polling is not supported for this provider.');
     }
