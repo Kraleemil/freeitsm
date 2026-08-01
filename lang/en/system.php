@@ -101,6 +101,54 @@ return [
         'routing_test_title' => 'Email routing test',
         'routing_test_desc'  => 'Dry-run an inbound email to see which company it would be filed to, and why.',
         'routing_test_keywords' => 'email routing test dry run mailbox sender domain triage tenant inbound diagnostic',
+        'integrations_title'    => 'Integrations',
+        'integrations_desc'     => 'Connect FreeITSM to the issue trackers your development team uses, so a ticket that turns out to be a bug can be escalated and tracked without leaving the service desk.',
+        'integrations_keywords' => 'integrations integration jira atlassian issue tracker bug escalate escalation github gitlab azure devops connector developer dev team link linked issue',
+    ],
+
+    // Integrations (system/integrations/)
+    'integrations' => [
+        'title'    => 'Integrations',
+        'subtitle' => 'Connect FreeITSM to an external issue tracker so a ticket that turns out to be a bug can be raised with the development team and tracked from here.',
+
+        'needs_db_verify' => 'The integration tables are not in the database yet. Run Database Verification in System before adding a connection.',
+
+        'jira_blurb'     => 'Raise Jira issues from tickets and see their status without leaving FreeITSM. Works with both Jira Cloud and Jira Data Center.',
+        'jira_url_label' => 'Jira site URL',
+
+        'one_connection' => '1 connection',
+        'n_connections'  => '{n} connections',
+        'no_connections' => 'No connections yet.',
+
+        'connections_heading' => 'Connections',
+        'connections_desc'    => 'Each connection is one site you can raise issues in. Add more than one if different teams or clients use separate sites.',
+
+        'col_name'    => 'Name',
+        'col_url'     => 'Site URL',
+        'col_company' => 'Company',
+        'col_status'  => 'Status',
+
+        'add_heading'  => 'Add connection',
+        'edit_heading' => 'Edit connection',
+
+        'field_email'      => 'Email address',
+        'field_email_hint' => 'Jira Cloud only — the account the API token belongs to. Leave blank for Jira Data Center, which uses a personal access token on its own.',
+        'field_token'      => 'API token',
+        'creds_keep_hint'  => 'Leave the token blank to keep the one already saved.',
+
+        'company_shared' => 'All companies',
+        'company_hint'   => 'Leave as all companies for a tracker your own team uses. Choose a company to restrict it to that client — tickets from other companies then cannot be escalated to it.',
+
+        'active_label'   => 'Active',
+        'inactive_label' => 'Off',
+
+        'test'           => 'Test',
+        'save_failed'    => 'Could not save the connection.',
+        'saved'          => 'Connection saved.',
+        'deleted'        => 'Connection deleted.',
+        'delete_title'   => 'Delete connection',
+        'confirm_delete' => 'Delete this connection?',
+        'confirm_delete_named' => 'Delete the connection “{name}”? Tickets already linked to issues on it keep their links.',
     ],
 
     // Branding page (system/branding/index.php)

@@ -1,0 +1,148 @@
+<?php
+/**
+ * System — Integrations landing.
+ *
+ * The provider grid. One card today (Jira); GitHub, GitLab and Azure DevOps land
+ * here as soon as their connectors exist, with no change to this page — the grid
+ * is rendered from integrationsAvailableProviders().
+ *
+ * Deliberately NOT showing "coming soon" cards for unbuilt providers. A page that
+ * grows beats a page of promises, especially in a repo people read before they
+ * install.
+ *
+ * Each card links to /system/integrations/<key>, which .htaccess rewrites to
+ * provider.php.
+ */
+session_start();
+require_once '../../config.php';
+require_once '../../includes/i18n.php';
+require_once '../../includes/timezone.php';
+I18n::initFromSession();
+Tz::init();
+require_once '../../includes/functions.php';
+require_once '../../includes/theme.php';
+require_once '../../includes/integrations/integrations.php';
+
+$current_page = 'integrations';
+$path_prefix  = '../../';
+$translationNamespaces = ['common', 'system'];
+
+$conn = connectToDatabase();
+
+$providers  = integrationsAvailableProviders();
+$schemaOk   = integrationsSchemaReady($conn);
+
+// Connection counts per provider, so a card can say "2 connections" rather than
+// making the admin click in to find out.
+$counts = [];
+if ($schemaOk) {
+    try {
+        foreach ($conn->query("SELECT provider, COUNT(*) c FROM integration_connections GROUP BY provider") as $r) {
+            $counts[$r['provider']] = (int) $r['c'];
+        }
+    } catch (Exception $e) {
+        $counts = [];
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Desk - <?php echo htmlspecialchars(t('system.integrations.title')); ?></title>
+    <link rel="stylesheet" href="../../assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="../../assets/css/inbox.css">
+    <style>
+        /* Full width, like every other System page. ⚠️ max-width alone is not
+           enough — an inherited `margin: … auto` would still centre it, so there
+           is deliberately no auto margin here either. */
+        .int-container { height: calc(100vh - 48px); overflow-y: auto; padding: 30px 20px; }
+        .page-title    { font-size: 24px; font-weight: 600; color: var(--text); margin: 0 0 6px; }
+        .page-subtitle { font-size: 14px; color: var(--text-muted); margin: 0 0 26px; line-height: 1.5; }
+
+        .provider-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+        .provider-card {
+            display: block;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-decoration: none;
+            box-shadow: var(--shadow);
+            transition: border-color .15s ease, transform .15s ease;
+        }
+        .provider-card:hover { border-color: var(--sys-accent); transform: translateY(-2px); }
+        .provider-card h3 { margin: 0 0 6px; font-size: 17px; font-weight: 600; color: var(--text); }
+        .provider-card p  { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+        .provider-icon {
+            width: 34px; height: 34px; margin-bottom: 12px;
+            color: var(--sys-accent);
+        }
+        .provider-count {
+            display: inline-block; margin-top: 12px;
+            font-size: 12px; font-weight: 600;
+            padding: 3px 9px; border-radius: 20px;
+            background: var(--sys-accent-soft); color: var(--sys-accent);
+        }
+        .provider-count.is-none { background: var(--surface-2); color: var(--text-faint); }
+
+        .setup-warning {
+            background: var(--warning-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 22px;
+            font-size: 14px;
+            color: var(--text);
+        }
+
+        /* Mobile: the grid already collapses via auto-fill, so only the gutters
+           need attention. */
+        @media (max-width: 600px) {
+            .int-container { padding: 16px 12px; }
+        }
+    </style>
+</head>
+<body>
+    <?php include '../includes/header.php'; ?>
+
+    <div class="int-container">
+        <h1 class="page-title"><?php echo htmlspecialchars(t('system.integrations.title')); ?></h1>
+        <p class="page-subtitle"><?php echo htmlspecialchars(t('system.integrations.subtitle')); ?></p>
+
+        <?php if (!$schemaOk): ?>
+            <div class="setup-warning">
+                <?php echo htmlspecialchars(t('system.integrations.needs_db_verify')); ?>
+            </div>
+        <?php endif; ?>
+
+        <div class="provider-grid">
+            <?php foreach ($providers as $key => $meta): ?>
+                <?php $n = $counts[$key] ?? 0; ?>
+                <a class="provider-card" href="<?php echo htmlspecialchars($key); ?>">
+                    <svg class="provider-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="1.7"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                    <h3><?php echo htmlspecialchars($meta['name']); ?></h3>
+                    <p><?php echo htmlspecialchars(t($meta['blurb'])); ?></p>
+                    <span class="provider-count <?php echo $n === 0 ? 'is-none' : ''; ?>">
+                        <?php
+                        echo htmlspecialchars($n === 1
+                            ? t('system.integrations.one_connection')
+                            : str_replace('{n}', (string)$n, t('system.integrations.n_connections')));
+                        ?>
+                    </span>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</body>
+</html>

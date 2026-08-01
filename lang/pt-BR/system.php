@@ -85,6 +85,54 @@ return [
         'routing_test_title' => 'Teste de roteamento de e-mail',
         'routing_test_desc'  => 'Simule um e-mail recebido para ver para qual empresa ele seria arquivado e por quê.',
         'routing_test_keywords' => 'email routing test dry run mailbox sender domain triage tenant inbound diagnostic',
+        'integrations_title'    => 'Integrações',
+        'integrations_desc'     => 'Conecte o FreeITSM aos rastreadores de problemas que a sua equipe de desenvolvimento usa, para que um chamado que se revele um bug possa ser escalado e acompanhado sem sair da central de serviços.',
+        'integrations_keywords' => 'integrations integration integrações jira atlassian issue tracker bug escalate escalation github gitlab azure devops connector desenvolvimento chamado vinculado',
+    ],
+
+    // Integrations (system/integrations/)
+    'integrations' => [
+        'title'    => 'Integrações',
+        'subtitle' => 'Conecte o FreeITSM a um rastreador de problemas externo para que um chamado que se revele um bug possa ser aberto para a equipe de desenvolvimento e acompanhado a partir daqui.',
+
+        'needs_db_verify' => 'As tabelas de integração ainda não existem no banco de dados. Execute a Verificação do Banco de Dados em Sistema antes de adicionar uma conexão.',
+
+        'jira_blurb'     => 'Abra problemas no Jira a partir de chamados e veja a situação deles sem sair do FreeITSM. Funciona com Jira Cloud e Jira Data Center.',
+        'jira_url_label' => 'URL do site Jira',
+
+        'one_connection' => '1 conexão',
+        'n_connections'  => '{n} conexões',
+        'no_connections' => 'Nenhuma conexão ainda.',
+
+        'connections_heading' => 'Conexões',
+        'connections_desc'    => 'Cada conexão é um site onde você pode abrir problemas. Adicione mais de uma se equipes ou clientes diferentes usarem sites separados.',
+
+        'col_name'    => 'Nome',
+        'col_url'     => 'URL do site',
+        'col_company' => 'Empresa',
+        'col_status'  => 'Situação',
+
+        'add_heading'  => 'Adicionar conexão',
+        'edit_heading' => 'Editar conexão',
+
+        'field_email'      => 'Endereço de e-mail',
+        'field_email_hint' => 'Somente Jira Cloud — a conta a que o token de API pertence. Deixe em branco para o Jira Data Center, que usa apenas um token de acesso pessoal.',
+        'field_token'      => 'Token de API',
+        'creds_keep_hint'  => 'Deixe o token em branco para manter o que já está salvo.',
+
+        'company_shared' => 'Todas as empresas',
+        'company_hint'   => 'Deixe como todas as empresas para um rastreador usado pela sua própria equipe. Escolha uma empresa para restringi-lo a esse cliente — chamados de outras empresas não poderão ser escalados para ele.',
+
+        'active_label'   => 'Ativa',
+        'inactive_label' => 'Desligada',
+
+        'test'           => 'Testar',
+        'save_failed'    => 'Não foi possível salvar a conexão.',
+        'saved'          => 'Conexão salva.',
+        'deleted'        => 'Conexão excluída.',
+        'delete_title'   => 'Excluir conexão',
+        'confirm_delete' => 'Excluir esta conexão?',
+        'confirm_delete_named' => 'Excluir a conexão “{name}”? Chamados já vinculados a problemas nela mantêm seus vínculos.',
     ],
 
     // Branding page (system/branding/index.php)

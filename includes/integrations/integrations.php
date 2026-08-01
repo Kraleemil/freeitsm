@@ -38,6 +38,43 @@ function integrationsSchemaReady(PDO $conn): bool
     }
 }
 
+/**
+ * The provider registry — the ONE list adding a tracker touches at this layer.
+ *
+ * `credential_fields` drives the settings form, so a provider whose auth looks
+ * nothing like Jira's needs no change to the page: it declares its own fields and
+ * the form renders them. That is the difference between "adding GitHub is one
+ * file" and "adding GitHub means editing the settings screen too".
+ *
+ * `url_hint` / `url_label` exist because "Site URL" means something different per
+ * tracker and a wrong-shaped URL is the most likely setup mistake.
+ */
+function integrationsAvailableProviders(): array
+{
+    return [
+        'jira' => [
+            'key'         => 'jira',
+            'name'        => 'Jira',
+            'blurb'       => 'system.integrations.jira_blurb',
+            'url_label'   => 'system.integrations.jira_url_label',
+            'url_hint'    => 'https://yourcompany.atlassian.net',
+            'credential_fields' => [
+                // Cloud wants email + API token; Data Center wants only a PAT. Both
+                // are offered and the connector uses whichever its flavour needs.
+                ['key' => 'email',     'label' => 'system.integrations.field_email',  'type' => 'text',     'required' => false],
+                ['key' => 'api_token', 'label' => 'system.integrations.field_token',  'type' => 'password', 'required' => true],
+            ],
+        ],
+    ];
+}
+
+/** One registry entry, or null if the key is not a provider we ship. */
+function integrationsProviderMeta(string $key): ?array
+{
+    $all = integrationsAvailableProviders();
+    return $all[$key] ?? null;
+}
+
 /** provider string → concrete connector. */
 function integrationsProviderFor(array $connection): IssueTrackerProvider
 {
