@@ -1110,6 +1110,17 @@ body.ticket-popout .ticket-toolbar {
     font-size: 12px;
 }
 .pm-ticket-badge:hover { background: var(--problem-badge-bg, #e1d4f0); }
+
+/* External issue tracker pills (#950). Same shape as every other link pill —
+   a Jira issue IS a link, so it lives in the same strip — but tinted by the
+   four status categories we normalise every provider onto. Nothing here keys
+   off a provider's own status vocabulary. */
+.tracker-badge            { background: var(--surface-2); color: var(--text); }
+.tracker-badge:hover      { background: var(--surface-hover, #eee); }
+.tracker-badge.tracker-todo        { background: var(--surface-2);  color: var(--text-muted); }
+.tracker-badge.tracker-in_progress { background: var(--warning-bg);  color: var(--text); }
+.tracker-badge.tracker-done        { background: var(--success-bg);  color: var(--text); }
+.tracker-badge.tracker-cancelled   { background: var(--surface-3);   color: var(--text-faint); text-decoration: line-through; }
 .pm-ticket-unlink { color: var(--danger-text, #c62828); cursor: pointer; font-weight: 700; }
 .problem-link-btn {
     margin-left: auto;

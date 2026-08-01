@@ -198,6 +198,32 @@ try {
         $email['linked_tickets'] = ticketLinksFor($conn, (int) $email['ticket_id']);
     } catch (Exception $e) { /* table not present yet */ }
 
+    // External issue trackers (#950). Issues this ticket has been escalated to,
+    // with the status cached at the last poll. Degrades to an empty list on an
+    // install that has not run Database Verification, so "not set up" looks like
+    // "not linked" rather than an error in the middle of the ticket view.
+    //
+    // ⚠️ No credentials here, and no live call to the tracker: rendering a ticket
+    // must never wait on somebody else's API being up. The status shown is
+    // whatever the poll last recorded.
+    $email['tracker_links'] = [];
+    try {
+        require_once '../../includes/integrations/integrations.php';
+        foreach (integrationsLinksFor($conn, 'ticket', (int) $email['ticket_id']) as $l) {
+            $email['tracker_links'][] = [
+                'id'              => (int) $l['id'],
+                'provider'        => $l['provider'],
+                'connection_name' => $l['connection_name'],
+                'external_key'    => $l['external_key'],
+                'external_url'    => $l['external_url'],
+                'status_name'     => $l['status_name'],
+                'status_category' => $l['status_category'],
+                'assignee_name'   => $l['assignee_name'],
+                'synced'          => $l['last_synced_datetime'],
+            ];
+        }
+    } catch (Exception $e) { /* tables not present yet */ }
+
     // Merge state, both directions. `merged_away` is what drives the banner telling
     // an analyst that this ticket is a redirect and where it points — the answer to
     // "whatever happened to ABC?". `merged_in` lists what was folded INTO this one,

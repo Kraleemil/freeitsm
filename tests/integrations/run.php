@@ -503,6 +503,70 @@ ok('POSITIVE CONTROL: string tenant id still allows same-company',
    integrationsCompaniesCompatible((int)'2', (int)'2', $DEFAULT));
 
 // ---------------------------------------------------------------------------
+echo "7. Email body → description text\n";
+// ---------------------------------------------------------------------------
+
+// ⚠️ This exists because of a real failure, not a hypothetical one. The first
+// live ticket previewed produced a Jira description containing several hundred
+// lines of the email's CSS: strip_tags() removes the TAGS of <style> but keeps
+// its CONTENT. Every assertion below is a thing that actually went wrong or
+// would have.
+
+$marketing = '<html><head><style>
+  :root { color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { td { color: #fff !important; } }
+</style><title>Invoice</title></head><body>
+<div>Your invoice is available.</div><br>
+<p>IMPORTANT: the balance will be charged automatically.</p>
+<script>trackOpen();</script>
+</body></html>';
+
+$txt = integrationsBodyToText($marketing, 'html');
+
+ok('CSS content is gone',        strpos($txt, 'color-scheme') === false);
+ok('!important is gone',         strpos($txt, '!important') === false);
+ok('script content is gone',     strpos($txt, 'trackOpen') === false);
+ok('<title> content is gone',    strpos($txt, 'Invoice') === false || strpos($txt, 'invoice is available') !== false);
+// POSITIVE CONTROL: the actual message must survive all that removal.
+ok('POSITIVE CONTROL: the real text survived',
+   strpos($txt, 'Your invoice is available.') !== false
+   && strpos($txt, 'IMPORTANT: the balance will be charged automatically.') !== false);
+ok('block ends became newlines', strpos($txt, "available.\nIMPORTANT") !== false
+                                 || strpos($txt, "available.\n\nIMPORTANT") !== false);
+
+// HTML mail is full of &nbsp; runs and CRLF — they must collapse, not survive as
+// a wall of whitespace.
+$spacey = integrationsBodyToText("<p>A&nbsp;&nbsp;&nbsp;&nbsp;B</p>\r\n\r\n\r\n\r\n<p>C</p>", 'html');
+ok('nbsp runs collapse',      strpos($spacey, '    ') === false);
+ok('no triple blank lines',   strpos($spacey, "\n\n\n") === false);
+ok('POSITIVE CONTROL: letters survive collapsing',
+   strpos($spacey, 'A') !== false && strpos($spacey, 'B') !== false && strpos($spacey, 'C') !== false);
+
+// Plain-text bodies must pass through essentially untouched — over-processing a
+// plain body is as wrong as under-processing an HTML one.
+$plain = integrationsBodyToText("Line one\n\nLine two", 'text');
+eq('plain text preserved', "Line one\n\nLine two", $plain);
+
+// Entities decode (a description showing &amp; would look broken).
+ok('entities decoded', strpos(integrationsBodyToText('<p>Tom &amp; Jerry &lt;3</p>', 'html'), 'Tom & Jerry <3') !== false);
+
+// The cap keeps a newsletter from becoming the whole issue, and says it did.
+$long = integrationsBodyToText(str_repeat('word ', 5000), 'text', 200);
+ok('long body capped',        mb_strlen($long) < 400);
+ok('truncation is announced', strpos($long, 'truncated') !== false);
+ok('POSITIVE CONTROL: short body NOT capped',
+   strpos(integrationsBodyToText('short one', 'text', 200), 'truncated') === false);
+
+// Degenerate input must not explode.
+eq('null body → empty string', '', integrationsBodyToText(null, 'html'));
+eq('empty body → empty string', '', integrationsBodyToText('', 'html'));
+
+// An HTML body mislabelled as text is common (some mailers lie) — sniffing the
+// markup means it still gets cleaned rather than dumped raw.
+ok('mislabelled HTML still cleaned',
+   strpos(integrationsBodyToText('<div><style>p{color:red}</style>Hello</div>', 'text'), 'color:red') === false);
+
+// ---------------------------------------------------------------------------
 echo "\n" . str_repeat('=', 62) . "\n";
 echo "  passed: $pass\n";
 echo "  failed: $fail\n";

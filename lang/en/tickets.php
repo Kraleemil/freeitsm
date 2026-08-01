@@ -204,6 +204,29 @@ return [
         'warn_many'         => '%s are writing replies to this ticket right now — check with them before you send.',
     ],
 
+    // Escalating to an external issue tracker (#950). Wording is deliberately
+    // tracker-neutral ("issue tracker", not "Jira") except where naming the
+    // product is genuinely clearer — GitHub and others land behind the same UI.
+    'tracker' => [
+        'menu_item'       => 'Issue tracker',
+        'modal_title'     => 'Raise a development issue from',
+        'tracker_label'   => 'Tracker',
+        'project_label'   => 'Project key',
+        'type_label'      => 'Issue type',
+        'summary_label'   => 'Summary',
+        'preview_label'   => 'What will be sent',
+        'preview_hint'    => 'This is exactly what the development team will see. Internal notes are never included.',
+        'escalate'        => 'Raise',
+        'loading_preview' => 'Building the preview…',
+        'preview_failed'  => 'Could not build the preview.',
+        'no_connections'  => 'No tracker is set up for this company yet',
+        'project_required'=> 'Enter a project key.',
+        'raised'          => 'Raised as {key}',
+        'raised_generic'  => 'Issue raised.',
+        'failed'          => 'Could not raise the issue.',
+        'issue'           => 'Issue',
+    ],
+
     // Snoozing a ticket (#933). Every wake time is shown WITH its time of day —
     // "Thursday" alone leaves an analyst guessing whether it's back first thing.
     'snooze' => [

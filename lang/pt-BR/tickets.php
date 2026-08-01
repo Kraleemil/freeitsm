@@ -180,6 +180,29 @@ return [
         'warn_many'         => '%s estão escrevendo respostas para este ticket agora — combine com essas pessoas antes de enviar.',
     ],
 
+    // Escalar para um rastreador de problemas externo (#950). O texto é
+    // deliberadamente neutro ("rastreador de problemas", não "Jira") — GitHub e
+    // outros usarão a mesma tela.
+    'tracker' => [
+        'menu_item'       => 'Rastreador de problemas',
+        'modal_title'     => 'Abrir um problema de desenvolvimento a partir de',
+        'tracker_label'   => 'Rastreador',
+        'project_label'   => 'Chave do projeto',
+        'type_label'      => 'Tipo de problema',
+        'summary_label'   => 'Resumo',
+        'preview_label'   => 'O que será enviado',
+        'preview_hint'    => 'É exatamente isto que a equipe de desenvolvimento verá. Notas internas nunca são incluídas.',
+        'escalate'        => 'Abrir',
+        'loading_preview' => 'Montando a prévia…',
+        'preview_failed'  => 'Não foi possível montar a prévia.',
+        'no_connections'  => 'Nenhum rastreador configurado para esta empresa ainda',
+        'project_required'=> 'Informe a chave do projeto.',
+        'raised'          => 'Aberto como {key}',
+        'raised_generic'  => 'Problema aberto.',
+        'failed'          => 'Não foi possível abrir o problema.',
+        'issue'           => 'Problema',
+    ],
+
     // Adiar um ticket (#933). Todo horário de retorno é mostrado COM a hora —
     // só "quinta-feira" deixa o analista sem saber se volta logo cedo.
     'snooze' => [

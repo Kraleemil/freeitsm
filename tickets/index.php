@@ -668,6 +668,53 @@ $translationNamespaces = ['common', 'tickets'];
         </div>
     </div>
 
+    <!-- Escalate to an external issue tracker (#950).
+         ⚠️ The preview is not decoration. Raising an issue is a one-way door into
+         a system we do not control — it cannot be unsent, and anyone with access
+         to that tracker can read it. So the exact text is shown before the
+         analyst commits, and internal notes are never part of it. -->
+    <div class="modal" id="escalateTrackerModal">
+        <div class="modal-content" style="max-width: 720px;">
+            <div class="modal-header">
+                <?php echo htmlspecialchars(t('tickets.tracker.modal_title')); ?>
+                <span id="escTicketRef"></span>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                    <div class="form-group" style="flex:1 1 220px;">
+                        <label class="form-label" for="escConnection"><?php echo htmlspecialchars(t('tickets.tracker.tracker_label')); ?></label>
+                        <select class="form-input" id="escConnection"></select>
+                    </div>
+                    <div class="form-group" style="flex:0 1 140px;">
+                        <label class="form-label" for="escProject"><?php echo htmlspecialchars(t('tickets.tracker.project_label')); ?></label>
+                        <input type="text" class="form-input" id="escProject" placeholder="OPS" autocomplete="off">
+                    </div>
+                    <div class="form-group" style="flex:0 1 140px;">
+                        <label class="form-label" for="escIssueType"><?php echo htmlspecialchars(t('tickets.tracker.type_label')); ?></label>
+                        <input type="text" class="form-input" id="escIssueType" value="Bug" autocomplete="off">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="escSummary"><?php echo htmlspecialchars(t('tickets.tracker.summary_label')); ?></label>
+                    <input type="text" class="form-input" id="escSummary" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label"><?php echo htmlspecialchars(t('tickets.tracker.preview_label')); ?></label>
+                    <pre id="escPreview" style="max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word;
+                        background:var(--surface-2);border:1px solid var(--border);border-radius:6px;
+                        padding:12px;font-size:12.5px;line-height:1.55;color:var(--text);margin:0;"></pre>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                        <?php echo htmlspecialchars(t('tickets.tracker.preview_hint')); ?>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEscalateTrackerModal()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+                <button class="btn btn-primary" id="escalateGoBtn" onclick="submitEscalateTracker()"><?php echo htmlspecialchars(t('tickets.tracker.escalate')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Context menu — Record Time modal -->
     <div class="modal" id="ctxTimeModal">
         <div class="modal-content" style="max-width: 480px;">
@@ -706,7 +753,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=78"></script>
+    <script src="../assets/js/inbox.js?v=79"></script>
     <script src="../assets/js/mobile.js?v=14"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

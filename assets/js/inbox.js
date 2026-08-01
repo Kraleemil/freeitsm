@@ -2607,6 +2607,27 @@ function buildLinksSection(email) {
     (L.duplicates || []).forEach(d => pills.push(tp(d, 'Duplicate:')));
     (L.related || []).forEach(r => pills.push(tp(r, 'Related:')));
 
+    // External issue trackers (#950). A Jira issue IS a link, so it belongs in
+    // this strip rather than in a panel of its own — an analyst already looks
+    // here for "what else is this connected to".
+    //
+    // The status shown is whatever the poll last cached; the pill never waits on
+    // the tracker's API. The dot colours the four categories we normalise every
+    // provider onto, so nothing here depends on Jira's vocabulary.
+    (email.tracker_links || []).forEach(k => {
+        const dot = { todo: '○', in_progress: '◐', done: '●', cancelled: '⊘' }[k.status_category] || '○';
+        const ref = k.external_key || t('tickets.tracker.issue');
+        const bits = [];
+        if (k.status_name)   bits.push(k.status_name);
+        if (k.assignee_name) bits.push(k.assignee_name);
+        const title = [k.connection_name, bits.join(' · ')].filter(Boolean).join(' — ');
+        pills.push(`<a class="pm-ticket-badge tracker-badge tracker-${escapeHtml(k.status_category || 'unknown')}"
+            href="${escapeHtml(k.external_url || '#')}" target="_blank" rel="noopener"
+            title="${escapeHtml(title)}">
+            ${dot} ${escapeHtml(ref)}${bits.length ? ' · ' + escapeHtml(bits.join(' · ')) : ''}
+        </a>`);
+    });
+
     const body = pills.length
         ? pills.join('')
         : `<span style="color:#9ca3af;font-size:13px;">Not linked to anything yet</span>`;
@@ -2620,6 +2641,7 @@ function buildLinksSection(email) {
                 <button type="button" onclick="linkAddChoose('problem')">Problem</button>
                 <button type="button" onclick="linkAddChoose('change')">Change</button>
                 <button type="button" onclick="linkAddChoose('ticket')">Ticket</button>
+                <button type="button" onclick="linkAddChoose('tracker')">${escapeHtml(t('tickets.tracker.menu_item'))}</button>
             </div>
         </div>
     </div>`;
@@ -2644,7 +2666,126 @@ function linkAddChoose(kind) {
     const id = currentEmail.ticket_id, ref = currentEmail.ticket_number, subj = currentEmail.subject || '';
     if (kind === 'problem') openLinkProblemModal(id, ref, subj);
     else if (kind === 'change') openLinkChangeModal(id, ref, subj);
+    else if (kind === 'tracker') openEscalateTrackerModal(id, ref);
     else openLinkTicketModal(id, ref, subj);
+}
+
+// ============================================================
+// Escalate to an external issue tracker (#950).
+//
+// The MANUAL entry point. It calls the same service the workflow action does —
+// api/integrations/escalate_ticket.php → integrationsEscalate() — so every
+// guard, including the company check, has exactly one implementation.
+//
+// ⚠️ The preview is the point. This is a one-way door into a system we do not
+// control: once the issue exists we cannot unsend it, and everyone with access
+// to that tracker can read it. So the analyst sees the exact text FIRST, and
+// the modal opens with the escalate button disabled until they have.
+// ============================================================
+let escalateTicketId = null;
+
+async function openEscalateTrackerModal(ticketId, ref) {
+    escalateTicketId = ticketId;
+    const modal = document.getElementById('escalateTrackerModal');
+    if (!modal) return;
+
+    document.getElementById('escTicketRef').textContent = ref || ('#' + ticketId);
+    document.getElementById('escProject').value = '';
+    document.getElementById('escIssueType').value = 'Bug';
+    document.getElementById('escPreview').textContent = t('tickets.tracker.loading_preview');
+    document.getElementById('escSummary').value = '';
+    // ⚠️ classList.add('active'), NOT style.display. `.modal` is already
+    // `display: flex` and is hidden with visibility/opacity, so setting display
+    // achieves precisely nothing — the modal stays invisible and the click looks
+    // like it did nothing at all.
+    modal.classList.add('active');
+
+    // Only connections this ticket's company may actually use — the endpoint
+    // filters by the same rule the service enforces, so the analyst is never
+    // offered a tracker that would then refuse them.
+    const sel = document.getElementById('escConnection');
+    sel.innerHTML = `<option>${escapeHtml(t('common.loading'))}</option>`;
+    try {
+        const r = await fetch(`../api/integrations/connections_for_ticket.php?ticket_id=${ticketId}`);
+        const j = await r.json();
+        const list = (j && j.connections) || [];
+        sel.innerHTML = list.length
+            ? list.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
+            : `<option value="">${escapeHtml(t('tickets.tracker.no_connections'))}</option>`;
+        document.getElementById('escalateGoBtn').disabled = !list.length;
+    } catch (e) {
+        sel.innerHTML = `<option value="">${escapeHtml(t('tickets.tracker.no_connections'))}</option>`;
+        document.getElementById('escalateGoBtn').disabled = true;
+    }
+
+    // Build the description server-side and show it verbatim. Preview mode never
+    // touches the tracker.
+    try {
+        const r = await fetch('../api/integrations/escalate_ticket.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ticket_id: ticketId, preview: 1})
+        });
+        const j = await r.json();
+        if (j.success) {
+            document.getElementById('escSummary').value = j.summary || '';
+            document.getElementById('escPreview').textContent = j.body || '';
+        } else {
+            document.getElementById('escPreview').textContent = j.error || '';
+        }
+    } catch (e) {
+        document.getElementById('escPreview').textContent = t('tickets.tracker.preview_failed');
+    }
+}
+
+function closeEscalateTrackerModal() {
+    const m = document.getElementById('escalateTrackerModal');
+    if (m) m.classList.remove('active');
+    escalateTicketId = null;
+}
+
+async function submitEscalateTracker() {
+    if (!escalateTicketId) return;
+    const btn = document.getElementById('escalateGoBtn');
+    const project = document.getElementById('escProject').value.trim();
+    if (!project) { showToast(t('tickets.tracker.project_required'), 'error'); return; }
+
+    btn.disabled = true;
+    try {
+        const r = await fetch('../api/integrations/escalate_ticket.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                ticket_id:     escalateTicketId,
+                connection_id: document.getElementById('escConnection').value,
+                project:       project,
+                issue_type:    document.getElementById('escIssueType').value.trim() || 'Bug',
+                summary:       document.getElementById('escSummary').value.trim()
+            })
+        });
+        const j = await r.json();
+        if (j.success) {
+            // The tracker's key is the useful bit of feedback — it is what the
+            // analyst will quote to the dev team.
+            const key = (j.link && j.link.external_key) ? j.link.external_key : '';
+            showToast(key ? t('tickets.tracker.raised').replace('{key}', key)
+                          : t('tickets.tracker.raised_generic'), 'success');
+            // Capture the id BEFORE closing — closing nulls it, and reloading
+            // ticket 0 would blank the pane just as the analyst wants to see the
+            // new pill appear.
+            const reloadId = escalateTicketId;
+            closeEscalateTrackerModal();
+            loadTicketById(reloadId);
+        } else {
+            // Pass the real reason through: "Epic Link is required", or the
+            // company guard's refusal. A generic failure teaches nobody anything.
+            showToast(j.error || t('tickets.tracker.failed'), 'error');
+        }
+    } catch (e) {
+        showToast(t('tickets.tracker.failed'), 'error');
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 // Right-click "Link to ticket…" — targets whichever ticket was right-clicked.

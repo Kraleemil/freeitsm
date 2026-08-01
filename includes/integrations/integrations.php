@@ -84,6 +84,50 @@ function integrationsProviderMeta(string $key): ?array
     return $all[$key] ?? null;
 }
 
+/**
+ * An email body reduced to text worth putting in an issue description.
+ *
+ * ⚠️ `strip_tags()` alone is NOT enough, and this is not theoretical — the first
+ * real ticket tried produced a Jira description containing several hundred lines
+ * of the email's CSS. strip_tags removes the TAGS but keeps the CONTENT of
+ * <style> and <script>, so a marketing-styled email dumps its entire stylesheet
+ * into the description.
+ *
+ * So: kill those elements outright, turn block ends into newlines so paragraphs
+ * survive, then collapse the whitespace an HTML mail is full of (&nbsp; runs,
+ * tabs, CRLF pairs).
+ *
+ * $maxChars is a sanity cap, not a policy — a 200KB newsletter helps nobody, and
+ * a dev reading the issue wants the request, not the footer. The link back to
+ * the ticket is always there for the full thread.
+ */
+function integrationsBodyToText(?string $raw, string $bodyType = 'text', int $maxChars = 8000): string
+{
+    $s = (string) $raw;
+    if ($s === '') return '';
+
+    if (strtolower($bodyType) === 'html' || stripos($s, '<html') !== false || stripos($s, '<div') !== false) {
+        // Content-bearing elements that must go entirely, not just lose their tags.
+        $s = preg_replace('#<(style|script|head|title)\b[^>]*>.*?</\1>#is', ' ', $s);
+        // Block boundaries become newlines so the text does not run together.
+        $s = preg_replace('#<(br|/p|/div|/tr|/li|/h[1-6])\b[^>]*>#i', "\n", $s);
+        $s = strip_tags($s);
+        $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    // NBSP (both the entity-decoded char and the raw byte) reads as a space.
+    $s = str_replace(["\xC2\xA0", "\r\n", "\r"], [' ', "\n", "\n"], $s);
+    $s = preg_replace('/[ \t]+/u', ' ', $s);          // runs of spaces
+    $s = preg_replace('/ *\n */u', "\n", $s);         // trim around newlines
+    $s = preg_replace('/\n{3,}/u', "\n\n", $s);       // never more than one blank line
+    $s = trim($s);
+
+    if (mb_strlen($s) > $maxChars) {
+        $s = mb_substr($s, 0, $maxChars) . "\n\n… (truncated — see the ticket for the full thread)";
+    }
+    return $s;
+}
+
 /** provider string → concrete connector. */
 function integrationsProviderFor(array $connection): IssueTrackerProvider
 {
