@@ -421,18 +421,29 @@ function integrationsCommentSchemaReady(PDO $conn): bool
 }
 
 /**
- * ⚠️ ECHO SUPPRESSION, GUARD 2 — is this inbound comment our own write coming
- * back?
+ * Is this inbound comment authored by the account WE authenticate as?
  *
- * The failure mode this exists to stop: we push a note to Jira → the poll sees a
- * new comment → we import it as a note → which pushes again → forever. It is the
- * single thing most likely to make two-way sync unusable, and it is cheap here
- * and miserable to retrofit.
+ * ⚠️ NOT USED TO SUPPRESS COMMENTS. Read this before wiring it back in.
  *
- * This is the identity half: anything authored by the account our own token
- * authenticates as is ours. Guard 1 (the comment map's UNIQUE key) is exact and
- * catches the specific comments we created; this one also catches what guard 1
- * cannot, because it does not depend on us having recorded the write.
+ * This was originally echo suppression's "guard 2", on the reasoning that
+ * anything written by our own account must be our own write coming back. That
+ * reasoning is wrong for comments, and it failed on the very first live test:
+ * the person who creates the API token is usually also a person who comments in
+ * Jira, so *their own* comments were silently swallowed. On a small team that is
+ * not an edge case, it is the normal case — and it fails invisibly, which is the
+ * worst way to fail.
+ *
+ * It is redundant anyway. Guard 1 — `integration_comment_map` plus its UNIQUE
+ * key — records the id of every comment we push, so an echo is caught by **id**
+ * no matter who appears to have written it. That is exact, and it closes the
+ * loop on its own: a note we pushed is recognised on the way back regardless of
+ * author.
+ *
+ * Kept, and still reachable through `integrationsCommentSkipReason()`'s
+ * `$suppressByAuthor` flag, for two reasons: the events guard 1 genuinely cannot
+ * cover (edits, attachments, field changes — none of which we process yet), and
+ * so that "ignore comments from the connection's own account" can become a
+ * per-connection setting by flipping one argument rather than rewriting this.
  *
  * ⚠️ An UNKNOWN identity is never treated as ours. A tracker that stops sending
  * an author must not silently swallow every comment — it must let them through
@@ -451,16 +462,26 @@ function integrationsCommentIsEcho(array $event, ?string $accountIdentity): bool
 /**
  * Should this comment event become a note? The complete decision, pure.
  *
- * @param string[] $knownCommentIds ids already imported for this link (guard 1)
+ * Echo suppression happens on the `already_imported` line: the id of everything
+ * we push is recorded, so our own writes are recognised coming back. That is the
+ * whole guard, and it is exact.
+ *
+ * @param string[] $knownCommentIds  ids already imported for this link (guard 1)
+ * @param bool     $suppressByAuthor also drop anything authored by our own
+ *                 account. **Off**, and deliberately so — see
+ *                 integrationsCommentIsEcho(). This is the seam a future
+ *                 per-connection setting flips; it is not a default to restore.
  * @return string '' to import, otherwise the reason it was dropped
  */
-function integrationsCommentSkipReason(array $event, ?string $accountIdentity, array $knownCommentIds, string $entityType = 'ticket'): string
+function integrationsCommentSkipReason(array $event, ?string $accountIdentity, array $knownCommentIds, string $entityType = 'ticket', bool $suppressByAuthor = false): string
 {
     if (($event['type'] ?? '') !== 'comment_added')                return 'not_a_comment';
     if ($entityType !== 'ticket')                                  return 'unsupported_entity';
     if (trim((string)($event['comment_body'] ?? '')) === '')       return 'empty';
     if ((string)($event['comment_id'] ?? '') === '')               return 'no_comment_id';
-    if (integrationsCommentIsEcho($event, $accountIdentity))       return 'echo';
+    if ($suppressByAuthor && integrationsCommentIsEcho($event, $accountIdentity)) {
+        return 'echo';
+    }
     if (in_array((string)$event['comment_id'], array_map('strval', $knownCommentIds), true)) {
         return 'already_imported';
     }
@@ -536,11 +557,16 @@ function integrationsCommentNoteText(array $event, array $link): string
 function integrationsApplyCommentEvent(PDO $conn, array $connection, array $link, array $event): string
 {
     $entityType = (string)($link['entity_type'] ?? 'ticket');
+    // The last argument is where "ignore comments from our own account" would be
+    // read from the connection, if it ever becomes a setting. It stays false:
+    // suppressing by author swallowed the token owner's own comments the first
+    // time this ran for real. See integrationsCommentIsEcho().
     $reason = integrationsCommentSkipReason(
         $event,
         $connection['account_identity'] ?? null,
         integrationsKnownCommentIds($conn, (int)$link['id']),
-        $entityType
+        $entityType,
+        false
     );
     if ($reason !== '') return $reason;
 

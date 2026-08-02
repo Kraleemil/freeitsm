@@ -737,14 +737,20 @@ eq('Non-numeric id rejected before the query', [],
    $inject->pollChanges(gmdate('Y-m-d H:i:s', time() - 600), ['10042) OR (1=1']));
 eq('...and no request was made', 0, count($inject->seen));
 
-// ── Echo suppression, guard 2: identity ────────────────────────────────────
+// ── Echo suppression ───────────────────────────────────────────────────────
 // The loop this prevents: we push a note → the poll sees it as a new comment →
 // it becomes a note → which pushes again → forever.
+//
+// ⚠️ The guard is the comment MAP (by id), not the author. Suppressing by author
+// was tried and removed: whoever creates the API token is usually also a person
+// who comments in Jira, so it silently swallowed their own comments — which is
+// exactly what happened on the first live run against Ed's Jira. See below for
+// the regression test that pins it.
 
 $us = 'svc-account-1';
-ok('Our own comment is recognised as an echo',
+ok('Our own account is still RECOGNISED as ours',
    integrationsCommentIsEcho(['author_identity' => $us], $us));
-ok('POSITIVE CONTROL: a dev\'s comment is NOT an echo',
+ok('POSITIVE CONTROL: a dev\'s comment is not ours',
    !integrationsCommentIsEcho(['author_identity' => 'dev-1'], $us));
 
 // ⚠️ An unknown author must NOT be treated as ours. A tracker that stops sending
@@ -764,10 +770,26 @@ $goodEvent = [
 eq('A dev comment is imported', '',
    integrationsCommentSkipReason($goodEvent, $us, []));
 
-eq('Our own comment is dropped', 'echo',
+// ⚠️ THE REGRESSION TEST. This exact case failed live: Ed created the API token
+// from his own Atlassian account, then commented as himself, and his comment was
+// silently swallowed as "our own write coming back". A human writing from the
+// account the token belongs to is an ordinary thing, not an echo.
+eq('A comment from OUR OWN account is still imported', '',
    integrationsCommentSkipReason(array_merge($goodEvent, ['author_identity' => $us]), $us, []));
+
+// ...and the thing that actually stops the loop: we recorded pushing it, so it
+// is recognised by ID coming back, whoever appears to have written it.
+eq('A comment WE pushed is dropped on its way back', 'already_imported',
+   integrationsCommentSkipReason(array_merge($goodEvent, ['author_identity' => 'someone-else']), $us, ['9001']));
 eq('A comment already imported is dropped', 'already_imported',
    integrationsCommentSkipReason($goodEvent, $us, ['9001']));
+
+// The seam a per-connection setting would flip. Proven now so that turning it on
+// later is a wiring change, not a rewrite — and so this branch cannot rot.
+eq('With suppress-by-author ON, our own comment is dropped', 'echo',
+   integrationsCommentSkipReason(array_merge($goodEvent, ['author_identity' => $us]), $us, [], 'ticket', true));
+eq('POSITIVE CONTROL: with it ON, a dev comment still imports', '',
+   integrationsCommentSkipReason($goodEvent, $us, [], 'ticket', true));
 // Ids arrive from PDO as strings and from the provider as strings, but a caller
 // could hand back ints — the comparison must not depend on which.
 eq('Already-imported check is type-safe', 'already_imported',
