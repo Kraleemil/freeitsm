@@ -91,6 +91,77 @@ class WorkflowTemplates
             ],
 
             // ---------------------------------------------------------
+            //  Issue trackers
+            // ---------------------------------------------------------
+            'tracker_escalate_bugs' => [
+                'name'        => 'Raise a development issue for bugs',
+                'category'    => 'Issue trackers',
+                'description' => 'When a ticket is triaged as a bug, raise it in your issue tracker automatically, so nobody has to retype it into a second system.',
+                'trigger_event' => 'ticket.status_changed',
+                'conditions'  => [
+                    [
+                        'field' => 'ticket.type_id',
+                        'op'    => 'equals',
+                        'value' => ['$lookup' => 'ticket_type', 'names' => ['Bug', 'Fault', 'Defect', 'Incident']],
+                    ],
+                ],
+                'actions'     => [
+                    [
+                        'type' => 'escalate_to_tracker',
+                        'args' => [
+                            'ticket_id'     => '{{ticket.id}}',
+                            'connection_id' => ['$configure' => 'Which tracker connection to raise it in (System → Integrations)'],
+                            // Deliberately blank: since #957 the connection's
+                            // mapping decides the project and issue type, so a
+                            // recipe does not have to guess at somebody's
+                            // project keys. Type them here only to override it.
+                            'project'       => '',
+                            'issue_type'    => '',
+                            'summary'       => '{{ticket.subject}}',
+                            // Left on: a status-change trigger fires repeatedly
+                            // on the same ticket, and without it every firing
+                            // hands the developers another duplicate.
+                            'skip_if_linked' => true,
+                        ],
+                    ],
+                ],
+            ],
+
+            'tracker_tell_requester_when_done' => [
+                'name'        => 'Tell the requester when the developers finish',
+                'category'    => 'Issue trackers',
+                'description' => 'When the linked issue reaches a done state in the tracker, note it on the ticket and email the person who reported it — so the answer gets back to them without anyone watching the tracker.',
+                'trigger_event' => 'tracker.issue_status_changed',
+                'conditions'  => [
+                    [
+                        // ⚠️ The CATEGORY, never a status name. Status names are
+                        // per-project and renamed at will; the four categories
+                        // are the only stable thing across every tracker.
+                        'field' => 'tracker.status_category',
+                        'op'    => 'equals',
+                        'value' => 'done',
+                    ],
+                ],
+                'actions'     => [
+                    [
+                        'type' => 'add_ticket_note',
+                        'args' => [
+                            'ticket_id' => '{{ticket.id}}',
+                            'note'      => "The development team have finished {{tracker.key}} ({{tracker.status_name}}).\n\n{{tracker.url}}",
+                        ],
+                    ],
+                    [
+                        'type' => 'send_email',
+                        'args' => [
+                            'ticket_id' => '{{ticket.id}}',
+                            'subject'   => 'An update on your request [{{ticket.number}}]',
+                            'body'      => "Hello,\n\nThe development team have finished work on the issue behind your request:\n\n{{ticket.subject}}\n\nWe will confirm once it has reached you. If anything still looks wrong, just reply to this email.\n\nThe Service Desk",
+                        ],
+                    ],
+                ],
+            ],
+
+            // ---------------------------------------------------------
             //  Incident response
             // ---------------------------------------------------------
             'p1_incident_response' => [

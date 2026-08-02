@@ -912,6 +912,80 @@ eq('Empty maps: issue type null', null, integrationsResolveIssueType([], 5));
 eq('Empty maps: priority null',   null, integrationsResolvePriority([], 5));
 
 // ---------------------------------------------------------------------------
+echo "10. tracker.* workflow triggers and the starter recipes\n";
+// ---------------------------------------------------------------------------
+
+// The engine loads without a database or a connection — availableTriggers(),
+// availableActions() and availableFields() are all static tables.
+require_once __DIR__ . '/../../workflow/includes/engine.php';
+require_once __DIR__ . '/../../workflow/includes/templates.php';
+
+// ⚠️ availableTriggers() and availableFields() are static tables and need no
+// database. availableActions() DOES (it reads webhook formats), so the
+// action/arg validation lives in tests/integrations/templates_check.php
+// instead — this suite's no-DB-no-network promise is worth more than the
+// convenience of one file.
+$triggers = WorkflowEngine::availableTriggers();
+
+foreach (['tracker.issue_linked', 'tracker.issue_status_changed', 'tracker.issue_comment_added'] as $t) {
+    ok("Trigger $t is registered", isset($triggers[$t]));
+}
+
+// ⚠️ A trigger with no declared fields still fires, but the editor's condition
+// dropdown is empty — so the user cannot write the condition the trigger exists
+// for. That is the failure this pins.
+$statusFields = WorkflowEngine::availableFields('tracker.issue_status_changed');
+ok('status_changed exposes the category',  in_array('tracker.status_category', $statusFields, true));
+ok('status_changed exposes the PREVIOUS category — "became done" needs it',
+   in_array('tracker.previous_category', $statusFields, true));
+ok('status_changed exposes the issue key', in_array('tracker.key', $statusFields, true));
+
+$commentFields = WorkflowEngine::availableFields('tracker.issue_comment_added');
+ok('comment_added exposes the author', in_array('tracker.comment_author', $commentFields, true));
+ok('comment_added exposes the body',   in_array('tracker.comment_body', $commentFields, true));
+
+// ⚠️ Every tracker event must carry the TICKET too. Without it a workflow can
+// see that the issue moved but has nothing to act on — no note, no email, no
+// status change — and the triggers would be decorative.
+foreach (['tracker.issue_linked', 'tracker.issue_status_changed', 'tracker.issue_comment_added'] as $t) {
+    $f = WorkflowEngine::availableFields($t);
+    ok("$t carries the ticket", in_array('ticket.id', $f, true) && in_array('ticket.requester_email', $f, true));
+}
+
+// ...positive control: a trigger that should NOT carry tracker fields does not,
+// so the assertions above are about these triggers and not a catch-all list.
+ok('POSITIVE CONTROL: ticket.created has no tracker fields',
+   !in_array('tracker.key', WorkflowEngine::availableFields('ticket.created'), true));
+
+// ── The starter recipes: shape and semantics (no DB) ──────────────────────
+// Whether every action/arg NAME is real needs availableActions(), which needs a
+// database — that check is tests/integrations/templates_check.php.
+
+$all = WorkflowTemplates::all();
+ok('Recipe: escalate bugs to a tracker exists', isset($all['tracker_escalate_bugs']));
+ok('Recipe: tell the requester when dev finishes exists', isset($all['tracker_tell_requester_when_done']));
+
+// ⚠️ The "done" recipe must key on the CATEGORY, never a status name — names are
+// per-project and renamed at will. This is the same rule as tickets.merged_into_id.
+$doneTpl = $all['tracker_tell_requester_when_done'] ?? ['conditions' => []];
+$keysOnCategory = false;
+foreach ($doneTpl['conditions'] as $c) {
+    if (($c['field'] ?? '') === 'tracker.status_category' && ($c['value'] ?? '') === 'done') $keysOnCategory = true;
+}
+ok('The "dev finished" recipe keys on status_category, not a status name', $keysOnCategory);
+ok('...and its trigger is the tracker event, not a ticket event',
+   ($doneTpl['trigger_event'] ?? '') === 'tracker.issue_status_changed');
+
+// The escalate recipe must keep skip_if_linked on: its trigger fires repeatedly
+// on the same ticket, and without it every firing mints another duplicate issue.
+$escTpl = $all['tracker_escalate_bugs'] ?? ['actions' => []];
+$skip = null;
+foreach ($escTpl['actions'] as $a) {
+    if ($a['type'] === 'escalate_to_tracker') $skip = $a['args']['skip_if_linked'] ?? null;
+}
+ok('The escalate recipe leaves skip_if_linked ON', $skip === true);
+
+// ---------------------------------------------------------------------------
 echo "\n" . str_repeat('=', 62) . "\n";
 echo "  passed: $pass\n";
 echo "  failed: $fail\n";

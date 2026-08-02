@@ -435,12 +435,122 @@ function integrationsEscalate(PDO $conn, array $opts): array
         ($opts['analyst_id'] ?? null) ?: null,
     ]);
 
-    return array_merge($issue, [
+    $linkRow = array_merge($issue, [
         'id'            => (int) $conn->lastInsertId(),
         'connection_id' => $connId,
         'entity_type'   => $entityType,
         'entity_id'     => $entityId,
     ]);
+
+    // ⚠️ After the link row exists, so a workflow reacting to this can read the
+    // link. Note this fires for a MANUAL escalate too — the point of §2 is that
+    // "what happens when a ticket is escalated" is a rule the user writes, and
+    // that should not depend on which button started it.
+    integrationsEmitTrackerEvent($conn, 'tracker.issue_linked', $connection, $linkRow);
+
+    return $linkRow;
+}
+
+// =====================================================================
+//  Emitting tracker.* workflow events
+// =====================================================================
+
+/**
+ * The ticket block every tracker.* event carries, in the same shape the tickets
+ * service dispatches — so `{{ticket.requester_email}}` means the same thing
+ * whichever trigger a workflow hangs off.
+ */
+function integrationsTicketPayload(PDO $conn, int $ticketId): array
+{
+    // ⚠️ This query is a COPY of the canonical one in
+    // includes/services/tickets.php (search "canonical post-update payload").
+    // Keep them identical — three of these columns are aliases, not real column
+    // names, and getting that wrong is silent:
+    //   type_id         is  t.ticket_type_id
+    //   created_by      is  t.user_id
+    //   requester_email is  u.email, via a LEFT JOIN to users — it is NOT on
+    //                       the tickets table at all
+    // The first version of this selected `created_by` and `requester_email`
+    // straight off `tickets` and threw; the catch below swallowed it and every
+    // workflow would have received a payload of nothing but an id.
+    try {
+        $stmt = $conn->prepare(
+            "SELECT t.id, t.subject, t.priority_id, t.status_id, t.department_id,
+                    t.ticket_type_id AS type_id, t.assigned_analyst_id, t.owner_id,
+                    t.origin_id, t.user_id AS created_by, u.email AS requester_email
+             FROM tickets t LEFT JOIN users u ON u.id = t.user_id WHERE t.id = ?"
+        );
+        $stmt->execute([$ticketId]);
+        $r = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        // Log it. A silently empty payload is how a workflow ends up firing with
+        // nothing to act on and no clue why.
+        error_log('integrationsTicketPayload(' . $ticketId . '): ' . $e->getMessage());
+        return ['id' => $ticketId];
+    }
+    if (!$r) return ['id' => $ticketId];
+
+    return [
+        'id'                  => (int)$r['id'],
+        'subject'             => $r['subject'],
+        'priority_id'         => $r['priority_id'] !== null ? (int)$r['priority_id'] : null,
+        'status_id'           => $r['status_id'] !== null ? (int)$r['status_id'] : null,
+        'department_id'       => $r['department_id'] !== null ? (int)$r['department_id'] : null,
+        'type_id'             => $r['type_id'] !== null ? (int)$r['type_id'] : null,
+        'assigned_analyst_id' => $r['assigned_analyst_id'] !== null ? (int)$r['assigned_analyst_id'] : null,
+        'owner_id'            => $r['owner_id'] !== null ? (int)$r['owner_id'] : null,
+        'origin_id'           => $r['origin_id'] !== null ? (int)$r['origin_id'] : null,
+        'created_by'          => $r['created_by'] !== null ? (int)$r['created_by'] : null,
+        'requester_email'     => $r['requester_email'] ?? null,
+    ];
+}
+
+/**
+ * Fire a `tracker.*` workflow event.
+ *
+ * ⚠️ These are NOT time-based triggers and must not go through
+ * `workflow_scheduled_emissions`. The test on the Time-Based Triggers wiki page
+ * is *"did something happen, or did time merely pass?"* — here something
+ * happened: a developer moved the issue or wrote a comment. The poll is only
+ * **how we find out**, because a self-hosted install cannot be called back.
+ *
+ * That distinction is not pedantry, it changes behaviour. Each of these fires
+ * from the point where the new state is **already persisted** — a status move is
+ * only reported once the link row has been updated, a comment only once its map
+ * row exists — so they are edge-triggered by construction and cannot repeat. A
+ * fingerprint ledger would be actively WRONG: `todo → in_progress → todo →
+ * in_progress` is three real transitions, and a fingerprint on current state
+ * would silently swallow the third.
+ *
+ * Never throws: a workflow problem must not break a poll, exactly as a workflow
+ * problem must not break a ticket save.
+ */
+function integrationsEmitTrackerEvent(PDO $conn, string $event, array $connection, array $link, array $extra = []): void
+{
+    try {
+        // Only tickets have the payload a workflow can act on. Problems and
+        // changes are linkable but have no ticket block, so emitting for them
+        // would hand workflows a payload their actions cannot use.
+        if ((string)($link['entity_type'] ?? 'ticket') !== 'ticket') return;
+
+        require_once __DIR__ . '/../../workflow/includes/engine.php';
+        if (!class_exists('WorkflowEngine')) return;
+
+        $key = (string)($link['external_key'] ?: $link['external_id']);
+        WorkflowEngine::dispatch($event, [
+            'ticket'  => integrationsTicketPayload($conn, (int)$link['entity_id']),
+            'tracker' => array_merge([
+                'key'             => $key,
+                'url'             => $link['external_url'] ?? null,
+                'provider'        => $connection['provider'] ?? null,
+                'connection_name' => $connection['name'] ?? null,
+                'connection_id'   => isset($connection['id']) ? (int)$connection['id'] : null,
+                'external_id'     => $link['external_id'] ?? null,
+            ], $extra),
+        ]);
+    } catch (Exception $e) {
+        error_log('integrationsEmitTrackerEvent(' . $event . '): ' . $e->getMessage());
+    }
 }
 
 // =====================================================================
@@ -838,6 +948,21 @@ function integrationsApplyCommentEvent(PDO $conn, array $connection, array $link
     $conn->prepare("UPDATE tickets SET updated_datetime = UTC_TIMESTAMP() WHERE id = ?")
          ->execute([(int)$link['entity_id']]);
 
+    // Fired AFTER the map row exists, so the unique key has already guaranteed
+    // this comment is imported once — the event inherits that guarantee and
+    // cannot double-fire.
+    //
+    // ⚠️ The loop this could create: a workflow on this event pushes a comment
+    // back, which returns on the next poll and fires again. It terminates
+    // because `send_note_to_tracker` records every comment it pushes in the same
+    // map, so the returning copy is dropped as already_imported before it ever
+    // reaches here. That is the only thing stopping it — do not remove the
+    // recording in the workflow action.
+    integrationsEmitTrackerEvent($conn, 'tracker.issue_comment_added', $connection, $link, [
+        'comment_author' => (string)($event['author_name'] ?? ''),
+        'comment_body'   => (string)($event['comment_body'] ?? ''),
+    ]);
+
     return '';
 }
 
@@ -951,6 +1076,18 @@ function integrationsRefreshConnection(PDO $conn, array $connection): array
                 'from' => $link['status_category'] ?? null,
                 'to'   => $fresh['status_category'] ?? null,
             ];
+            // Emitted AFTER the UPDATE above, so the link already holds the new
+            // category — the next poll compares against it and finds nothing to
+            // report. Edge-triggered by construction, no ledger needed.
+            //
+            // `previous_category` is in the payload so "only when it becomes
+            // done" is a plain condition rather than something the workflow has
+            // to work out for itself.
+            integrationsEmitTrackerEvent($conn, 'tracker.issue_status_changed', $connection, $link, [
+                'status_name'       => $fresh['status_name'] ?? null,
+                'status_category'   => $fresh['status_category'] ?? null,
+                'previous_category' => $link['status_category'] ?? null,
+            ]);
         }
     }
     return $out;

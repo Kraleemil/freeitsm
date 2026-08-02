@@ -132,6 +132,14 @@ class WorkflowEngine
             'sla.breached'             => 'A ticket\'s SLA has been breached (time-based)',
             'contract.expiring'        => 'A contract is approaching its end date (time-based)',
             'asset.warranty_expiring'  => 'An asset\'s warranty is approaching expiry (time-based)',
+            // ── Issue trackers. NOT time-based: something genuinely happened —
+            // a developer moved the issue or wrote a comment. The poll is only
+            // how we find out, because a self-hosted install cannot be called.
+            // They still depend on that poll running, and the trigger picker is
+            // the only place a user learns that, hence the label.
+            'tracker.issue_linked'         => 'A ticket is linked to an issue in a tracker',
+            'tracker.issue_status_changed' => 'An issue\'s status changes in the tracker (needs the tracker poll)',
+            'tracker.issue_comment_added'  => 'Someone comments on the issue in the tracker (needs the tracker poll)',
         ];
         // ---- Explicit created / updated / deleted for every CRUD + settings
         // entity. Generated from crudEntities() so the list stays maintainable,
@@ -254,6 +262,21 @@ class WorkflowEngine
                 'problem.id', 'problem.problem_number', 'problem.title', 'problem.status_id',
                 'problem.priority_id', 'problem.assigned_analyst_id', 'problem.company_id',
             ],
+            // Tracker events carry the TICKET as well as the issue, because
+            // everything a user wants to do on one of these — add a note, email
+            // the requester, set a status — acts on the ticket. Without it the
+            // triggers would be decorative.
+            'tracker.issue_linked' => array_merge($fullTicket, [
+                'tracker.key', 'tracker.url', 'tracker.provider', 'tracker.connection_name',
+            ]),
+            'tracker.issue_status_changed' => array_merge($fullTicket, [
+                'tracker.key', 'tracker.url', 'tracker.provider', 'tracker.connection_name',
+                'tracker.status_name', 'tracker.status_category', 'tracker.previous_category',
+            ]),
+            'tracker.issue_comment_added' => array_merge($fullTicket, [
+                'tracker.key', 'tracker.url', 'tracker.provider', 'tracker.connection_name',
+                'tracker.comment_author', 'tracker.comment_body',
+            ]),
             'asset.assigned' => [
                 'asset.id', 'asset.hostname', 'user.id', 'user.name',
             ],
