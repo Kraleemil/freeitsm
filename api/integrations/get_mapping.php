@@ -46,10 +46,24 @@ try {
         // release: the screen says so rather than silently saving nothing.
         'schema_ready' => integrationsMapSchemaReady($conn),
         'maps'         => integrationsLoadMaps($conn, $connectionId),
+        // ⚠️ Ordered the same way each list is ordered on its own settings page
+        // (display_order, then name). An admin matching this screen against
+        // Tickets → Settings should see the same things in the same order.
         'local'        => [
             'companies'    => mappingList($conn, "SELECT id, name FROM tenants WHERE is_active = 1 ORDER BY name"),
-            'departments'  => mappingList($conn, "SELECT id, name FROM departments WHERE is_active = 1 ORDER BY name"),
-            'ticket_types' => mappingList($conn, "SELECT id, name FROM ticket_types WHERE is_active = 1 ORDER BY name"),
+            'departments'  => mappingList($conn, "SELECT id, name FROM departments WHERE is_active = 1 ORDER BY display_order, name"),
+            // ⚠️ ticket_types is the only one of these that is COMPANY-SCOPED
+            // (tenant_id NULL = available to every company). Both kinds are
+            // offered — a company-specific type is a perfectly good thing to
+            // route on — but the tenant name comes back so the screen can label
+            // it, otherwise two companies with a similarly named type are
+            // indistinguishable. Globals first, matching get_ticket_types.php.
+            'ticket_types' => mappingList($conn,
+                "SELECT tt.id, tt.name, tt.tenant_id, t.name AS tenant_name
+                   FROM ticket_types tt
+              LEFT JOIN tenants t ON t.id = tt.tenant_id
+                  WHERE tt.is_active = 1
+               ORDER BY tt.tenant_id IS NOT NULL, tt.display_order, tt.name"),
             'priorities'   => mappingList($conn, "SELECT id, name FROM ticket_priorities WHERE is_active = 1 ORDER BY display_order, name"),
         ],
     ]);

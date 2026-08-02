@@ -570,8 +570,14 @@ function renderMapping(local) {
         projRows += mapRow('project', 'tenant:' + c.id, c.name, mapOptions.projects, false));
 
     let typeRows = mapRow('issue_type', '*', T.mapDefault, mapOptions.issue_types, true);
-    (local.ticket_types || []).forEach(tt =>
-        typeRows += mapRow('issue_type', String(tt.id), tt.name, mapOptions.issue_types, false));
+    (local.ticket_types || []).forEach(tt => {
+        // Ticket types are the only company-scoped list here (tenant_id NULL =
+        // every company). Say which company a scoped one belongs to, or two
+        // companies with a similarly named type are indistinguishable. Pointless
+        // noise on a single-company install, so only when MULTI.
+        const label = (MULTI && tt.tenant_name) ? tt.name + ' (' + tt.tenant_name + ')' : tt.name;
+        typeRows += mapRow('issue_type', String(tt.id), label, mapOptions.issue_types, false);
+    });
 
     // ⚠️ No default row for priorities, on purpose — "every priority is Highest"
     // would mark a dev team's whole backlog urgent. An unmapped priority simply
