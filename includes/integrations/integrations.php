@@ -398,6 +398,238 @@ function integrationsEscalate(PDO $conn, array $opts): array
     ]);
 }
 
+// =====================================================================
+//  Comments coming back — the inbound half
+// =====================================================================
+
+/**
+ * Is the comment map present? Separate from integrationsSchemaReady() because it
+ * arrived a release later: an install that ran Database Verification for V1 but
+ * not since has the links but not the map, and must degrade to "no comments come
+ * back" rather than throwing inside the poll or the ticket view.
+ */
+function integrationsCommentSchemaReady(PDO $conn): bool
+{
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    try {
+        $conn->query("SELECT 1 FROM integration_comment_map LIMIT 1");
+        return $ready = true;
+    } catch (Exception $e) {
+        return $ready = false;
+    }
+}
+
+/**
+ * ⚠️ ECHO SUPPRESSION, GUARD 2 — is this inbound comment our own write coming
+ * back?
+ *
+ * The failure mode this exists to stop: we push a note to Jira → the poll sees a
+ * new comment → we import it as a note → which pushes again → forever. It is the
+ * single thing most likely to make two-way sync unusable, and it is cheap here
+ * and miserable to retrofit.
+ *
+ * This is the identity half: anything authored by the account our own token
+ * authenticates as is ours. Guard 1 (the comment map's UNIQUE key) is exact and
+ * catches the specific comments we created; this one also catches what guard 1
+ * cannot, because it does not depend on us having recorded the write.
+ *
+ * ⚠️ An UNKNOWN identity is never treated as ours. A tracker that stops sending
+ * an author must not silently swallow every comment — it must let them through
+ * and be noisy, because the failure is then visible instead of invisible.
+ *
+ * Pure on purpose: the whole decision is provable without a database.
+ */
+function integrationsCommentIsEcho(array $event, ?string $accountIdentity): bool
+{
+    $author = trim((string)($event['author_identity'] ?? ''));
+    $us     = trim((string)($accountIdentity ?? ''));
+    if ($author === '' || $us === '') return false;
+    return $author === $us;
+}
+
+/**
+ * Should this comment event become a note? The complete decision, pure.
+ *
+ * @param string[] $knownCommentIds ids already imported for this link (guard 1)
+ * @return string '' to import, otherwise the reason it was dropped
+ */
+function integrationsCommentSkipReason(array $event, ?string $accountIdentity, array $knownCommentIds, string $entityType = 'ticket'): string
+{
+    if (($event['type'] ?? '') !== 'comment_added')                return 'not_a_comment';
+    if ($entityType !== 'ticket')                                  return 'unsupported_entity';
+    if (trim((string)($event['comment_body'] ?? '')) === '')       return 'empty';
+    if ((string)($event['comment_id'] ?? '') === '')               return 'no_comment_id';
+    if (integrationsCommentIsEcho($event, $accountIdentity))       return 'echo';
+    if (in_array((string)$event['comment_id'], array_map('strval', $knownCommentIds), true)) {
+        return 'already_imported';
+    }
+    return '';
+}
+
+/** Comment ids already mapped for one link, in either direction. */
+function integrationsKnownCommentIds(PDO $conn, int $linkId): array
+{
+    if (!integrationsCommentSchemaReady($conn)) return [];
+    try {
+        $stmt = $conn->prepare("SELECT external_comment_id FROM integration_comment_map WHERE link_id = ?");
+        $stmt->execute([$linkId]);
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+/**
+ * Record a comment we PUSHED, so it is recognised if it comes back.
+ *
+ * Guard 1 of echo suppression. Called by send_note_to_tracker straight after the
+ * provider returns the new comment's id. Never throws: failing to record an echo
+ * marker must not fail the workflow run that successfully posted the comment.
+ */
+function integrationsRecordOutboundComment(PDO $conn, int $linkId, string $externalCommentId, ?int $localNoteId = null): void
+{
+    if ($externalCommentId === '' || !integrationsCommentSchemaReady($conn)) return;
+    try {
+        $conn->prepare(
+            "INSERT INTO integration_comment_map
+                (link_id, direction, external_comment_id, local_note_id, created_datetime)
+             VALUES (?, 'out', ?, ?, UTC_TIMESTAMP())"
+        )->execute([$linkId, $externalCommentId, $localNoteId ?: null]);
+    } catch (Exception $e) {
+        // Duplicate key or a missing table — neither is worth failing a send for.
+    }
+}
+
+/**
+ * How an imported comment reads on the ticket.
+ *
+ * The attribution lives in the note TEXT, not only in the display join, because
+ * plenty of things read note_text directly — the REST API, the portal, the AI
+ * write-up. A note that says only "any update?" with no hint it came from a dev
+ * in Jira is worse than no note.
+ */
+function integrationsCommentNoteText(array $event, array $link): string
+{
+    $ref    = (string)($link['external_key'] ?: $link['external_id']);
+    $author = trim((string)($event['author_name'] ?? ''));
+    $header = $ref . ($author !== '' ? ' · comment from ' . $author : ' · new comment');
+    return $header . "\n\n" . trim((string)($event['comment_body'] ?? ''));
+}
+
+/**
+ * Apply one canonical comment event: an internal note on the ticket, plus the
+ * map row that stops it ever being imported twice.
+ *
+ * ⚠️ THE MAP ROW IS WRITTEN FIRST, and its UNIQUE (link_id, external_comment_id)
+ * key is what actually guarantees "once". Writing the note first and the marker
+ * second would let two overlapping cron runs both pass the "already imported?"
+ * read and both post the note — the classic check-then-act race. Here the second
+ * writer loses on the key before any note exists.
+ *
+ * ⚠️ Always internal. A Jira comment is dev-to-analyst; it is written by people
+ * who do not know a customer can see it, and it must never reach the requester
+ * except by an analyst deciding so.
+ *
+ * @return string '' if imported, otherwise the reason it was skipped
+ */
+function integrationsApplyCommentEvent(PDO $conn, array $connection, array $link, array $event): string
+{
+    $entityType = (string)($link['entity_type'] ?? 'ticket');
+    $reason = integrationsCommentSkipReason(
+        $event,
+        $connection['account_identity'] ?? null,
+        integrationsKnownCommentIds($conn, (int)$link['id']),
+        $entityType
+    );
+    if ($reason !== '') return $reason;
+
+    try {
+        $conn->prepare(
+            "INSERT INTO integration_comment_map
+                (link_id, direction, external_comment_id, author_identity, author_name, created_datetime)
+             VALUES (?, 'in', ?, ?, ?, UTC_TIMESTAMP())"
+        )->execute([
+            (int)$link['id'],
+            (string)$event['comment_id'],
+            (string)($event['author_identity'] ?? '') ?: null,
+            (string)($event['author_name'] ?? '') ?: null,
+        ]);
+    } catch (Exception $e) {
+        // Lost the race (or the row was already there) — the other writer owns it.
+        return 'already_imported';
+    }
+    $mapId = (int) $conn->lastInsertId();
+
+    // analyst_id 0: a Jira comment has no FreeITSM author. Readers LEFT JOIN
+    // analysts and fall back to the connection's name — see api/tickets/get_notes.php.
+    $conn->prepare(
+        "INSERT INTO ticket_notes (ticket_id, analyst_id, note_text, is_internal, created_datetime)
+         VALUES (?, 0, ?, 1, UTC_TIMESTAMP())"
+    )->execute([(int)$link['entity_id'], integrationsCommentNoteText($event, $link)]);
+    $noteId = (int) $conn->lastInsertId();
+
+    $conn->prepare("UPDATE integration_comment_map SET local_note_id = ? WHERE id = ?")
+         ->execute([$noteId, $mapId]);
+    $conn->prepare("UPDATE tickets SET updated_datetime = UTC_TIMESTAMP() WHERE id = ?")
+         ->execute([(int)$link['entity_id']]);
+
+    return '';
+}
+
+/**
+ * Pull new comments for every link on one connection. The second half of the
+ * poll cron's unit of work.
+ *
+ * The watermark is stamped from BEFORE the provider call, not after, so a comment
+ * posted while the poll was running lands inside the next window rather than in
+ * the gap between them. It is only advanced on success: a failed pull must be
+ * retried against the same window, not skipped past.
+ *
+ * @return array ['pulled'=>int, 'imported'=>int, 'skipped'=>['echo'=>n, …]]
+ */
+function integrationsPullComments(PDO $conn, array $connection): array
+{
+    $out = ['pulled' => 0, 'imported' => 0, 'skipped' => []];
+
+    if (!integrationsSchemaReady($conn) || !integrationsCommentSchemaReady($conn)) return $out;
+    if (empty($connection['inbound_enabled'])) return $out;   // off by default; nothing is written until an admin says so
+
+    $provider = integrationsProviderFor($connection);
+    if (!$provider->supports(IssueTrackerProvider::CAP_POLLING)) return $out;
+
+    $stmt = $conn->prepare("SELECT * FROM integration_links WHERE connection_id = ?");
+    $stmt->execute([(int)$connection['id']]);
+    $links = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
+        $links[(string)$l['external_id']] = $l;
+    }
+
+    $startedAt = gmdate('Y-m-d H:i:s');
+    $watermark = !empty($connection['last_poll_watermark']) ? (string)$connection['last_poll_watermark'] : null;
+
+    if ($links) {
+        $events = $provider->pollChanges($watermark, array_keys($links));
+        $out['pulled'] = count($events);
+
+        foreach ($events as $event) {
+            $link = $links[(string)($event['external_id'] ?? '')] ?? null;
+            if (!$link) continue;   // an event about an issue we no longer track
+            $reason = integrationsApplyCommentEvent($conn, $connection, $link, $event);
+            if ($reason === '') {
+                $out['imported']++;
+            } else {
+                $out['skipped'][$reason] = ($out['skipped'][$reason] ?? 0) + 1;
+            }
+        }
+    }
+
+    $conn->prepare("UPDATE integration_connections SET last_poll_watermark = ? WHERE id = ?")
+         ->execute([$startedAt, (int)$connection['id']]);
+
+    return $out;
+}
+
 /**
  * Refresh the cached status of every link on one connection. The poll cron's
  * unit of work.

@@ -1152,6 +1152,32 @@ CREATE TABLE IF NOT EXISTS `integration_links` (
     CONSTRAINT `fk_integration_links_connection` FOREIGN KEY (`connection_id`) REFERENCES `integration_connections` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Every comment that has crossed between a ticket and its linked issue, in either
+-- direction. This is echo suppression: without it, a comment we push to Jira comes
+-- back on the next poll, becomes a note, and pushes again — forever.
+--
+-- ⚠️ uq_integration_comment is not an optimisation, it is THE guarantee that a
+-- comment is imported exactly once. The service reads the map first, but that read
+-- is check-then-act and two overlapping cron runs would both pass it; the unique
+-- key is what makes the second writer lose. Never drop it "because we check first".
+--
+-- local_note_id is nullable: an outbound comment posted by a workflow has no note
+-- behind it, only text.
+CREATE TABLE IF NOT EXISTS `integration_comment_map` (
+    `id`                  INT NOT NULL AUTO_INCREMENT,
+    `link_id`             INT NOT NULL,
+    `direction`           VARCHAR(3) NOT NULL DEFAULT 'in',       -- in | out
+    `external_comment_id` VARCHAR(100) NOT NULL,
+    `local_note_id`       INT NULL,
+    `author_identity`     VARCHAR(255) NULL,                      -- as the tracker names them; compared with connection.account_identity
+    `author_name`         VARCHAR(255) NULL,                      -- display only
+    `created_datetime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_integration_comment` (`link_id`, `external_comment_id`),
+    KEY `ix_integration_comment_note` (`local_note_id`),
+    CONSTRAINT `fk_integration_comment_link` FOREIGN KEY (`link_id`) REFERENCES `integration_links` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- One website chat conversation. Created when a visitor opens the widget and (if the
 -- widget asks for it) gives their name + email. `token` is the browser's capability
 -- for THIS conversation — it is stored in the visitor's browser and presented on every

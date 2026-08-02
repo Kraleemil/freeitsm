@@ -102,7 +102,7 @@ try {
         exit;
     }
 
-    $totalChecked = 0; $totalChanged = 0; $failed = 0;
+    $totalChecked = 0; $totalChanged = 0; $totalComments = 0; $failed = 0;
 
     foreach ($due as $row) {
         $connection = integrationsLoadConnection($conn, (int)$row['id']);
@@ -126,6 +126,19 @@ try {
                     $c['from'] ?: 'unknown',
                     $c['to']   ?: 'unknown');
             }
+
+            // Comments coming back. Silent unless the connection has inbound
+            // switched on, and the FIRST run after switching it on imports
+            // nothing by design — it only sets the watermark, so turning this on
+            // cannot tip a tracker's whole comment history onto old tickets.
+            $com = integrationsPullComments($conn, $connection);
+            $totalComments += $com['imported'];
+            if ($com['pulled'] > 0 || $com['imported'] > 0) {
+                $skipped = '';
+                foreach ($com['skipped'] as $reason => $n) $skipped .= " $reason=$n";
+                printf("    comments: %d seen, %d imported%s\n",
+                    $com['pulled'], $com['imported'], $skipped !== '' ? ' (skipped:' . $skipped . ')' : '');
+            }
         } catch (Exception $e) {
             // One unreachable tracker must not stop the others being polled.
             $failed++;
@@ -141,8 +154,8 @@ try {
              ->execute([(int)$row['id']]);
     }
 
-    printf("\n%d connection(s) polled, %d issue(s) checked, %d updated, %d failed.\n",
-        count($due), $totalChecked, $totalChanged, $failed);
+    printf("\n%d connection(s) polled, %d issue(s) checked, %d updated, %d comment(s) imported, %d failed.\n",
+        count($due), $totalChecked, $totalChanged, $totalComments, $failed);
 } catch (Exception $e) {
     if (!$isCli) http_response_code(500);
     echo "Integration poll failed: " . $e->getMessage() . "\n";

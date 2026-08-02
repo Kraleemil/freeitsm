@@ -40,6 +40,10 @@ $name     = trim((string)($in['name'] ?? ''));
 $baseUrl  = trim((string)($in['base_url'] ?? ''));
 $creds    = is_array($in['credentials'] ?? null) ? $in['credentials'] : [];
 $isActive = !empty($in['is_active']) ? 1 : 0;
+// Off unless explicitly switched on. Inbound WRITES to tickets, so a
+// half-finished setup must not start posting notes — the same "nothing is
+// processed until you say so" rule the messaging webhooks use.
+$inbound  = !empty($in['inbound_enabled']) ? 1 : 0;
 $tenantId = (isset($in['tenant_id']) && $in['tenant_id'] !== null && $in['tenant_id'] !== '')
                 ? (int) $in['tenant_id'] : null;
 
@@ -101,19 +105,21 @@ try {
         $stmt = $conn->prepare(
             "UPDATE integration_connections
              SET name = ?, base_url = ?, credentials = ?, tenant_id = ?, is_active = ?,
-                 account_identity = COALESCE(?, account_identity)
+                 inbound_enabled = ?, account_identity = COALESCE(?, account_identity)
              WHERE id = ?"
         );
-        $stmt->execute([$name, $baseUrl, $blob, $tenantId, $isActive, $identity, $id]);
+        $stmt->execute([$name, $baseUrl, $blob, $tenantId, $isActive, $inbound, $identity, $id]);
     } else {
         if ($flavour !== null) $creds['flavour'] = $flavour;
         $blob = encryptValue(json_encode($creds));
         $stmt = $conn->prepare(
             "INSERT INTO integration_connections
-                (name, provider, base_url, auth_type, credentials, tenant_id, is_active, created_by, account_identity)
-             VALUES (?, ?, ?, 'api_token', ?, ?, ?, ?, ?)"
+                (name, provider, base_url, auth_type, credentials, tenant_id, is_active,
+                 inbound_enabled, created_by, account_identity)
+             VALUES (?, ?, ?, 'api_token', ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$name, $provider, $baseUrl, $blob, $tenantId, $isActive, $_SESSION['analyst_id'] ?? null, $identity]);
+        $stmt->execute([$name, $provider, $baseUrl, $blob, $tenantId, $isActive, $inbound,
+                        $_SESSION['analyst_id'] ?? null, $identity]);
         $id = (int) $conn->lastInsertId();
     }
     echo json_encode(['success' => true, 'id' => $id]);

@@ -125,6 +125,8 @@ return [
 
         'active_label'   => 'Ativa',
         'inactive_label' => 'Desligada',
+        'inbound_label'  => 'Aceitar atualizações do {name}',
+        'inbound_hint'   => 'Comentários escritos no {name} chegam ao chamado vinculado como notas internas. Nunca são mostrados ao solicitante. A primeira verificação após ativar esta opção não importa nada — apenas marca o ponto de partida, portanto ativá-la não traz um histórico de comentários antigos.',
 
         'test'           => 'Testar',
         'save_failed'    => 'Não foi possível salvar a conexão.',

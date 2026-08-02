@@ -2,9 +2,11 @@
 
 When a FreeITSM ticket is escalated to an issue tracker (Jira today), the ticket shows a pill with that issue's key, status and assignee. **That status only stays current if this scheduled task is running.** Without it the pill is frozen at whatever the issue's status was the moment it was raised.
 
+Since #954 the same task also brings **comments** back from the tracker as internal notes, on connections where *Accept updates from Jira* is switched on. So an unscheduled poll now means two things never happen, not one.
+
 This document describes how to set that schedule up on Windows and Linux.
 
-> ⚠️ **This is currently the only way status ever updates.** Inbound webhooks — where the tracker pushes changes to us the moment they happen — are a later slice. Until then, if you do not schedule this, nothing on any ticket will ever change.
+> ⚠️ **This is currently the only way anything comes back.** Inbound webhooks — where the tracker pushes changes to us the moment they happen — are a later slice. Until then, if you do not schedule this, no status and no comment will ever reach a ticket.
 
 ---
 
@@ -20,9 +22,10 @@ Output is plain text — one line per connection, plus a line for every issue wh
 Our Jira (dev team)          checked  14, changed  2
     OPS-412  in_progress -> done
     OPS-418  todo -> in_progress
+    comments: 3 seen, 2 imported (skipped: echo=1)
 Acme client Jira             checked   3, changed  0
 
-2 connection(s) polled, 17 issue(s) checked, 2 updated, 0 failed.
+2 connection(s) polled, 17 issue(s) checked, 2 updated, 2 comment(s) imported, 0 failed.
 ```
 
 **Recommended cadence: every 5 minutes.** Each connection also has its own **poll interval** (default 5 minutes) set under *System → Integrations*, so scheduling more often than that simply does nothing for connections that are not due — it is safe, just pointless. The `integration_cron_min_interval_seconds` setting (default 60s) stops accidental double-scheduling from hammering anyone's API.

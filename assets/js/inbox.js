@@ -4098,10 +4098,14 @@ function renderNotes() {
     let html = '<div class="notes-section"><div class="notes-header">Notes</div>';
 
     currentNotes.forEach(note => {
+        // A note imported from an external issue tracker has no analyst author.
+        // The API attributes it to the connection ("Jira") and sets `source`; the
+        // note text itself names the issue and the person who wrote it there.
+        const external = note.source ? ' note-item-external' : '';
         html += `
-            <div class="note-item">
+            <div class="note-item${external}">
                 <div class="note-header">
-                    <span class="note-author">${escapeHtml(note.analyst_name)}</span>
+                    <span class="note-author">${escapeHtml(note.analyst_name || 'Unknown')}</span>
                     <span>${formatDateTime(note.created_datetime)}</span>
                 </div>
                 <div class="note-text">${escapeHtml(note.note_text)}</div>

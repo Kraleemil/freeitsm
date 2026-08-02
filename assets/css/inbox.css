@@ -1235,6 +1235,13 @@ body.ticket-popout .ticket-toolbar {
     border-radius: 4px;
 }
 
+/* A note imported from an external issue tracker. Distinguished from an
+   analyst's own note by the border only — it is not less important, it just did
+   not come from this system. Both tokens are real ones in theme.css. */
+.note-item-external {
+    border-left-color: var(--text-muted, #666);
+}
+
 .note-header {
     display: flex;
     justify-content: space-between;

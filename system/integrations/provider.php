@@ -270,6 +270,14 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
                 <label for="connActive" style="margin:0;"><?php echo htmlspecialchars(t('system.integrations.active_label')); ?></label>
             </div>
 
+            <div class="checkbox-row">
+                <input type="checkbox" id="connInbound">
+                <label for="connInbound" style="margin:0;"><?php echo htmlspecialchars(t('system.integrations.inbound_label', ['name' => $meta['name']])); ?></label>
+            </div>
+            <div class="hint" style="margin:-10px 0 15px 26px;">
+                <?php echo htmlspecialchars(t('system.integrations.inbound_hint', ['name' => $meta['name']])); ?>
+            </div>
+
             <div class="modal-actions">
                 <button class="btn-secondary" id="cancelBtn"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
                 <button class="btn-secondary" id="testBtn"><?php echo htmlspecialchars(t('system.integrations.test')); ?></button>
@@ -353,6 +361,9 @@ function openModal(conn) {
     $('connUrl').value  = conn ? conn.base_url : '';
     if (MULTI) $('connTenant').value = (conn && conn.tenant_id) ? String(conn.tenant_id) : '';
     $('connActive').checked = conn ? !!conn.is_active : true;
+    // Inbound writes to tickets, so it stays OFF on a new connection until an
+    // admin deliberately turns it on.
+    $('connInbound').checked = conn ? !!conn.inbound_enabled : false;
     CRED_KEYS.forEach(k => { const el = document.querySelector('[data-cred="' + k + '"]'); if (el) el.value = ''; });
     // Editing never re-sends the stored secret, so an empty box means "keep what
     // is there" rather than "clear it" — say so instead of leaving them guessing.
@@ -381,6 +392,7 @@ function payload() {
         credentials: creds,
         tenant_id: MULTI ? ($('connTenant').value || null) : null,
         is_active: $('connActive').checked ? 1 : 0,
+        inbound_enabled: $('connInbound').checked ? 1 : 0,
         account_identity: lastTest.account_identity,
         flavour: lastTest.flavour
     };

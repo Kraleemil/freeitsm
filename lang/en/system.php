@@ -141,6 +141,10 @@ return [
 
         'active_label'   => 'Active',
         'inactive_label' => 'Off',
+        // {name} is the provider — this page is shared, so the label must not
+        // hardcode "Jira" the way the design doc's Jira-specific wording does.
+        'inbound_label'  => 'Accept updates from {name}',
+        'inbound_hint'   => 'Comments written in {name} arrive on the linked ticket as internal notes. They are never shown to the requester. The first check after switching this on imports nothing — it only marks the starting point, so switching it on cannot bring back a backlog of old comments.',
 
         'test'           => 'Test',
         'save_failed'    => 'Could not save the connection.',

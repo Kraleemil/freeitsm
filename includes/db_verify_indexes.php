@@ -73,6 +73,8 @@ return [
     ['integration_links', 'uq_integration_link', true, '(`connection_id`,`external_id`,`entity_type`,`entity_id`)'],
     ['integration_links', 'ix_integration_links_entity', false, '(`entity_type`,`entity_id`)'],
     ['integration_links', 'ix_integration_links_connection', false, '(`connection_id`)'],
+    ['integration_comment_map', 'uq_integration_comment', true, '(`link_id`,`external_comment_id`)'],
+    ['integration_comment_map', 'ix_integration_comment_note', false, '(`local_note_id`)'],
     ['webchat_conversations', 'uq_webchat_conversation_token', true, '(`token`)'],
     ['webchat_conversations', 'ix_webchat_conversation_channel', false, '(`channel_id`)'],
     ['webchat_conversations', 'ix_webchat_conversation_ticket', false, '(`ticket_id`)'],

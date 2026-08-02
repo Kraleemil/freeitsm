@@ -634,6 +634,25 @@ return [
         'created_datetime'     => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Echo suppression + idempotency for comment sync. One row per comment that
+    // has crossed in either direction. direction is 'in' (tracker -> note) or
+    // 'out' (note -> tracker).
+    //
+    // ⚠️ UNIQUE (link_id, external_comment_id) — declared in freeitsm.sql, not
+    // here — is the thing that actually guarantees a comment is imported once.
+    // The "have I seen this?" read is an optimisation; the key is the guarantee,
+    // and it is what makes two overlapping cron runs safe.
+    'integration_comment_map' => [
+        'id'                  => 'INT NOT NULL AUTO_INCREMENT',
+        'link_id'             => 'INT NOT NULL',
+        'direction'           => "VARCHAR(3) NOT NULL DEFAULT 'in'",
+        'external_comment_id' => 'VARCHAR(100) NOT NULL',
+        'local_note_id'       => 'INT NULL',
+        'author_identity'     => 'VARCHAR(255) NULL',
+        'author_name'         => 'VARCHAR(255) NULL',
+        'created_datetime'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     // Pre-ticket chat transcript (AI 'deflect' mode) — see freeitsm.sql. sender is
     // 'visitor'|'ai'|'agent'|'system'. Source for the ticket opening message + .txt log.
     'webchat_messages' => [

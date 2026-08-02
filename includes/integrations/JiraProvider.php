@@ -342,6 +342,27 @@ class JiraProvider extends IssueTrackerProvider
 
     // ------------------------------------------------------------ comments
 
+    /** How many comments to read per issue in one poll. */
+    const COMMENT_PAGE_SIZE = 50;
+
+    /**
+     * Overlap added to every lookback window. The watermark is written after a
+     * successful pull, but a comment posted DURING the pull would otherwise fall
+     * in the gap. Re-asking for a few extra minutes is free because the UNIQUE
+     * key on integration_comment_map makes a repeat import impossible — the
+     * overlap is the belt, that key is the braces.
+     */
+    const COMMENT_OVERLAP_MINUTES = 5;
+
+    /**
+     * The furthest back a poll will ever look, however stale the watermark is.
+     *
+     * ⚠️ This is a product rule, not a performance one. A connection switched off
+     * for a month must not, on being switched back on, tip a month of dev
+     * conversation onto tickets that have long since been closed.
+     */
+    const COMMENT_LOOKBACK_CAP_MINUTES = 1440;   // 24 hours
+
     public function addComment(string $externalId, IssueDoc $body): string
     {
         $res = $this->jiraRequest(
@@ -350,6 +371,242 @@ class JiraProvider extends IssueTrackerProvider
             ['body' => $this->renderDoc($body)]
         );
         return (string)($res['id'] ?? '');
+    }
+
+    /**
+     * Comments on one issue, newest first, normalised.
+     *
+     * @return array [['comment_id'=>…, 'comment_body'=>plain text,
+     *                 'author_identity'=>…, 'author_name'=>…, 'created_ts'=>?int], …]
+     */
+    public function fetchComments(string $externalId): array
+    {
+        $url = $this->apiUrl('issue/' . rawurlencode($externalId) . '/comment')
+             . '?' . http_build_query(['orderBy' => '-created', 'maxResults' => self::COMMENT_PAGE_SIZE]);
+
+        $out = [];
+        foreach ((array)($this->jiraRequest('GET', $url)['comments'] ?? []) as $c) {
+            $parsed = $this->parseComment((array) $c);
+            if ($parsed['comment_id'] !== '') $out[] = $parsed;
+        }
+        return $out;
+    }
+
+    /**
+     * One Jira comment → the fields the canonical comment_added event needs.
+     *
+     * ⚠️ author_identity must be the SAME kind of value testConnection() returns,
+     * because echo suppression compares the two. Cloud identifies a user by
+     * accountId and Data Center by username, so this is flavour-aware for exactly
+     * the reason testConnection() is.
+     */
+    protected function parseComment(array $c): array
+    {
+        $author  = (array)($c['author'] ?? []);
+        $created = (string)($c['created'] ?? '');
+
+        return [
+            'comment_id'      => (string)($c['id'] ?? ''),
+            'comment_body'    => $this->commentBodyToText($c['body'] ?? null),
+            'author_identity' => $this->isCloud()
+                                    ? (string)($author['accountId'] ?? '')
+                                    : (string)($author['name'] ?? $author['key'] ?? ''),
+            'author_name'     => (string)($author['displayName'] ?? ''),
+            'created_ts'      => $created !== '' ? (strtotime($created) ?: null) : null,
+        ];
+    }
+
+    /**
+     * A comment body in whichever shape this flavour sends → plain text.
+     *
+     * Cloud sends ADF (nested JSON); Data Center sends wiki markup (a string).
+     * Same split as renderDoc(), in the other direction.
+     */
+    protected function commentBodyToText($body): string
+    {
+        if (is_array($body))  return $this->tidyText($this->adfToText($body));
+        if (is_string($body)) return $this->tidyText($body);
+        return '';
+    }
+
+    /**
+     * ADF → plain text.
+     *
+     * This lives in the connector rather than in IssueDoc on purpose: ADF is
+     * Atlassian's format and nobody else's, whereas IssueDoc is the shared
+     * document every provider renders FROM. Putting an ADF reader in IssueDoc
+     * would make core carry one tracker's vocabulary.
+     *
+     * Deliberately lossy. The job is "an analyst can read what the dev said",
+     * not a faithful round-trip — a note is plain text, and the issue itself is
+     * one click away on the pill.
+     */
+    protected function adfToText($node): string
+    {
+        if (!is_array($node)) return '';
+
+        $type     = (string)($node['type'] ?? '');
+        $children = function (string $glue = '') use ($node) {
+            $parts = [];
+            foreach ((array)($node['content'] ?? []) as $child) {
+                $parts[] = $this->adfToText($child);
+            }
+            return implode($glue, $parts);
+        };
+
+        switch ($type) {
+            case 'text':
+                $text = (string)($node['text'] ?? '');
+                // A link's href is the useful half — "click here" alone is no use
+                // in a plain-text note.
+                foreach ((array)($node['marks'] ?? []) as $mark) {
+                    if (($mark['type'] ?? '') === 'link') {
+                        $href = (string)($mark['attrs']['href'] ?? '');
+                        if ($href !== '' && $href !== $text) $text .= ' (' . $href . ')';
+                    }
+                }
+                return $text;
+
+            case 'hardBreak':  return "\n";
+            case 'rule':       return "\n---\n";
+            // Both carry their label in attrs rather than in a text child, so
+            // recursing would silently drop them.
+            case 'mention':    return (string)($node['attrs']['text'] ?? '');
+            case 'emoji':      return (string)($node['attrs']['text'] ?? $node['attrs']['shortName'] ?? '');
+            case 'inlineCard': return (string)($node['attrs']['url'] ?? '');
+
+            case 'paragraph':
+            case 'heading':
+            case 'codeBlock':
+            case 'blockquote':
+                return $children() . "\n\n";
+
+            case 'listItem':
+                return '- ' . trim($children()) . "\n";
+
+            default:
+                return $children();
+        }
+    }
+
+    /** Shared tidy-up for text pulled out of a tracker. */
+    protected function tidyText(string $s): string
+    {
+        $s = str_replace(["\r\n", "\r", "\xC2\xA0"], ["\n", "\n", ' '], $s);
+        $s = preg_replace('/[ \t]+/u', ' ', $s);
+        $s = preg_replace('/ *\n */u', "\n", $s);
+        $s = preg_replace('/\n{3,}/u', "\n\n", $s);
+        $s = trim($s);
+        if (mb_strlen($s) > 8000) {
+            $s = mb_substr($s, 0, 8000) . "\n\n… (truncated — see the issue for the rest)";
+        }
+        return $s;
+    }
+
+    // ---------------------------------------------------------------- polling
+
+    /**
+     * The inbound path until webhooks land: ask Jira what has been commented on
+     * since $since and return canonical `comment_added` events.
+     *
+     * $since is a UTC 'Y-m-d H:i:s' watermark written by the service after a
+     * successful pull. **null means this connection has never been polled**, and
+     * that case deliberately returns NOTHING: turning comment sync on must not
+     * tip a tracker's entire comment history onto tickets, some of which closed
+     * months ago. The first run only establishes the watermark; the second run
+     * onwards is when comments start arriving.
+     *
+     * Two calls, not one per issue: a JQL search narrows the watch list to the
+     * issues that actually changed, and only those are read for comments. On a
+     * quiet day that is one search and no comment reads at all.
+     */
+    public function pollChanges(?string $since, array $externalIds = []): array
+    {
+        if ($since === null) return [];
+
+        $ids = array_values(array_filter(array_map('strval', $externalIds), 'ctype_digit'));
+        if (!$ids) return [];
+
+        $sinceTs = strtotime($since . ' UTC');
+        if (!$sinceTs) return [];
+
+        $now     = time();
+        $minutes = $this->lookbackMinutes($sinceTs, $now);
+        // Keep the client-side filter and the server-side window in step. When
+        // the cap above bites, the watermark is older than what we asked Jira
+        // for, and filtering on it would import comments the search never
+        // reliably covered.
+        $cutoff  = max($sinceTs, $now - ($minutes * 60));
+
+        $events = [];
+        foreach ($this->searchUpdatedSince($ids, $minutes) as $externalId) {
+            try {
+                $comments = $this->fetchComments($externalId);
+            } catch (Exception $e) {
+                // One issue we cannot read must not lose the others' comments.
+                continue;
+            }
+            foreach ($comments as $c) {
+                if ($c['created_ts'] !== null && $c['created_ts'] <= $cutoff) continue;
+                if ($c['comment_body'] === '') continue;
+                $events[] = [
+                    'event_id'        => 'jira-comment-' . $c['comment_id'],
+                    'type'            => 'comment_added',
+                    'external_id'     => $externalId,
+                    'comment_id'      => $c['comment_id'],
+                    'comment_body'    => $c['comment_body'],
+                    'author_identity' => $c['author_identity'],
+                    'author_name'     => $c['author_name'],
+                    'occurred_at'     => $c['created_ts'],
+                ];
+            }
+        }
+        return $events;
+    }
+
+    /**
+     * How many minutes back to ask Jira about. Pure, so the capping rule is
+     * provable without a clock or a network.
+     */
+    protected function lookbackMinutes(int $sinceTs, ?int $nowTs = null): int
+    {
+        $now  = $nowTs ?? time();
+        $mins = (int) ceil(max(0, $now - $sinceTs) / 60) + self::COMMENT_OVERLAP_MINUTES;
+        return max(self::COMMENT_OVERLAP_MINUTES, min($mins, self::COMMENT_LOOKBACK_CAP_MINUTES));
+    }
+
+    /**
+     * Which of our watched issues changed in the last $minutes.
+     *
+     * ⚠️ Uses JQL's RELATIVE date syntax (`updated >= -90m`) rather than an
+     * absolute timestamp. An absolute JQL date is interpreted in the *Jira
+     * user's* timezone, not UTC, so a server in one timezone and a Jira account
+     * in another would silently miss or re-read a window's worth of comments.
+     * Relative minutes have no timezone at all.
+     */
+    protected function searchUpdatedSince(array $ids, int $minutes): array
+    {
+        $out = [];
+        foreach (array_chunk($ids, 100) as $chunk) {
+            $jql = 'id in (' . implode(',', $chunk) . ') AND updated >= -' . (int) $minutes . 'm';
+            // Flavour-aware for the same reason fetchIssues() is: Cloud removed
+            // /rest/api/3/search in favour of /search/jql.
+            $url = $this->apiUrl($this->isCloud() ? 'search/jql' : 'search') . '?' . http_build_query([
+                'jql'        => $jql,
+                'fields'     => 'id',
+                'maxResults' => count($chunk),
+            ]);
+            try {
+                $res = $this->jiraRequest('GET', $url);
+            } catch (Exception $e) {
+                continue;   // a bad chunk loses its own issues, never the others'
+            }
+            foreach ((array)($res['issues'] ?? []) as $issue) {
+                $id = (string)($issue['id'] ?? '');
+                if ($id !== '') $out[] = $id;
+            }
+        }
+        return $out;
     }
 
     // ------------------------------------------------------------- discovery

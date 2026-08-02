@@ -243,6 +243,10 @@ class FakeJira extends JiraProvider
     public function pubMapStatus(string $k) { return $this->mapStatusCategory($k); }
     public function pubError(int $c, string $b) { return $this->extractError($c, $b); }
     public function pubApiUrl(string $p) { return $this->apiUrl($p); }
+    public function pubAdfToText($n) { return $this->adfToText($n); }
+    public function pubCommentBody($b) { return $this->commentBodyToText($b); }
+    public function pubParseComment(array $c) { return $this->parseComment($c); }
+    public function pubLookback(int $since, ?int $now = null) { return $this->lookbackMinutes($since, $now); }
 }
 
 function mkJira(array $overrides = []): FakeJira {
@@ -579,6 +583,227 @@ eq('empty body → empty string', '', integrationsBodyToText('', 'html'));
 // markup means it still gets cleaned rather than dumped raw.
 ok('mislabelled HTML still cleaned',
    strpos(integrationsBodyToText('<div><style>p{color:red}</style>Hello</div>', 'text'), 'color:red') === false);
+
+// ---------------------------------------------------------------------------
+echo "8. Comments coming back — reading, echo suppression, the poll window\n";
+// ---------------------------------------------------------------------------
+
+// ── ADF → text ─────────────────────────────────────────────────────────────
+// Cloud comment bodies are nested JSON. Getting nothing out of them presents as
+// "comments arrive but are blank", so every block type gets an assertion.
+
+$adfComment = [
+    'type' => 'doc', 'version' => 1,
+    'content' => [
+        ['type' => 'paragraph', 'content' => [
+            ['type' => 'text', 'text' => 'What were the '],
+            ['type' => 'text', 'text' => 'repro steps', 'marks' => [['type' => 'strong']]],
+            ['type' => 'text', 'text' => '?'],
+        ]],
+        ['type' => 'bulletList', 'content' => [
+            ['type' => 'listItem', 'content' => [
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Which build?']]]]],
+            ['type' => 'listItem', 'content' => [
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Which OS?']]]]],
+        ]],
+    ],
+];
+$adfText = $cloud->pubAdfToText($adfComment);
+ok('ADF text: sentence survives',  strpos($adfText, 'What were the repro steps?') !== false);
+ok('ADF text: bullet 1 survives',  strpos($adfText, '- Which build?') !== false);
+ok('ADF text: bullet 2 survives',  strpos($adfText, '- Which OS?') !== false);
+ok('ADF text: no JSON leaked',     strpos($adfText, 'listItem') === false);
+
+// A link's href is the useful half. "See here" with the URL dropped is worse
+// than useless in a plain-text note.
+$adfLink = ['type' => 'doc', 'content' => [['type' => 'paragraph', 'content' => [
+    ['type' => 'text', 'text' => 'See here', 'marks' => [['type' => 'link', 'attrs' => ['href' => 'https://ci.example/build/9']]]],
+]]]];
+$linkText = $cloud->pubAdfToText($adfLink);
+ok('ADF text: link text kept', strpos($linkText, 'See here') !== false);
+ok('ADF text: link href kept', strpos($linkText, 'https://ci.example/build/9') !== false);
+
+// Mentions and emoji carry their label in attrs, not in a text child — recursing
+// blindly would drop them and mangle the sentence.
+$adfMention = ['type' => 'doc', 'content' => [['type' => 'paragraph', 'content' => [
+    ['type' => 'mention', 'attrs' => ['id' => 'abc', 'text' => '@Jane Doe']],
+    ['type' => 'text', 'text' => ' can you look?'],
+]]]];
+ok('ADF text: mention label kept',
+   strpos($cloud->pubAdfToText($adfMention), '@Jane Doe can you look?') !== false);
+
+// Degenerate input must not explode — a comment can genuinely be an empty doc.
+eq('ADF text: empty doc → empty string', '', $cloud->pubAdfToText(['type' => 'doc', 'content' => []]));
+eq('ADF text: non-array → empty string', '', $cloud->pubAdfToText('not adf'));
+
+// ── The flavour split, in the inbound direction ────────────────────────────
+// renderDoc() picks the format going out; commentBodyToText() must handle both
+// coming back. Data Center sends a plain wiki-markup string.
+ok('Cloud reads an ADF body',
+   strpos($cloud->pubCommentBody($adfComment), 'repro steps') !== false);
+eq('Server reads a string body', 'Any update on this?',
+   $server->pubCommentBody('Any update on this?'));
+eq('Unknown body shape → empty, not a crash', '', $cloud->pubCommentBody(null));
+
+// ── Author identity must match what testConnection() returns ───────────────
+// Echo suppression compares the two, so a mismatch here silently disables it:
+// Cloud identifies a user by accountId, Data Center by username.
+$cloudComment = [
+    'id' => '10101', 'created' => '2026-08-02T09:31:00.000+0000',
+    'author' => ['accountId' => 'acc-123', 'name' => 'ignored', 'displayName' => 'Dave Smith'],
+    'body' => $adfComment,
+];
+$pc = $cloud->pubParseComment($cloudComment);
+eq('Cloud author identity is accountId', 'acc-123', $pc['author_identity']);
+eq('Author display name kept',           'Dave Smith', $pc['author_name']);
+eq('Comment id kept',                    '10101', $pc['comment_id']);
+ok('Comment timestamp parsed',           $pc['created_ts'] > 0);
+
+$ps = $server->pubParseComment([
+    'id' => '55', 'created' => '2026-08-02T09:31:00.000+0000',
+    'author' => ['name' => 'dsmith', 'accountId' => 'ignored', 'displayName' => 'Dave Smith'],
+    'body' => 'Any update?',
+]);
+eq('Server author identity is username', 'dsmith', $ps['author_identity']);
+
+// ── The poll window ────────────────────────────────────────────────────────
+$now = 1785600000;
+eq('Lookback covers the gap plus the overlap', 15, $cloud->pubLookback($now - (10 * 60), $now));
+// ⚠️ The cap is a product rule: a connection switched off for a month must not,
+// on being switched back on, tip a month of dev chatter onto closed tickets.
+eq('Lookback is capped at 24h', 1440, $cloud->pubLookback($now - (30 * 86400), $now));
+ok('POSITIVE CONTROL: a recent watermark is NOT capped',
+   $cloud->pubLookback($now - (60 * 60), $now) < 1440);
+// A watermark in the future (clock skew between the app server and the DB) must
+// still ask for something, not zero minutes.
+eq('Future watermark still asks for the overlap', 5, $cloud->pubLookback($now + 600, $now));
+
+// The first poll of a connection imports NOTHING. Enabling comment sync must not
+// dump a tracker's whole history onto tickets that closed months ago.
+$firstRun = mkJira();
+eq('No watermark → no events at all', [], $firstRun->pollChanges(null, ['10042']));
+eq('No watermark → no HTTP call made either', 0, count($firstRun->seen));
+
+// ...and the positive control: WITH a watermark, the same setup does poll.
+$second = mkJira();
+$second->queue = [
+    [200, json_encode(['issues' => [['id' => '10042']]])],                    // the JQL search
+    [200, json_encode(['comments' => [[                                       // the comment read
+        'id' => '9001', 'created' => gmdate('Y-m-d\TH:i:s.000+0000'),
+        'author' => ['accountId' => 'dev-1', 'displayName' => 'Dave Smith'],
+        'body' => ['type' => 'doc', 'content' => [['type' => 'paragraph',
+                   'content' => [['type' => 'text', 'text' => 'Need the repro steps']]]]],
+    ]]])],
+];
+$events = $second->pollChanges(gmdate('Y-m-d H:i:s', time() - 600), ['10042']);
+eq('POSITIVE CONTROL: a watermark produces one event', 1, count($events));
+eq('Event is a comment', 'comment_added', $events[0]['type'] ?? null);
+eq('Event carries the comment id', '9001', $events[0]['comment_id'] ?? null);
+eq('Event carries the author identity', 'dev-1', $events[0]['author_identity'] ?? null);
+ok('Event body is readable text',
+   strpos($events[0]['comment_body'] ?? '', 'Need the repro steps') !== false);
+
+// ⚠️ JQL must use RELATIVE minutes. An absolute JQL date is interpreted in the
+// Jira USER's timezone, not UTC, so a server and an account in different zones
+// would silently miss or re-read a window's worth of comments every poll.
+$searchUrl = $second->seen[0]['url'] ?? '';
+ok('Search uses relative minutes', strpos(urldecode($searchUrl), 'updated >= -') !== false);
+ok('Search scopes to the watch list', strpos(urldecode($searchUrl), 'id in (10042)') !== false);
+// Cloud's /search was REMOVED by Atlassian — this is the endpoint that broke in
+// #953, so the comment poll pins it too rather than repeating the mistake.
+ok('Cloud searches /search/jql', strpos($searchUrl, '/search/jql') !== false);
+$dcSecond = mkJira(['base_url' => 'https://jira.acme.internal',
+                    'credentials' => ['api_token' => 'pat', 'flavour' => 'server']]);
+$dcSecond->queue = [[200, json_encode(['issues' => []])]];
+$dcSecond->pollChanges(gmdate('Y-m-d H:i:s', time() - 600), ['10042']);
+ok('Data Center searches /search', strpos($dcSecond->seen[0]['url'] ?? '', '/rest/api/2/search?') !== false);
+
+// Comments older than the watermark are not re-imported as "new".
+$stale = mkJira();
+$stale->queue = [
+    [200, json_encode(['issues' => [['id' => '10042']]])],
+    [200, json_encode(['comments' => [[
+        'id' => '8000', 'created' => gmdate('Y-m-d\TH:i:s.000+0000', time() - 86400),
+        'author' => ['accountId' => 'dev-1', 'displayName' => 'Dave'],
+        'body' => 'ancient history',
+    ]]])],
+];
+eq('A comment older than the watermark is ignored', 0,
+   count($stale->pollChanges(gmdate('Y-m-d H:i:s', time() - 600), ['10042'])));
+
+// Non-numeric ids must never reach the JQL — same rule as fetchIssues().
+$inject = mkJira();
+eq('Non-numeric id rejected before the query', [],
+   $inject->pollChanges(gmdate('Y-m-d H:i:s', time() - 600), ['10042) OR (1=1']));
+eq('...and no request was made', 0, count($inject->seen));
+
+// ── Echo suppression, guard 2: identity ────────────────────────────────────
+// The loop this prevents: we push a note → the poll sees it as a new comment →
+// it becomes a note → which pushes again → forever.
+
+$us = 'svc-account-1';
+ok('Our own comment is recognised as an echo',
+   integrationsCommentIsEcho(['author_identity' => $us], $us));
+ok('POSITIVE CONTROL: a dev\'s comment is NOT an echo',
+   !integrationsCommentIsEcho(['author_identity' => 'dev-1'], $us));
+
+// ⚠️ An unknown author must NOT be treated as ours. A tracker that stops sending
+// an author would otherwise swallow every comment silently — the failure has to
+// be visible (noisy notes), not invisible (nothing ever arrives).
+ok('Missing author is not an echo',    !integrationsCommentIsEcho([], $us));
+ok('Missing OUR identity is not an echo',
+   !integrationsCommentIsEcho(['author_identity' => 'dev-1'], null));
+ok('Empty-string identity is not an echo',
+   !integrationsCommentIsEcho(['author_identity' => ''], ''));
+
+// ── The whole import decision ──────────────────────────────────────────────
+$goodEvent = [
+    'type' => 'comment_added', 'comment_id' => '9001',
+    'comment_body' => 'Need the repro steps', 'author_identity' => 'dev-1',
+];
+eq('A dev comment is imported', '',
+   integrationsCommentSkipReason($goodEvent, $us, []));
+
+eq('Our own comment is dropped', 'echo',
+   integrationsCommentSkipReason(array_merge($goodEvent, ['author_identity' => $us]), $us, []));
+eq('A comment already imported is dropped', 'already_imported',
+   integrationsCommentSkipReason($goodEvent, $us, ['9001']));
+// Ids arrive from PDO as strings and from the provider as strings, but a caller
+// could hand back ints — the comparison must not depend on which.
+eq('Already-imported check is type-safe', 'already_imported',
+   integrationsCommentSkipReason($goodEvent, $us, [9001]));
+eq('An empty comment is dropped', 'empty',
+   integrationsCommentSkipReason(array_merge($goodEvent, ['comment_body' => '   ']), $us, []));
+eq('A comment with no id is dropped', 'no_comment_id',
+   integrationsCommentSkipReason(array_merge($goodEvent, ['comment_id' => '']), $us, []));
+eq('A status event is not a comment', 'not_a_comment',
+   integrationsCommentSkipReason(['type' => 'status_changed'], $us, []));
+// entity_type is polymorphic, but only tickets have notes. A problem or change
+// link must skip rather than write a note against the wrong table's id.
+eq('A non-ticket link is skipped', 'unsupported_entity',
+   integrationsCommentSkipReason($goodEvent, $us, [], 'problem'));
+
+// ...positive controls for the whole set, so a "refuse everything" regression
+// cannot pass this section.
+eq('POSITIVE CONTROL: a different comment id still imports', '',
+   integrationsCommentSkipReason($goodEvent, $us, ['8999']));
+eq('POSITIVE CONTROL: no identity configured still imports a dev comment', '',
+   integrationsCommentSkipReason($goodEvent, null, []));
+
+// ── How it reads on the ticket ─────────────────────────────────────────────
+// Attribution lives in the note TEXT, not only in the display join, because the
+// REST API, the portal and the AI write-up all read note_text directly.
+$noteText = integrationsCommentNoteText(
+    ['author_name' => 'Dave Smith', 'comment_body' => "Need the repro steps"],
+    ['external_key' => 'KAN-6', 'external_id' => '10042']
+);
+ok('Note names the issue',   strpos($noteText, 'KAN-6') !== false);
+ok('Note names the author',  strpos($noteText, 'Dave Smith') !== false);
+ok('Note carries the body',  strpos($noteText, 'Need the repro steps') !== false);
+// An anonymous comment must still say where it came from.
+ok('Note falls back to the issue id when there is no key',
+   strpos(integrationsCommentNoteText(['comment_body' => 'x'],
+          ['external_key' => null, 'external_id' => '10042']), '10042') !== false);
 
 // ---------------------------------------------------------------------------
 echo "\n" . str_repeat('=', 62) . "\n";

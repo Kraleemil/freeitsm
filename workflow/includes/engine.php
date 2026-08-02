@@ -2037,6 +2037,10 @@ class WorkflowEngine
             try {
                 $provider  = integrationsProviderFor($connection);
                 $commentId = $provider->addComment((string)$link['external_id'], (new IssueDoc)->para($note));
+                // Echo suppression, guard 1: remember what we wrote, so the poll
+                // recognises it coming back instead of importing our own comment
+                // as a note and pushing it again.
+                integrationsRecordOutboundComment($conn, (int)$link['id'], $commentId);
                 $posted[]  = ['key' => $link['external_key'], 'comment_id' => $commentId];
             } catch (Exception $e) {
                 // One unreachable tracker must not lose the others, and must not
