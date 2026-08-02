@@ -25,6 +25,14 @@
 
 require_once __DIR__ . '/../service_context.php';
 require_once __DIR__ . '/../form_logic.php';
+// ⚠️ A HARD dependency, not a convenience. Lookup scoping has to know which
+// company is Default, because a NULL tenant_id on an asset means "the Default
+// company's". Behind a function_exists() guard this was worse than a missing
+// feature: the search endpoint loads tenancy and so OFFERS those records, while
+// the submit guard runs wherever the caller put it and, without tenancy loaded,
+// REFUSES the very record it had just offered. Two halves of one rule cannot be
+// allowed to disagree depending on who included what.
+require_once __DIR__ . '/../tenancy.php';
 require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 
 class FormsService
@@ -163,6 +171,31 @@ class FormsService
     }
 
     /**
+     * The company-scope SQL for a lookup source, shared by the search and the
+     * submit-time guard so the two can never disagree about what is in scope.
+     *
+     * ⚠️ For these tables `tenant_id IS NULL` means "unassigned — treat as the
+     * DEFAULT company's", NOT "shared with everyone". (Knowledge means the
+     * opposite by the same NULL; see tenancyKnowledgeFilter.) So a NULL row is
+     * in scope only when Default itself is, never as a blanket include — and on
+     * a single-company install, where every row is NULL, that is what makes the
+     * feature work at all.
+     *
+     * @param int[] $tenantIds non-empty; callers handle null/empty themselves.
+     * @return array{0:string,1:array} [sql clause, params]
+     */
+    private static function lookupTenantClause(PDO $conn, array $meta, array $tenantIds): array
+    {
+        $in     = implode(',', array_fill(0, count($tenantIds), '?'));
+        $col    = "`{$meta['tenant_col']}`";
+        $clause = "$col IN ($in)";
+        if (in_array(getDefaultTenantId($conn), array_map('intval', $tenantIds), true)) {
+            $clause = "($clause OR $col IS NULL)";
+        }
+        return [$clause, array_map('intval', $tenantIds)];
+    }
+
+    /**
      * Search one lookup source, scoped to what the person asking may see.
      *
      * ⚠️ THE SCOPE IS THE WHOLE FEATURE. A lookup is a search box over records
@@ -211,16 +244,9 @@ class FormsService
         $where[] = "`{$s['label_col']}` IS NOT NULL AND `{$s['label_col']}` <> ''";
 
         if ($tenantIds !== null) {
-            $in = implode(',', array_fill(0, count($tenantIds), '?'));
-            // NULL tenant means "the Default company's" for these tables, so it
-            // is only in scope when Default is. Never a blanket include.
-            $default = function_exists('getDefaultTenantId') ? @getDefaultTenantId($conn) : null;
-            $clause  = "`{$s['tenant_col']}` IN ($in)";
-            if ($default !== null && in_array((int)$default, array_map('intval', $tenantIds), true)) {
-                $clause = "($clause OR `{$s['tenant_col']}` IS NULL)";
-            }
+            [$clause, $tParams] = self::lookupTenantClause($conn, $s, $tenantIds);
             $where[] = $clause;
-            foreach ($tenantIds as $t) $params[] = (int)$t;
+            $params  = array_merge($params, $tParams);
         }
 
         $sql = "SELECT `{$s['id_col']}` AS id, `{$s['label_col']}` AS label
@@ -259,14 +285,11 @@ class FormsService
         $sql = "SELECT 1 FROM `{$s['table']}` WHERE `{$s['id_col']}` = ?";
 
         if ($tenantIds !== null) {
-            $in = implode(',', array_fill(0, count($tenantIds), '?'));
-            $default = function_exists('getDefaultTenantId') ? @getDefaultTenantId($conn) : null;
-            $clause  = "`{$s['tenant_col']}` IN ($in)";
-            if ($default !== null && in_array((int)$default, array_map('intval', $tenantIds), true)) {
-                $clause = "($clause OR `{$s['tenant_col']}` IS NULL)";
-            }
-            $sql .= " AND $clause";
-            foreach ($tenantIds as $t) $params[] = (int)$t;
+            // The SAME clause the search used. If these two ever differed, the
+            // list would offer a record the submit then refused.
+            [$clause, $tParams] = self::lookupTenantClause($conn, $s, $tenantIds);
+            $sql   .= " AND $clause";
+            $params = array_merge($params, $tParams);
         }
 
         try {

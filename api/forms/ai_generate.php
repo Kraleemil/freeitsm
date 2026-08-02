@@ -23,6 +23,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/rfp_ai.php';
+require_once '../../includes/services/forms.php';   // LOOKUP_SOURCES — one list, not a second copy
 require_once __DIR__ . '/_ai_helpers.php';
 
 // Disable output buffering at every level so SSE events flush immediately.
@@ -116,6 +117,7 @@ You may use ONLY these field types — no others exist:
 - "radio" — SINGLE-select from a small visible list of 2-5 options (radio buttons). Use when there are a small number of mutually-exclusive choices and you want them all visible at once. ALWAYS provide an "options" array with 2-5 items. For more than 5 options prefer "dropdown".
 - "dropdown" — SINGLE-select from a fixed list of options (collapsed dropdown). Use when there are 6+ mutually-exclusive choices, or when space is tight. ALWAYS provide an "options" array with 2-12 items.
 - "datetime" — a real date and/or time picker. ALWAYS use this for any date or time question — start dates, needed-by dates, appointment slots, last working day, when an error occurred. NEVER ask for a date as "text". Set "date_mode" to one of: "date" (a calendar date — the usual choice), "time" (a clock time only, with no date), "datetime" (both together, for a specific moment).
+- "lookup" — a search box that looks up a REAL RECORD already held in FreeITSM, so the answer is the record itself rather than someone's description of it. Use whenever the question is "which one?" about something the ITSM system already knows: which laptop, which server, which person. Set "lookup_source" to one of: "asset" (a piece of equipment — laptop, desktop, phone, monitor, printer; searchable by name, asset tag or serial), "cmdb" (an infrastructure item — a server, service, application, database), "user" (a person on the staff directory). PREFER this over "text" for questions like "Which machine is affected?", "Which server is down?", "Who is the new starter's manager?". Do NOT use it for something the system does not hold, such as a supplier name or a room number — use "text" for those.
 - "section" — NOT a question. A heading that groups every field after it until the next "section". It collects no answer, so it must NEVER be "is_required": true and its "options" must be []. Use 2-4 of these to break a long form (roughly 8+ fields) into named groups such as "Your details", "Equipment needed", "Approval". Do not use any on a short form.
 
 # RULES
@@ -155,7 +157,8 @@ If there is NO "Current form" block, generate a new form from scratch as usual.
 
 - Return ONLY valid JSON. No markdown code fences. No explanation prose. No leading or trailing text.
 - Every field MUST include all four keys: field_type, label, is_required, options.
-- "field_type" must be exactly one of: "text", "textarea", "email", "number", "checkbox", "checkboxes", "radio", "dropdown".
+- "field_type" must be exactly one of the types listed under FIELD TYPES above, spelled exactly as written there. Do not invent a type.
+- A "datetime" field must also carry "date_mode", and a "lookup" field must also carry "lookup_source", as described under FIELD TYPES.
 - "is_required" must be a boolean (true or false), not a string or number.
 - "options" must always be an array (empty [] for field types that don't use it: text, textarea, email, number, checkbox).
 PROMPT;
@@ -243,11 +246,15 @@ try {
     // 'section' is allowed so the generator can group a long form under headings.
     // It is presentational — no options, never required — and the generator is not
     // asked to propose conditional rules, which stay something the author sets.
-    $allowedTypes = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'radio', 'dropdown', 'datetime', 'section'];
+    $allowedTypes = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'radio', 'dropdown', 'datetime', 'lookup', 'section'];
     $typesWithOptions = ['dropdown', 'radio', 'checkboxes'];
     // A 'datetime' field may arrive with a mode. Anything else is dropped, and an
     // absent or unrecognised one falls back to a plain date — the common case.
     $dateModes = ['date', 'time', 'datetime'];
+    // A 'lookup' must name a source we actually serve. An unrecognised one would
+    // leave a field that can never return a result, so the field becomes plain
+    // text instead — a worse answer, but a working form.
+    $lookupSources = array_keys(FormsService::LOOKUP_SOURCES);
     $cleanFields  = [];
     foreach (($payload['fields'] ?? []) as $f) {
         if (!is_array($f)) continue;
@@ -280,6 +287,16 @@ try {
         if ($type === 'datetime') {
             $mode = $f['date_mode'] ?? '';
             $clean['config'] = ['date_mode' => in_array($mode, $dateModes, true) ? $mode : 'date'];
+        }
+        if ($type === 'lookup') {
+            $src = $f['lookup_source'] ?? '';
+            if (in_array($src, $lookupSources, true)) {
+                // Never portal_lookup: exposing records to customers is a decision
+                // for whoever owns the form, not one the generator may make.
+                $clean['config'] = ['lookup_source' => $src];
+            } else {
+                $clean['field_type'] = 'text';
+            }
         }
         $cleanFields[] = $clean;
     }
