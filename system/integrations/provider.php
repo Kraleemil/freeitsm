@@ -64,6 +64,12 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
         .back-link     { display: inline-block; margin-bottom: 18px; font-size: 13px;
                          color: var(--text-muted); text-decoration: none; }
         .back-link:hover { color: var(--sys-accent); }
+        .help-link {
+            display: inline-flex; align-items: center; gap: 7px; margin: 4px 0 18px;
+            font-size: 13px; text-decoration: none; color: var(--sys-accent);
+            border: 1px solid var(--sys-accent); border-radius: 20px; padding: 6px 14px;
+        }
+        .help-link:hover { background: var(--sys-accent-soft); }
 
         .settings-card {
             background: var(--surface); border: 1px solid var(--border);
@@ -177,6 +183,15 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
         }
         .map-row.map-default .map-local { font-style: italic; color: var(--text-muted); }
         .map-empty { font-size: 13px; color: var(--text-muted); }
+        /* Sub-headings inside a section. Departments and companies are different
+           kinds of rule and one overrides the other, so they are never one flat
+           list — the grouping is what makes the precedence visible. */
+        .map-group {
+            font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+            color: var(--text-muted); font-weight: 600;
+            margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border-soft);
+        }
+        .map-group:first-child { margin-top: 0; }
         .btn-primary {
             background: var(--sys-accent); color: var(--on-accent); border: none;
             border-radius: 6px; padding: 9px 18px; font-size: 14px; cursor: pointer;
@@ -211,6 +226,17 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
         <a class="back-link" href="./">&larr; <?php echo htmlspecialchars(t('system.integrations.title')); ?></a>
         <h1 class="page-title"><?php echo htmlspecialchars($meta['name']); ?></h1>
         <p class="page-subtitle"><?php echo htmlspecialchars(t($meta['blurb'])); ?></p>
+
+        <?php /* Prominent rather than tucked away: somebody who does not already
+                 know this tracker can read the mapping screen and have no idea
+                 what a project key is. The pretty URL is /<provider>/help. */ ?>
+        <a class="help-link" href="./<?php echo htmlspecialchars($providerKey); ?>/help">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true"><circle cx="12" cy="12" r="10"></circle>
+                 <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <?php echo htmlspecialchars(t('system.integrations.help_link', ['name' => $meta['name']])); ?>
+        </a>
 
         <?php if (!$schemaOk): ?>
             <div class="setup-warning"><?php echo htmlspecialchars(t('system.integrations.needs_db_verify')); ?></div>
@@ -320,6 +346,13 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
             <h3 id="mapTitle"><?php echo htmlspecialchars(t('system.integrations.mapping_title')); ?></h3>
             <div class="hint" style="margin:-8px 0 20px;">
                 <?php echo htmlspecialchars(t('system.integrations.mapping_intro', ['name' => $meta['name']])); ?>
+                <?php /* Deep-linked to the mapping step: this modal is precisely
+                         where somebody who does not know the tracker's vocabulary
+                         gets stuck, so the way out is offered in place. */ ?>
+                <a href="./<?php echo htmlspecialchars($providerKey); ?>/help#step5" target="_blank" rel="noopener"
+                   style="color:var(--sys-accent);text-decoration:none;white-space:nowrap;">
+                    <?php echo htmlspecialchars(t('system.integrations.mapping_help_link')); ?> &rarr;
+                </a>
             </div>
 
             <div id="mapBody"><div class="map-empty"><?php echo htmlspecialchars(t('common.loading')); ?></div></div>
@@ -350,6 +383,9 @@ const T = <?php echo json_encode([
     'mapPriorities'     => t('system.integrations.map_priorities'),
     'mapPrioritiesHint' => t('system.integrations.map_priorities_hint'),
     'mapDefault'   => t('system.integrations.map_default'),
+    'mapGroupDefault' => t('system.integrations.map_group_default'),
+    'mapGroupDept'    => t('system.integrations.map_group_dept'),
+    'mapGroupCompany' => t('system.integrations.map_group_company'),
     'mapNone'      => t('system.integrations.map_none'),
     'mapSaved'     => t('system.integrations.map_saved'),
     'mapNeedsVerify' => t('system.integrations.map_needs_verify'),
@@ -561,13 +597,26 @@ function renderMapping(local) {
         '<div class="map-section"><h4>' + esc(title) + '</h4>'
         + '<div class="map-hint">' + esc(hint) + '</div>' + rows + '</div>';
 
-    // Projects: the default first, because on most installs it is the only row
-    // anyone fills in.
-    let projRows = mapRow('project', '*', T.mapDefault, mapOptions.projects, true);
-    (local.departments || []).forEach(d =>
-        projRows += mapRow('project', 'dept:' + d.id, d.name, mapOptions.projects, false));
-    if (MULTI) (local.companies || []).forEach(c =>
-        projRows += mapRow('project', 'tenant:' + c.id, c.name, mapOptions.projects, false));
+    // ⚠️ Departments and companies are DIFFERENT KINDS of thing and one beats
+    // the other, so they are never rendered as one flat list — that reads as a
+    // single set of equals and hides the precedence the whole design rests on.
+    // Grouped and labelled instead: the default first (the only row most
+    // installs ever fill in), then the exceptions that override it.
+    const group = title => '<div class="map-group">' + esc(title) + '</div>';
+
+    let projRows = group(T.mapGroupDefault)
+                 + mapRow('project', '*', T.mapDefault, mapOptions.projects, true);
+
+    if ((local.departments || []).length) {
+        projRows += group(T.mapGroupDept);
+        local.departments.forEach(d =>
+            projRows += mapRow('project', 'dept:' + d.id, d.name, mapOptions.projects, false));
+    }
+    if (MULTI && (local.companies || []).length) {
+        projRows += group(T.mapGroupCompany);
+        local.companies.forEach(c =>
+            projRows += mapRow('project', 'tenant:' + c.id, c.name, mapOptions.projects, false));
+    }
 
     let typeRows = mapRow('issue_type', '*', T.mapDefault, mapOptions.issue_types, true);
     (local.ticket_types || []).forEach(tt => {

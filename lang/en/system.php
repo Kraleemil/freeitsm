@@ -145,10 +145,15 @@ return [
         // hardcode "Jira" the way the design doc's Jira-specific wording does.
         'inbound_badge'  => 'Updates on',
         // Mapping (V3) — what our values mean in the tracker's vocabulary.
+        'help_link'         => 'How to set up {name}',
+        'mapping_help_link' => 'Not sure what these mean?',
         'mapping_title'        => 'Mapping',
         'mapping_intro'        => 'Decide what your values mean in {name}, so nobody has to type a project key into every rule. Anything left blank is simply not sent.',
         'map_projects'         => 'Which project issues go in',
-        'map_projects_hint'    => 'Checked most specific first: a department rule wins over a company rule, and the default catches everything else.',
+        'map_projects_hint'    => 'Set a default, then add exceptions where you need them. The most specific rule wins: a department beats a company, and a company beats the default.',
+        'map_group_default'    => 'Default',
+        'map_group_dept'       => 'Exceptions by department — these win over everything below',
+        'map_group_company'    => 'Exceptions by company',
         'map_types'            => 'Ticket type becomes issue type',
         'map_types_hint'       => 'Issue types differ per project, so these are suggestions from your default project — you can type any value.',
         'map_priorities'       => 'Priority',

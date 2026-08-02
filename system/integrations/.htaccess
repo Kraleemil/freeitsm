@@ -21,6 +21,12 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
 
+    # ⚠️ The help rule MUST come first. `^([a-z0-9-]+)/?$` below would not match
+    # /jira/help (two segments) so there is no conflict today — but if the
+    # provider pattern is ever loosened to allow slashes, a help URL would be
+    # swallowed by it and silently render the settings page instead.
+    RewriteRule ^([a-z0-9-]+)/help/?$ help.php?provider=$1 [QSA,L]
+
     # `/?$` so /jira and /jira/ both work with no DirectorySlash 301 bouncing
     # between them.
     RewriteRule ^([a-z0-9-]+)/?$ provider.php?provider=$1 [QSA,L]
