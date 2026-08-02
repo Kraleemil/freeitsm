@@ -142,9 +142,17 @@ function sla_emit_workflow_event(PDO $conn, int $ticketId, string $targetType, s
 
         $event = $trigger === 'breach' ? 'sla.breached' : 'sla.warning';
 
+        // ⚠️ `type_id` and `created_by` are NOT columns on `tickets` — they are
+        // aliases for `ticket_type_id` and `user_id`. Without the aliases this
+        // query threw, the catch below swallowed it, and workflowEmitOnce() was
+        // never reached: sla.warning and sla.breached had NEVER fired, on any
+        // install, despite being registered triggers with a documented feature
+        // page. Keep this in step with the canonical payload query in
+        // includes/services/tickets.php.
         $t = $conn->prepare(
-            "SELECT id, subject, priority_id, status_id, department_id, type_id,
-                    assigned_analyst_id, owner_id, origin_id, created_by
+            "SELECT id, subject, priority_id, status_id, department_id,
+                    ticket_type_id AS type_id, assigned_analyst_id, owner_id,
+                    origin_id, user_id AS created_by
                FROM tickets WHERE id = ? LIMIT 1"
         );
         $t->execute([$ticketId]);
@@ -152,7 +160,10 @@ function sla_emit_workflow_event(PDO $conn, int $ticketId, string $targetType, s
         if (!$ticket) return;
 
         // Requester email lives on the ticket's originating email row.
-        $r = $conn->prepare("SELECT from_email FROM emails WHERE ticket_id = ? ORDER BY id ASC LIMIT 1");
+        // ⚠️ The column is `from_address`, not `from_email` — the third wrong
+        // column name in this one function, all three undiscovered because the
+        // duplicate sla_format_minutes() fataled the cron before it ever ran.
+        $r = $conn->prepare("SELECT from_address FROM emails WHERE ticket_id = ? ORDER BY id ASC LIMIT 1");
         $r->execute([$ticketId]);
         $ticket['requester_email'] = $r->fetchColumn() ?: null;
 
@@ -382,13 +393,15 @@ function sla_build_breach_email_body(array $merge, array $target, string $target
 </div>';
 }
 
-function sla_format_minutes(int $mins): string {
-    $n = abs($mins);
-    if ($n < 60) return $mins . 'm';
-    $h = intdiv($n, 60); $r = $n % 60;
-    $sign = $mins < 0 ? '-' : '';
-    return $sign . ($r ? "{$h}h {$r}m" : "{$h}h");
-}
+// ⚠️ sla_format_minutes() USED TO BE DECLARED HERE, and it is already declared
+// in includes/sla.php — which this file requires at the top. Two unguarded
+// declarations of the same function is a FATAL, so requiring this file killed
+// the request outright: cron/sla_breach_check.php could not run at all, which
+// means SLA warning and breach emails never sent and sla.warning / sla.breached
+// workflows never fired.
+//
+// The two bodies were equivalent, so this one is simply gone. Do not
+// reintroduce it — call the one in sla.php.
 
 /**
  * Check if we've already fired this notification for (ticket, target, trigger).
