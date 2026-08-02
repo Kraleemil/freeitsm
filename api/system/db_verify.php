@@ -1028,6 +1028,13 @@ try {
             // (sla.warning / sla.breached come from the SLA cron instead.)
             'workflow_cron_token'             => bin2hex(random_bytes(16)),
             'workflow_cron_min_interval_seconds' => '300',
+            // External issue trackers (cron/integration_poll.php): refreshes the
+            // cached status of every linked issue. A 60s floor rather than the
+            // webhook worker's 20s because this makes an outbound API call per
+            // connection and trackers rate-limit — there is no benefit in being
+            // more eager than the poll_interval_minutes set per connection.
+            'integration_cron_token'          => bin2hex(random_bytes(16)),
+            'integration_cron_min_interval_seconds' => '60',
             // Watchtower: flag tickets stuck in a paused-SLA status longer than this
             // (wall-clock hours since last status change). Guardrail against analysts
             // parking tickets in On Hold to escape the SLA clock.

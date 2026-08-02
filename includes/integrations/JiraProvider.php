@@ -297,7 +297,11 @@ class JiraProvider extends IssueTrackerProvider
         if (!$ids) return [];
 
         $out = [];
-        foreach (array_chunk($ids, 100) as $chunk) {
+        $chunks = array_chunk($ids, 100);
+        $failures = 0;
+        $lastError = null;
+
+        foreach ($chunks as $chunk) {
             $jql = 'id in (' . implode(',', $chunk) . ')';
             $url = $this->apiUrl('search') . '?' . http_build_query([
                 'jql'        => $jql,
@@ -307,7 +311,10 @@ class JiraProvider extends IssueTrackerProvider
             try {
                 $res = $this->jiraRequest('GET', $url);
             } catch (Exception $e) {
-                continue;   // one bad chunk must not lose the others
+                // One bad chunk must not lose the others — but see below.
+                $failures++;
+                $lastError = $e;
+                continue;
             }
             foreach ((array)($res['issues'] ?? []) as $issue) {
                 $parsed = $this->parseIssue((array)$issue);
@@ -315,6 +322,14 @@ class JiraProvider extends IssueTrackerProvider
                     $out[$parsed['external_id']] = $parsed;
                 }
             }
+        }
+
+        // ⚠️ If EVERY chunk failed this is not "one flaky page", it is a broken
+        // connection — and returning [] would be indistinguishable from "none of
+        // those issues exist". The poll would then cheerfully report "checked 12,
+        // changed 0" while the tracker had been unreachable for a week. Surface it.
+        if ($failures > 0 && $failures === count($chunks)) {
+            throw ($lastError ?: new Exception('Could not read any issues from Jira.'));
         }
         return $out;
     }
