@@ -634,6 +634,21 @@ return [
         'created_datetime'     => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // What our values mean in the tracker's vocabulary (V3 mapping). map_type is
+    // project | issue_type | priority | custom.
+    //
+    // ⚠️ local_key is a STRING, not an FK — what it points at depends on map_type.
+    // Project routing namespaces it ('tenant:5' / 'dept:3' / '*') so one map_type
+    // covers both routing dimensions and the fallback.
+    'integration_field_maps' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'connection_id'    => 'INT NOT NULL',
+        'map_type'         => 'VARCHAR(20) NOT NULL',
+        'local_key'        => 'VARCHAR(100) NOT NULL',
+        'external_key'     => 'VARCHAR(255) NOT NULL',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     // Echo suppression + idempotency for comment sync. One row per comment that
     // has crossed in either direction. direction is 'in' (tracker -> note) or
     // 'out' (note -> tracker).

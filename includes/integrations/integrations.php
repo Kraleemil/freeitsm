@@ -361,6 +361,31 @@ function integrationsEscalate(PDO $conn, array $opts): array
     $provider = integrationsProviderFor($connection);
     $summary  = (string)($opts['summary'] ?? '');
     $target   = (array)($opts['target'] ?? []);
+    $fields   = (array)($opts['fields'] ?? []);
+
+    // ── Mapping (V3). What the caller supplied always wins; mapping only fills
+    // the gaps, so an explicit project on a workflow rule is never overridden by
+    // a routing rule somebody added later.
+    $maps = integrationsLoadMaps($conn, $connId);
+    if ($maps) {
+        $routing = integrationsEntityRouting($conn, $entityType, $entityId);
+
+        if (trim((string)($target['project'] ?? '')) === '') {
+            $mapped = integrationsResolveProject($maps, $routing['tenant_id'], $routing['department_id']);
+            if ($mapped !== null) $target['project'] = $mapped;
+        }
+        if (trim((string)($target['issue_type'] ?? '')) === '') {
+            $mapped = integrationsResolveIssueType($maps, $routing['ticket_type_id']);
+            if ($mapped !== null) $target['issue_type'] = $mapped;
+        }
+        // Priority is a FIELD, not part of the target — V1 deliberately sent none
+        // and it travelled as text in the description. It is only sent once an
+        // admin has stated what our High means in their Jira.
+        if (!isset($fields['priority'])) {
+            $mapped = integrationsResolvePriority($maps, $routing['priority_id']);
+            if ($mapped !== null) $fields['priority'] = ['name' => $mapped];
+        }
+    }
 
     // Dry run describes, never creates. A workflow test that mints a real Jira
     // issue is an unacceptable surprise, so this returns BEFORE the network call.
@@ -374,19 +399,39 @@ function integrationsEscalate(PDO $conn, array $opts): array
         ];
     }
 
-    $issue = $provider->createIssue($target, $summary, $body, (array)($opts['fields'] ?? []));
+    // ⚠️ A REJECTED PRIORITY MUST NOT LOSE THE ESCALATION.
+    //
+    // Jira priorities are defined per project, so a project whose scheme renamed
+    // "Highest" to "P1" rejects our mapped value and 400s the whole create. The
+    // rule, decided when mapping was designed: losing a priority is cosmetic;
+    // losing the escalation because somebody renamed a priority on one project
+    // is not. So retry once without it and record why on the link.
+    $priorityDropped = false;
+    try {
+        $issue = $provider->createIssue($target, $summary, $body, $fields);
+    } catch (Exception $e) {
+        if (!isset($fields['priority']) || !integrationsLooksLikePriorityRejection($e->getMessage())) {
+            throw $e;
+        }
+        unset($fields['priority']);
+        $priorityDropped = $e->getMessage();
+        $issue = $provider->createIssue($target, $summary, $body, $fields);
+    }
 
     $stmt = $conn->prepare(
         "INSERT INTO integration_links
             (connection_id, entity_type, entity_id, external_id, external_key, external_url,
-             status_name, status_category, assignee_name, last_synced_datetime, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?)"
+             status_name, status_category, assignee_name, last_synced_datetime, last_error, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), ?, ?)"
     );
     $stmt->execute([
         $connId, $entityType, $entityId,
         $issue['external_id'], $issue['external_key'] ?? null, $issue['external_url'] ?? null,
         $issue['status_name'] ?? null, $issue['status_category'] ?? null,
         $issue['assignee_name'] ?? null,
+        // Visible on the link so an admin can see the mapping needs attention,
+        // rather than the dropped priority being silent.
+        $priorityDropped ? mb_substr('Priority not sent: ' . $priorityDropped, 0, 500) : null,
         ($opts['analyst_id'] ?? null) ?: null,
     ]);
 
@@ -396,6 +441,199 @@ function integrationsEscalate(PDO $conn, array $opts): array
         'entity_type'   => $entityType,
         'entity_id'     => $entityId,
     ]);
+}
+
+// =====================================================================
+//  Mapping — what our values mean in the tracker's vocabulary (V3)
+// =====================================================================
+
+const INTEGRATION_MAP_PROJECT    = 'project';
+const INTEGRATION_MAP_ISSUE_TYPE = 'issue_type';
+const INTEGRATION_MAP_PRIORITY   = 'priority';
+
+/** The routing fallback key: "anything not matched above". */
+const INTEGRATION_MAP_ANY = '*';
+
+/**
+ * Is the mapping table present? Separate gate again, for the same reason as the
+ * comment map: an install that ran Database Verification for an earlier release
+ * has the connections but not this, and must degrade to "no mapping configured"
+ * rather than throwing inside an escalation.
+ */
+function integrationsMapSchemaReady(PDO $conn): bool
+{
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    try {
+        $conn->query("SELECT 1 FROM integration_field_maps LIMIT 1");
+        return $ready = true;
+    } catch (Exception $e) {
+        return $ready = false;
+    }
+}
+
+/**
+ * Every mapping for one connection, as [map_type][local_key] => external_key.
+ * Empty array when nothing is configured or the table is missing — mapping is
+ * always optional, and an unmapped install must keep working exactly as before.
+ */
+function integrationsLoadMaps(PDO $conn, int $connectionId): array
+{
+    if (!integrationsMapSchemaReady($conn)) return [];
+    try {
+        $stmt = $conn->prepare(
+            "SELECT map_type, local_key, external_key FROM integration_field_maps WHERE connection_id = ?"
+        );
+        $stmt->execute([$connectionId]);
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[$r['map_type']][(string)$r['local_key']] = (string)$r['external_key'];
+        }
+        return $out;
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+/**
+ * Replace every mapping of the given types for a connection.
+ *
+ * Whole-types-at-once rather than row-by-row because the screen edits them as a
+ * set: a mapping the admin deleted has to disappear, and diffing individual rows
+ * to work that out is more code and more ways to be wrong.
+ *
+ * @param array $maps [map_type => [local_key => external_key]]
+ */
+function integrationsSaveMaps(PDO $conn, int $connectionId, array $maps): void
+{
+    if (!integrationsMapSchemaReady($conn)) {
+        throw new Exception('Run Database Verification first — the mapping table does not exist yet.');
+    }
+    // ⚠️ Only own the transaction if nobody else already does. PDO throws
+    // "There is already an active transaction" on a nested beginTransaction(),
+    // so a caller that wraps this in its own transaction — a bulk import, a
+    // test harness — would fatal. Same lesson as this file requiring its own
+    // dependencies: a shared service cannot assume anything about its caller.
+    $ownsTransaction = !$conn->inTransaction();
+    if ($ownsTransaction) $conn->beginTransaction();
+    try {
+        foreach ($maps as $type => $rows) {
+            $conn->prepare("DELETE FROM integration_field_maps WHERE connection_id = ? AND map_type = ?")
+                 ->execute([$connectionId, (string)$type]);
+
+            $ins = $conn->prepare(
+                "INSERT INTO integration_field_maps (connection_id, map_type, local_key, external_key)
+                 VALUES (?, ?, ?, ?)"
+            );
+            foreach ((array)$rows as $local => $external) {
+                $local    = trim((string)$local);
+                $external = trim((string)$external);
+                // A blank target means "no mapping", which is the absence of a
+                // row, not a row pointing at "". Storing it would later resolve
+                // to an empty project key and 400 the escalation.
+                if ($local === '' || $external === '') continue;
+                $ins->execute([$connectionId, (string)$type, $local, $external]);
+            }
+        }
+        if ($ownsTransaction) $conn->commit();
+    } catch (Exception $e) {
+        if ($ownsTransaction) $conn->rollBack();
+        throw $e;
+    }
+}
+
+/**
+ * Which Jira project should this work item's issue go in?
+ *
+ * ⚠️ Precedence, most specific first, and it matters:
+ *
+ *   1. department  — a team with its own board is the sharpest signal there is
+ *   2. company     — an MSP client with their own project
+ *   3. `*`         — the connection's default
+ *   4. null        — no mapping; the caller keeps whatever it was given
+ *
+ * Returning null rather than guessing is the point. An escalation with no
+ * resolvable project must surface as "tell me the project", never as an issue
+ * quietly filed in whatever project happened to be first.
+ *
+ * Pure: no database, so the precedence is provable without fixtures.
+ */
+function integrationsResolveProject(array $maps, ?int $tenantId, ?int $departmentId): ?string
+{
+    $rows = $maps[INTEGRATION_MAP_PROJECT] ?? [];
+    if (!$rows) return null;
+
+    if ($departmentId !== null && !empty($rows['dept:' . $departmentId]))   return $rows['dept:' . $departmentId];
+    if ($tenantId     !== null && !empty($rows['tenant:' . $tenantId]))     return $rows['tenant:' . $tenantId];
+    if (!empty($rows[INTEGRATION_MAP_ANY]))                                 return $rows[INTEGRATION_MAP_ANY];
+    return null;
+}
+
+/**
+ * Our ticket type → the tracker's issue type. Falls back to the `*` row, so an
+ * install can say "everything is a Task" without listing every type.
+ */
+function integrationsResolveIssueType(array $maps, ?int $ticketTypeId): ?string
+{
+    $rows = $maps[INTEGRATION_MAP_ISSUE_TYPE] ?? [];
+    if (!$rows) return null;
+    if ($ticketTypeId !== null && !empty($rows[(string)$ticketTypeId])) return $rows[(string)$ticketTypeId];
+    return !empty($rows[INTEGRATION_MAP_ANY]) ? $rows[INTEGRATION_MAP_ANY] : null;
+}
+
+/**
+ * Our priority → the tracker's priority name.
+ *
+ * ⚠️ No `*` fallback here, deliberately, unlike the two above. "Everything is a
+ * Task" is a reasonable thing to mean; "every priority is Highest" is not — it
+ * would silently mark a dev team's whole backlog urgent. An unmapped priority
+ * simply travels as text in the description, exactly as it did before mapping.
+ */
+function integrationsResolvePriority(array $maps, ?int $priorityId): ?string
+{
+    $rows = $maps[INTEGRATION_MAP_PRIORITY] ?? [];
+    if (!$rows || $priorityId === null) return null;
+    return !empty($rows[(string)$priorityId]) ? $rows[(string)$priorityId] : null;
+}
+
+/**
+ * Does this error look like the tracker rejecting our priority?
+ *
+ * Used to decide whether to retry the create without one. Deliberately narrow:
+ * retrying blindly on any failure could turn a genuine error into an issue we
+ * did not mean to raise.
+ */
+function integrationsLooksLikePriorityRejection(string $message): bool
+{
+    return stripos($message, 'priority') !== false;
+}
+
+/**
+ * The company, department, type and priority of a work item, for routing.
+ *
+ * ⚠️ The column is `ticket_type_id`, not `type_id` — the workflow engine's lookup
+ * key is `ticket.type_id`, which is not the column name and is an easy way to
+ * write a query that silently returns nothing.
+ *
+ * Only tickets route today; problems and changes return an empty routing set, so
+ * they fall through to whatever the caller supplied.
+ */
+function integrationsEntityRouting(PDO $conn, string $entityType, int $entityId): array
+{
+    $empty = ['tenant_id' => null, 'department_id' => null, 'ticket_type_id' => null, 'priority_id' => null];
+    if ($entityType !== 'ticket') return $empty;
+    try {
+        $stmt = $conn->prepare("SELECT tenant_id, department_id, ticket_type_id, priority_id FROM tickets WHERE id = ?");
+        $stmt->execute([$entityId]);
+        $r = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        return $empty;
+    }
+    if (!$r) return $empty;
+    foreach (array_keys($empty) as $k) {
+        $r[$k] = isset($r[$k]) && $r[$k] !== null ? (int)$r[$k] : null;
+    }
+    return $r;
 }
 
 // =====================================================================

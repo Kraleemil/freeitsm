@@ -144,6 +144,20 @@ return [
         // {name} is the provider — this page is shared, so the label must not
         // hardcode "Jira" the way the design doc's Jira-specific wording does.
         'inbound_badge'  => 'Updates on',
+        // Mapping (V3) — what our values mean in the tracker's vocabulary.
+        'mapping_title'        => 'Mapping',
+        'mapping_intro'        => 'Decide what your values mean in {name}, so nobody has to type a project key into every rule. Anything left blank is simply not sent.',
+        'map_projects'         => 'Which project issues go in',
+        'map_projects_hint'    => 'Checked most specific first: a department rule wins over a company rule, and the default catches everything else.',
+        'map_types'            => 'Ticket type becomes issue type',
+        'map_types_hint'       => 'Issue types differ per project, so these are suggestions from your default project — you can type any value.',
+        'map_priorities'       => 'Priority',
+        'map_priorities_hint'  => 'There is deliberately no default here: marking every issue urgent helps nobody. An unmapped priority still appears as text in the description. If a project rejects a priority the issue is still raised, just without one.',
+        'map_default'          => 'Everything else',
+        'map_none'             => 'Not mapped',
+        'map_saved'            => 'Mapping saved',
+        'map_needs_verify'     => 'Run Database Verification first — the mapping table does not exist on this install yet.',
+        'map_load_failed'      => 'Could not load the mapping.',
         'inbound_label'  => 'Accept updates from {name}',
         'inbound_hint'   => 'Comments written in {name} arrive on the linked ticket as internal notes. They are never shown to the requester. The first check after switching this on imports nothing — it only marks the starting point, so switching it on cannot bring back a backlog of old comments.',
 

@@ -828,6 +828,90 @@ ok('Note falls back to the issue id when there is no key',
           ['external_key' => null, 'external_id' => '10042']), '10042') !== false);
 
 // ---------------------------------------------------------------------------
+echo "9. Mapping — routing a ticket to the right project, type and priority\n";
+// ---------------------------------------------------------------------------
+
+$ACME_T = 1; $GLOBEX_T = 2; $DEV_DEPT = 7; $SUPPORT_DEPT = 8;
+
+$maps = [
+    INTEGRATION_MAP_PROJECT => [
+        'dept:' . $DEV_DEPT     => 'DEV',
+        'tenant:' . $ACME_T     => 'ACME',
+        INTEGRATION_MAP_ANY     => 'KAN',
+    ],
+    INTEGRATION_MAP_ISSUE_TYPE => [
+        '3'                 => 'Bug',
+        INTEGRATION_MAP_ANY => 'Task',
+    ],
+    INTEGRATION_MAP_PRIORITY => [
+        '1' => 'Highest',
+        '2' => 'High',
+    ],
+];
+
+// ── Project routing precedence: department beats company beats default ──────
+// The order is the whole point. A team with its own board is a sharper signal
+// than the company the ticket belongs to.
+eq('Department wins over company',   'DEV',  integrationsResolveProject($maps, $ACME_T, $DEV_DEPT));
+eq('Company wins when no dept rule', 'ACME', integrationsResolveProject($maps, $ACME_T, $SUPPORT_DEPT));
+eq('Company rule applies with no department at all', 'ACME',
+   integrationsResolveProject($maps, $ACME_T, null));
+eq('Default catches an unmapped company', 'KAN', integrationsResolveProject($maps, $GLOBEX_T, null));
+eq('Default catches an unrouted ticket',  'KAN', integrationsResolveProject($maps, null, null));
+// A department rule must fire even for a company that has its own rule AND for
+// one that does not — otherwise precedence is accidental rather than designed.
+eq('Department rule fires for an unmapped company too', 'DEV',
+   integrationsResolveProject($maps, $GLOBEX_T, $DEV_DEPT));
+
+// ⚠️ No mapping at all must return null, NOT a guess. An escalation with no
+// resolvable project has to say so, never file the issue somewhere arbitrary.
+eq('No project mapping → null', null, integrationsResolveProject([], 1, 1));
+eq('Project map present but nothing matches and no default → null', null,
+   integrationsResolveProject([INTEGRATION_MAP_PROJECT => ['dept:99' => 'X']], 1, 1));
+
+// ── Issue type ─────────────────────────────────────────────────────────────
+eq('Ticket type maps to its issue type', 'Bug',  integrationsResolveIssueType($maps, 3));
+eq('Unmapped ticket type falls back',    'Task', integrationsResolveIssueType($maps, 99));
+eq('No ticket type at all falls back',   'Task', integrationsResolveIssueType($maps, null));
+eq('No issue-type mapping → null', null, integrationsResolveIssueType([], 3));
+
+// ── Priority: deliberately NO wildcard ─────────────────────────────────────
+// ⚠️ "Everything is a Task" is a reasonable thing to mean. "Every priority is
+// Highest" is not — it would mark a dev team's entire backlog urgent. So the
+// wildcard that exists for the other two must NOT work here.
+eq('Mapped priority resolves', 'Highest', integrationsResolvePriority($maps, 1));
+eq('Second mapped priority resolves', 'High', integrationsResolvePriority($maps, 2));
+eq('UNMAPPED priority stays unmapped', null, integrationsResolvePriority($maps, 3));
+eq('A wildcard priority row is IGNORED', null,
+   integrationsResolvePriority([INTEGRATION_MAP_PRIORITY => [INTEGRATION_MAP_ANY => 'Highest']], 3));
+// ...positive control: the same map still resolves an explicit row, so the
+// assertion above is about the wildcard and not about a broken lookup.
+eq('POSITIVE CONTROL: explicit row still resolves alongside a wildcard', 'Blocker',
+   integrationsResolvePriority(
+       [INTEGRATION_MAP_PRIORITY => [INTEGRATION_MAP_ANY => 'Highest', '4' => 'Blocker']], 4));
+eq('No priority on the ticket → null', null, integrationsResolvePriority($maps, null));
+
+// ── The rejected-priority fallback ─────────────────────────────────────────
+// Jira priorities are per project, so a project that renamed "Highest" to "P1"
+// rejects our value and 400s the create. Losing the escalation over that is
+// worse than losing the priority.
+ok('A priority error is recognised',
+   integrationsLooksLikePriorityRejection('priority: Invalid priority id'));
+ok('Jira\'s field-level wording is recognised',
+   integrationsLooksLikePriorityRejection('The Priority field does not exist on this screen'));
+// ⚠️ ...but the retry must be NARROW. Retrying on any failure could turn a real
+// error into an issue nobody meant to raise.
+ok('An unrelated error is NOT treated as a priority rejection',
+   !integrationsLooksLikePriorityRejection('customfield_10010: Epic Link is required'));
+ok('A permission error is NOT treated as a priority rejection',
+   !integrationsLooksLikePriorityRejection('Jira rejected the credentials (HTTP 401).'));
+
+// ── An unmapped install must behave exactly as it did before mapping ────────
+eq('Empty maps: project null',    null, integrationsResolveProject([], 5, 5));
+eq('Empty maps: issue type null', null, integrationsResolveIssueType([], 5));
+eq('Empty maps: priority null',   null, integrationsResolvePriority([], 5));
+
+// ---------------------------------------------------------------------------
 echo "\n" . str_repeat('=', 62) . "\n";
 echo "  passed: $pass\n";
 echo "  failed: $fail\n";

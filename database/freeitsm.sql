@@ -1152,6 +1152,33 @@ CREATE TABLE IF NOT EXISTS `integration_links` (
     CONSTRAINT `fk_integration_links_connection` FOREIGN KEY (`connection_id`) REFERENCES `integration_connections` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- What our values mean in the tracker's vocabulary. One row per mapping.
+--
+-- map_type is 'project' | 'issue_type' | 'priority' (and 'custom' later).
+--
+-- ⚠️ local_key is DELIBERATELY a string, not a foreign key, because what it points
+-- at differs per map_type: a tenant or department for routing, a ticket type id,
+-- a priority id. It is namespaced for project routing ('tenant:5', 'dept:3', '*')
+-- so one map_type covers both routing dimensions plus the fallback, rather than
+-- inventing a second column that is NULL most of the time.
+--
+-- ⚠️ Deliberately NOT keyed to a project for priorities. Jira priorities are
+-- defined per project, but a per-project map would be unmaintainable across
+-- dozens of projects, so the map is global and a rejected value falls back to
+-- creating the issue WITHOUT that field. Losing a priority is cosmetic; losing
+-- the escalation because somebody renamed a priority on one project is not.
+CREATE TABLE IF NOT EXISTS `integration_field_maps` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `connection_id`    INT NOT NULL,
+    `map_type`         VARCHAR(20) NOT NULL,               -- project | issue_type | priority | custom
+    `local_key`        VARCHAR(100) NOT NULL,              -- 'tenant:5' | 'dept:3' | '*' | a local id
+    `external_key`     VARCHAR(255) NOT NULL,              -- the tracker's value (project key, issue type name, priority name)
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_integration_field_map` (`connection_id`, `map_type`, `local_key`),
+    CONSTRAINT `fk_integration_field_map_connection` FOREIGN KEY (`connection_id`) REFERENCES `integration_connections` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Every comment that has crossed between a ticket and its linked issue, in either
 -- direction. This is echo suppression: without it, a comment we push to Jira comes
 -- back on the next poll, becomes a note, and pushes again — forever.

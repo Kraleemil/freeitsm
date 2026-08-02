@@ -1054,10 +1054,15 @@ class WorkflowEngine
                     // Their valid values depend on which connection was chosen and
                     // have to be fetched from the tracker's API, but the editor
                     // builds every dropdown once at page load — there is no
-                    // cascade mechanism. Rather than invent one for V1, the admin
-                    // types the key. Routing (V3) removes the need entirely.
-                    'project'       => ['type' => 'text', 'label' => 'Project key (e.g. OPS)', 'required' => true, 'supports_vars' => true],
-                    'issue_type'    => ['type' => 'text', 'label' => 'Issue type (e.g. Bug)', 'required' => true, 'supports_vars' => true, 'default' => 'Bug'],
+                    // cascade mechanism.
+                    //
+                    // Since V3 they are also OPTIONAL: leave them blank and the
+                    // connection's mapping decides (System → Integrations →
+                    // Mapping), which is the point of routing — a rule should not
+                    // have to name a project at all. Anything typed here still
+                    // wins, so an existing rule keeps behaving exactly as it did.
+                    'project'       => ['type' => 'text', 'label' => 'Project key (blank = use the connection\'s mapping)', 'required' => false, 'supports_vars' => true],
+                    'issue_type'    => ['type' => 'text', 'label' => 'Issue type (blank = use the connection\'s mapping)', 'required' => false, 'supports_vars' => true],
                     'summary'       => ['type' => 'text', 'label' => 'Summary', 'required' => true, 'supports_vars' => true, 'default' => '{{ticket.subject}}'],
                     'body'          => ['type' => 'textarea', 'label' => 'Description', 'supports_vars' => true],
                     // Default ON: a status-change trigger can fire repeatedly on
@@ -1961,7 +1966,11 @@ class WorkflowEngine
 
         if (!$ticketId)     throw new Exception('ticket_id is required');
         if (!$connectionId) throw new Exception('a tracker connection is required');
-        if ($project === '') throw new Exception('a project key is required');
+        // ⚠️ No check on $project here any more. A blank one means "use the
+        // connection's mapping", and only the service knows what that resolves
+        // to. If nothing resolves, integrationsEscalate() still refuses — with a
+        // better message than this could give, because by then it knows whether
+        // the install has any mapping at all.
 
         require_once __DIR__ . '/../../includes/integrations/integrations.php';
         $conn = connectToDatabase();

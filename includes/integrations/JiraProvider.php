@@ -182,8 +182,11 @@ class JiraProvider extends IssueTrackerProvider
     {
         $project = trim((string)($target['project'] ?? ''));
         $type    = trim((string)($target['issue_type'] ?? ''));
-        if ($project === '') throw new Exception('No Jira project was chosen.');
-        if ($type === '')    throw new Exception('No Jira issue type was chosen.');
+        // Since V3 these can be left blank on a rule and filled in by the
+        // connection's mapping, so "you did not choose one" is no longer the
+        // whole story — the mapping may simply not cover this ticket.
+        if ($project === '') throw new Exception('No Jira project: none was given and no mapping matched this ticket. Set one on the escalation, or add a project mapping under System → Integrations.');
+        if ($type === '')    throw new Exception('No Jira issue type: none was given and no mapping matched this ticket. Set one on the escalation, or add an issue-type mapping under System → Integrations.');
 
         // Summary is a single line in Jira; a pasted subject with a newline in it
         // is rejected with an unhelpful error, so normalise rather than fail.
@@ -680,6 +683,43 @@ class JiraProvider extends IssueTrackerProvider
         } else {
             foreach ((array)$this->jiraRequest('GET', $this->apiUrl('project')) as $p) {
                 $out[] = ['key' => (string)($p['key'] ?? ''), 'name' => (string)($p['name'] ?? '')];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Every priority defined on the site, for the mapping screen's dropdown.
+     *
+     * ⚠️ Site-wide, but Jira applies priorities **per project** through priority
+     * schemes — so a name listed here can still be rejected by a particular
+     * project. That is exactly why a rejected priority falls back to creating the
+     * issue without one rather than failing the escalation
+     * (`integrationsLooksLikePriorityRejection()`).
+     *
+     * Cloud paginates this (`/priority/search`); Data Center returns a plain
+     * array from `/priority`. Same split as listProjects(), and pinned by tests
+     * because Atlassian has form for retiring the unpaged version — see §6.
+     *
+     * @return array [['id'=>'3','name'=>'Medium'], …]
+     */
+    public function listPriorities(): array
+    {
+        $out = [];
+        if ($this->isCloud()) {
+            $start = 0;
+            do {
+                $res = $this->jiraRequest('GET', $this->apiUrl('priority/search')
+                    . '?' . http_build_query(['startAt' => $start, 'maxResults' => 50]));
+                foreach ((array)($res['values'] ?? []) as $p) {
+                    $out[] = ['id' => (string)($p['id'] ?? ''), 'name' => (string)($p['name'] ?? '')];
+                }
+                $start += 50;
+                $isLast = !empty($res['isLast']) || empty($res['values']);
+            } while (!$isLast && $start < 500);
+        } else {
+            foreach ((array)$this->jiraRequest('GET', $this->apiUrl('priority')) as $p) {
+                $out[] = ['id' => (string)($p['id'] ?? ''), 'name' => (string)($p['name'] ?? '')];
             }
         }
         return $out;

@@ -153,6 +153,30 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
         }
         .modal-box h3 { margin: 0 0 18px; font-size: 18px; color: var(--text); }
         .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+        /* Mapping screen. Wider than the connection modal because every row is a
+           pair — "our thing" on the left, "their thing" on the right — and that
+           reads badly squeezed. */
+        .map-box { width: 820px; }
+        .map-section { margin-bottom: 26px; }
+        .map-section h4 {
+            margin: 0 0 4px; font-size: 15px; color: var(--text); font-weight: 600;
+        }
+        .map-section .map-hint {
+            font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;
+        }
+        .map-row {
+            display: grid; grid-template-columns: 1fr 24px 1fr; align-items: center;
+            gap: 10px; margin-bottom: 8px;
+        }
+        .map-row .map-local { font-size: 14px; color: var(--text); }
+        .map-row .map-arrow { text-align: center; color: var(--text-faint); }
+        .map-row select, .map-row input[type=text] {
+            width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+            border-radius: 6px; background: var(--surface); color: var(--text); font-size: 14px;
+        }
+        .map-row.map-default .map-local { font-style: italic; color: var(--text-muted); }
+        .map-empty { font-size: 13px; color: var(--text-muted); }
         .btn-primary {
             background: var(--sys-accent); color: var(--on-accent); border: none;
             border-radius: 6px; padding: 9px 18px; font-size: 14px; cursor: pointer;
@@ -286,6 +310,27 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
         </div>
     </div>
 
+    <?php /* Mapping (V3). Its own modal rather than a tab inside the connection
+             one: it is only reachable once a connection exists and has been
+             tested, since every dropdown here is filled from the tracker's own
+             API. Putting it in the same modal would mean a half-created
+             connection showing empty dropdowns it cannot explain. */ ?>
+    <div class="modal-backdrop" id="mapModal">
+        <div class="modal-box map-box">
+            <h3 id="mapTitle"><?php echo htmlspecialchars(t('system.integrations.mapping_title')); ?></h3>
+            <div class="hint" style="margin:-8px 0 20px;">
+                <?php echo htmlspecialchars(t('system.integrations.mapping_intro', ['name' => $meta['name']])); ?>
+            </div>
+
+            <div id="mapBody"><div class="map-empty"><?php echo htmlspecialchars(t('common.loading')); ?></div></div>
+
+            <div class="modal-actions">
+                <button class="btn-secondary" id="mapCancelBtn"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+                <button class="btn-primary"   id="mapSaveBtn"><?php echo htmlspecialchars(t('common.save')); ?></button>
+            </div>
+        </div>
+    </div>
+
 <script>
 const PROVIDER   = <?php echo json_encode($providerKey); ?>;
 const MULTI      = <?php echo $multiCompany ? 'true' : 'false'; ?>;
@@ -296,6 +341,19 @@ const T = <?php echo json_encode([
     'active'    => t('system.integrations.active_label'),
     'inactive'  => t('system.integrations.inactive_label'),
     'inboundOn' => t('system.integrations.inbound_badge'),
+    'loading'      => t('common.loading'),
+    'mapping'      => t('system.integrations.mapping_title'),
+    'mapProjects'  => t('system.integrations.map_projects'),
+    'mapProjectsHint' => t('system.integrations.map_projects_hint'),
+    'mapTypes'     => t('system.integrations.map_types'),
+    'mapTypesHint' => t('system.integrations.map_types_hint'),
+    'mapPriorities'     => t('system.integrations.map_priorities'),
+    'mapPrioritiesHint' => t('system.integrations.map_priorities_hint'),
+    'mapDefault'   => t('system.integrations.map_default'),
+    'mapNone'      => t('system.integrations.map_none'),
+    'mapSaved'     => t('system.integrations.map_saved'),
+    'mapNeedsVerify' => t('system.integrations.map_needs_verify'),
+    'mapLoadFailed'  => t('system.integrations.map_load_failed'),
     'edit'      => t('common.edit'),
     'delete'    => t('common.delete'),
     'none'      => t('system.integrations.no_connections'),
@@ -313,6 +371,8 @@ const T = <?php echo json_encode([
 // Same pencil and bin as tickets → settings.
 const ICON_EDIT = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>';
 const ICON_DELETE = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+// Two arrows crossing — "our word becomes theirs".
+const ICON_MAP = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
@@ -350,6 +410,8 @@ function render() {
                 + (c.inbound_enabled ? ' <span class="status-badge on">' + esc(T.inboundOn) + '</span>' : '')
             + '</td>'
             + '<td style="text-align:right;white-space:nowrap;">'
+                + '<button class="action-btn" data-map="' + c.id + '" title="' + esc(T.mapping) + '" aria-label="' + esc(T.mapping) + '">'
+                    + ICON_MAP + '</button>'
                 + '<button class="action-btn" data-edit="' + c.id + '" title="' + esc(T.edit) + '" aria-label="' + esc(T.edit) + '">'
                     + ICON_EDIT + '</button>'
                 + '<button class="action-btn delete" data-del="' + c.id + '" title="' + esc(T.delete) + '" aria-label="' + esc(T.delete) + '">'
@@ -417,9 +479,133 @@ $('addBtn').addEventListener('click', () => openModal(null));
 $('cancelBtn').addEventListener('click', () => $('connModal').classList.remove('open'));
 $('connModal').addEventListener('click', e => { if (e.target.id === 'connModal') $('connModal').classList.remove('open'); });
 
+// ---------------------------------------------------------------- mapping
+//
+// Three sections, each the same shape: a fixed list of OUR values down the left,
+// and what each becomes in the tracker on the right. The right-hand options are
+// fetched from the tracker on demand — projects and priorities are site-wide,
+// but issue types are per project, so they are loaded from whichever project the
+// default row points at and offered as suggestions rather than a closed list.
+
+let mapConnectionId = null;
+let mapState = {};          // {map_type: {local_key: external_key}}
+let mapOptions = {projects: [], priorities: [], issue_types: []};
+
+async function getJSON(qs) {
+    const r = await fetch(API + qs);
+    return await r.json().catch(() => ({success: false, error: T.mapLoadFailed}));
+}
+
+async function openMapping(connectionId) {
+    mapConnectionId = connectionId;
+    $('mapBody').innerHTML = '<div class="map-empty">' + esc(T.loading) + '</div>';
+    $('mapModal').classList.add('open');
+
+    const data = await getJSON('get_mapping.php?connection_id=' + encodeURIComponent(connectionId));
+    if (!data.success) { $('mapBody').innerHTML = '<div class="map-empty">' + esc(data.error) + '</div>'; return; }
+    if (!data.schema_ready) { $('mapBody').innerHTML = '<div class="map-empty">' + esc(T.mapNeedsVerify) + '</div>'; return; }
+
+    mapState = data.maps || {};
+    const local = data.local || {};
+
+    // Ask the tracker what it offers. A failure here is not fatal — the row
+    // falls back to a free-text box, so an unreachable tracker still lets an
+    // admin type a project key rather than blocking the screen entirely.
+    const [projRes, priRes] = await Promise.all([
+        getJSON('tracker_options.php?what=projects&connection_id=' + connectionId),
+        getJSON('tracker_options.php?what=priorities&connection_id=' + connectionId)
+    ]);
+    mapOptions.projects   = projRes.success ? projRes.items : [];
+    mapOptions.priorities = priRes.success  ? priRes.items  : [];
+
+    // Issue types depend on a project, so use the default routing row's project
+    // as the sample. Suggestions, never a closed list — another project on the
+    // same site may legitimately offer different types.
+    const sampleProject = (mapState.project && mapState.project['*']) || (mapOptions.projects[0] || {}).key || '';
+    if (sampleProject) {
+        const itRes = await getJSON('tracker_options.php?what=issue_types&project='
+            + encodeURIComponent(sampleProject) + '&connection_id=' + connectionId);
+        mapOptions.issue_types = itRes.success ? itRes.items : [];
+    }
+    renderMapping(local);
+}
+
+/** One row: our label on the left, their value on the right. */
+function mapRow(type, key, label, options, isDefault) {
+    const current = (mapState[type] && mapState[type][key]) || '';
+    let control;
+    if (options.length) {
+        control = '<select data-map-type="' + type + '" data-map-key="' + esc(key) + '">'
+                + '<option value="">' + esc(T.mapNone) + '</option>'
+                + options.map(o => {
+                      const v = o.key || o.name;
+                      return '<option value="' + esc(v) + '"' + (v === current ? ' selected' : '') + '>'
+                           + esc(o.name + (o.key && o.key !== o.name ? ' (' + o.key + ')' : '')) + '</option>';
+                  }).join('')
+                // A value saved earlier that the tracker no longer offers must not
+                // vanish silently on the next save — keep it selectable.
+                + (current && !options.some(o => (o.key || o.name) === current)
+                    ? '<option value="' + esc(current) + '" selected>' + esc(current) + '</option>' : '')
+                + '</select>';
+    } else {
+        control = '<input type="text" data-map-type="' + type + '" data-map-key="' + esc(key) + '"'
+                + ' value="' + esc(current) + '" placeholder="' + esc(T.mapNone) + '">';
+    }
+    return '<div class="map-row' + (isDefault ? ' map-default' : '') + '">'
+         + '<span class="map-local">' + esc(label) + '</span>'
+         + '<span class="map-arrow">→</span>' + control + '</div>';
+}
+
+function renderMapping(local) {
+    const section = (title, hint, rows) =>
+        '<div class="map-section"><h4>' + esc(title) + '</h4>'
+        + '<div class="map-hint">' + esc(hint) + '</div>' + rows + '</div>';
+
+    // Projects: the default first, because on most installs it is the only row
+    // anyone fills in.
+    let projRows = mapRow('project', '*', T.mapDefault, mapOptions.projects, true);
+    (local.departments || []).forEach(d =>
+        projRows += mapRow('project', 'dept:' + d.id, d.name, mapOptions.projects, false));
+    if (MULTI) (local.companies || []).forEach(c =>
+        projRows += mapRow('project', 'tenant:' + c.id, c.name, mapOptions.projects, false));
+
+    let typeRows = mapRow('issue_type', '*', T.mapDefault, mapOptions.issue_types, true);
+    (local.ticket_types || []).forEach(tt =>
+        typeRows += mapRow('issue_type', String(tt.id), tt.name, mapOptions.issue_types, false));
+
+    // ⚠️ No default row for priorities, on purpose — "every priority is Highest"
+    // would mark a dev team's whole backlog urgent. An unmapped priority simply
+    // travels as text in the description, as it always did.
+    let priRows = (local.priorities || [])
+        .map(p => mapRow('priority', String(p.id), p.name, mapOptions.priorities, false)).join('');
+    if (!priRows) priRows = '<div class="map-empty">' + esc(T.mapNone) + '</div>';
+
+    $('mapBody').innerHTML =
+          section(T.mapProjects,   T.mapProjectsHint,   projRows)
+        + section(T.mapTypes,      T.mapTypesHint,      typeRows)
+        + section(T.mapPriorities, T.mapPrioritiesHint, priRows);
+}
+
+$('mapCancelBtn').addEventListener('click', () => $('mapModal').classList.remove('open'));
+$('mapModal').addEventListener('click', e => { if (e.target.id === 'mapModal') $('mapModal').classList.remove('open'); });
+
+$('mapSaveBtn').addEventListener('click', async () => {
+    const maps = {project: {}, issue_type: {}, priority: {}};
+    $('mapBody').querySelectorAll('[data-map-type]').forEach(el => {
+        const v = (el.value || '').trim();
+        if (v) maps[el.getAttribute('data-map-type')][el.getAttribute('data-map-key')] = v;
+    });
+    const res = await post('save_mapping.php', {connection_id: mapConnectionId, maps: maps});
+    if (!res.success) { showToast(res.error || T.saveFail, 'error'); return; }
+    showToast(T.mapSaved, 'success');
+    $('mapModal').classList.remove('open');
+});
+
 $('connRows').addEventListener('click', e => {
     // closest(), not e.target: the button now contains an <svg>, so a click lands
     // on a <path> and reading the attribute off e.target would find nothing.
+    const mapBtn  = e.target.closest('[data-map]');
+    if (mapBtn) { openMapping(mapBtn.getAttribute('data-map')); return; }
     const editBtn = e.target.closest('[data-edit]');
     const delBtn  = e.target.closest('[data-del]');
     if (editBtn) {
