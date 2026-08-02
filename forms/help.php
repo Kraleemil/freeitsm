@@ -581,6 +581,35 @@ $translationNamespaces = ['common', 'forms'];
                     </div>
 
                     <p class="fm-help-tip"><?php echo htmlspecialchars(t('forms.help.building_tip')); ?></p>
+
+                    <!-- Lookup fields. Given their own block rather than another
+                         bullet in the type list, because the portal tickbox is a
+                         decision about who can see your records — not a formatting
+                         choice, and not one to bury. -->
+                    <p class="fm-help-intro"><strong><?php echo htmlspecialchars(t('forms.help.lookup_title')); ?></strong>
+                       &mdash; <?php echo htmlspecialchars(t('forms.help.lookup_body')); ?></p>
+
+                    <div class="fm-help-data-grid">
+                        <div class="fm-help-data-card">
+                            <strong><?php echo htmlspecialchars(t('forms.help.lookup_asset_title')); ?></strong>
+                            <span><?php echo htmlspecialchars(t('forms.help.lookup_asset_body')); ?></span>
+                        </div>
+                        <div class="fm-help-data-card">
+                            <strong><?php echo htmlspecialchars(t('forms.help.lookup_cmdb_title')); ?></strong>
+                            <span><?php echo htmlspecialchars(t('forms.help.lookup_cmdb_body')); ?></span>
+                        </div>
+                        <div class="fm-help-data-card">
+                            <strong><?php echo htmlspecialchars(t('forms.help.lookup_user_title')); ?></strong>
+                            <span><?php echo htmlspecialchars(t('forms.help.lookup_user_body')); ?></span>
+                        </div>
+                    </div>
+
+                    <p><?php echo htmlspecialchars(t('forms.help.lookup_stored')); ?></p>
+
+                    <div class="fm-help-tip-card">
+                        <div class="fm-help-tip-icon">&#128274;</div>
+                        <div><strong><?php echo htmlspecialchars(t('forms.help.lookup_portal_title')); ?></strong><br><?php echo htmlspecialchars(t('forms.help.lookup_portal')); ?></div>
+                    </div>
                 </div>
 
                 <!-- Section 3: Filling in Forms -->

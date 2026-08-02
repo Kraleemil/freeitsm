@@ -531,6 +531,19 @@ return [
         'building_step6' => '<strong>Save</strong> &mdash; click the Save button in the toolbar. The unsaved changes indicator disappears once the form is saved successfully.',
         'building_tip'   => 'The unsaved changes warning protects you from accidentally navigating away. If you have pending changes, you will be prompted before leaving the page.',
 
+        // Lookup fields
+        'lookup_title'       => 'Lookup fields',
+        'lookup_body'        => 'Most fields are a box someone types into, so "which laptop is broken?" comes back as "the Dell one" and somebody has to work out which. A lookup field searches FreeITSM itself as the person types, and the answer is the actual record. Pick what it searches when you add the field:',
+        'lookup_asset_title' => 'Equipment',
+        'lookup_asset_body'  => 'Laptops, desktops, phones, monitors. Searchable by name, asset tag or service tag, so it works whether someone knows the machine name or is reading a sticker.',
+        'lookup_cmdb_title'  => 'Infrastructure',
+        'lookup_cmdb_body'   => 'Servers, services, applications and databases from your CMDB. Use it for "which system is affected?".',
+        'lookup_user_title'  => 'People',
+        'lookup_user_body'   => 'Your staff directory. Use it for "who is the new starter\'s manager?". Staff only, never available on the customer portal.',
+        'lookup_stored'      => 'Both the name and the link to the record are kept. Rename a machine later and an old submission still says what it said at the time, while the answer still points at the right record.',
+        'lookup_portal_title' => 'Customers only see their own',
+        'lookup_portal'      => 'A lookup is not offered on the self-service portal unless you tick it for that field, and a customer only ever sees records belonging to their own company. The staff directory is never offered to customers, whatever you tick.',
+
         // Section 3: Filling in forms
         'filling_title' => 'Filling in forms',
         'filling_body'  => 'When you open a form to fill in, it is presented in a clean A4-style layout designed to look professional and easy to read. Your company logo appears at the top of the form, followed by the title, description, and each field in order.',
