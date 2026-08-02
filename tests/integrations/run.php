@@ -379,6 +379,20 @@ eq('Batch returned both', 2, count($many));
 eq('Batch keyed by id',   'done', $many['2']['status_category']);
 ok('Batch used JQL id in ()', strpos(urldecode($cloud->seen[0]['url']), 'id in (1,2)') !== false);
 
+// ⚠️ Cloud REMOVED /rest/api/3/search (Atlassian CHANGE-2046) — it is
+// /search/jql now. Data Center's v2 /search still exists. This was found against
+// live Jira, where the old path returned "The requested API has been removed",
+// so both halves are pinned here.
+ok('Cloud batch uses /search/jql',
+   strpos($cloud->seen[0]['url'], '/rest/api/3/search/jql?') !== false);
+$srvBatch = mkJira(['base_url' => 'https://jira.acme.internal',
+                    'credentials' => ['api_token' => 'p', 'flavour' => 'server']]);
+$srvBatch->queue = [[200, json_encode(['issues' => []])]];
+$srvBatch->fetchIssues(['1']);
+ok('Data Center batch uses v2 /search (NOT /search/jql)',
+   strpos($srvBatch->seen[0]['url'], '/rest/api/2/search?') !== false
+   && strpos($srvBatch->seen[0]['url'], 'search/jql') === false);
+
 $cloud->seen = [];
 eq('Non-numeric ids rejected', [], $cloud->fetchIssues(['1 OR 1=1', 'DROP']));
 eq('...and no request was made', 0, count($cloud->seen));

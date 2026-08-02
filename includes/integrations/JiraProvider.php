@@ -303,7 +303,13 @@ class JiraProvider extends IssueTrackerProvider
 
         foreach ($chunks as $chunk) {
             $jql = 'id in (' . implode(',', $chunk) . ')';
-            $url = $this->apiUrl('search') . '?' . http_build_query([
+            // ⚠️ Cloud REMOVED /rest/api/3/search — it is /search/jql now, with
+            // token paging instead of startAt (Atlassian CHANGE-2046). Data
+            // Center's v2 /search is unaffected, so the endpoint is flavour-aware
+            // like everything else here. Found the hard way: the old path
+            // returned "The requested API has been removed" against live Jira.
+            $endpoint = $this->isCloud() ? 'search/jql' : 'search';
+            $url = $this->apiUrl($endpoint) . '?' . http_build_query([
                 'jql'        => $jql,
                 'fields'     => 'summary,status,assignee',
                 'maxResults' => count($chunk),
