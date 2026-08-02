@@ -43,6 +43,15 @@ $isActive = !empty($in['is_active']) ? 1 : 0;
 $tenantId = (isset($in['tenant_id']) && $in['tenant_id'] !== null && $in['tenant_id'] !== '')
                 ? (int) $in['tenant_id'] : null;
 
+// Facts a preceding Test discovered on this form. Carried through rather than
+// re-fetched: saving must not depend on the tracker being reachable, and the
+// answer is already known. Both are optional — a save without a test simply
+// leaves them for the next successful test to fill in.
+$identity = isset($in['account_identity']) && $in['account_identity'] !== ''
+                ? (string) $in['account_identity'] : null;
+$flavour  = isset($in['flavour']) && $in['flavour'] !== ''
+                ? (string) $in['flavour'] : null;
+
 $meta = integrationsProviderMeta($provider);
 if (!$meta) {
     echo json_encode(['success' => false, 'error' => 'Unknown provider.']);
@@ -82,25 +91,29 @@ try {
         $merged = array_merge((array)$existing['credentials'], $creds);
         // The flavour is a sniffed fact about the site, not a credential the admin
         // typed — carry it across an edit rather than making the next call re-guess.
-        if (isset($existing['credentials']['flavour']) && !isset($merged['flavour'])) {
+        if ($flavour !== null) {
+            $merged['flavour'] = $flavour;
+        } elseif (isset($existing['credentials']['flavour']) && !isset($merged['flavour'])) {
             $merged['flavour'] = $existing['credentials']['flavour'];
         }
         $blob = encryptValue(json_encode($merged));
 
         $stmt = $conn->prepare(
             "UPDATE integration_connections
-             SET name = ?, base_url = ?, credentials = ?, tenant_id = ?, is_active = ?
+             SET name = ?, base_url = ?, credentials = ?, tenant_id = ?, is_active = ?,
+                 account_identity = COALESCE(?, account_identity)
              WHERE id = ?"
         );
-        $stmt->execute([$name, $baseUrl, $blob, $tenantId, $isActive, $id]);
+        $stmt->execute([$name, $baseUrl, $blob, $tenantId, $isActive, $identity, $id]);
     } else {
+        if ($flavour !== null) $creds['flavour'] = $flavour;
         $blob = encryptValue(json_encode($creds));
         $stmt = $conn->prepare(
             "INSERT INTO integration_connections
-                (name, provider, base_url, auth_type, credentials, tenant_id, is_active, created_by)
-             VALUES (?, ?, ?, 'api_token', ?, ?, ?, ?)"
+                (name, provider, base_url, auth_type, credentials, tenant_id, is_active, created_by, account_identity)
+             VALUES (?, ?, ?, 'api_token', ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$name, $provider, $baseUrl, $blob, $tenantId, $isActive, $_SESSION['analyst_id'] ?? null]);
+        $stmt->execute([$name, $provider, $baseUrl, $blob, $tenantId, $isActive, $_SESSION['analyst_id'] ?? null, $identity]);
         $id = (int) $conn->lastInsertId();
     }
     echo json_encode(['success' => true, 'id' => $id]);

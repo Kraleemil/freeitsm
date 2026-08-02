@@ -75,9 +75,16 @@ try {
         ]);
     }
 
+    // Hand the discovered facts back even when there was nothing to save them
+    // to. Testing from the ADD dialog is the most natural flow — you prove the
+    // token before committing it — and without this the identity discovered
+    // there would be thrown away, leaving a saved connection with none.
+    // The page carries these into the save payload.
     echo json_encode([
-        'success' => true,
-        'detail'  => $result['detail'] ?? 'Connected.',
+        'success'          => true,
+        'detail'           => $result['detail'] ?? 'Connected.',
+        'account_identity' => $result['account_identity'] ?? null,
+        'flavour'          => $result['flavour'] ?? null,
     ]);
 } catch (Exception $e) {
     // The provider's own message is the useful part ("Epic Link is required",

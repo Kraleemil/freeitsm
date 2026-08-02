@@ -346,6 +346,8 @@ function render() {
 }
 
 function openModal(conn) {
+    // Never carry one connection's discovered identity onto another.
+    lastTest = {account_identity: null, flavour: null};
     $('connId').value   = conn ? conn.id : '';
     $('connName').value = conn ? conn.name : '';
     $('connUrl').value  = conn ? conn.base_url : '';
@@ -358,6 +360,12 @@ function openModal(conn) {
     $('modalTitle').textContent = conn ? T.editTitle : T.addTitle;
     $('connModal').classList.add('open');
 }
+
+// What a successful Test on this form discovered. Held here so Save can carry it
+// through — testing before saving is the natural flow, and without this the
+// identity found there would be discarded and the saved connection would have
+// none. Cleared whenever the modal reopens, so it can never leak between rows.
+let lastTest = {account_identity: null, flavour: null};
 
 function payload() {
     const creds = {};
@@ -372,7 +380,9 @@ function payload() {
         base_url: $('connUrl').value,
         credentials: creds,
         tenant_id: MULTI ? ($('connTenant').value || null) : null,
-        is_active: $('connActive').checked ? 1 : 0
+        is_active: $('connActive').checked ? 1 : 0,
+        account_identity: lastTest.account_identity,
+        flavour: lastTest.flavour
     };
 }
 
@@ -439,6 +449,9 @@ $('testBtn').addEventListener('click', async () => {
     btn.disabled = true;
     try {
         const j = await post('test_connection.php', payload());
+        if (j.success) {
+            lastTest = {account_identity: j.account_identity || null, flavour: j.flavour || null};
+        }
         // The provider's own message is the useful part — "Connected to Jira Cloud
         // as FreeITSM Bot", or "Jira rejected the credentials". Pass it straight
         // through instead of flattening it to pass/fail.
