@@ -1099,6 +1099,10 @@ CREATE TABLE IF NOT EXISTS `integration_connections` (
     -- firewalled fallback. Both produce the same canonical events downstream.
     `ingress_mode`          VARCHAR(10) NOT NULL DEFAULT 'poll',
     `inbound_enabled`       TINYINT(1) NOT NULL DEFAULT 0,   -- master "accept updates" switch
+    -- Push the ticket's attachments up with the issue. ON by default: on a bug
+    -- report the screenshot usually IS the report. Inline images (signatures,
+    -- tracking pixels) are never sent — see integrationsTicketAttachments().
+    `send_attachments`      TINYINT(1) NOT NULL DEFAULT 1,
     `poll_interval_minutes` INT NOT NULL DEFAULT 5,
     -- The account our token authenticates as, captured at connection test.
     -- Half of echo suppression: an inbound event authored by this identity is our

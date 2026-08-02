@@ -604,6 +604,7 @@ return [
         'webhook_secret'        => 'VARCHAR(2000) NULL',
         'ingress_mode'          => "VARCHAR(10) NOT NULL DEFAULT 'poll'",
         'inbound_enabled'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'send_attachments'      => 'TINYINT(1) NOT NULL DEFAULT 1',
         'poll_interval_minutes' => 'INT NOT NULL DEFAULT 5',
         'account_identity'      => 'VARCHAR(255) NULL',
         'tenant_id'             => 'INT NULL',

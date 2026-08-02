@@ -119,11 +119,29 @@ if ($body !== '') {
 }
 
 if ($isPreview) {
+    // ⚠️ The files are part of the preview, not a detail. "You cannot unsend
+    // it" is doubly true of an attachment: a screenshot can carry a password, a
+    // customer's name, a whole spreadsheet nobody meant to send outside the
+    // company. The analyst sees the list before pressing Raise, or the safeguard
+    // only covers half of what leaves.
+    //
+    // Listed for ANY connection this ticket could go to, because the connection
+    // is chosen in the same modal and may not be picked yet. Whether they are
+    // actually sent is each connection's own `send_attachments` setting.
+    $files = [];
+    foreach (integrationsTicketAttachments($conn, $ticketId) as $a) {
+        $files[] = [
+            'filename'    => $a['filename'],
+            'size_human'  => integrationsFormatBytes($a['size']),
+            'skip_reason' => $a['skip_reason'],
+        ];
+    }
     echo json_encode([
-        'success' => true,
-        'preview' => true,
-        'summary' => $summary,
-        'body'    => $doc->toPlainText(),
+        'success'     => true,
+        'preview'     => true,
+        'summary'     => $summary,
+        'body'        => $doc->toPlainText(),
+        'attachments' => $files,
     ]);
     exit;
 }

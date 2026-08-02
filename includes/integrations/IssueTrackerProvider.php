@@ -245,13 +245,22 @@ abstract class IssueTrackerProvider
      * ⚠️ sslApplyCurl() is mandatory — it honours the app-wide SSL_VERIFY_PEER
      * setting and ships the CA bundle. Never write raw CURLOPT_SSL_VERIFYPEER.
      *
-     * @param array $opts ['method'=>'POST','headers'=>[],'body'=>string,'auth'=>'user:pass']
+     * `body` is a STRING — JSON for the usual calls, or a pre-built
+     * `multipart/form-data` payload for a file upload, in which case the caller
+     * supplies the matching `Content-Type: multipart/form-data; boundary=…`
+     * header itself. Building the multipart body in the provider rather than
+     * handing cURL an array keeps it deterministic, avoids a temp file per
+     * upload, and means the exact bytes are assertable without a network.
+     *
+     * @param array $opts ['method'=>'POST','headers'=>[],'body'=>string|array,'auth'=>'user:pass','timeout'=>int]
      */
     protected function httpRequest(string $url, array $opts = []): array
     {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        // Uploads need longer than a JSON call: a few MB over a slow link will
+        // outlast the default and look like an outage.
+        curl_setopt($ch, CURLOPT_TIMEOUT, (int)($opts['timeout'] ?? 30));
         sslApplyCurl($ch);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $opts['method'] ?? 'GET');
         if (!empty($opts['headers'])) {

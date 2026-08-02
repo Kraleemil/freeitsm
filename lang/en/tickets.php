@@ -218,6 +218,8 @@ return [
 
     'tracker' => [
         'menu_item'       => 'Issue tracker',
+        'attach_heading'  => '{count} attachment(s) will be sent with the issue',
+        'attach_skipped'  => 'not sent',
         'modal_title'     => 'Raise a development issue from',
         'tracker_label'   => 'Tracker',
         'project_label'   => 'Project key',

@@ -189,6 +189,8 @@ return [
     ],
 
     'tracker' => [
+        'attach_heading'  => '{count} anexo(s) serão enviados com a issue',
+        'attach_skipped'  => 'não enviado',
         'menu_item'       => 'Rastreador de problemas',
         'modal_title'     => 'Abrir um problema de desenvolvimento a partir de',
         'tracker_label'   => 'Rastreador',

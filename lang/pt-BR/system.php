@@ -144,6 +144,8 @@ return [
         'map_saved'            => 'Mapeamento salvo',
         'map_needs_verify'     => 'Execute a Verificação do Banco de Dados primeiro — a tabela de mapeamento ainda não existe nesta instalação.',
         'map_load_failed'      => 'Não foi possível carregar o mapeamento.',
+        'attach_label'   => 'Enviar os anexos do chamado para o {name}',
+        'attach_hint'    => 'Em um relato de bug, a captura de tela geralmente É o relato. Imagens incorporadas em e-mails — assinaturas, logotipos, pixels de rastreamento — nunca são enviadas, apenas arquivos que alguém anexou deliberadamente. Arquivos grandes são ignorados em vez de fazer a escalação falhar, e você sempre vê a lista antes de qualquer envio.',
         'inbound_label'  => 'Aceitar atualizações do {name}',
         'inbound_hint'   => 'Comentários escritos no {name} chegam ao chamado vinculado como notas internas. Nunca são mostrados ao solicitante. A primeira verificação após ativar esta opção não importa nada — apenas marca o ponto de partida, portanto ativá-la não traz um histórico de comentários antigos.',
 

@@ -328,6 +328,14 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
                 <?php echo htmlspecialchars(t('system.integrations.inbound_hint', ['name' => $meta['name']])); ?>
             </div>
 
+            <div class="checkbox-row">
+                <input type="checkbox" id="connAttach" checked>
+                <label for="connAttach" style="margin:0;"><?php echo htmlspecialchars(t('system.integrations.attach_label', ['name' => $meta['name']])); ?></label>
+            </div>
+            <div class="hint" style="margin:-10px 0 15px 26px;">
+                <?php echo htmlspecialchars(t('system.integrations.attach_hint')); ?>
+            </div>
+
             <div class="modal-actions">
                 <button class="btn-secondary" id="cancelBtn"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
                 <button class="btn-secondary" id="testBtn"><?php echo htmlspecialchars(t('system.integrations.test')); ?></button>
@@ -468,6 +476,8 @@ function openModal(conn) {
     // Inbound writes to tickets, so it stays OFF on a new connection until an
     // admin deliberately turns it on.
     $('connInbound').checked = conn ? !!conn.inbound_enabled : false;
+    // Defaults ON for a new connection: the screenshot is usually the bug report.
+    $('connAttach').checked = conn ? !!conn.send_attachments : true;
     CRED_KEYS.forEach(k => { const el = document.querySelector('[data-cred="' + k + '"]'); if (el) el.value = ''; });
     // Editing never re-sends the stored secret, so an empty box means "keep what
     // is there" rather than "clear it" — say so instead of leaving them guessing.
@@ -497,6 +507,7 @@ function payload() {
         tenant_id: MULTI ? ($('connTenant').value || null) : null,
         is_active: $('connActive').checked ? 1 : 0,
         inbound_enabled: $('connInbound').checked ? 1 : 0,
+        send_attachments: $('connAttach').checked ? 1 : 0,
         account_identity: lastTest.account_identity,
         flavour: lastTest.flavour
     };

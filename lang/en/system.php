@@ -163,6 +163,8 @@ return [
         'map_saved'            => 'Mapping saved',
         'map_needs_verify'     => 'Run Database Verification first — the mapping table does not exist on this install yet.',
         'map_load_failed'      => 'Could not load the mapping.',
+        'attach_label'   => 'Send the ticket\x27s attachments to {name}',
+        'attach_hint'    => 'On a bug report the screenshot usually IS the report. Images embedded in an email — signatures, logos, tracking pixels — are never sent, only files somebody deliberately attached. Large files are skipped rather than failing the escalation, and you always see the list before anything is sent.',
         'inbound_label'  => 'Accept updates from {name}',
         'inbound_hint'   => 'Comments written in {name} arrive on the linked ticket as internal notes. They are never shown to the requester. The first check after switching this on imports nothing — it only marks the starting point, so switching it on cannot bring back a backlog of old comments.',
 

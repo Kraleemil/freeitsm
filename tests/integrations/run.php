@@ -247,6 +247,7 @@ class FakeJira extends JiraProvider
     public function pubCommentBody($b) { return $this->commentBodyToText($b); }
     public function pubParseComment(array $c) { return $this->parseComment($c); }
     public function pubLookback(int $since, ?int $now = null) { return $this->lookbackMinutes($since, $now); }
+    public function pubMultipart(string $fn, string $ct, string $d, ?string &$b) { return $this->buildMultipart($fn, $ct, $d, $b); }
 }
 
 function mkJira(array $overrides = []): FakeJira {
@@ -984,6 +985,63 @@ foreach ($escTpl['actions'] as $a) {
     if ($a['type'] === 'escalate_to_tracker') $skip = $a['args']['skip_if_linked'] ?? null;
 }
 ok('The escalate recipe leaves skip_if_linked ON', $skip === true);
+
+// ---------------------------------------------------------------------------
+echo "11. Attachments — the multipart body, and what is allowed to travel\n";
+// ---------------------------------------------------------------------------
+
+$png = "\x89PNG\r\n\x1a\n" . str_repeat("\x00\xFF", 40);   // binary, with CRLF and NULs in it
+$boundary = null;
+$mp = $cloud->pubMultipart('screenshot.png', 'image/png', $png, $boundary);
+
+ok('A boundary is produced',            is_string($boundary) && $boundary !== '');
+ok('Field name is "file" — Jira requires exactly this',
+   strpos($mp, 'name="file"') !== false);
+ok('Filename travels',                  strpos($mp, 'filename="screenshot.png"') !== false);
+ok('Content type travels',              strpos($mp, 'Content-Type: image/png') !== false);
+ok('Body opens with the boundary',      strpos($mp, "--{$boundary}\r\n") === 0);
+ok('Body closes with the terminator',   substr($mp, -strlen("--{$boundary}--\r\n")) === "--{$boundary}--\r\n");
+// ⚠️ The binary must survive byte-for-byte. A body that re-encoded or truncated
+// at the first NUL would upload a corrupt file that still "succeeded".
+ok('The binary payload survives intact', strpos($mp, $png) !== false);
+
+// ⚠️ The boundary must be random. A fixed one that happened to occur inside a
+// file would truncate the upload at that point — a corrupt file, no error.
+$b2 = null;
+$cloud->pubMultipart('a.png', 'image/png', 'x', $b2);
+ok('Boundaries differ between calls', $boundary !== $b2);
+
+// A filename is attacker-influenced (it came from an email), and it sits inside
+// a quoted header. Quotes or CRLF there would let it break out of that header.
+$b3 = null;
+$evil = $cloud->pubMultipart("../../etc/pa\"ss\r\nwd.png", 'image/png', 'x', $b3);
+ok('Path components are stripped from the filename', strpos($evil, '../..') === false);
+ok('Quotes are stripped from the filename',          strpos($evil, 'pa"ss') === false);
+// ⚠️ Assert the FILENAME VALUE is clean, not the bytes around it. A correctly
+// sanitised header legitimately ends `wd.png"\r\nContent-Type`, so matching on
+// the surroundings fails on correct output — my first version of this did
+// exactly that and reported a bug that was not there.
+preg_match('/filename="([^"]*)"/', $evil, $fnMatch);
+eq('The filename value itself is sanitised', 'passwd.png', $fnMatch[1] ?? null);
+eq('...and the part still has exactly one Content-Type header', 1, substr_count($evil, 'Content-Type:'));
+ok('POSITIVE CONTROL: the safe part of the name survives',
+   strpos($evil, 'passwd.png') !== false);
+// An empty name must still produce a usable one rather than filename=""
+$b4 = null;
+ok('An empty filename falls back',
+   strpos($cloud->pubMultipart('', 'image/png', 'x', $b4), 'filename="attachment"') !== false);
+
+// ── Byte formatting, used in the preview and the link error ────────────────
+eq('Formats bytes',     '512 B',  integrationsFormatBytes(512));
+eq('Formats kilobytes', '85 KB',  integrationsFormatBytes(87000));
+eq('Formats megabytes', '3.4 MB', integrationsFormatBytes(3527131));
+
+// ── The caps are the product rule ─────────────────────────────────────────
+// ⚠️ 10MB matches Jira's own default ceiling: sending more is a slow failure
+// rather than a fast one, and the escalation is what matters.
+ok('Max file size is 10MB', INTEGRATION_ATTACH_MAX_BYTES === 10485760);
+ok('Max file count is 10',  INTEGRATION_ATTACH_MAX_FILES === 10);
+
 
 // ---------------------------------------------------------------------------
 echo "\n" . str_repeat('=', 62) . "\n";

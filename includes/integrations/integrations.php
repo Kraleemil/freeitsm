@@ -196,7 +196,7 @@ function integrationsLoadConnection(PDO $conn, $connectionId): ?array
 function integrationsListConnections(PDO $conn, bool $activeOnly = false): array
 {
     if (!integrationsSchemaReady($conn)) return [];
-    $sql = "SELECT id, name, provider, base_url, auth_type, ingress_mode, inbound_enabled,
+    $sql = "SELECT id, name, provider, base_url, auth_type, ingress_mode, inbound_enabled, send_attachments,
                    poll_interval_minutes, account_identity, tenant_id, is_active,
                    last_poll_datetime, created_datetime,
                    (credentials IS NOT NULL AND credentials <> '') AS has_credentials,
@@ -214,6 +214,7 @@ function integrationsListConnections(PDO $conn, bool $activeOnly = false): array
         $r['has_webhook_secret']  = (bool) $r['has_webhook_secret'];
         $r['is_active']           = (bool) $r['is_active'];
         $r['inbound_enabled']     = (bool) $r['inbound_enabled'];
+        $r['send_attachments']    = (bool) $r['send_attachments'];
     }
     return $rows;
 }
@@ -390,12 +391,28 @@ function integrationsEscalate(PDO $conn, array $opts): array
     // Dry run describes, never creates. A workflow test that mints a real Jira
     // issue is an unacceptable surprise, so this returns BEFORE the network call.
     if (!empty($opts['dry_run'])) {
+        // ⚠️ The preview lists the FILES too. "You cannot unsend it" applies
+        // doubly to an attachment: a screenshot may hold a password, a customer
+        // name, a whole spreadsheet nobody meant to send outside. An analyst
+        // must see exactly what is about to leave, not just the text.
+        $files = [];
+        if (!empty($connection['send_attachments']) && $entityType === 'ticket') {
+            foreach (integrationsTicketAttachments($conn, $entityId) as $a) {
+                $files[] = [
+                    'filename'    => $a['filename'],
+                    'size'        => $a['size'],
+                    'size_human'  => integrationsFormatBytes($a['size']),
+                    'skip_reason' => $a['skip_reason'],
+                ];
+            }
+        }
         return [
-            'dry_run'    => true,
-            'connection' => $connection['name'],
-            'target'     => $target,
-            'summary'    => $summary,
-            'preview'    => $body->toPlainText(),
+            'dry_run'     => true,
+            'connection'  => $connection['name'],
+            'target'      => $target,
+            'summary'     => $summary,
+            'preview'     => $body->toPlainText(),
+            'attachments' => $files,
         ];
     }
 
@@ -442,6 +459,27 @@ function integrationsEscalate(PDO $conn, array $opts): array
         'entity_id'     => $entityId,
     ]);
 
+    // Attachments, if this connection sends them. AFTER the link row exists, so
+    // that a file failing cannot cost us the record of an issue that is already
+    // in the tracker.
+    if (!empty($connection['send_attachments']) && $entityType === 'ticket') {
+        $files = integrationsTicketAttachments($conn, $entityId);
+        if ($files) {
+            $res = integrationsSendAttachments($conn, $connection, $linkRow, $files);
+            $linkRow['attachments'] = $res;
+            if ($res['failed'] || $res['skipped']) {
+                // Visible on the link rather than only in a log, so an analyst
+                // can see the screenshot did not travel.
+                $msg = 'Attachments: ' . $res['sent'] . ' sent, ' . $res['failed'] . ' failed, '
+                     . $res['skipped'] . ' skipped — ' . implode('; ', array_slice($res['notes'], 0, 3));
+                try {
+                    $conn->prepare("UPDATE integration_links SET last_error = ? WHERE id = ?")
+                         ->execute([mb_substr($msg, 0, 500), $linkRow['id']]);
+                } catch (Exception $e) { /* cosmetic */ }
+            }
+        }
+    }
+
     // ⚠️ After the link row exists, so a workflow reacting to this can read the
     // link. Note this fires for a MANUAL escalate too — the point of §2 is that
     // "what happens when a ticket is escalated" is a rule the user writes, and
@@ -449,6 +487,148 @@ function integrationsEscalate(PDO $conn, array $opts): array
     integrationsEmitTrackerEvent($conn, 'tracker.issue_linked', $connection, $linkRow);
 
     return $linkRow;
+}
+
+// =====================================================================
+//  Attachments — the screenshot IS the bug report
+// =====================================================================
+
+/** Biggest single file we will push. Jira's own default ceiling is 10MB. */
+const INTEGRATION_ATTACH_MAX_BYTES = 10485760;   // 10 MB
+
+/** Most files one escalation will push, newest first. */
+const INTEGRATION_ATTACH_MAX_FILES = 10;
+
+/** Where ticket attachments live on disk, relative to the app root. */
+function integrationsAttachmentRoot(): string
+{
+    return dirname(__DIR__, 2) . '/tickets/attachments/';
+}
+
+/**
+ * The attachments on a ticket that are worth sending to a tracker.
+ *
+ * ⚠️ **Inline images are excluded, deliberately.** An HTML email carries every
+ * signature logo, tracking pixel and marketing graphic as an inline attachment —
+ * on this install the inline files run from 501 bytes upward and are almost all
+ * exactly that. Pushing them would put a dozen junk images on every issue, and
+ * an integration that cries wolf gets ignored. `is_inline = 0` means somebody
+ * deliberately attached the file, which is precisely the signal we want.
+ *
+ * The cost is a screenshot *pasted into* an email body rather than attached: it
+ * arrives inline and will not travel. The description always links back to the
+ * ticket, where it is visible.
+ *
+ * ⚠️ Internal notes have no attachments at all in this schema, so the rule that
+ * internal content never crosses holds here for free rather than by a check.
+ *
+ * @return array [['id','filename','content_type','size','path','skip_reason'], …]
+ *               `skip_reason` set means: show it, do not send it.
+ */
+function integrationsTicketAttachments(PDO $conn, int $ticketId, int $maxFiles = INTEGRATION_ATTACH_MAX_FILES): array
+{
+    try {
+        $stmt = $conn->prepare(
+            "SELECT a.id, a.filename, a.content_type, a.file_size, a.file_path
+               FROM email_attachments a
+               JOIN emails e ON e.id = a.email_id
+              WHERE e.ticket_id = ? AND a.is_inline = 0
+           ORDER BY a.id DESC"
+        );
+        $stmt->execute([$ticketId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log('integrationsTicketAttachments(' . $ticketId . '): ' . $e->getMessage());
+        return [];
+    }
+
+    $out = [];
+    $taken = 0;
+    foreach ($rows as $r) {
+        $path   = integrationsAttachmentRoot() . $r['file_path'];
+        $size   = (int)$r['file_size'];
+        $reason = null;
+
+        if (!is_file($path)) {
+            // The row outlived the file — a restored database, a pruned disk.
+            $reason = 'missing_on_disk';
+        } elseif ($size > INTEGRATION_ATTACH_MAX_BYTES) {
+            $reason = 'too_large';
+        } elseif ($taken >= $maxFiles) {
+            $reason = 'over_limit';
+        }
+
+        if ($reason === null) $taken++;
+
+        $out[] = [
+            'id'           => (int)$r['id'],
+            'filename'     => (string)$r['filename'],
+            'content_type' => (string)($r['content_type'] ?: 'application/octet-stream'),
+            'size'         => $size,
+            'path'         => $path,
+            'skip_reason'  => $reason,
+        ];
+    }
+    return $out;
+}
+
+/** "1.4 MB" / "812 KB" — for the preview and the log line. */
+function integrationsFormatBytes(int $bytes): string
+{
+    if ($bytes >= 1048576) return round($bytes / 1048576, 1) . ' MB';
+    if ($bytes >= 1024)    return round($bytes / 1024) . ' KB';
+    return $bytes . ' B';
+}
+
+/**
+ * Push a ticket's attachments onto an issue that has just been created.
+ *
+ * ⚠️ **A failed attachment must never lose the escalation.** The issue already
+ * exists in the tracker by the time this runs; throwing here would surface as
+ * "escalation failed" and an analyst would raise a second one. Same rule as the
+ * rejected priority in §7e — the expensive thing is already done.
+ *
+ * @return array ['sent'=>int, 'failed'=>int, 'skipped'=>int, 'notes'=>string[]]
+ */
+function integrationsSendAttachments(PDO $conn, array $connection, array $link, array $attachments): array
+{
+    $out = ['sent' => 0, 'failed' => 0, 'skipped' => 0, 'notes' => []];
+    if (!$attachments) return $out;
+
+    try {
+        $provider = integrationsProviderFor($connection);
+        if (!$provider->supports(IssueTrackerProvider::CAP_ATTACHMENTS)) {
+            return $out;
+        }
+    } catch (Exception $e) {
+        return $out;
+    }
+
+    foreach ($attachments as $a) {
+        if (!empty($a['skip_reason'])) {
+            $out['skipped']++;
+            $out['notes'][] = $a['filename'] . ' (' . $a['skip_reason'] . ')';
+            continue;
+        }
+        try {
+            $data = @file_get_contents($a['path']);
+            if ($data === false) throw new Exception('could not read the file');
+            $provider->addAttachment((string)$link['external_id'], [
+                'data'         => $data,
+                'filename'     => $a['filename'],
+                'content_type' => $a['content_type'],
+            ]);
+            $out['sent']++;
+        } catch (Exception $e) {
+            // One bad file must not lose the rest, and none of them may lose
+            // the issue that already exists.
+            $out['failed']++;
+            $out['notes'][] = $a['filename'] . ': ' . $e->getMessage();
+            error_log('integrationsSendAttachments(' . ($link['external_key'] ?? '?') . '): '
+                    . $a['filename'] . ': ' . $e->getMessage());
+        }
+    }
+    return $out;
 }
 
 // =====================================================================

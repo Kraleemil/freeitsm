@@ -44,6 +44,10 @@ $isActive = !empty($in['is_active']) ? 1 : 0;
 // half-finished setup must not start posting notes — the same "nothing is
 // processed until you say so" rule the messaging webhooks use.
 $inbound  = !empty($in['inbound_enabled']) ? 1 : 0;
+// Defaults ON for a NEW connection (the screenshot is usually the bug report),
+// but an explicit false from the form must be honoured — hence array_key_exists
+// rather than a truthy check, which would silently re-enable it on every save.
+$sendAtt  = array_key_exists('send_attachments', $in) ? (!empty($in['send_attachments']) ? 1 : 0) : 1;
 $tenantId = (isset($in['tenant_id']) && $in['tenant_id'] !== null && $in['tenant_id'] !== '')
                 ? (int) $in['tenant_id'] : null;
 
@@ -105,20 +109,20 @@ try {
         $stmt = $conn->prepare(
             "UPDATE integration_connections
              SET name = ?, base_url = ?, credentials = ?, tenant_id = ?, is_active = ?,
-                 inbound_enabled = ?, account_identity = COALESCE(?, account_identity)
+                 inbound_enabled = ?, send_attachments = ?, account_identity = COALESCE(?, account_identity)
              WHERE id = ?"
         );
-        $stmt->execute([$name, $baseUrl, $blob, $tenantId, $isActive, $inbound, $identity, $id]);
+        $stmt->execute([$name, $baseUrl, $blob, $tenantId, $isActive, $inbound, $sendAtt, $identity, $id]);
     } else {
         if ($flavour !== null) $creds['flavour'] = $flavour;
         $blob = encryptValue(json_encode($creds));
         $stmt = $conn->prepare(
             "INSERT INTO integration_connections
                 (name, provider, base_url, auth_type, credentials, tenant_id, is_active,
-                 inbound_enabled, created_by, account_identity)
-             VALUES (?, ?, ?, 'api_token', ?, ?, ?, ?, ?, ?)"
+                 inbound_enabled, send_attachments, created_by, account_identity)
+             VALUES (?, ?, ?, 'api_token', ?, ?, ?, ?, ?, ?, ?)"
         );
-        $stmt->execute([$name, $provider, $baseUrl, $blob, $tenantId, $isActive, $inbound,
+        $stmt->execute([$name, $provider, $baseUrl, $blob, $tenantId, $isActive, $inbound, $sendAtt,
                         $_SESSION['analyst_id'] ?? null, $identity]);
         $id = (int) $conn->lastInsertId();
     }

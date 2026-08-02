@@ -706,6 +706,9 @@ $translationNamespaces = ['common', 'tickets'];
                     <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
                         <?php echo htmlspecialchars(t('tickets.tracker.preview_hint')); ?>
                     </div>
+                    <?php /* Files leaving the building. Hidden when the ticket has
+                             none, so the usual case gains no clutter. */ ?>
+                    <div id="escAttachments" style="display:none;margin-top:10px;"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -753,7 +756,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=81"></script>
+    <script src="../assets/js/inbox.js?v=82"></script>
     <script src="../assets/js/mobile.js?v=14"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

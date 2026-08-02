@@ -612,6 +612,82 @@ class JiraProvider extends IssueTrackerProvider
         return $out;
     }
 
+    // ---------------------------------------------------------- attachments
+
+    /**
+     * Upload one file to an issue.
+     *
+     * Jira needs three things that a normal JSON call does not:
+     *
+     *  1. **`X-Atlassian-Token: no-check`** — without it Jira rejects the upload
+     *     as a suspected cross-site request, with a 403 and no useful body. It
+     *     is the single most common reason a Jira upload "just fails".
+     *  2. **`multipart/form-data` with the field named `file`** — not `files`,
+     *     not the filename.
+     *  3. **No `Accept: application/json` weirdness** — it still returns JSON,
+     *     but the request itself must carry the multipart content type with its
+     *     boundary, which is why the body is built here rather than handed to
+     *     cURL as an array.
+     *
+     * @param array $file ['data'=>binary, 'filename'=>string, 'content_type'=>string]
+     */
+    public function addAttachment(string $externalId, array $file): void
+    {
+        $body = $this->buildMultipart(
+            (string)($file['filename'] ?? 'attachment'),
+            (string)($file['content_type'] ?? 'application/octet-stream'),
+            (string)($file['data'] ?? ''),
+            $boundary
+        );
+
+        $creds   = $this->connection['credentials'] ?? [];
+        $headers = [
+            'Accept: application/json',
+            'X-Atlassian-Token: no-check',
+            'Content-Type: multipart/form-data; boundary=' . $boundary,
+        ];
+        $opts = [
+            'method'  => 'POST',
+            'body'    => $body,
+            'timeout' => 120,   // a few MB over a slow link outlasts the default
+        ];
+        if ($this->isCloud()) {
+            $opts['auth'] = ($creds['email'] ?? '') . ':' . ($creds['api_token'] ?? '');
+        } else {
+            $headers[] = 'Authorization: Bearer ' . ($creds['api_token'] ?? '');
+        }
+        $opts['headers'] = $headers;
+
+        list($code, $raw) = $this->httpRequest(
+            $this->apiUrl('issue/' . rawurlencode($externalId) . '/attachments'), $opts
+        );
+        if ($code < 200 || $code >= 300) {
+            throw new Exception($this->extractError($code, $raw));
+        }
+    }
+
+    /**
+     * A single-file multipart/form-data body, and the boundary that goes with it.
+     *
+     * ⚠️ The boundary must not occur inside the file's bytes or the body is
+     * truncated at that point — hence a random one, not a fixed string.
+     */
+    protected function buildMultipart(string $filename, string $contentType, string $data, ?string &$boundary): string
+    {
+        $boundary = '----FreeITSM' . bin2hex(random_bytes(16));
+
+        // Strip anything path-like: Jira takes the filename verbatim, and a
+        // name containing quotes or CRLF would break the header it sits in.
+        $safe = str_replace(['"', "\r", "\n"], '', basename($filename));
+        if ($safe === '') $safe = 'attachment';
+
+        return "--{$boundary}\r\n"
+             . "Content-Disposition: form-data; name=\"file\"; filename=\"{$safe}\"\r\n"
+             . "Content-Type: {$contentType}\r\n\r\n"
+             . $data . "\r\n"
+             . "--{$boundary}--\r\n";
+    }
+
     // ------------------------------------------------------------- discovery
 
     /**

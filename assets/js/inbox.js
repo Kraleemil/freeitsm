@@ -2730,12 +2730,46 @@ async function openEscalateTrackerModal(ticketId, ref) {
         if (j.success) {
             document.getElementById('escSummary').value = j.summary || '';
             document.getElementById('escPreview').textContent = j.body || '';
+            renderEscalateAttachments(j.attachments || []);
         } else {
             document.getElementById('escPreview').textContent = j.error || '';
+            renderEscalateAttachments([]);
         }
     } catch (e) {
         document.getElementById('escPreview').textContent = t('tickets.tracker.preview_failed');
     }
+}
+
+/**
+ * The files that will travel with the issue.
+ *
+ * ⚠️ Shown BEFORE anything is sent, for the same reason the description is: an
+ * attachment cannot be unsent, and a screenshot can carry far more than the
+ * person attaching it intended. A file that will NOT be sent (too large, or
+ * missing on disk) is still listed, struck through — "it silently did not go"
+ * is exactly the surprise this is here to prevent.
+ */
+function renderEscalateAttachments(files) {
+    const box = document.getElementById('escAttachments');
+    if (!box) return;
+    if (!files.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+    const rows = files.map(f => {
+        const skipped = !!f.skip_reason;
+        const name = escapeHtml(f.filename) + ' <span style="opacity:.65">(' + escapeHtml(f.size_human) + ')</span>';
+        return '<li style="margin:2px 0;' + (skipped ? 'opacity:.55;text-decoration:line-through;' : '') + '">'
+             + name
+             + (skipped ? ' <span style="text-decoration:none;font-style:italic">— '
+                          + escapeHtml(t('tickets.tracker.attach_skipped')) + '</span>' : '')
+             + '</li>';
+    }).join('');
+
+    const sending = files.filter(f => !f.skip_reason).length;
+    box.innerHTML =
+        '<div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;">'
+        + escapeHtml(t('tickets.tracker.attach_heading').replace('{count}', sending)) + '</div>'
+        + '<ul style="margin:0;padding-left:18px;font-size:12px;color:var(--text-muted);">' + rows + '</ul>';
+    box.style.display = '';
 }
 
 function closeEscalateTrackerModal() {
