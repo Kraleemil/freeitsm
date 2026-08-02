@@ -7,10 +7,20 @@
  * analyst has deliberately offered appear here (forms.is_portal_visible).
  *
  * The field renderer mirrors the analyst-side forms/fill.php switch, minus its
- * analyst chrome. Every field type in the product (text, textarea, email,
- * number, checkbox, checkboxes, dropdown, radio) is a plain literal input —
- * there is no picker of internal records — so nothing here needs withholding
- * from a customer.
+ * analyst chrome.
+ *
+ * ⚠️ THAT USED TO BE THE WHOLE STORY. Every type was a plain literal input —
+ * text, number, a dropdown of the form's own options — so nothing a customer
+ * could see came out of our own records, and nothing here needed withholding.
+ *
+ * `lookup` broke that assumption: it is a search box over the install's own
+ * assets, CMDB objects or users. So it renders here ONLY when both gates pass —
+ * the source is marked portal-safe (a staff directory never is) and the field
+ * itself was ticked for portal use by whoever built the form. Off by default.
+ *
+ * ⚠️ This markup appearing is NOT permission. api/forms/lookup_search.php
+ * re-checks both gates and scopes results to the customer's own company, because
+ * a request can be made without ever loading this page.
  */
 $pageTitleKey = 'self-service.catalogue.title';   // a KEY: i18n starts in header.php
 $activeNav    = 'catalogue';
@@ -93,6 +103,22 @@ $pageStyles = <<<'CSS'
             color: var(--text, #333);
             margin: 0;
         }
+
+
+        /* Lookup field — search over records the app already holds. */
+        .lookup-wrap { position: relative; }
+        .lookup-results {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 40;
+            max-height: 220px; overflow-y: auto;
+            background: var(--surface, #fff); border: 1px solid var(--border, #ddd);
+            border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.12); margin-top: 2px;
+        }
+        .lookup-option {
+            display: block; width: 100%; text-align: left; background: none; border: 0;
+            padding: 9px 12px; font-size: 14px; color: var(--text, #333); cursor: pointer;
+        }
+        .lookup-option:hover { background: var(--surface-hover, #f3f4f6); }
+        .lookup-empty { padding: 9px 12px; font-size: 13px; color: var(--text-muted, #666); }
 
         /* Conditionally hidden — toggled by applyVisibility() as answers change. */
         .cat-field.is-hidden, .cat-section.is-hidden { display: none; }
@@ -242,6 +268,18 @@ document.addEventListener('DOMContentLoaded', function () {
                         input = '<input type="' + FormLogic.dateInputType(FormLogic.dateMode(f))
                               + '" id="f' + f.id + '" data-field-id="' + f.id + '">';
                         break;
+                    case 'lookup':
+                        // ⚠️ Only reachable here if the FIELD was ticked for portal
+                        // use AND its source is portal-safe. The endpoint checks
+                        // both again — this markup appearing is not permission.
+                        input = '<div class="lookup-wrap">'
+                              + '<input type="text" class="lookup-search" autocomplete="off"'
+                              + ' data-lookup-field="' + f.id + '"'
+                              + ' placeholder="' + esc(window.t('forms.fill.lookup_placeholder')) + '">'
+                              + '<input type="hidden" id="f' + f.id + '" data-field-id="' + f.id + '">'
+                              + '<div class="lookup-results" hidden></div>'
+                              + '</div>';
+                        break;
                     case 'checkbox':
                         input = '<label class="cat-option"><input type="checkbox" id="f' + f.id + '" data-field-id="' + f.id + '"> '
                               + esc(window.t('self-service.catalogue.yes')) + '</label>';
@@ -286,6 +324,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const formEl = document.getElementById('catForm');
             formEl.addEventListener('input', applyVisibility);
             formEl.addEventListener('change', applyVisibility);
+
+            // Lookup boxes. Same shared behaviour as the analyst fill page —
+            // the endpoint works out that this is a portal user and scopes to
+            // their company, refusing outright if the field is not portal-ticked.
+            FormLogic.attachLookups(formEl, '../api/forms/lookup_search.php');
+
             applyVisibility();
         }
 

@@ -507,6 +507,10 @@ $translationNamespaces = ['common', 'forms'];
                             <!-- A heading rather than a question: it groups everything
                                  below it until the next one, and a condition on it
                                  hides that whole group at once. -->
+                            <!-- Asks "which one?" against records we already hold —
+                                 assets, CMDB objects, people. ONE type with a source in
+                                 config, for the same reason the date field has a mode. -->
+                            <button onclick="addField('lookup')"><span class="field-type-badge lookup">&#128269;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.lookup')); ?></button>
                             <button onclick="addField('section')"><span class="field-type-badge section">&#9647;</span> <?php echo htmlspecialchars(t('forms.fieldtypes.section')); ?></button>
                         </div>
                     </div>
@@ -964,6 +968,33 @@ $translationNamespaces = ['common', 'forms'];
         // already given to it under a separate column. A mode is just a setting.
         const DATE_MODES = ['date', 'time', 'datetime'];
         function isDateField(type) { return type === 'datetime'; }
+        function isLookupField(type) { return type === 'lookup'; }
+        // Keep in step with FormsService::LOOKUP_SOURCES. `portalSafe` mirrors the
+        // server's flag: the tickbox is hidden for a source a customer must never
+        // browse, so it cannot even be asked for.
+        const LOOKUP_SOURCES = [
+            { key: 'asset', portalSafe: true },
+            { key: 'cmdb',  portalSafe: true },
+            { key: 'user',  portalSafe: false }
+        ];
+        function lookupSourceOf(f) {
+            const s = f.config && f.config.lookup_source;
+            return LOOKUP_SOURCES.some(x => x.key === s) ? s : '';
+        }
+        function setLookupSource(i, src) {
+            fields[i].config = fields[i].config || {};
+            fields[i].config.lookup_source = src;
+            // Changing source can invalidate the portal tick (user is never
+            // portal-safe), so drop it rather than leave a tick that does nothing.
+            const meta = LOOKUP_SOURCES.find(x => x.key === src);
+            if (!meta || !meta.portalSafe) delete fields[i].config.portal_lookup;
+            renderFields(); markDirty();
+        }
+        function setLookupPortal(i, on) {
+            fields[i].config = fields[i].config || {};
+            if (on) fields[i].config.portal_lookup = true; else delete fields[i].config.portal_lookup;
+            markDirty();
+        }
         function dateModeOf(f) {
             const m = f.config && f.config.date_mode;
             return DATE_MODES.includes(m) ? m : 'date';
@@ -1036,6 +1067,10 @@ $translationNamespaces = ['common', 'forms'];
             // that adding a condition to a date field doesn't wipe the mode it is in.
             const out = {};
             if (isDateField(f.field_type)) out.date_mode = dateModeOf(f);
+            if (isLookupField(f.field_type)) {
+                out.lookup_source = lookupSourceOf(f);
+                if (f.config && f.config.portal_lookup) out.portal_lookup = true;
+            }
 
             const vif = f.config && f.config.visible_if;
             if (vif && Array.isArray(vif.rules) && vif.rules.length) {
@@ -1262,6 +1297,29 @@ $translationNamespaces = ['common', 'forms'];
                         </div>`;
                 }
 
+                // Which records this lookup searches, and whether a customer may
+                // use it. Both live with the field so they stay changeable.
+                let lookupHtml = '';
+                if (isLookupField(f.field_type)) {
+                    const src = lookupSourceOf(f);
+                    const meta = LOOKUP_SOURCES.find(x => x.key === src);
+                    lookupHtml = `
+                        <div class="field-options">
+                            <div class="field-options-label">${esc(window.t('forms.field.lookup_source'))}</div>
+                            <select onchange="setLookupSource(${i}, this.value)">
+                                <option value="">${esc(window.t('forms.field.lookup_pick'))}</option>
+                                ${LOOKUP_SOURCES.map(o => `<option value="${o.key}" ${src === o.key ? 'selected' : ''}>`
+                                    + esc(window.t('forms.field.lookup_src_' + o.key)) + `</option>`).join('')}
+                            </select>
+                            ${meta && meta.portalSafe ? `
+                                <label class="field-required-toggle" style="margin-top:8px;">
+                                    <input type="checkbox" ${f.config && f.config.portal_lookup ? 'checked' : ''}
+                                           onchange="setLookupPortal(${i}, this.checked)">
+                                    ${esc(window.t('forms.field.lookup_portal'))}
+                                </label>` : ''}
+                        </div>`;
+                }
+
                 // A heading has no answer, so "required" would mean nothing — the
                 // server rejects it outright, and the toggle is left off here.
                 const requiredToggle = isSection(f.field_type) ? '' : `
@@ -1290,13 +1348,13 @@ $translationNamespaces = ['common', 'forms'];
                             </div>
                         </div>
                         ${optionsHtml}
-                        ${dateModeHtml}
+                        ${dateModeHtml}${lookupHtml}
                         ${renderConditionEditor(f, i)}
                     </li>`;
             }).join('');
         }
         function typeName(type) {
-            const known = ['text', 'textarea', 'checkbox', 'dropdown', 'email', 'number', 'checkboxes', 'radio', 'datetime', 'section'];
+            const known = ['text', 'textarea', 'checkbox', 'dropdown', 'email', 'number', 'checkboxes', 'radio', 'datetime', 'lookup', 'section'];
             return known.includes(type) ? window.t('forms.typename.' + type) : type;
         }
         function updateLabel(i, val)    { fields[i].label = val;       markDirty(); updatePreview(); }
@@ -1489,6 +1547,10 @@ $translationNamespaces = ['common', 'forms'];
                         return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="email" disabled placeholder="${escAttr(window.t('forms.preview.email_ph'))}"></div>`;
                     case 'number':
                         return `<div class="preview-field"><label>${label}${reqStar}${condFlag}</label><input type="number" disabled placeholder="${escAttr(window.t('forms.preview.number_ph'))}"></div>`;
+                    case 'lookup':
+                        // Preview only — the real control searches live records.
+                        html += `<input type="text" disabled placeholder="${esc(window.t('forms.fill.lookup_placeholder'))}">`;
+                        break;
                     case 'datetime': {
                         const m = dateModeOf(f);
                         const t = m === 'time' ? 'time' : (m === 'datetime' ? 'datetime-local' : 'date');

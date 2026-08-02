@@ -170,6 +170,7 @@ return [
 
     // Field-type palette in the Add menu (forms/edit/index.php)
     'fieldtypes' => [
+        'lookup' => 'Lookup',
         'text'       => 'Text input',
         'textarea'   => 'Text area',
         'email'      => 'Email',
@@ -203,6 +204,12 @@ return [
 
     // Field row editing UI (forms/edit/index.php)
     'field' => [
+        'lookup_portal' => 'Customers can use this on the portal',
+        'lookup_src_user' => 'People',
+        'lookup_src_cmdb' => 'CMDB objects',
+        'lookup_src_asset' => 'Assets',
+        'lookup_pick' => 'Choose…',
+        'lookup_source' => 'Search which records',
         'options_dropdown'  => 'Dropdown options',
         'options_radio'     => 'Radio options',
         'options_checkbox'  => 'Checkbox options',
@@ -367,6 +374,8 @@ return [
         'logo_alt'         => 'Company Logo',
         'select_ph'        => 'Select...',
         'email_ph'         => 'name@example.com',
+        'lookup_placeholder' => 'Start typing to search…',
+        'lookup_none'        => 'No matches',
         'err_required'     => 'This field is required',
         'err_email'        => 'Please enter a valid email address',
         'err_number'       => 'Please enter a number',

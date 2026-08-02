@@ -267,6 +267,23 @@ $translationNamespaces = ['common', 'forms'];
             display: flex;
             gap: 8px;
         }
+    
+        /* Lookup field — search-as-you-type over records the app already holds.
+           The results panel is absolutely positioned so it overlays the fields
+           below rather than shoving the form around as you type. */
+        .lookup-wrap { position: relative; }
+        .lookup-results {
+            position: absolute; top: 100%; left: 0; right: 0; z-index: 40;
+            max-height: 220px; overflow-y: auto;
+            background: var(--surface, #fff); border: 1px solid var(--border, #ddd);
+            border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.12); margin-top: 2px;
+        }
+        .lookup-option {
+            display: block; width: 100%; text-align: left; background: none; border: 0;
+            padding: 9px 12px; font-size: 14px; color: var(--text, #333); cursor: pointer;
+        }
+        .lookup-option:hover { background: var(--surface-hover, #f3f4f6); }
+        .lookup-empty { padding: 9px 12px; font-size: 13px; color: var(--text-muted, #666); }
     </style>
 </head>
 <body>
@@ -384,6 +401,25 @@ $translationNamespaces = ['common', 'forms'];
                         </div>`;
                         break;
                     }
+                    case 'lookup': {
+                        // Search-as-you-type over records we already hold. The
+                        // visible box is a search box; the ANSWER lives in the
+                        // hidden input as {"id":…,"label":…} and is only written
+                        // when something is chosen from the list — so a typed
+                        // string that matches nothing is not an answer.
+                        html += `<div class="form-field lookup-field" ${wrap} ${reqAttr}>
+                            <label>${esc(f.label)}${reqStar}</label>
+                            <div class="lookup-wrap">
+                                <input type="text" class="lookup-search" autocomplete="off"
+                                       data-lookup-field="${f.id}"
+                                       placeholder="${esc(window.t('forms.fill.lookup_placeholder'))}">
+                                <input type="hidden" name="field_${f.id}" data-field-id="${f.id}">
+                                <div class="lookup-results" hidden></div>
+                            </div>
+                            <div class="field-error">${esc(window.t('forms.fill.err_required'))}</div>
+                        </div>`;
+                        break;
+                    }
                     case 'checkbox':
                         html += `<div class="form-field checkbox-field" ${wrap} ${reqAttr}>
                             <input type="checkbox" name="field_${f.id}" data-field-id="${f.id}" id="cb_${f.id}">
@@ -456,6 +492,11 @@ $translationNamespaces = ['common', 'forms'];
             const formEl = document.getElementById('fillForm');
             formEl.addEventListener('input', applyVisibility);
             formEl.addEventListener('change', applyVisibility);
+
+            // Lookup boxes search the app's own records. Wired after the markup
+            // exists, and shared with the portal so both behave identically.
+            FormLogic.attachLookups(formEl, '../api/forms/lookup_search.php');
+
             applyVisibility();
         }
 

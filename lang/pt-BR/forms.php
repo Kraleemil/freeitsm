@@ -157,6 +157,7 @@ return [
 
     // Field-type palette in the Add menu (forms/edit/index.php)
     'fieldtypes' => [
+        'lookup' => 'Consulta',
         'text'       => 'Campo de texto',
         'textarea'   => 'Área de texto',
         'email'      => 'E-mail',
@@ -189,6 +190,12 @@ return [
 
     // Field row editing UI (forms/edit/index.php)
     'field' => [
+        'lookup_portal' => 'Clientes podem usar isto no portal',
+        'lookup_src_user' => 'Pessoas',
+        'lookup_src_cmdb' => 'Objetos da CMDB',
+        'lookup_src_asset' => 'Ativos',
+        'lookup_pick' => 'Escolha…',
+        'lookup_source' => 'Pesquisar quais registros',
         'options_dropdown'  => 'Opções da lista suspensa',
         'options_radio'     => 'Opções de botão',
         'options_checkbox'  => 'Opções de caixa de seleção',
@@ -353,6 +360,8 @@ return [
         'logo_alt'         => 'Logotipo da Empresa',
         'select_ph'        => 'Selecione...',
         'email_ph'         => 'nome@exemplo.com',
+        'lookup_placeholder' => 'Comece a digitar para pesquisar…',
+        'lookup_none'        => 'Nenhum resultado',
         'err_required'     => 'Este campo é obrigatório',
         'err_email'        => 'Informe um endereço de e-mail válido',
         'err_number'       => 'Informe um número',

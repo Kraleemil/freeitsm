@@ -30,10 +30,10 @@ require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 class FormsService
 {
     // 'section' is a heading, not a question — see ANSWERABLE_TYPES.
-    const FIELD_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime', 'section'];
+    const FIELD_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime', 'lookup', 'section'];
 
     /** The types that actually collect an answer. A 'section' never produces submission data. */
-    const ANSWERABLE_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime'];
+    const ANSWERABLE_TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime', 'lookup'];
 
     /**
      * What a 'datetime' field actually asks for, held in config.date_mode.
@@ -56,6 +56,230 @@ class FormsService
         'time'     => '/^\d{2}:\d{2}$/',
         'datetime' => '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/',
     ];
+
+    // ==================================================================
+    //  Lookup fields — asking about something we already hold
+    // ==================================================================
+    //
+    // A 'lookup' asks "which one?" against FreeITSM's own records instead of a
+    // free-text box: which laptop, which service, which contract. It is ONE
+    // field type with a `config.lookup_source`, for exactly the reason
+    // `datetime` is one type with a mode — a field's field_type cannot change
+    // once it exists, so five separate types would force an irreversible guess.
+    //
+    // ⚠️ WHAT IS STORED IS BOTH THE ID AND THE LABEL, as JSON:
+    //     {"id":123,"label":"LAPTOP-042"}
+    //
+    // The label is what the answer MEANT when it was given; the id is what makes
+    // it a lookup rather than a text box. Storing only the id would rewrite
+    // history when somebody renames an asset, and leave a dangling number when
+    // one is deleted. Storing only the label would lose the link to the record.
+    // This is the same split as an issue tracker's stable id versus its display
+    // key — see the Issue Trackers developer guide.
+
+    /**
+     * The sources a lookup may point at.
+     *
+     * `tenant_col` is how a row is scoped to a company. NULL means the table has
+     * no company column, so it can never be offered on the portal — see
+     * lookupSourcePortalAllowed().
+     *
+     * ⚠️ Adding a source here is NOT the whole job: it must also be safe to show
+     * a customer. Read the note on `portal_safe` before adding one.
+     */
+    const LOOKUP_SOURCES = [
+        'asset' => [
+            'table'       => 'assets',
+            'id_col'      => 'id',
+            // The hostname is what a person recognises; the tags are what they
+            // read off a sticker when the hostname means nothing to them.
+            'label_col'   => 'hostname',
+            'search_cols' => ['hostname', 'asset_tag', 'service_tag'],
+            'tenant_col'  => 'tenant_id',
+            // Names and tags of kit. A customer picking "which laptop" needs it.
+            'portal_safe' => true,
+        ],
+        'cmdb' => [
+            'table'       => 'cmdb_objects',
+            'id_col'      => 'id',
+            'label_col'   => 'name',
+            'search_cols' => ['name'],
+            'tenant_col'  => 'tenant_id',
+            'portal_safe' => true,
+        ],
+        'user' => [
+            'table'       => 'users',
+            'id_col'      => 'id',
+            'label_col'   => 'display_name',
+            'search_cols' => ['display_name', 'email'],
+            'tenant_col'  => 'tenant_id',
+            // ⚠️ A staff directory with email addresses. Never a customer's to
+            // browse, whatever a form builder ticks.
+            'portal_safe' => false,
+        ],
+    ];
+
+    // ⚠️ NOT here, and each for a reason rather than an oversight:
+    //
+    //   contracts  — the table has NO company column at all, so a lookup could
+    //                not be scoped and a company-restricted analyst would see
+    //                every client's contract titles. Needs `contracts.tenant_id`
+    //                first; adding the source without it is the leak.
+    //   software   — `software_licences` has no name of its own; the product
+    //                name lives on `software_inventory_apps`, so the source
+    //                needs a join and a decision about which of the two a person
+    //                is actually choosing.
+    //
+    // Both were in the original pitch. They are worth having — they are just not
+    // one-line additions, and a half-scoped source is worse than no source.
+
+    /** Which source this lookup points at, or null if it is not configured yet. */
+    public static function lookupSourceOf(array $field): ?string
+    {
+        $config = $field['config'] ?? null;
+        if (is_string($config)) $config = json_decode($config, true);
+        $src = is_array($config) ? ($config['lookup_source'] ?? null) : null;
+        return isset(self::LOOKUP_SOURCES[$src]) ? $src : null;
+    }
+
+    /**
+     * May this particular field be used by a customer on the portal?
+     *
+     * Two gates, and BOTH must pass:
+     *   1. the source is `portal_safe` — a staff directory never is, whatever a
+     *      form builder ticks;
+     *   2. the field itself has `config.portal_lookup` set — off by default, so
+     *      nothing is ever exposed by accident. The person building the form
+     *      decides, because they know what that form is for.
+     */
+    public static function lookupPortalAllowed(array $field): bool
+    {
+        $src = self::lookupSourceOf($field);
+        if ($src === null || empty(self::LOOKUP_SOURCES[$src]['portal_safe'])) return false;
+
+        $config = $field['config'] ?? null;
+        if (is_string($config)) $config = json_decode($config, true);
+        return is_array($config) && !empty($config['portal_lookup']);
+    }
+
+    /**
+     * Search one lookup source, scoped to what the person asking may see.
+     *
+     * ⚠️ THE SCOPE IS THE WHOLE FEATURE. A lookup is a search box over records
+     * we already hold, so getting `$tenantIds` wrong turns a convenience into a
+     * disclosure — one client browsing another's asset register. It is passed in
+     * rather than derived here, because the two callers know different things:
+     * an analyst has accessible companies, a portal user has exactly one.
+     *
+     * @param int[]|null $tenantIds  companies whose rows may be returned.
+     *                               `null` means UNRESTRICTED and is only ever
+     *                               correct for an analyst who can see every
+     *                               company. There is no "all" string — a typo
+     *                               in a string would silently mean everything.
+     * @return array [['id'=>int,'label'=>string], …]
+     */
+    public static function lookupSearch(PDO $conn, string $source, string $term, ?array $tenantIds, int $limit = 20): array
+    {
+        if (!isset(self::LOOKUP_SOURCES[$source])) return [];
+        $s = self::LOOKUP_SOURCES[$source];
+
+        // ⚠️ An EMPTY array means "no companies", which must return nothing.
+        // Treating it as "no filter" is the bug this comment exists to prevent:
+        // an analyst with access to nothing would see everything.
+        if ($tenantIds !== null && count($tenantIds) === 0) return [];
+
+        $term  = trim($term);
+        $limit = max(1, min(50, $limit));
+
+        // Column names come from the registry above, never from the request —
+        // they are interpolated into SQL and a user-supplied one would be an
+        // injection. The registry is the whitelist.
+        $where  = [];
+        $params = [];
+
+        if ($term !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $term) . '%';
+            $ors  = [];
+            foreach ($s['search_cols'] as $col) {
+                $ors[]    = "`$col` LIKE ?";
+                $params[] = $like;
+            }
+            $where[] = '(' . implode(' OR ', $ors) . ')';
+        }
+
+        // A row with no label is unpickable — it would render as an empty option.
+        $where[] = "`{$s['label_col']}` IS NOT NULL AND `{$s['label_col']}` <> ''";
+
+        if ($tenantIds !== null) {
+            $in = implode(',', array_fill(0, count($tenantIds), '?'));
+            // NULL tenant means "the Default company's" for these tables, so it
+            // is only in scope when Default is. Never a blanket include.
+            $default = function_exists('getDefaultTenantId') ? @getDefaultTenantId($conn) : null;
+            $clause  = "`{$s['tenant_col']}` IN ($in)";
+            if ($default !== null && in_array((int)$default, array_map('intval', $tenantIds), true)) {
+                $clause = "($clause OR `{$s['tenant_col']}` IS NULL)";
+            }
+            $where[] = $clause;
+            foreach ($tenantIds as $t) $params[] = (int)$t;
+        }
+
+        $sql = "SELECT `{$s['id_col']}` AS id, `{$s['label_col']}` AS label
+                  FROM `{$s['table']}`"
+             . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
+             . " ORDER BY `{$s['label_col']}` LIMIT $limit";
+
+        try {
+            $stmt = $conn->prepare($sql);
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log('FormsService::lookupSearch(' . $source . '): ' . $e->getMessage());
+            return [];
+        }
+
+        return array_map(fn($r) => ['id' => (int)$r['id'], 'label' => (string)$r['label']], $rows);
+    }
+
+    /**
+     * Is this exact record one the person answering was allowed to pick?
+     *
+     * The generalisation of the rule already applied to dropdowns — *"a choice
+     * field must be answered with one of ITS OWN choices"* — to a list that is
+     * built at answer time. Without it the stored id is whatever the client
+     * posted, and a crafted submission could name a record from another company
+     * that then appears, resolved and labelled, on a submission an analyst reads.
+     */
+    public static function lookupValueAllowed(PDO $conn, string $source, int $id, ?array $tenantIds): bool
+    {
+        if (!isset(self::LOOKUP_SOURCES[$source]) || $id <= 0) return false;
+        $s = self::LOOKUP_SOURCES[$source];
+        if ($tenantIds !== null && count($tenantIds) === 0) return false;
+
+        $params = [$id];
+        $sql = "SELECT 1 FROM `{$s['table']}` WHERE `{$s['id_col']}` = ?";
+
+        if ($tenantIds !== null) {
+            $in = implode(',', array_fill(0, count($tenantIds), '?'));
+            $default = function_exists('getDefaultTenantId') ? @getDefaultTenantId($conn) : null;
+            $clause  = "`{$s['tenant_col']}` IN ($in)";
+            if ($default !== null && in_array((int)$default, array_map('intval', $tenantIds), true)) {
+                $clause = "($clause OR `{$s['tenant_col']}` IS NULL)";
+            }
+            $sql .= " AND $clause";
+            foreach ($tenantIds as $t) $params[] = (int)$t;
+        }
+
+        try {
+            $stmt = $conn->prepare($sql . ' LIMIT 1');
+            $stmt->execute($params);
+            return (bool)$stmt->fetchColumn();
+        } catch (Exception $e) {
+            // ⚠️ Refuse on error. A lookup that cannot be checked must not be
+            // accepted — the failure mode of the alternative is silent.
+            error_log('FormsService::lookupValueAllowed(' . $source . '): ' . $e->getMessage());
+            return false;
+        }
+    }
 
     /** Operators a conditional-visibility rule may use. Mirrors assets/js/form-logic.js. */
     const CONDITION_OPS = [
@@ -446,6 +670,37 @@ class FormsService
                     // typed it and to whoever reads it. Storing it as an instant and
                     // rendering it in the reader's timezone would show an analyst in
                     // another zone the 13th. Stored, exported and displayed verbatim.
+                }
+
+                // A lookup answer is {"id":123,"label":"LT-001"} — see the block
+                // above LOOKUP_SOURCES for why both halves are stored.
+                if ($type === 'lookup') {
+                    $decoded = json_decode((string)$val, true);
+                    $lid     = is_array($decoded) ? (int)($decoded['id'] ?? 0) : 0;
+                    $llabel  = is_array($decoded) ? trim((string)($decoded['label'] ?? '')) : '';
+                    if ($lid <= 0 || $llabel === '') {
+                        throw new ServiceError('validation', 'invalid_field',
+                            '"' . $field['label'] . '" must be chosen from the list.');
+                    }
+                    $source = self::lookupSourceOf($field);
+                    if ($source === null) {
+                        throw new ServiceError('validation', 'invalid_field',
+                            '"' . $field['label'] . '" has no source configured.');
+                    }
+                    // ⚠️ THE ANTI-TAMPER CHECK. This is the dropdown rule below,
+                    // generalised to a list built at answer time: the posted id
+                    // must be a record this submitter was allowed to see. Without
+                    // it, a crafted request could name another company's asset
+                    // and it would appear — resolved and labelled — on a
+                    // submission an analyst reads and believes.
+                    // The scope is the ACTOR's, taken from the context rather
+                    // than re-derived here — whoever built the context already
+                    // knows whether this is an analyst, an API key or a portal
+                    // user, and `null` there already means "every company".
+                    if (!self::lookupValueAllowed($conn, $source, $lid, $ctx->companyScope)) {
+                        throw new ServiceError('validation', 'invalid_field',
+                            '"' . $field['label'] . '" is not something you can choose.');
+                    }
                 }
 
                 // A choice field must be answered with one of ITS OWN choices.

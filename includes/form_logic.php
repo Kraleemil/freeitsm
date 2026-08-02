@@ -38,6 +38,14 @@ function formLogicNormaliseValue($raw): array
             $list   = array_map('strval', $decoded);
             $scalar = implode(', ', $list);
         }
+    } elseif ($scalar !== '' && $scalar[0] === '{') {
+        // A lookup answer is {"id":11,"label":"LT-001"}. A rule compares against
+        // the LABEL — "is LT-001" is what a form builder means; nobody writes a
+        // condition against a database id. Mirrors lookupLabel() in form-logic.js.
+        $decoded = json_decode($scalar, true);
+        if (is_array($decoded) && isset($decoded['label'])) {
+            $scalar = trim((string)$decoded['label']);
+        }
     }
     if (!$list && $scalar !== '') {
         $list = [$scalar];

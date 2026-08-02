@@ -513,6 +513,11 @@ $translationNamespaces = ['common', 'forms'];
                         const list = decodeMultiValue(val);
                         const display = list.length ? list.join(', ') : '';
                         html += `<td title="${esc(display)}">${esc(display) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
+                    } else if (f.field_type === 'lookup') {
+                        // Show the label the person actually chose. The id stays
+                        // in the stored JSON for anything that wants the record.
+                        const lbl = FormLogic.lookupLabel(val);
+                        html += `<td title="${esc(lbl)}">${esc(lbl) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
                     } else if (f.field_type === 'datetime') {
                         const shown = FormLogic.formatDateValue(val);
                         html += `<td title="${esc(shown)}">${esc(shown) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
@@ -557,7 +562,12 @@ $translationNamespaces = ['common', 'forms'];
                     } else {
                         html += `<div class="detail-field-value"><ul style="margin:0; padding-left: 18px;">${list.map(v => `<li>${esc(v)}</li>`).join('')}</ul></div>`;
                     }
-                } else if (f.field_type === 'datetime') {
+                } else if (f.field_type === 'lookup') {
+                        // Show the label the person actually chose. The id stays
+                        // in the stored JSON for anything that wants the record.
+                        const lbl = FormLogic.lookupLabel(val);
+                        html += `<td title="${esc(lbl)}">${esc(lbl) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
+                    } else if (f.field_type === 'datetime') {
                     const shown = FormLogic.formatDateValue(val);
                     html += `<div class="detail-field-value ${!shown ? 'empty' : ''}">${esc(shown) || esc(window.t('forms.subs.no_response'))}</div>`;
                 } else {
@@ -622,6 +632,11 @@ $translationNamespaces = ['common', 'forms'];
                         row.push(val === '1' ? window.t('forms.subs.csv_yes') : window.t('forms.subs.csv_no'));
                     } else if (f.field_type === 'checkboxes') {
                         row.push(decodeMultiValue(val).join('; '));
+                    } else if (f.field_type === 'lookup') {
+                        // Show the label the person actually chose. The id stays
+                        // in the stored JSON for anything that wants the record.
+                        const lbl = FormLogic.lookupLabel(val);
+                        html += `<td title="${esc(lbl)}">${esc(lbl) || '<span style="color:var(--text-faint, #ccc)">—</span>'}</td>`;
                     } else if (f.field_type === 'datetime') {
                         // 'T' swapped for a space so Excel recognises it as a date/time
                         // rather than importing it as a lump of text. Still not

@@ -17,7 +17,7 @@
 
     // Every type the module knows. 'section' is presentational — a heading that owns
     // the fields below it until the next section, and never produces an answer.
-    var TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime', 'section'];
+    var TYPES = ['text', 'textarea', 'email', 'number', 'checkbox', 'checkboxes', 'dropdown', 'radio', 'datetime', 'lookup', 'section'];
     var WITH_OPTIONS = ['dropdown', 'radio', 'checkboxes'];
     var MULTI_VALUE  = ['checkboxes'];
 
@@ -25,6 +25,20 @@
     // rather than three types, because field_type cannot be changed once a field exists.
     var DATE_MODES = ['date', 'time', 'datetime'];
     var DATE_MODE_DEFAULT = 'date';
+
+    // A lookup answer is JSON: {"id":11,"label":"LT-001"}. The LABEL is what a
+    // condition compares against, because 'is LT-001' is what a form builder
+    // means — nobody writes a rule against a database id.
+    function lookupLabel(raw) {
+        if (raw === null || raw === undefined || raw === '') return '';
+        try { var d = JSON.parse(raw); return (d && d.label) ? String(d.label) : ''; }
+        catch (e) { return ''; }
+    }
+    function lookupSource(field) {
+        var c = field && field.config;
+        if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) { c = null; } }
+        return (c && c.lookup_source) ? String(c.lookup_source) : '';
+    }
 
     function isAnswerable(type) { return type !== 'section'; }
     function hasOptions(type)   { return WITH_OPTIONS.indexOf(type) !== -1; }
@@ -83,6 +97,12 @@
                         scalar = list.join(', ');
                     }
                 } catch (e) { /* not JSON — treat as plain text */ }
+            } else if (scalar.charAt(0) === '{') {
+                // A lookup answer. Compare against the LABEL, not the id —
+                // mirrors formLogicNormaliseValue() in includes/form_logic.php,
+                // which is the copy that actually decides.
+                var lbl = lookupLabel(scalar);
+                if (lbl !== '') scalar = lbl;
             }
         }
         if (!list.length && scalar !== '') list = [scalar];
@@ -160,6 +180,92 @@
         return candidateIndex < fieldIndex && isAnswerable(fields[candidateIndex].field_type);
     }
 
+    /**
+     * Wire up every lookup box inside `root`.
+     *
+     * ⚠️ THE ANSWER IS ONLY EVER WRITTEN BY CHOOSING FROM THE LIST. Typing
+     * "my laptop" and walking away leaves the hidden input empty, so the field
+     * reads as unanswered rather than storing a name that matches no record.
+     * That is the point of a lookup — the server refuses anything else anyway.
+     *
+     * Markup this expects (each surface supplies its own CSS):
+     *   .lookup-wrap > input.lookup-search[data-lookup-field]
+     *                > input[type=hidden]
+     *                > .lookup-results
+     *
+     * @param root      element to search within
+     * @param searchUrl endpoint taking ?field_id=&q=
+     */
+    function attachLookups(root, searchUrl) {
+        var boxes = (root || document).querySelectorAll('input.lookup-search[data-lookup-field]');
+        Array.prototype.forEach.call(boxes, function (box) {
+            if (box.getAttribute('data-lookup-ready')) return;
+            box.setAttribute('data-lookup-ready', '1');
+
+            var wrap    = box.closest('.lookup-wrap');
+            var hidden  = wrap.querySelector('input[type=hidden]');
+            var results = wrap.querySelector('.lookup-results');
+            var fieldId = box.getAttribute('data-lookup-field');
+            var timer   = null;
+
+            function close() { results.hidden = true; results.innerHTML = ''; }
+
+            function choose(id, label) {
+                hidden.value = JSON.stringify({ id: id, label: label });
+                box.value = label;
+                close();
+                // Conditional visibility keys off answers, and this one just
+                // changed — tell whatever is listening, the same way a native
+                // input would.
+                hidden.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function search() {
+                var q = box.value.trim();
+                // Anything typed invalidates a previous choice: the box no
+                // longer shows what was chosen, so the answer must not persist.
+                if (hidden.value) {
+                    hidden.value = '';
+                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                fetch(searchUrl + '?field_id=' + encodeURIComponent(fieldId) + '&q=' + encodeURIComponent(q))
+                    .then(function (r) { return r.json(); })
+                    .then(function (j) {
+                        if (!j.success || !j.results || !j.results.length) {
+                            results.innerHTML = '<div class="lookup-empty">'
+                                + ((global.t ? global.t('forms.fill.lookup_none') : 'No matches')) + '</div>';
+                            results.hidden = false;
+                            return;
+                        }
+                        results.innerHTML = j.results.map(function (r) {
+                            var safe = String(r.label).replace(/[&<>"']/g, function (ch) {
+                                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+                            });
+                            return '<button type="button" class="lookup-option" data-id="' + r.id
+                                 + '" data-label="' + safe + '">' + safe + '</button>';
+                        }).join('');
+                        results.hidden = false;
+                    })
+                    .catch(function () { close(); });
+            }
+
+            box.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(search, 220);   // one request per pause, not per keystroke
+            });
+            box.addEventListener('focus', function () { if (!results.innerHTML) search(); });
+
+            results.addEventListener('click', function (e) {
+                var opt = e.target.closest('.lookup-option');
+                if (opt) choose(parseInt(opt.getAttribute('data-id'), 10), opt.getAttribute('data-label'));
+            });
+
+            document.addEventListener('click', function (e) {
+                if (!wrap.contains(e.target)) close();
+            });
+        });
+    }
+
     global.FormLogic = {
         TYPES: TYPES,
         DATE_MODES: DATE_MODES,
@@ -174,6 +280,9 @@
         normaliseValue: normaliseValue,
         testRule: testRule,
         visibility: visibility,
-        canReference: canReference
+        canReference: canReference,
+        lookupLabel: lookupLabel,
+        lookupSource: lookupSource,
+        attachLookups: attachLookups
     };
 })(window);
