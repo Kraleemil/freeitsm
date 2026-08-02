@@ -98,17 +98,25 @@ uploads/*
 
 # Module-specific runtime content (attachments, uploaded LMS courses, etc.)
 # These are populated by the running app and are tenant-specific — never commit.
-change-management/attachments/
-# Ignore uploaded course content, but DO ship the guard that stops that
-# directory ever executing code. Ignoring the CONTENTS (/*) rather than the
-# directory itself is what lets the negation work — git won't re-include a file
-# whose parent directory is ignored.
+# Ignore uploaded content, but DO ship the guard that stops these directories
+# ever executing code. Ignoring the CONTENTS (/*) rather than the directory
+# itself is what lets the negation work — git won't re-include a file whose
+# parent directory is ignored.
+#
+# ⚠️ Three of these were ignored as whole directories, so their .htaccess could
+# never have shipped. A fresh clone therefore had no execution guard until the
+# first upload created one at runtime — which is exactly the window in which a
+# new install is least likely to notice.
+change-management/attachments/*
+!change-management/attachments/.htaccess
 lms/content/*
 !lms/content/.htaccess
-tickets/attachments/
+tickets/attachments/*
+!tickets/attachments/.htaccess
 contracts/rfp-builder/uploads/*
 !contracts/rfp-builder/uploads/.htaccess
-system/uploads/branding/
+system/uploads/branding/*
+!system/uploads/branding/.htaccess
 recordings/*
 !recordings/.htaccess
 
