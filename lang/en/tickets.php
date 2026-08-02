@@ -218,6 +218,13 @@ return [
 
     'tracker' => [
         'menu_item'       => 'Issue tracker',
+        'attach_send_btn'     => 'Send to {issue}',
+        'attach_send_title'   => 'Send this file?',
+        'attach_send_confirm' => 'Send "{file}" to {issue}? It cannot be unsent, and anyone with access to that project will be able to read it.',
+        'attach_sending'      => 'Sending…',
+        'attach_sent'         => 'Sent',
+        'attach_sent_toast'   => '"{file}" sent to {issue}',
+        'attach_send_failed'  => 'Could not send the file.',
         'attach_heading'  => '{count} attachment(s) will be sent with the issue',
         'attach_skipped'  => 'not sent',
         'modal_title'     => 'Raise a development issue from',

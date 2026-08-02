@@ -189,6 +189,13 @@ return [
     ],
 
     'tracker' => [
+        'attach_send_btn'     => 'Enviar para {issue}',
+        'attach_send_title'   => 'Enviar este arquivo?',
+        'attach_send_confirm' => 'Enviar "{file}" para {issue}? Não é possível cancelar o envio, e qualquer pessoa com acesso a esse projeto poderá lê-lo.',
+        'attach_sending'      => 'Enviando…',
+        'attach_sent'         => 'Enviado',
+        'attach_sent_toast'   => '"{file}" enviado para {issue}',
+        'attach_send_failed'  => 'Não foi possível enviar o arquivo.',
         'attach_heading'  => '{count} anexo(s) serão enviados com a issue',
         'attach_skipped'  => 'não enviado',
         'menu_item'       => 'Rastreador de problemas',

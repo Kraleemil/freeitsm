@@ -4038,6 +4038,13 @@ function formatDateDMY(dateStr) {
 function showAttachmentList() {
     if (ticketAttachments.length === 0) return;
 
+    // A "send to the issue" action, but only when this ticket actually has a
+    // linked issue — otherwise the column is a promise the ticket cannot keep.
+    // Inline images are excluded for the same reason they are excluded from
+    // escalation: they are signatures and tracking pixels, not evidence.
+    const trackerLink = (currentEmail && (currentEmail.tracker_links || [])[0]) || null;
+    const canSend = !!trackerLink;
+
     const tableHtml = `
         <table class="attachment-modal-table">
             <thead>
@@ -4047,19 +4054,28 @@ function showAttachmentList() {
                     <th>${escapeHtml(t('tickets.reading_pane.attach_col_filename'))}</th>
                     <th>${escapeHtml(t('tickets.reading_pane.attach_col_size'))}</th>
                     <th>${escapeHtml(t('tickets.reading_pane.attach_col_type'))}</th>
+                    ${canSend ? `<th></th>` : ''}
                 </tr>
             </thead>
             <tbody>
                 ${ticketAttachments.map(att => `
-                    <tr onclick="openAttachment(${att.id})" class="attachment-row" title="${escapeHtml(t('tickets.reading_pane.attach_click_download'))}">
-                        <td>${escapeHtml(att.from_name || att.from_address || '')}</td>
-                        <td>${formatDateDMY(att.received_datetime)}</td>
-                        <td>
+                    <tr class="attachment-row">
+                        <td onclick="openAttachment(${att.id})" title="${escapeHtml(t('tickets.reading_pane.attach_click_download'))}">${escapeHtml(att.from_name || att.from_address || '')}</td>
+                        <td onclick="openAttachment(${att.id})">${formatDateDMY(att.received_datetime)}</td>
+                        <td onclick="openAttachment(${att.id})">
                             <span class="attachment-icon">${getFileIcon(att.filename)}</span>
                             ${escapeHtml(att.filename)}
                         </td>
-                        <td>${formatFileSize(att.file_size || 0)}</td>
-                        <td>${att.is_inline ? `<span class="inline-badge">${escapeHtml(t('tickets.reading_pane.attach_inline_badge'))}</span>` : ''}</td>
+                        <td onclick="openAttachment(${att.id})">${formatFileSize(att.file_size || 0)}</td>
+                        <td onclick="openAttachment(${att.id})">${att.is_inline ? `<span class="inline-badge">${escapeHtml(t('tickets.reading_pane.attach_inline_badge'))}</span>` : ''}</td>
+                        ${canSend ? `<td style="text-align:right;white-space:nowrap;">${
+                            att.is_inline ? '' :
+                            `<button class="att-send-btn" data-att="${att.id}" data-link="${trackerLink.id}"
+                                     data-name="${escapeHtml(att.filename)}" data-issue="${escapeHtml(trackerLink.external_key || '')}"
+                                     onclick="sendAttachmentToTracker(this)">${
+                                escapeHtml(t('tickets.tracker.attach_send_btn').replace('{issue}', trackerLink.external_key || ''))
+                            }</button>`
+                        }</td>` : ''}
                     </tr>
                 `).join('')}
             </tbody>
@@ -4112,6 +4128,55 @@ function closeAttachmentListModal() {
     const modal = document.getElementById('attachmentListModal');
     if (modal) {
         modal.remove();
+    }
+}
+
+/**
+ * Send one attachment up to the issue this ticket is linked to.
+ *
+ * ⚠️ Confirms first. This is a one-way door into a system we do not control —
+ * the file cannot be unsent and anyone with access to that project can read it.
+ * The same reason the escalate modal previews the description before raising.
+ */
+async function sendAttachmentToTracker(btn) {
+    const name  = btn.getAttribute('data-name');
+    const issue = btn.getAttribute('data-issue');
+
+    const ok = await showConfirm(
+        t('tickets.tracker.attach_send_confirm').replace('{file}', name).replace('{issue}', issue),
+        t('tickets.tracker.attach_send_title')
+    );
+    if (!ok) return;
+
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = t('tickets.tracker.attach_sending');
+
+    try {
+        const r = await fetch('../api/integrations/send_attachment.php', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                attachment_id: parseInt(btn.getAttribute('data-att'), 10),
+                link_id:       parseInt(btn.getAttribute('data-link'), 10)
+            })
+        });
+        const j = await r.json();
+        if (j.success) {
+            // Left visibly done rather than reset: it stops a second analyst
+            // sending the same file again, and the note on the ticket says so too.
+            btn.textContent = t('tickets.tracker.attach_sent');
+            showToast(t('tickets.tracker.attach_sent_toast').replace('{file}', name).replace('{issue}', j.issue || issue), 'success');
+            loadNotes(currentEmail.id);
+        } else {
+            btn.disabled = false;
+            btn.textContent = original;
+            showToast(j.error || t('tickets.tracker.attach_send_failed'), 'error');
+        }
+    } catch (e) {
+        btn.disabled = false;
+        btn.textContent = original;
+        showToast(t('tickets.tracker.attach_send_failed'), 'error');
     }
 }
 

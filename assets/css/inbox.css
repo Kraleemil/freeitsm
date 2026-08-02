@@ -3837,3 +3837,14 @@ body.ticket-popout .ticket-toolbar {
 .split-pick-row { cursor: pointer; align-items: center; }
 .split-pick-row:hover { background: var(--surface-hover, #f0f0f0); }
 .split-pick-cb { flex: 0 0 auto; margin: 0; width: auto; cursor: pointer; }
+
+/* "Send to KAN-6" on an attachment row (#961). Quiet until hovered: it sits
+   in a table people mostly use for downloading, and sending a file out of the
+   company should look deliberate rather than like the primary action. */
+.att-send-btn {
+    background: none; border: 1px solid var(--border, #ddd); border-radius: 4px;
+    color: var(--text-muted, #666); font-size: 12px; padding: 3px 10px; cursor: pointer;
+    white-space: nowrap; transition: all .15s;
+}
+.att-send-btn:hover:not(:disabled) { border-color: var(--accent, #0078d4); color: var(--accent, #0078d4); }
+.att-send-btn:disabled { opacity: .6; cursor: default; }
