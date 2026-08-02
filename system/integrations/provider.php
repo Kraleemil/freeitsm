@@ -295,6 +295,7 @@ const T = <?php echo json_encode([
     'shared'    => t('system.integrations.company_shared'),
     'active'    => t('system.integrations.active_label'),
     'inactive'  => t('system.integrations.inactive_label'),
+    'inboundOn' => t('system.integrations.inbound_badge'),
     'edit'      => t('common.edit'),
     'delete'    => t('common.delete'),
     'none'      => t('system.integrations.no_connections'),
@@ -341,8 +342,13 @@ function render() {
             + '<td>' + esc(c.name) + '</td>'
             + '<td>' + esc(c.base_url) + '</td>'
             + (MULTI ? '<td>' + company + '</td>' : '')
+            // Whether updates are accepted was previously only visible by opening
+            // the connection, so "is it even on?" meant a click per row. It is a
+            // status, so it belongs in the status cell.
             + '<td><span class="status-badge ' + (c.is_active ? 'on' : 'off') + '">'
-                + esc(c.is_active ? T.active : T.inactive) + '</span></td>'
+                + esc(c.is_active ? T.active : T.inactive) + '</span>'
+                + (c.inbound_enabled ? ' <span class="status-badge on">' + esc(T.inboundOn) + '</span>' : '')
+            + '</td>'
             + '<td style="text-align:right;white-space:nowrap;">'
                 + '<button class="action-btn" data-edit="' + c.id + '" title="' + esc(T.edit) + '" aria-label="' + esc(T.edit) + '">'
                     + ICON_EDIT + '</button>'
