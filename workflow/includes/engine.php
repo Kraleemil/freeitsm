@@ -1070,7 +1070,7 @@ class WorkflowEngine
             // conditions, variables, dry run and audit trail all already exist.
             'escalate_to_tracker' => [
                 'label'       => 'Escalate to issue tracker',
-                'description' => 'Raise an issue in an external tracker (Jira) from this ticket and remember the link, so its status shows on the ticket. Configure connections under System → Integrations.',
+                'description' => 'Raise an issue in an external tracker (Jira, Azure DevOps) from this ticket and remember the link, so its status shows on the ticket. Configure connections under System → Integrations.',
                 'args'        => [
                     'connection_id' => ['type' => 'lookup', 'label' => 'Tracker connection', 'lookup' => 'integration_connection', 'required' => true],
                     // ⚠️ Project and issue type are TEXT, not dropdowns, on purpose.
@@ -1084,7 +1084,16 @@ class WorkflowEngine
                     // Mapping), which is the point of routing — a rule should not
                     // have to name a project at all. Anything typed here still
                     // wins, so an existing rule keeps behaving exactly as it did.
-                    'project'       => ['type' => 'text', 'label' => 'Project key (blank = use the connection\'s mapping)', 'required' => false, 'supports_vars' => true],
+                    // ⚠️ "Project", not "Project key" — the two trackers mean
+                    // different things by it. Jira wants the KEY (the OPS in
+                    // OPS-123); Azure DevOps has no key at all and wants the
+                    // project NAME. Labelling it "key" sent a real user hunting
+                    // for a short code that does not exist.
+                    'project'       => ['type' => 'text', 'label' => 'Project — Jira: the key (OPS). Azure DevOps: the name. Blank = use the connection\'s mapping', 'required' => false, 'supports_vars' => true],
+                    // ⚠️ On Azure DevOps the available types depend on the
+                    // project's PROCESS: Basic has no Bug at all, so a rule
+                    // hard-coding "Bug" fails against a Basic project. Blank
+                    // yields a Task, the one type present in every process.
                     'issue_type'    => ['type' => 'text', 'label' => 'Issue type (blank = use the connection\'s mapping)', 'required' => false, 'supports_vars' => true],
                     'summary'       => ['type' => 'text', 'label' => 'Summary', 'required' => true, 'supports_vars' => true, 'default' => '{{ticket.subject}}'],
                     'body'          => ['type' => 'textarea', 'label' => 'Description', 'supports_vars' => true],
