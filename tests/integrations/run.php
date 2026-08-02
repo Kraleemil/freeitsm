@@ -1044,6 +1044,184 @@ ok('Max file count is 10',  INTEGRATION_ATTACH_MAX_FILES === 10);
 
 
 // ---------------------------------------------------------------------------
+echo "\n12. Azure DevOps — the second connector, and what it proves\n";
+// ---------------------------------------------------------------------------
+/**
+ * The same offline harness as FakeJira. Everything here is a claim that can be
+ * settled without a live organisation; the ones that cannot are in the live
+ * script noted in the developer guide.
+ */
+class FakeDevOps extends AzureDevOpsProvider
+{
+    public $queue = [];
+    public $seen  = [];
+    protected function httpRequest(string $url, array $opts = []): array
+    {
+        $this->seen[] = ['url' => $url, 'opts' => $opts];
+        if (!$this->queue) return [200, '{}'];
+        return array_shift($this->queue);
+    }
+    public function pubPatch(array $t, string $s, IssueDoc $b, array $f = []) { return $this->buildCreatePatch($t, $s, $b, $f); }
+    public function pubType(array $t)          { return $this->targetType($t); }
+    public function pubMapCat(string $c)       { return $this->mapStateCategory($c); }
+    public function pubError(int $c, string $b){ return $this->extractError($c, $b); }
+    public function pubTitle(string $s)        { return $this->trimTitle($s); }
+    public function pubStamp(int $ts)          { return $this->wiqlTimestamp($ts); }
+    public function pubCutoff(int $s, ?int $n) { return $this->pollCutoff($s, $n); }
+    public function pubParseComment(array $c)  { return $this->parseComment($c); }
+    public function pubParseItem(array $w)     { return $this->parseWorkItem($w); }
+    public function pubInternal(string $n)     { return $this->isInternalType($n); }
+}
+$mk = function (array $creds = []) {
+    return new FakeDevOps([
+        'provider' => 'azuredevops',
+        'base_url' => 'https://dev.azure.com/acme',
+        'credentials' => $creds + ['api_token' => 'tok'],
+    ]);
+};
+$ado = $mk();
+
+// ── The target's type: TWO accepted keys ──────────────────────────────────
+// ⚠️ Regression guard. The core sends the tracker-neutral `issue_type`; only
+// reading Azure DevOps' own `work_item_type` made a request for a Bug silently
+// create a Task, with nothing anywhere reporting a problem.
+eq('issue_type (what the core sends) is honoured', 'Bug',  $ado->pubType(['issue_type' => 'Bug']));
+eq("work_item_type (the provider's own word) too", 'Bug',  $ado->pubType(['work_item_type' => 'Bug']));
+eq('work_item_type wins when both are given',      'Bug',  $ado->pubType(['work_item_type' => 'Bug', 'issue_type' => 'Task']));
+eq('neither given falls back to Task',             'Task', $ado->pubType([]));
+eq('an empty string is not a type',                'Task', $ado->pubType(['issue_type' => '  ']));
+
+// ── JSON Patch, the thing that had to work ────────────────────────────────
+$doc  = (new IssueDoc)->para('Hello');
+$ops  = $ado->pubPatch(['project' => 'Support', 'issue_type' => 'Task'], 'A title', $doc);
+$byPath = [];
+foreach ($ops as $o) $byPath[$o['path']] = $o;
+ok('every op is an add',            count(array_filter($ops, fn($o) => $o['op'] === 'add')) === count($ops));
+ok('title travels as a field op',   isset($byPath['/fields/System.Title']));
+eq('...with the title',  'A title', $byPath['/fields/System.Title']['value'] ?? null);
+ok('body travels as a field op',    isset($byPath['/fields/System.Description']));
+ok('body is HTML, not ADF or wiki',
+   is_string($byPath['/fields/System.Description']['value'] ?? null)
+   && strpos($byPath['/fields/System.Description']['value'], '<p>') !== false);
+
+// Area/iteration path are routing, and only sent when asked for.
+$ops2 = $ado->pubPatch(['project'=>'S','issue_type'=>'Task','area_path'=>'S\\Team','iteration_path'=>'S\\Sprint 1'], 't', $doc);
+$paths = array_column($ops2, 'path');
+ok('area path is sent when given',      in_array('/fields/System.AreaPath', $paths, true));
+ok('iteration path is sent when given', in_array('/fields/System.IterationPath', $paths, true));
+ok('neither is sent when absent',       !in_array('/fields/System.AreaPath', array_column($ops, 'path'), true));
+
+// ⚠️ 255 is a hard limit; over it the whole create is rejected, so a long
+// subject would mean no escalation at all rather than a shortened title.
+eq('a long title is trimmed, not rejected', 255, mb_strlen($ado->pubTitle(str_repeat('x', 400))));
+ok('...and marked as trimmed', substr($ado->pubTitle(str_repeat('x', 400)), -3) === '...');
+eq('whitespace is collapsed', 'a b', $ado->pubTitle("a  \n b"));
+eq('an empty subject still yields a title', 'Untitled', $ado->pubTitle('   '));
+
+// ── The five categories, and the one that is a judgement ──────────────────
+eq('Proposed → todo',          'todo',        $ado->pubMapCat('Proposed'));
+eq('InProgress → in_progress', 'in_progress', $ado->pubMapCat('InProgress'));
+eq('Completed → done',         'done',        $ado->pubMapCat('Completed'));
+eq('Removed → cancelled',      'cancelled',   $ado->pubMapCat('Removed'));
+ok('an unknown category is null, never a guess', $ado->pubMapCat('Whatever') === null);
+
+// 🔑 The fifth one is the connection's decision.
+eq('Resolved defaults to in_progress (the cautious reading)', 'in_progress', $ado->pubMapCat('Resolved'));
+eq('...and follows the setting when set',  'done', $mk(['resolved_means' => 'done'])->pubMapCat('Resolved'));
+eq('a junk setting falls back, not through', 'in_progress', $mk(['resolved_means' => 'nonsense'])->pubMapCat('Resolved'));
+// The setting must not leak into the other four.
+eq('resolved_means does not affect Completed', 'done', $mk(['resolved_means' => 'in_progress'])->pubMapCat('Completed'));
+
+// ── WIQL: the timestamp and the window ────────────────────────────────────
+// ⚠️ The trailing Z is what makes Azure DevOps read this as real UTC. Without
+// it the boundary is the ORGANISATION's timezone and the poll silently drifts.
+$stamp = $ado->pubStamp(1785700000);
+ok('WIQL timestamp ends in Z',       substr($stamp, -1) === 'Z');
+ok('WIQL timestamp is ISO-8601 UTC', (bool)preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z$/', $stamp));
+eq('...and is the UTC rendering of the instant', gmdate('Y-m-d\TH:i:s', 1785700000) . '.0000000Z', $stamp);
+
+$now = 1785700000;
+ok('the window starts before the watermark (overlap)', $ado->pubCutoff($now - 60, $now) < $now - 60);
+ok('a very old watermark is capped',  $ado->pubCutoff($now - 86400 * 30, $now) >= $now - (24 * 3600) - 1);
+ok('the cap does not affect a recent watermark', $ado->pubCutoff($now - 600, $now) > $now - (24 * 3600));
+
+// ── Comments: the identity echo suppression depends on ────────────────────
+// ⚠️ `id`, never `descriptor` — connectionData and a comment report descriptors
+// in different formats for the same person, so comparing those never matches and
+// every one of our own comments comes back as if a developer wrote it.
+$parsed = $ado->pubParseComment([
+    'id' => 42, 'text' => '<p>Hi <b>there</b></p>',
+    'createdBy' => ['id' => 'guid-1', 'descriptor' => 'aad.SOMETHINGELSE', 'displayName' => 'Dev Eloper'],
+    'createdDate' => '2026-08-02T18:39:13.917Z',
+]);
+eq('comment id is captured',        '42', $parsed['comment_id']);
+eq('author identity is the GUID',   'guid-1', $parsed['author_identity']);
+ok('the descriptor is NOT used',    $parsed['author_identity'] !== 'aad.SOMETHINGELSE');
+eq('author name is kept for display', 'Dev Eloper', $parsed['author_name']);
+ok('HTML is reduced to text',       strpos($parsed['comment_body'], '<') === false);
+ok('...keeping the words',          strpos($parsed['comment_body'], 'there') !== false);
+ok('the timestamp parses',          $parsed['created_ts'] > 0);
+
+// ── Parsing a work item ───────────────────────────────────────────────────
+$item = $ado->pubParseItem(['id' => 7, 'fields' => [
+    'System.Title' => 'A thing', 'System.State' => 'New',
+    'System.WorkItemType' => 'Bug', 'System.TeamProject' => 'Product',
+    'System.AssignedTo' => ['displayName' => 'Dev Eloper'],
+]]);
+eq('id is captured',                '7', $item['external_id']);
+eq('the key IS the id (no OPS-123 here)', '7', $item['external_key']);
+eq('the browse url is a work item link',
+   'https://dev.azure.com/acme/Product/_workitems/edit/7', $item['external_url']);
+eq('state name is passed through',  'New', $item['status_name']);
+eq('assignee is read',              'Dev Eloper', $item['assignee_name']);
+
+// ── Errors an analyst has to act on ───────────────────────────────────────
+ok('a JSON message is surfaced',
+   strpos($ado->pubError(400, '{"message":"TF401320: Rule Error"}'), 'TF401320') !== false);
+// ⚠️ A rejected token answers 203 with a sign-in PAGE, not 401 with JSON.
+ok('a 203 sign-in page is reported as a token problem',
+   stripos($ado->pubError(203, '<html><body>Sign In</body></html>'), 'token') !== false);
+ok('an unhelpful body still names the status', strpos($ado->pubError(500, ''), '500') !== false);
+
+// ── Capabilities, and the one deliberately absent ─────────────────────────
+ok('declares attachments', $ado->supports(IssueTrackerProvider::CAP_ATTACHMENTS));
+ok('declares polling',     $ado->supports(IssueTrackerProvider::CAP_POLLING));
+ok('declares issue types', $ado->supports(IssueTrackerProvider::CAP_ISSUE_TYPES));
+// ⚠️ Deliberate: Azure DevOps priority is an integer, not a named list, so
+// there is nothing to populate a "map priority to theirs" dropdown with.
+ok('does NOT declare priorities', !$ado->supports(IssueTrackerProvider::CAP_PRIORITIES));
+
+// Test/code-review types are machinery, not escalation targets.
+ok('Test Case is filtered from the type list',   $ado->pubInternal('Test Case'));
+ok('Code Review Request is filtered',            $ado->pubInternal('Code Review Request'));
+ok('Bug is NOT filtered (the positive control)', !$ado->pubInternal('Bug'));
+ok('User Story is NOT filtered',                 !$ado->pubInternal('User Story'));
+
+// ── The registry, and that adding a provider stayed additive ──────────────
+$providers = integrationsAvailableProviders();
+ok('azuredevops is registered',      isset($providers['azuredevops']));
+ok('jira is untouched beside it',    isset($providers['jira']));
+ok('the registry drives its own auth fields',
+   array_column($providers['azuredevops']['credential_fields'], 'key') === ['api_token']);
+ok('...with no email half, unlike Jira',
+   !in_array('email', array_column($providers['azuredevops']['credential_fields'], 'key'), true));
+ok('dispatch returns the right class',
+   integrationsProviderFor(['provider' => 'azuredevops', 'credentials' => []]) instanceof AzureDevOpsProvider);
+ok('dispatch still returns Jira for jira',
+   integrationsProviderFor(['provider' => 'jira', 'credentials' => []]) instanceof JiraProvider);
+
+// ⚠️ settings_fields must stay SEPARATE from credential_fields: the form blanks
+// credentials on edit and treats empty as "keep", which would silently reset a
+// dropdown to its default on every save.
+eq('resolved_means is a setting, not a credential', ['resolved_means'],
+   array_column($providers['azuredevops']['settings_fields'], 'key'));
+ok('it is not also a credential field',
+   !in_array('resolved_means', array_column($providers['azuredevops']['credential_fields'], 'key'), true));
+eq('its default is the cautious one', ['resolved_means' => 'in_progress'], integrationsSettingKeys('azuredevops'));
+eq('a provider with no settings gets an empty list', [], integrationsSettingKeys('jira'));
+
+
+// ---------------------------------------------------------------------------
 echo "\n" . str_repeat('=', 62) . "\n";
 echo "  passed: $pass\n";
 echo "  failed: $fail\n";

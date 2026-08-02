@@ -115,6 +115,14 @@ return [
 
         'jira_blurb'     => 'Raise Jira issues from tickets and see their status without leaving FreeITSM. Works with both Jira Cloud and Jira Data Center.',
         'jira_url_label' => 'Jira site URL',
+        'azuredevops_blurb'     => 'Raise Azure DevOps work items from tickets and see their state without leaving FreeITSM. Works with Azure DevOps Services and Azure DevOps Server.',
+        'azuredevops_url_label' => 'Organisation URL',
+        'field_resolved_means'  => 'When a work item is marked Resolved',
+        // Deliberately phrased as what the requester experiences. "Map Resolved to
+        // a status category" is accurate and tells an admin nothing about which to pick.
+        'field_resolved_means_hint' => 'Azure DevOps has a Resolved state meaning a developer believes it is fixed but nobody has checked yet. Bugs use it; user stories do not.',
+        'resolved_in_progress'  => 'Treat it as still in progress',
+        'resolved_done'         => 'Treat it as done',
 
         'one_connection' => '1 connection',
         'n_connections'  => '{n} connections',
@@ -134,6 +142,7 @@ return [
         'field_email'      => 'Email address',
         'field_email_hint' => 'Jira Cloud only — the account the API token belongs to. Leave blank for Jira Data Center, which uses a personal access token on its own.',
         'field_token'      => 'API token',
+        'field_pat'        => 'Personal access token',
         'creds_keep_hint'  => 'Leave the token blank to keep the one already saved.',
 
         'company_shared' => 'All companies',
@@ -163,7 +172,9 @@ return [
         'map_saved'            => 'Mapping saved',
         'map_needs_verify'     => 'Run Database Verification first — the mapping table does not exist on this install yet.',
         'map_load_failed'      => 'Could not load the mapping.',
-        'attach_label'   => 'Send the ticket\x27s attachments to {name}',
+        // ⚠️ \' — NOT \x27. PHP does not interpret hex escapes inside single
+        // quotes, so \x27 rendered literally on screen: "the ticket\x27s attachments".
+        'attach_label'   => 'Send the ticket\'s attachments to {name}',
         'attach_hint'    => 'On a bug report the screenshot usually IS the report. Images embedded in an email — signatures, logos, tracking pixels — are never sent, only files somebody deliberately attached. Large files are skipped rather than failing the escalation, and you always see the list before anything is sent.',
         'inbound_label'  => 'Accept updates from {name}',
         'inbound_hint'   => 'Comments written in {name} arrive on the linked ticket as internal notes. They are never shown to the requester. The first check after switching this on imports nothing — it only marks the starting point, so switching it on cannot bring back a backlog of old comments.',

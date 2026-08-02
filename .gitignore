@@ -127,3 +127,10 @@ yarn-error.log
 *.backup
 *.old
 *.orig
+
+# Credentials handed over during setup. NEVER commit these — a PAT in the
+# history is a live credential even after the file is deleted.
+.devops-pat.txt
+*-pat.txt
+*.pat
+.secrets/

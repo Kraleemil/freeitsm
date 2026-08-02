@@ -97,7 +97,9 @@ $summary = trim((string)($in['summary'] ?? '')) ?: ('[' . $ref . '] ' . (string)
 
 $doc = (new IssueDoc)
     ->heading('Raised in FreeITSM')
-    ->para('Ticket ', IssueDoc::link(rtrim(BASE_URL, '/') . '/tickets/?id=' . (int)$ticket['id'], $ref));
+    // ⚠️ Absolute, not BASE_URL. This link is read inside somebody else's
+    // tracker, where a path resolves against THEIR host — see integrationsAbsoluteUrl().
+    ->para('Ticket ', IssueDoc::link(integrationsAbsoluteUrl($conn, 'tickets/?id=' . (int)$ticket['id']), $ref));
 
 $who = trim((string)($ticket['requester_name'] ?? '')) ?: (string)($ticket['requester_email'] ?? '');
 if ($who !== '') {

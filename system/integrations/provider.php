@@ -298,6 +298,28 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
+
+            <?php // Non-secret per-connection choices. Unlike the credential boxes
+                  // above these keep their value when the form reopens — see the
+                  // note on settings_fields in the registry. ?>
+            <?php foreach (($meta['settings_fields'] ?? []) as $f): ?>
+                <div class="int-field">
+                    <label for="set_<?php echo htmlspecialchars($f['key']); ?>">
+                        <?php echo htmlspecialchars(t($f['label'])); ?>
+                    </label>
+                    <select id="set_<?php echo htmlspecialchars($f['key']); ?>"
+                            data-setting="<?php echo htmlspecialchars($f['key']); ?>">
+                        <?php foreach ($f['options'] as $o): ?>
+                            <option value="<?php echo htmlspecialchars($o['value']); ?>">
+                                <?php echo htmlspecialchars(t($o['label'])); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if (!empty($f['hint'])): ?>
+                        <div class="hint"><?php echo htmlspecialchars(t($f['hint'])); ?></div>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
             <div class="hint" id="credKeepHint" style="display:none;margin:-8px 0 14px;font-size:12px;color:var(--text-muted);">
                 <?php echo htmlspecialchars(t('system.integrations.creds_keep_hint')); ?>
             </div>
@@ -377,6 +399,8 @@ const PROVIDER   = <?php echo json_encode($providerKey); ?>;
 const MULTI      = <?php echo $multiCompany ? 'true' : 'false'; ?>;
 const API        = '../../api/integrations/';
 const CRED_KEYS  = <?php echo json_encode(array_column($meta['credential_fields'], 'key')); ?>;
+const SETTING_KEYS     = <?php echo json_encode(array_column($meta['settings_fields'] ?? [], 'key')); ?>;
+const SETTING_DEFAULTS = <?php echo json_encode(integrationsSettingKeys($providerKey)); ?>;
 const T = <?php echo json_encode([
     'shared'    => t('system.integrations.company_shared'),
     'active'    => t('system.integrations.active_label'),
@@ -479,6 +503,15 @@ function openModal(conn) {
     // Defaults ON for a new connection: the screenshot is usually the bug report.
     $('connAttach').checked = conn ? !!conn.send_attachments : true;
     CRED_KEYS.forEach(k => { const el = document.querySelector('[data-cred="' + k + '"]'); if (el) el.value = ''; });
+    // Settings are the OPPOSITE of credentials here: shown with what is stored,
+    // never blanked. Blanking one would reset the choice on the next save without
+    // anyone touching it. A new connection falls back to the registry's default.
+    SETTING_KEYS.forEach(k => {
+        const el = document.querySelector('[data-setting="' + k + '"]');
+        if (!el) return;
+        const stored = conn && conn.settings ? conn.settings[k] : null;
+        el.value = (stored !== null && stored !== undefined && stored !== '') ? stored : SETTING_DEFAULTS[k];
+    });
     // Editing never re-sends the stored secret, so an empty box means "keep what
     // is there" rather than "clear it" — say so instead of leaving them guessing.
     $('credKeepHint').style.display = (conn && conn.has_credentials) ? 'block' : 'none';
@@ -497,6 +530,14 @@ function payload() {
     CRED_KEYS.forEach(k => {
         const el = document.querySelector('[data-cred="' + k + '"]');
         if (el && el.value !== '') creds[k] = el.value;
+    });
+    // Settings ride in the same object — they live in the same stored blob, and
+    // the server merges over what is there. Always sent, precisely because an
+    // omitted key means "keep the old value" and a dropdown the admin has just
+    // looked at should mean what it says.
+    SETTING_KEYS.forEach(k => {
+        const el = document.querySelector('[data-setting="' + k + '"]');
+        if (el) creds[k] = el.value;
     });
     return {
         id: $('connId').value || null,

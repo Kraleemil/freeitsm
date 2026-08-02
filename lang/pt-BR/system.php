@@ -99,6 +99,12 @@ return [
 
         'jira_blurb'     => 'Abra problemas no Jira a partir de chamados e veja a situação deles sem sair do FreeITSM. Funciona com Jira Cloud e Jira Data Center.',
         'jira_url_label' => 'URL do site Jira',
+        'azuredevops_blurb'     => 'Crie itens de trabalho no Azure DevOps a partir de chamados e veja a situação deles sem sair do FreeITSM. Funciona com Azure DevOps Services e Azure DevOps Server.',
+        'azuredevops_url_label' => 'URL da organização',
+        'field_resolved_means'  => 'Quando um item de trabalho for marcado como Resolvido',
+        'field_resolved_means_hint' => 'O Azure DevOps tem um estado Resolvido que significa que a pessoa desenvolvedora acredita ter corrigido, mas ninguém verificou ainda. Bugs usam esse estado; histórias de usuário não.',
+        'resolved_in_progress'  => 'Tratar como ainda em andamento',
+        'resolved_done'         => 'Tratar como concluído',
 
         'one_connection' => '1 conexão',
         'n_connections'  => '{n} conexões',
@@ -118,6 +124,7 @@ return [
         'field_email'      => 'Endereço de e-mail',
         'field_email_hint' => 'Somente Jira Cloud — a conta a que o token de API pertence. Deixe em branco para o Jira Data Center, que usa apenas um token de acesso pessoal.',
         'field_token'      => 'Token de API',
+        'field_pat'        => 'Token de acesso pessoal',
         'creds_keep_hint'  => 'Deixe o token em branco para manter o que já está salvo.',
 
         'company_shared' => 'Todas as empresas',

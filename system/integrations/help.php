@@ -54,13 +54,25 @@ if (!$meta) {
     header('Location: ' . $providerUrl);
     exit;
 }
-$name   = $meta['name'];
-$isJira = ($providerKey === 'jira');
+$name    = $meta['name'];
+$isJira  = ($providerKey === 'jira');
+$isDevOps = ($providerKey === 'azuredevops');
+
+/**
+ * What each tracker calls its credential, because getting this wrong is not a
+ * cosmetic problem: someone hunting for an "API token" in Azure DevOps will not
+ * find one — it is a *personal access token*, in a different menu — and the
+ * setup stalls at the first step.
+ *
+ * Anything not listed falls back to the generic wording, so provider #4 reads
+ * awkwardly rather than incorrectly.
+ */
+$tokenNoun = $isDevOps ? 'personal access token' : 'API token';
 
 /** The left-nav sections, in order. Single source for nav + scroll-spy. */
 $sections = [
     ['id' => 'overview', 'title' => 'What this does'],
-    ['id' => 'token',    'title' => 'Get an API token'],
+    ['id' => 'token',    'title' => 'Get a ' . $tokenNoun],
     ['id' => 'connect',  'title' => 'Add the connection'],
     ['id' => 'schedule', 'title' => 'Schedule the check'],
     ['id' => 'comments', 'title' => 'Let comments come back'],
@@ -242,11 +254,11 @@ $sections = [
                 <div class="int-help-section" id="token">
                     <div class="int-help-section-header">
                         <span class="int-help-section-num">2</span>
-                        <h3>Get an API token</h3>
+                        <h3>Get a <?php echo htmlspecialchars($tokenNoun); ?></h3>
                     </div>
                     <p>
                         FreeITSM signs in to <?php echo htmlspecialchars($name); ?> as <em>you</em> — or better,
-                        as a dedicated account — using an <strong>API token</strong>. That is a long password
+                        as a dedicated account — using a <strong><?php echo htmlspecialchars($tokenNoun); ?></strong>. That is a long password
                         created specifically for other software, so you never put your real one into another
                         system, and you can revoke it without changing your own login.
                     </p>
@@ -265,6 +277,33 @@ $sections = [
                         is perfectly fine to start with, and comments you write yourself still come back to the
                         ticket either way.
                     </div>
+                    <?php elseif ($isDevOps): ?>
+                    <p>
+                        Azure DevOps calls this a <strong>personal access token</strong>, and it is not in the
+                        Azure portal — the two are different products that share a sign-in. If you land on
+                        <code>portal.azure.com</code> you have gone to the wrong one.
+                    </p>
+                    <ol>
+                        <li>Go to <code>dev.azure.com</code> and open your organisation. <span class="muted">If it redirects you to the Azure portal, go to <code>aex.dev.azure.com</code> instead.</span></li>
+                        <li>Click the <strong>user settings</strong> icon in the top right — the one just left of your avatar — then <strong>Personal access tokens</strong>.</li>
+                        <li>Choose <strong>New Token</strong> and name it <code>FreeITSM</code>.</li>
+                        <li>Under <strong>Scopes</strong>, pick <strong>Custom defined</strong>, then set <strong>Work Items</strong> to <strong>Read, write &amp; manage</strong>. Leave everything else — FreeITSM never touches your code.</li>
+                        <li>Copy it now. <strong>Azure DevOps shows it once</strong> and never again.</li>
+                    </ol>
+                    <div class="consequence">
+                        <b>Note the expiry date</b>
+                        Azure DevOps caps these at <strong>one year</strong>, and often defaults to 90 days.
+                        When it lapses, escalation stops and the connection test will say the token was
+                        rejected. Put the date in a calendar now — this is the single most common reason a
+                        working Azure DevOps connection stops working months later.
+                    </div>
+                    <div class="consequence">
+                        <b>Worth deciding first</b>
+                        Whoever owns this token is who <?php echo htmlspecialchars($name); ?> thinks FreeITSM is.
+                        Use your own account and work items raised by FreeITSM look as though you raised them. A
+                        separate account keeps that tidy — but your own is perfectly fine to start with, and
+                        comments you write yourself still come back to the ticket either way.
+                    </div>
                     <?php else: ?>
                     <p class="muted">Create an API token in <?php echo htmlspecialchars($name); ?> and copy it — you will paste it in the next step.</p>
                     <?php endif; ?>
@@ -279,12 +318,35 @@ $sections = [
                     <p>On the <a href="<?php echo htmlspecialchars($providerUrl . $providerKey); ?>"><?php echo htmlspecialchars($name); ?> settings page</a>, press <strong>Add</strong>.</p>
                     <table class="help-table">
                         <tr><th>Field</th><th>What to put</th></tr>
-                        <tr><td><strong>Name</strong></td><td>Anything you will recognise — "Our Jira", "Acme's Jira".</td></tr>
-                        <tr><td><strong>Site URL</strong></td><td><?php echo $isJira ? 'The address you use to reach Jira, e.g. <code>https://yourcompany.atlassian.net</code>.' : 'The address of your ' . htmlspecialchars($name) . ' server.'; ?></td></tr>
+                        <tr><td><strong>Name</strong></td><td>Anything you will recognise — <?php echo $isDevOps ? '"Our DevOps", "Acme\'s DevOps"' : '"Our Jira", "Acme\'s Jira"'; ?>.</td></tr>
+                        <tr><td><strong><?php echo $isDevOps ? 'Organisation URL' : 'Site URL'; ?></strong></td><td><?php
+                            if ($isJira) {
+                                echo 'The address you use to reach Jira, e.g. <code>https://yourcompany.atlassian.net</code>.';
+                            } elseif ($isDevOps) {
+                                // The commonest setup mistake here is pasting the URL of a
+                                // PROJECT rather than the organisation, which fails in a way
+                                // that reads as "bad credentials".
+                                echo 'Your organisation address, e.g. <code>https://dev.azure.com/yourorg</code> — '
+                                   . 'the organisation only, <strong>not</strong> a project. '
+                                   . '<span class="muted">On-premises Azure DevOps Server: the collection address, e.g. '
+                                   . '<code>https://tfs.yourcompany.local/tfs/DefaultCollection</code>.</span>';
+                            } else {
+                                echo 'The address of your ' . htmlspecialchars($name) . ' server.';
+                            }
+                        ?></td></tr>
                         <?php if ($isJira): ?>
                         <tr><td><strong>Email address</strong></td><td>The email your Atlassian account uses. <span class="muted">Leave blank for Jira Data Center / Server, which uses only a token.</span></td></tr>
                         <?php endif; ?>
-                        <tr><td><strong>API token</strong></td><td>The token from step 2.</td></tr>
+                        <tr><td><strong><?php echo $isDevOps ? 'Personal access token' : 'API token'; ?></strong></td><td>The token from step 2.</td></tr>
+                        <?php if ($isDevOps): ?>
+                        <tr><td><strong>When a work item is marked Resolved</strong></td><td>
+                            Azure DevOps has a <em>Resolved</em> state that sits between in-progress and closed: a developer
+                            believes it is fixed, but nobody has checked. Bugs use it; user stories do not.
+                            <strong>Treat it as still in progress</strong> (the default) and the person who raised the ticket
+                            hears nothing until someone verifies. <strong>Treat it as done</strong> and they hear as soon as
+                            the developer marks it — right if your team closes on resolve.
+                        </td></tr>
+                        <?php endif; ?>
                         <tr><td><strong>Company</strong></td><td>Leave as <em>All companies</em> unless this tracker belongs to one client. A ticket can only ever be escalated to a tracker its own company is allowed to use, and that rule cannot be overridden.</td></tr>
                     </table>
                     <p><strong>Press Test before saving.</strong> It tells you which account it connected as, or exactly what <?php echo htmlspecialchars($name); ?> objected to — far easier to fix now than after a rule fails at 2am.</p>

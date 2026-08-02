@@ -2008,7 +2008,12 @@ class WorkflowEngine
         } else {
             $doc->heading('Raised in FreeITSM');
             $ref = (string)($payload['ticket']['ticket_number'] ?? $payload['ticket']['id'] ?? $ticketId);
-            $doc->para('Ticket ' . $ref);
+            // A LINK, not just the reference. This is the unattended path — a rule
+            // raising the issue at 3am — so it is the one a developer is most
+            // likely to be reading with no idea where the ticket lives. Absolute,
+            // because it is read inside the tracker; see integrationsAbsoluteUrl().
+            $doc->para('Ticket ', IssueDoc::link(
+                integrationsAbsoluteUrl($conn, 'tickets/?id=' . (int)$ticketId), $ref));
             $requester = (string)($payload['ticket']['requester_email'] ?? '');
             if ($requester !== '') $doc->para('Reported by: ' . $requester);
             $doc->rule();

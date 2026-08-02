@@ -16,6 +16,7 @@
 require_once __DIR__ . '/IssueTrackerProvider.php';
 require_once __DIR__ . '/IssueDoc.php';
 require_once __DIR__ . '/JiraProvider.php';
+require_once __DIR__ . '/AzureDevOpsProvider.php';
 
 // ⚠️ Self-contained on purpose. These were originally left to the caller, which
 // worked only because the first callers (the settings endpoints) happened to
@@ -57,6 +58,19 @@ function integrationsSchemaReady(PDO $conn): bool
  *
  * `url_hint` / `url_label` exist because "Site URL" means something different per
  * tracker and a wrong-shaped URL is the most likely setup mistake.
+ *
+ * `settings_fields` (optional) is for a NON-SECRET per-connection choice, and it
+ * is deliberately a separate list from `credential_fields` rather than a `type`
+ * on one. The two behave in opposite ways on an edit:
+ *
+ *   credential_fields — blanked when the form opens, and an empty box means
+ *                       "keep the stored secret". Correct for a token; nobody
+ *                       should be shown one they already saved.
+ *   settings_fields   — shown WITH the current value and always submitted.
+ *
+ * Putting a dropdown in credential_fields would inherit the blanking rule, so
+ * every save would quietly reset the choice back to its default — a silent
+ * behaviour change nobody would connect to having pressed Save.
  */
 function integrationsAvailableProviders(): array
 {
@@ -74,7 +88,124 @@ function integrationsAvailableProviders(): array
                 ['key' => 'api_token', 'label' => 'system.integrations.field_token',  'type' => 'password', 'required' => true],
             ],
         ],
+        'azuredevops' => [
+            'key'         => 'azuredevops',
+            'name'        => 'Azure DevOps',
+            'blurb'       => 'system.integrations.azuredevops_blurb',
+            'url_label'   => 'system.integrations.azuredevops_url_label',
+            'url_hint'    => 'https://dev.azure.com/yourorg',
+            'credential_fields' => [
+                // A Personal Access Token, sent as HTTP Basic with an EMPTY
+                // username. There is no email half: unlike Jira Cloud, Azure
+                // DevOps ignores the username entirely.
+                //
+                // ⚠️ Its own label, not the shared 'field_token'. Azure DevOps has
+                // no "API token" — somebody hunting for one will not find it,
+                // because it is a *personal access token* in a different menu.
+                // The stored key stays `api_token` so nothing downstream changes.
+                ['key' => 'api_token', 'label' => 'system.integrations.field_pat', 'type' => 'password', 'required' => true],
+            ],
+            // See settings_fields' note above: not a secret, so it is shown with
+            // its current value and never blanked.
+            'settings_fields' => [
+                [
+                    'key'     => 'resolved_means',
+                    'label'   => 'system.integrations.field_resolved_means',
+                    'hint'    => 'system.integrations.field_resolved_means_hint',
+                    'type'    => 'select',
+                    'default' => 'in_progress',
+                    'options' => [
+                        ['value' => 'in_progress', 'label' => 'system.integrations.resolved_in_progress'],
+                        ['value' => 'done',        'label' => 'system.integrations.resolved_done'],
+                    ],
+                ],
+            ],
+        ],
     ];
+}
+
+/**
+ * An ABSOLUTE url for a path in this install, for links we send OUT.
+ *
+ * ⚠️ `BASE_URL` is deliberately a path — `/` or `/freeitsm-app/` — because every
+ * internal page link wants that. Put it in a Jira issue or an Azure DevOps work
+ * item and the developer gets `/tickets/?id=409`, which resolves against
+ * *their* tracker's host and 404s. The whole reason we put the link there is so
+ * somebody can click back to the ticket, so it has never done its job.
+ *
+ * Resolution order, most trustworthy first:
+ *   1. an explicitly configured public address — the only one that is right when
+ *      a WORKFLOW raises the issue from cron, where there is no request at all
+ *      and $_SERVER['HTTP_HOST'] is simply absent. That is the case this exists
+ *      for, because unattended escalation is the normal case, not the exception;
+ *   2. the current request's scheme + host, when an analyst clicked Escalate;
+ *   3. BASE_URL alone — no worse than before, so a install that has configured
+ *      nothing is not made worse by this.
+ *
+ * `messaging_public_base_url` is read as a fallback because it already holds
+ * exactly this fact (the address this install is reachable at from outside);
+ * `public_base_url` is preferred so a properly general setting can supersede it
+ * later without a migration.
+ */
+function integrationsAbsoluteUrl(PDO $conn, string $path): string
+{
+    static $root = null;
+
+    if ($root === null) {
+        $configured = '';
+        try {
+            $stmt = $conn->prepare(
+                "SELECT setting_key, setting_value FROM system_settings
+                  WHERE setting_key IN ('public_base_url','messaging_public_base_url')"
+            );
+            $stmt->execute();
+            $found = [];
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $found[$r['setting_key']] = trim((string)$r['setting_value']);
+            }
+            $configured = $found['public_base_url'] ?? $found['messaging_public_base_url'] ?? '';
+        } catch (Exception $e) {
+            $configured = '';   // an install without the table still gets a link
+        }
+
+        if ($configured !== '' && preg_match('~^https?://~i', $configured)) {
+            $root = rtrim($configured, '/');
+        } elseif (!empty($_SERVER['HTTP_HOST'])) {
+            $https  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                   || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+            // The host is attacker-controllable, so only characters a hostname
+            // may legally contain survive — a link we post into someone else's
+            // tracker is not somewhere to reflect an unchecked header.
+            $host = preg_replace('/[^A-Za-z0-9\.\-:]/', '', (string)$_SERVER['HTTP_HOST']);
+            $root = $host !== '' ? (($https ? 'https://' : 'http://') . $host . rtrim(BASE_URL, '/')) : '';
+        } else {
+            $root = '';
+        }
+
+        if ($root === '') $root = rtrim(BASE_URL, '/');   // last resort: today's behaviour
+    }
+
+    return $root . '/' . ltrim($path, '/');
+}
+
+/**
+ * The non-secret setting keys a provider declares, for use as a whitelist.
+ *
+ * ⚠️ This is what keeps `settings` safe to hand to the browser. The values live
+ * in the same encrypted credentials blob as the API token, so anything reading
+ * them out for display MUST filter by this list rather than emitting what it
+ * finds — see integrationsListConnections().
+ *
+ * @return array key => default value
+ */
+function integrationsSettingKeys(string $providerKey): array
+{
+    $meta = integrationsProviderMeta($providerKey);
+    $out  = [];
+    foreach ((array)($meta['settings_fields'] ?? []) as $f) {
+        if (!empty($f['key'])) $out[$f['key']] = $f['default'] ?? '';
+    }
+    return $out;
 }
 
 /** One registry entry, or null if the key is not a provider we ship. */
@@ -134,6 +265,8 @@ function integrationsProviderFor(array $connection): IssueTrackerProvider
     switch ($connection['provider'] ?? '') {
         case 'jira':
             return new JiraProvider($connection);
+        case 'azuredevops':
+            return new AzureDevOpsProvider($connection);
         default:
             throw new Exception('Unknown integration provider: ' . ($connection['provider'] ?? '?'));
     }
@@ -196,9 +329,11 @@ function integrationsLoadConnection(PDO $conn, $connectionId): ?array
 function integrationsListConnections(PDO $conn, bool $activeOnly = false): array
 {
     if (!integrationsSchemaReady($conn)) return [];
+    // `credentials` is selected but NEVER returned — only the handful of
+    // non-secret setting keys the provider declares are lifted out of it below.
     $sql = "SELECT id, name, provider, base_url, auth_type, ingress_mode, inbound_enabled, send_attachments,
                    poll_interval_minutes, account_identity, tenant_id, is_active,
-                   last_poll_datetime, created_datetime,
+                   last_poll_datetime, created_datetime, credentials,
                    (credentials IS NOT NULL AND credentials <> '') AS has_credentials,
                    (webhook_secret IS NOT NULL AND webhook_secret <> '') AS has_webhook_secret
             FROM integration_connections";
@@ -215,6 +350,20 @@ function integrationsListConnections(PDO $conn, bool $activeOnly = false): array
         $r['is_active']           = (bool) $r['is_active'];
         $r['inbound_enabled']     = (bool) $r['inbound_enabled'];
         $r['send_attachments']    = (bool) $r['send_attachments'];
+
+        // ⚠️ Non-secret settings share the encrypted blob with the API token, so
+        // this filters by the provider's declared keys rather than emitting what
+        // it finds. Anything not on that list — the token above all — never
+        // leaves this function. The blob itself is dropped immediately after.
+        $stored   = integrationsDecodeCredentials($r['credentials'] ?? null);
+        $settings = [];
+        foreach (integrationsSettingKeys((string)$r['provider']) as $key => $default) {
+            $settings[$key] = array_key_exists($key, $stored) && is_scalar($stored[$key])
+                ? (string) $stored[$key]
+                : $default;
+        }
+        $r['settings'] = $settings;
+        unset($r['credentials']);
     }
     return $rows;
 }
