@@ -83,10 +83,29 @@ try {
         }
         $tracker = $trackerNotes[(int)$note['id']] ?? null;
         $note['source'] = $tracker ? (string)$tracker['provider'] : null;
-        if ($tracker && !$note['analyst_name']) {
-            // The person who wrote it is named in the note text; the header names
-            // the system it came from.
+
+        // Who to credit when the analyst join found nothing. The three cases are
+        // genuinely different and lumping them together as "Unknown" throws away
+        // information we actually hold:
+        //
+        //   tracker  — imported from Jira; the header names the connection, and
+        //              the note text names the person who wrote it there
+        //   former   — a real analyst_id with no row left. Deleting an analyst is
+        //              a hard DELETE that reassigns nothing, so this is the normal
+        //              state of every note someone wrote before they left
+        //   system   — analyst_id 0 and no tracker behind it: written by the app
+        //
+        // The label itself is resolved in the browser, which is where the
+        // translations live; this endpoint only says which case it is.
+        if ($note['analyst_name']) {
+            $note['author_kind'] = 'analyst';
+        } elseif ($tracker) {
+            $note['author_kind'] = 'tracker';
             $note['analyst_name'] = (string)$tracker['connection_name'];
+        } elseif ((int)$note['analyst_id'] > 0) {
+            $note['author_kind'] = 'former';
+        } else {
+            $note['author_kind'] = 'system';
         }
     }
     unset($note);

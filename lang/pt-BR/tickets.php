@@ -183,6 +183,11 @@ return [
     // Escalar para um rastreador de problemas externo (#950). O texto é
     // deliberadamente neutro ("rastreador de problemas", não "Jira") — GitHub e
     // outros usarão a mesma tela.
+    'note_author' => [
+        'former' => 'Analista removido',
+        'system' => 'Sistema',
+    ],
+
     'tracker' => [
         'menu_item'       => 'Rastreador de problemas',
         'modal_title'     => 'Abrir um problema de desenvolvimento a partir de',

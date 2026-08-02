@@ -207,6 +207,15 @@ return [
     // Escalating to an external issue tracker (#950). Wording is deliberately
     // tracker-neutral ("issue tracker", not "Jira") except where naming the
     // product is genuinely clearer — GitHub and others land behind the same UI.
+    // Who a note is attributed to when there is no analyst record to name.
+    // Deleting an analyst is a hard DELETE that reassigns nothing, so every note
+    // they ever wrote is orphaned the moment they leave — the note must still be
+    // readable, and saying who is gone beats saying nothing.
+    'note_author' => [
+        'former' => 'Former analyst',
+        'system' => 'System',
+    ],
+
     'tracker' => [
         'menu_item'       => 'Issue tracker',
         'modal_title'     => 'Raise a development issue from',

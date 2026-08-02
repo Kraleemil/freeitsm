@@ -4102,10 +4102,19 @@ function renderNotes() {
         // The API attributes it to the connection ("Jira") and sets `source`; the
         // note text itself names the issue and the person who wrote it there.
         const external = note.source ? ' note-item-external' : '';
+        // ⚠️ Never show a note with no author at all, and never hide one. Deleting
+        // an analyst reassigns nothing, so their notes outlive them — saying
+        // "Former analyst" keeps the ticket's history readable and honest.
+        let author = note.analyst_name;
+        if (!author) {
+            author = note.author_kind === 'system'
+                ? t('tickets.note_author.system')
+                : t('tickets.note_author.former');
+        }
         html += `
             <div class="note-item${external}">
                 <div class="note-header">
-                    <span class="note-author">${escapeHtml(note.analyst_name || 'Unknown')}</span>
+                    <span class="note-author">${escapeHtml(author)}</span>
                     <span>${formatDateTime(note.created_datetime)}</span>
                 </div>
                 <div class="note-text">${escapeHtml(note.note_text)}</div>
