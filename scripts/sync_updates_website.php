@@ -33,7 +33,11 @@ $repoUrl = rtrim($args['repo'] ?? 'https://github.com/edmozley/freeitsm', '/');
 
 $root = dirname(__DIR__);
 $changelog = $root . '/CHANGELOG.local.md';
-$htmlPath  = $args['html'] ?? ($root . '/../freeitsm/updates.html');
+// The curated archive lives in this repo, NOT on the website: the live
+// updates.html is now a redirect stub, but this file remains authoritative for
+// the real publish dates of the Jan–May entries (git commit dates are wrong for
+// them — the changelog was written in batches).
+$htmlPath  = $args['html'] ?? ($root . '/data/updates-archive.html');
 
 $md = @file_get_contents($changelog);
 if ($md === false) { fwrite(STDERR, "Cannot read $changelog\n"); exit(1); }
