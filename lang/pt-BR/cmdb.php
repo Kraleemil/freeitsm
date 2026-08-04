@@ -562,7 +562,7 @@ return [
         'relationships_step2'   => 'Escolha um verbo na lista suspensa (uma dica mostra o verbo inverso para que você veja como ficará do outro lado).',
         'relationships_step3'   => 'Digite para pesquisar o objeto vinculado &mdash; o autocompletar pesquisa todas as classes. Escolha e salve.',
         'relationships_body2'   => 'O relacionamento é simétrico: ao visualizar o objeto vinculado, ele aparece na coluna de entrada <em>dele</em> com o verbo inverso. Assim, <em>"FREEITSM depende de AD"</em> no banco de dados aparece como <em>"FREEITSM é dependido por AD"</em> quando você está visualizando o AD.',
-        'relationships_tip'     => 'Adicione novos verbos em <strong>Configurações &rarr; Tipos de relacionamento</strong> &mdash; cada verbo tem um inverso. Três são pré-cadastrados na primeira execução: <em>depende de</em>, <em>conecta-se a</em>, <em>gerenciado por</em>.',
+        'relationships_tip'     => 'Adicione novos verbos em <strong>Configurações &rarr; Tipos de relacionamento</strong> &mdash; cada verbo tem um inverso. Três são pré-cadastrados na primeira execução: <em>depende de</em>, <em>conecta-se a</em>, <em>gerenciado por</em>. Cada tipo também decide se uma falha viaja por ele, que é o que o painel de impacto segue.',
 
         // 8. When to use which
         'when_heading'  => 'Propriedade vs. pai vs. relacionamento',
@@ -576,7 +576,7 @@ return [
         'when_card3_title' => 'Relacionamento',
         'when_card3_body'  => 'Use para contexto transversal &mdash; muitos-para-muitos, orientado por verbo, frequentemente opcional.',
         'when_card3_ex'    => 'ex.: <em>depende de</em> AD, <em>monitorado por</em> SolarWinds, <em>replica para</em> site de DR.',
-        'when_tip'      => '<strong>Não registre em duplicidade.</strong> Se um banco de dados tem <em>Servidor host</em> como propriedade apontando para SQLSVR01, você não precisa também de um relacionamento <em>"depende de SQLSVR01"</em> &mdash; a propriedade já implica a dependência. Reserve os relacionamentos para vínculos que ainda não foram capturados por propriedades ou pelo pai/filho.',
+        'when_tip'      => '<strong>Não registre em duplicidade.</strong> Se um banco de dados tem <em>Servidor host</em> como propriedade apontando para SQLSVR01, você não precisa também de um relacionamento <em>"depende de SQLSVR01"</em> &mdash; a propriedade já implica a dependência. Reserve os relacionamentos para vínculos que ainda não foram capturados por propriedades ou pelo pai/filho. Ao registrar uma dependência desta forma, marque <strong>"Isto é uma dependência"</strong> na propriedade para que o painel de impacto a siga &mdash; caso contrário o raio de impacto vai ignorá-la silenciosamente.',
 
         // 9. Synthesis layer
         'synthesis_heading' => 'Resumo por IA, Impacto e Mapa',
@@ -584,7 +584,7 @@ return [
         'synthesis_card1_title' => 'Resumo por IA',
         'synthesis_card1_body'  => 'Síntese em prosa de 2 a 3 frases no topo de cada página de detalhes &mdash; o que é, onde se encaixa, quem é o proprietário, o que depende dele, além do contexto de chamados abertos. Clique em <strong>Gerar</strong> / <strong>Gerar novamente</strong> sob demanda. Armazenado em cache na linha para que recarregamentos não chamem a IA de novo.',
         'synthesis_card2_title' => 'Painel de Impacto',
-        'synthesis_card2_body'  => 'Três grupos mostrando o que pararia de funcionar: <em>Descendentes</em> (exclusões em cascata), <em>Referenciado por propriedade</em> (outros objetos apontando para este), <em>Coisas que se vinculam a este</em> (relacionamentos de entrada exibidos com o verbo inverso).',
+        'synthesis_card2_body'  => 'Começa pelo <strong>raio de impacto</strong> &mdash; tudo que seria afetado no final, agrupado por quantos passos de distância está, de modo que um servidor mostra os bancos de dados que contém, as aplicações que dependem deles e o serviço que seus clientes notariam. Cada linha diz como foi alcançada. Abaixo, três grupos do que está ligado diretamente: <em>Descendentes</em> (exclusões em cascata), <em>Referenciado por propriedade</em>, <em>Coisas que se vinculam a este</em>. Apenas vínculos que você marcou como transmissores de falha são seguidos &mdash; veja <strong>Configurações &rarr; Tipos de relacionamento</strong>.',
         'synthesis_card3_title' => 'Mapa (mini-grafo)',
         'synthesis_card3_body'  => 'Visual compacto: pai acima, este objeto centralizado (rosa), filhos abaixo e relacionamentos de saída/entrada em colunas laterais. Clique em qualquer nó para navegar.',
         'synthesis_card4_title' => 'Painel de Atividade',
@@ -605,7 +605,7 @@ return [
         'settings_card1_title' => 'Classes',
         'settings_card1_body'  => 'CRUD para definições de classe. O selo de contagem de propriedades em cada linha abre o gerenciador de propriedades por classe. As chaves de propriedade são imutáveis (geradas automaticamente a partir do rótulo); os rótulos são editáveis livremente. Adicione opções de lista suspensa como linhas com amostras de cor opcionais.',
         'settings_card2_title' => 'Tipos de relacionamento',
-        'settings_card2_body'  => 'A biblioteca de verbos. Cada linha tem um verbo e seu inverso (ex.: <em>depende de</em> &harr; <em>é dependido por</em>). Três padrões são pré-cadastrados na primeira execução.',
+        'settings_card2_body'  => 'A biblioteca de verbos. Cada linha tem um verbo e seu inverso (ex.: <em>depende de</em> &harr; <em>é dependido por</em>). Três padrões são pré-cadastrados na primeira execução. Cada tipo também define <strong>o que acontece quando algo falha</strong> &mdash; se uma falha viaja por aquele vínculo, e em qual direção. Apenas <em>depende de</em> transmite impacto por padrão; um vínculo que descreve onde algo fica ou quem cuida dele não deveria, ou o painel de impacto alegaria que a falha de um servidor afeta o prédio onde ele está.',
         'settings_card3_title' => 'Integração de IA',
         'settings_card3_body'  => 'API key da Anthropic (criptografada em repouso, mascarada na leitura), seletor de modelo (Haiku 4.5 padrão &mdash; ótimo para resumos e sugestões), área de texto de Instruções personalizadas (anexada a cada prompt de IA do CMDB &mdash; ótima para ajustes específicos do ambiente, como "use português do Brasil" ou "sempre assuma hospedagem em nuvem salvo indicação contrária") e botão Testar conexão.',
         'settings_card4_title' => 'Cobrança por recurso',

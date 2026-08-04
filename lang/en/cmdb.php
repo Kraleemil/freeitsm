@@ -578,7 +578,7 @@ return [
         'relationships_step2'   => 'Pick a verb from the dropdown (a hint shows the inverse verb so you can see how it\'ll read from the other side).',
         'relationships_step3'   => 'Type to search the linked object &mdash; the autocomplete searches every class. Pick and save.',
         'relationships_body2'   => 'The relationship is symmetric: when you view the linked object, it appears in <em>its</em> incoming column with the inverse verb. So <em>"FREEITSM depends on AD"</em> on the database shows as <em>"FREEITSM is depended on by AD"</em> when you\'re viewing AD.',
-        'relationships_tip'     => 'Add new verbs in <strong>Settings &rarr; Relationship Types</strong> &mdash; each verb has an inverse. Three are seeded on first run: <em>depends on</em>, <em>connects to</em>, <em>managed by</em>.',
+        'relationships_tip'     => 'Add new verbs in <strong>Settings &rarr; Relationship Types</strong> &mdash; each verb has an inverse. Three are seeded on first run: <em>depends on</em>, <em>connects to</em>, <em>managed by</em>. Each type also decides whether a failure travels along it, which is what the impact panel follows.',
 
         // 8. When to use which
         'when_heading'  => 'Property vs parent vs relationship',
@@ -592,7 +592,7 @@ return [
         'when_card3_title' => 'Relationship',
         'when_card3_body'  => 'Use for cross-cutting context &mdash; many-to-many, verb-driven, often optional.',
         'when_card3_ex'    => 'e.g. <em>depends on</em> AD, <em>monitored by</em> SolarWinds, <em>replicates to</em> DR site.',
-        'when_tip'      => '<strong>Don\'t double-record.</strong> If a database has <em>Host Server</em> as a property pointing at SQLSVR01, you don\'t also need a <em>"depends on SQLSVR01"</em> relationship &mdash; the property already implies the dependency. Save relationships for links that aren\'t already captured by properties or parent/child.',
+        'when_tip'      => '<strong>Don\'t double-record.</strong> If a database has <em>Host Server</em> as a property pointing at SQLSVR01, you don\'t also need a <em>"depends on SQLSVR01"</em> relationship &mdash; the property already implies the dependency. Save relationships for links that aren\'t already captured by properties or parent/child. When you record a dependency this way, tick <strong>"This is a dependency"</strong> on the property so the impact panel follows it &mdash; otherwise the blast radius will quietly miss it.',
 
         // 9. Synthesis layer
         'synthesis_heading' => 'AI summary, Impact &amp; Map',
@@ -600,7 +600,7 @@ return [
         'synthesis_card1_title' => 'AI Summary',
         'synthesis_card1_body'  => '2-3 sentence prose synthesis at the top of every detail page &mdash; what it is, where it sits, who owns it, what depends on it, plus open ticket context. Click <strong>Generate</strong> / <strong>Regenerate</strong> on demand. Cached on the row so reloads don\'t re-call the AI.',
         'synthesis_card2_title' => 'Impact panel',
-        'synthesis_card2_body'  => 'Three buckets showing what would break: <em>Descendants</em> (cascade-deletes), <em>Referenced by property</em> (other objects pointing at this), <em>Things that link in</em> (incoming relationships rendered with the inverse verb).',
+        'synthesis_card2_body'  => 'Leads with the <strong>blast radius</strong> &mdash; everything that would ultimately be affected, grouped by how many steps away it is, so a server shows the databases it holds, the applications depending on those, and the service your customers would notice. Each row says how it was reached. Below it, three buckets of what is attached directly: <em>Descendants</em> (cascade-deletes), <em>Referenced by property</em>, <em>Things that link in</em>. Only links you have marked as carrying a failure are followed &mdash; see <strong>Settings &rarr; Relationship Types</strong>.',
         'synthesis_card3_title' => 'Map (mini-graph)',
         'synthesis_card3_body'  => 'Compact visual: parent above, this object centred (pink), children below, and outgoing/incoming relationships in side columns. Click any node to navigate.',
         'synthesis_card4_title' => 'Activity panel',
@@ -621,7 +621,7 @@ return [
         'settings_card1_title' => 'Classes',
         'settings_card1_body'  => 'CRUD for class definitions. The property-count badge on each row opens the per-class properties manager. Property keys are immutable (auto-generated from the label); labels are freely editable. Drop dropdown options as rows with optional colour swatches.',
         'settings_card2_title' => 'Relationship Types',
-        'settings_card2_body'  => 'The verb library. Each row has a verb and its inverse (e.g. <em>depends on</em> &harr; <em>is depended on by</em>). Three defaults are seeded on first run.',
+        'settings_card2_body'  => 'The verb library. Each row has a verb and its inverse (e.g. <em>depends on</em> &harr; <em>is depended on by</em>). Three defaults are seeded on first run. Each type also says <strong>what happens when something fails</strong> &mdash; whether a failure travels along that link, and which way. Only <em>depends on</em> carries impact out of the box; a link describing where something sits or who looks after it should not, or the impact panel would claim a server failure affects the building it lives in.',
         'settings_card3_title' => 'AI Integration',
         'settings_card3_body'  => 'Anthropic key (encrypted at rest, masked when read), model picker (Haiku 4.5 default &mdash; fine for summaries and suggestions), Custom Instructions textarea (appended to every CMDB AI prompt &mdash; great for environment-specific tweaks like "use British English" or "always assume cloud-hosted unless stated"), and Test connection button.',
         'settings_card4_title' => 'Per-feature billing',
