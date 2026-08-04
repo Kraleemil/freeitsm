@@ -20,8 +20,49 @@ return [
 
     'nav' => [
         'browse'   => 'Browse',
+        'audit'    => 'Data quality',
         'settings' => 'Settings',
         'help'     => 'Help',
+    ],
+
+    // Data-quality audit. Wording rule: say what is wrong and why it matters for
+    // impact analysis, never scold. A finding is advisory — plenty of them are
+    // the right answer for a particular estate.
+    'audit' => [
+        'title'          => 'CMDB data quality',
+        'heading'        => 'Data quality',
+        'intro'          => 'Whether this CMDB can still answer the question it exists to answer — what breaks if this breaks. Nothing here changes your data.',
+        'loading'        => 'Checking…',
+        'error'          => 'Could not run the checks: {message}',
+        'stat_examined'  => 'Objects checked',
+        'stat_findings'  => 'Findings',
+        'ok'             => 'OK',
+        'capped'         => 'Showing the first {shown} of {total}.',
+
+        'check_no_impact_edges'  => 'Impact tracing is switched on',
+        'why_no_impact_edges'    => 'If no relationship type or property is set to carry a failure, every blast radius on every object is empty no matter how good the data is.',
+        'clean_no_impact_edges'  => 'At least one link carries impact.',
+        'fix_no_impact_edges'    => 'Set this up in Relationship Types →',
+
+        'check_broken_reference' => 'Broken object references',
+        'why_broken_reference'   => 'A property pointing at an object that no longer exists. The dependency it recorded is gone, so it can never be followed.',
+        'clean_broken_reference' => 'Every object reference points at something real.',
+
+        'check_required_missing' => 'Required fields left empty',
+        'why_required_missing'   => 'The class says this property is required, but the object has no value. Usually means the property was made required after these objects were created.',
+        'clean_required_missing' => 'Every required field has a value.',
+
+        'check_dependency_blank' => 'Dependencies not filled in',
+        'why_dependency_blank'   => 'A property marked as a dependency, left blank. The link is meant to exist, so the blast radius has a hole where it should be.',
+        'clean_dependency_blank' => 'Every dependency property is filled in.',
+
+        'check_disconnected'     => 'Connected to nothing',
+        'why_disconnected'       => 'No parent, no children, no relationships, no references either way. These can never appear in anyone\'s blast radius, and nobody will find them by navigating. Some things genuinely do stand alone.',
+        'clean_disconnected'     => 'Every object is attached to something.',
+
+        'check_stale'            => 'Not touched in a while',
+        'why_stale'              => 'Nothing has updated these in six months. Not wrong in itself, but it is how a CMDB quietly stops matching reality.',
+        'clean_stale'            => 'Everything has been reviewed recently.',
     ],
 
     'list' => [
@@ -501,7 +542,13 @@ return [
         'nav_tickets'       => 'Linking tickets',
         'nav_settings'      => 'Settings',
         'nav_tips'          => 'Tips &amp; conventions',
+        'nav_dataquality'   => 'Data quality',
         'nav_companies'     => 'Companies',
+        'dataquality_heading' => 'Data quality',
+        'dataquality_intro'   => 'A read-only health check on whether the CMDB can still answer the question it exists to answer.',
+        'dataquality_what'    => 'Open <strong>Data quality</strong> in the module header. It reports how many objects it looked at and what it found, as a card per check &mdash; and it shows every check even when a check finds nothing, so you can tell a clean result from one that never ran.',
+        'dataquality_checks'  => 'The checks are framed around impact analysis, because that is what a CMDB is for: an object <em>connected to nothing</em> can never appear in anyone\'s blast radius; a <em>dependency left blank</em> is a hole in one; a <em>broken reference</em> points at something deleted; a <em>required field left empty</em> usually means the field was made required after those objects were created. It also tells you if nothing at all is set to carry impact, which would make every blast radius empty regardless of the data.',
+        'dataquality_advisory' => '<strong>Nothing here changes your data</strong>, and a finding is not automatically a mistake &mdash; plenty of things genuinely do stand alone. It is a list to look through, not a score to get to zero.',
 
         // 1. Overview
         'overview_heading'  => 'Overview',

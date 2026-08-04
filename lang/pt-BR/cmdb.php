@@ -8,8 +8,48 @@ return [
 
     'nav' => [
         'browse'   => 'Navegar',
+        'audit'    => 'Qualidade dos dados',
         'settings' => 'Configurações',
         'help'     => 'Ajuda',
+    ],
+
+    // Auditoria de qualidade dos dados. Regra de redação: diga o que está errado
+    // e por que importa para a análise de impacto, nunca repreenda.
+    'audit' => [
+        'title'          => 'Qualidade dos dados do CMDB',
+        'heading'        => 'Qualidade dos dados',
+        'intro'          => 'Se este CMDB ainda consegue responder à pergunta para a qual existe — o que para de funcionar se isto parar. Nada aqui altera seus dados.',
+        'loading'        => 'Verificando…',
+        'error'          => 'Não foi possível executar as verificações: {message}',
+        'stat_examined'  => 'Objetos verificados',
+        'stat_findings'  => 'Ocorrências',
+        'ok'             => 'OK',
+        'capped'         => 'Mostrando os primeiros {shown} de {total}.',
+
+        'check_no_impact_edges'  => 'Rastreamento de impacto ativado',
+        'why_no_impact_edges'    => 'Se nenhum tipo de relacionamento ou propriedade estiver definido para transmitir uma falha, o raio de impacto de todos os objetos fica vazio, por melhores que sejam os dados.',
+        'clean_no_impact_edges'  => 'Pelo menos um vínculo transmite impacto.',
+        'fix_no_impact_edges'    => 'Configure em Tipos de relacionamento →',
+
+        'check_broken_reference' => 'Referências de objeto quebradas',
+        'why_broken_reference'   => 'Uma propriedade apontando para um objeto que não existe mais. A dependência que ela registrava desapareceu e nunca poderá ser seguida.',
+        'clean_broken_reference' => 'Toda referência de objeto aponta para algo real.',
+
+        'check_required_missing' => 'Campos obrigatórios em branco',
+        'why_required_missing'   => 'A classe diz que esta propriedade é obrigatória, mas o objeto não tem valor. Normalmente indica que a propriedade se tornou obrigatória depois que estes objetos foram criados.',
+        'clean_required_missing' => 'Todo campo obrigatório tem valor.',
+
+        'check_dependency_blank' => 'Dependências não preenchidas',
+        'why_dependency_blank'   => 'Uma propriedade marcada como dependência, deixada em branco. O vínculo deveria existir, então o raio de impacto tem um buraco onde ele deveria estar.',
+        'clean_dependency_blank' => 'Toda propriedade de dependência está preenchida.',
+
+        'check_disconnected'     => 'Sem conexão alguma',
+        'why_disconnected'       => 'Sem pai, sem filhos, sem relacionamentos, sem referências em nenhuma direção. Estes nunca podem aparecer no raio de impacto de ninguém, e ninguém os encontrará navegando. Algumas coisas realmente ficam isoladas.',
+        'clean_disconnected'     => 'Todo objeto está ligado a algo.',
+
+        'check_stale'            => 'Sem alterações há algum tempo',
+        'why_stale'              => 'Nada atualizou estes nos últimos seis meses. Não é errado em si, mas é assim que um CMDB silenciosamente deixa de corresponder à realidade.',
+        'clean_stale'            => 'Tudo foi revisado recentemente.',
     ],
 
     'list' => [
@@ -485,7 +525,13 @@ return [
         'nav_tickets'       => 'Vinculando chamados',
         'nav_settings'      => 'Configurações',
         'nav_tips'          => 'Dicas e convenções',
+        'nav_dataquality'   => 'Qualidade dos dados',
         'nav_companies'     => 'Empresas',
+        'dataquality_heading' => 'Qualidade dos dados',
+        'dataquality_intro'   => 'Uma verificação somente-leitura sobre se o CMDB ainda consegue responder à pergunta para a qual existe.',
+        'dataquality_what'    => 'Abra <strong>Qualidade dos dados</strong> no cabeçalho do módulo. Ele informa quantos objetos examinou e o que encontrou, com um cartão por verificação &mdash; e mostra todas as verificações mesmo quando não encontram nada, para você distinguir um resultado limpo de uma verificação que nunca rodou.',
+        'dataquality_checks'  => 'As verificações são orientadas pela análise de impacto, porque é para isso que serve um CMDB: um objeto <em>sem conexão alguma</em> nunca pode aparecer no raio de impacto de ninguém; uma <em>dependência em branco</em> é um buraco em um deles; uma <em>referência quebrada</em> aponta para algo excluído; um <em>campo obrigatório vazio</em> normalmente significa que o campo se tornou obrigatório depois que aqueles objetos foram criados. Ele também avisa se nada estiver definido para transmitir impacto, o que deixaria todos os raios de impacto vazios independentemente dos dados.',
+        'dataquality_advisory' => '<strong>Nada aqui altera seus dados</strong>, e uma ocorrência não é automaticamente um erro &mdash; muitas coisas realmente ficam isoladas. É uma lista para revisar, não uma pontuação para zerar.',
 
         // 1. Overview
         'overview_heading'  => 'Visão geral',

@@ -376,9 +376,12 @@ $translationNamespaces = ['common', 'cmdb'];
             <a href="#tips" class="cmdb-help-nav-link" data-section="tips">
                 <span class="cmdb-help-nav-num">12</span> <?php echo t('cmdb.help.nav_tips'); ?>
             </a>
+            <a href="#dataquality" class="cmdb-help-nav-link" data-section="dataquality">
+                <span class="cmdb-help-nav-num">13</span> <?php echo t('cmdb.help.nav_dataquality'); ?>
+            </a>
             <?php if ($showTenancyHelp): ?>
             <a href="#companies" class="cmdb-help-nav-link" data-section="companies">
-                <span class="cmdb-help-nav-num">13</span> <?php echo t('cmdb.help.nav_companies'); ?>
+                <span class="cmdb-help-nav-num">14</span> <?php echo t('cmdb.help.nav_companies'); ?>
             </a>
             <?php endif; ?>
 
@@ -821,11 +824,26 @@ $translationNamespaces = ['common', 'cmdb'];
                     </div>
                 </div>
 
-                <?php if ($showTenancyHelp): ?>
-                <!-- 13. Companies (multi-company installs only) -->
-                <div class="cmdb-help-section" id="companies">
+                <!-- 13. Data quality -->
+                <div class="cmdb-help-section" id="dataquality">
                     <div class="cmdb-help-section-header">
                         <span class="cmdb-help-section-num">13</span>
+                        <div>
+                            <h3><?php echo t('cmdb.help.dataquality_heading'); ?></h3>
+                            <p><?php echo t('cmdb.help.dataquality_intro'); ?></p>
+                        </div>
+                    </div>
+
+                    <p><?php echo t('cmdb.help.dataquality_what'); ?></p>
+                    <p><?php echo t('cmdb.help.dataquality_checks'); ?></p>
+                    <p><?php echo t('cmdb.help.dataquality_advisory'); ?></p>
+                </div>
+
+                <?php if ($showTenancyHelp): ?>
+                <!-- 14. Companies (multi-company installs only) -->
+                <div class="cmdb-help-section" id="companies">
+                    <div class="cmdb-help-section-header">
+                        <span class="cmdb-help-section-num">14</span>
                         <div>
                             <h3><?php echo t('cmdb.help.companies_heading'); ?></h3>
                             <p><?php echo t('cmdb.help.companies_intro'); ?></p>
