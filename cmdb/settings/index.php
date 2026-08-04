@@ -262,13 +262,14 @@ $translationNamespaces = ['common', 'cmdb'];
                         <th><?php echo htmlspecialchars(t('cmdb.settings.col_verb')); ?></th>
                         <th><?php echo htmlspecialchars(t('cmdb.settings.col_inverse_verb')); ?></th>
                         <th><?php echo htmlspecialchars(t('cmdb.settings.col_description')); ?></th>
+                        <th><?php echo htmlspecialchars(t('cmdb.settings.col_impact')); ?></th>
                         <th><?php echo htmlspecialchars(t('cmdb.settings.col_order')); ?></th>
                         <th><?php echo htmlspecialchars(t('cmdb.settings.col_active')); ?></th>
                         <th style="width: 130px;"><?php echo htmlspecialchars(t('cmdb.settings.col_actions')); ?></th>
                     </tr>
                 </thead>
                 <tbody id="relTypesTableBody">
-                    <tr><td colspan="6" class="empty-row"><?php echo htmlspecialchars(t('cmdb.settings.loading')); ?></td></tr>
+                    <tr><td colspan="7" class="empty-row"><?php echo htmlspecialchars(t('cmdb.settings.loading')); ?></td></tr>
                 </tbody>
             </table>
         </div>
@@ -471,6 +472,13 @@ $translationNamespaces = ['common', 'cmdb'];
                             <input type="checkbox" id="propertyIsRequired"> <?php echo htmlspecialchars(t('cmdb.settings.prop_required')); ?>
                         </label>
                     </div>
+                    <!-- Object references only: shown/hidden alongside targetClassGroup. -->
+                    <div class="form-group" id="spreadsImpactGroup" style="display: none;">
+                        <label class="form-check">
+                            <input type="checkbox" id="propertySpreadsImpact"> <?php echo htmlspecialchars(t('cmdb.settings.prop_spreads_impact')); ?>
+                        </label>
+                        <small><?php echo htmlspecialchars(t('cmdb.settings.prop_spreads_impact_help')); ?></small>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -489,17 +497,29 @@ $translationNamespaces = ['common', 'cmdb'];
                     <input type="hidden" id="relTypeId">
                     <div class="form-group">
                         <label for="relTypeVerb"><?php echo htmlspecialchars(t('cmdb.settings.rel_type_verb')); ?></label>
-                        <input type="text" id="relTypeVerb" required maxlength="100" placeholder="<?php echo htmlspecialchars(t('cmdb.settings.rel_type_verb_placeholder')); ?>">
+                        <input type="text" id="relTypeVerb" required maxlength="100" oninput="syncRelTypeImpactOptions()" placeholder="<?php echo htmlspecialchars(t('cmdb.settings.rel_type_verb_placeholder')); ?>">
                         <small><?php echo htmlspecialchars(t('cmdb.settings.rel_type_verb_help')); ?></small>
                     </div>
                     <div class="form-group">
                         <label for="relTypeInverseVerb"><?php echo htmlspecialchars(t('cmdb.settings.rel_type_inverse')); ?></label>
-                        <input type="text" id="relTypeInverseVerb" required maxlength="100" placeholder="<?php echo htmlspecialchars(t('cmdb.settings.rel_type_inverse_placeholder')); ?>">
+                        <input type="text" id="relTypeInverseVerb" required maxlength="100" oninput="syncRelTypeImpactOptions()" placeholder="<?php echo htmlspecialchars(t('cmdb.settings.rel_type_inverse_placeholder')); ?>">
                         <small><?php echo htmlspecialchars(t('cmdb.settings.rel_type_inverse_help')); ?></small>
                     </div>
                     <div class="form-group">
                         <label for="relTypeDescription"><?php echo htmlspecialchars(t('cmdb.settings.rel_type_description')); ?></label>
                         <textarea id="relTypeDescription" rows="2" maxlength="500" placeholder="<?php echo htmlspecialchars(t('cmdb.settings.rel_type_description_placeholder')); ?>"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="relTypeImpactDirection"><?php echo htmlspecialchars(t('cmdb.settings.rel_type_impact')); ?></label>
+                        <select id="relTypeImpactDirection">
+                            <!-- Option text is rewritten from the live verb fields by
+                                 syncRelTypeImpactOptions() so it always reads in the
+                                 analyst's own words. -->
+                            <option value="none"></option>
+                            <option value="to_from"></option>
+                            <option value="from_to"></option>
+                        </select>
+                        <p class="field-hint"><?php echo htmlspecialchars(t('cmdb.settings.rel_type_impact_hint')); ?></p>
                     </div>
                     <div class="form-group">
                         <label for="relTypeDisplayOrder"><?php echo htmlspecialchars(t('cmdb.settings.rel_type_display_order')); ?></label>

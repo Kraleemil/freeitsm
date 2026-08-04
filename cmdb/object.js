@@ -13,6 +13,7 @@ const OBJECT_ID = window.OBJECT_ID;
 
 let obj = null;
 let impact = null; // {descendants, referenced_by_property, referenced_by_relationship}
+let blastRadius = null; // {nodes:[{id,name,class_name,depth,via_kind,via_label,via_name}], truncated, no_impact_edges_configured}
 let activity = null; // {open, closed, total_closed} — tickets that reference this object
 let relationshipTypes = [];
 let allClasses = []; // cached for the property-edit target-class dropdown
@@ -58,7 +59,7 @@ async function loadImpact() {
     try {
         const res = await fetch(API + 'get_object_impact.php?id=' + OBJECT_ID);
         const data = await res.json();
-        if (data.success) impact = data.impact;
+        if (data.success) { impact = data.impact; blastRadius = data.blast_radius || null; }
     } catch (e) { /* impact panel will just show "computing…" */ }
 }
 
@@ -222,6 +223,70 @@ function renderAiSummaryCard() {
     `;
 }
 
+/**
+ * Blast radius — what would ultimately be affected, not just what is attached.
+ * Grouped by hop distance because "3 hops away" is the thing that turns a list
+ * of names into a story: this server takes out that VM, which takes out the
+ * service, which is what the customer notices.
+ *
+ * Every row says how it was reached, so a surprising entry can be traced rather
+ * than doubted. Deliberately no graph here — full dependency-graph viz is a v2
+ * item in docs/cmdb.md.
+ */
+function renderBlastRadius() {
+    const br = blastRadius;
+    if (!br) return '';
+    const nodes = br.nodes || [];
+
+    // An empty result is ambiguous — it can mean "nothing depends on this" or
+    // "no relationship type is configured to carry impact yet", and those need
+    // very different responses from the reader. Say which.
+    if (!nodes.length) {
+        const msg = br.no_impact_edges_configured
+            ? window.t('cmdb.impact.blast_unconfigured')
+            : window.t('cmdb.impact.blast_none');
+        return `<div class="blast-radius is-empty">${escapeHtml(msg)}</div>`;
+    }
+
+    const byDepth = {};
+    nodes.forEach(n => { (byDepth[n.depth] = byDepth[n.depth] || []).push(n); });
+
+    const viaText = (n) => {
+        if (n.via_kind === 'child')    return window.t('cmdb.impact.via_child', { parent: n.via_name || '' });
+        if (n.via_kind === 'property') return window.t('cmdb.impact.via_property', { label: n.via_label || '', source: n.via_name || '' });
+        return window.t('cmdb.impact.via_relationship', { verb: n.via_label || '', source: n.via_name || '' });
+    };
+
+    const groups = Object.keys(byDepth).sort((a, b) => a - b).map(d => `
+        <div class="blast-group">
+            <h5>${escapeHtml(Number(d) === 1
+                    ? window.t('cmdb.impact.hops_away_one')
+                    : window.t('cmdb.impact.hops_away_other', { count: d }))}
+                <span class="count-badge">${byDepth[d].length}</span></h5>
+            <ul>${byDepth[d].map(n => `
+                <li>
+                    <a href="object.php?id=${n.id}">${escapeHtml(n.name)}</a>
+                    <span class="meta">${escapeHtml(n.class_name)} · ${escapeHtml(viaText(n))}</span>
+                </li>`).join('')}</ul>
+        </div>
+    `).join('');
+
+    // Never present a capped list as the whole answer.
+    const truncated = br.truncated
+        ? `<div class="blast-truncated">${escapeHtml(window.t('cmdb.impact.blast_truncated'))}</div>`
+        : '';
+
+    return `
+        <div class="blast-radius">
+            <div class="blast-headline">${escapeHtml(nodes.length === 1
+                ? window.t('cmdb.impact.blast_headline_one')
+                : window.t('cmdb.impact.blast_headline_other', { count: nodes.length }))}</div>
+            ${groups}
+            ${truncated}
+        </div>
+    `;
+}
+
 function renderImpactPanel() {
     if (!impact) return ''; // suppressed until loaded
     const desc  = impact.descendants || [];
@@ -244,6 +309,8 @@ function renderImpactPanel() {
                 <span>${escapeHtml(window.t('cmdb.impact.heading'))}</span>
                 <span style="color: #6b7280; font-weight: 400; font-size: 12px;">${total} ${total === 1 ? escapeHtml(window.t('cmdb.impact.item')) : escapeHtml(window.t('cmdb.impact.items'))}</span>
             </h3>
+            ${renderBlastRadius()}
+            <h4 class="impact-subhead">${escapeHtml(window.t('cmdb.impact.directly_connected'))}</h4>
             <div class="impact-grid">
                 ${bucket(escapeHtml(window.t('cmdb.impact.descendants')), desc, escapeHtml(window.t('cmdb.impact.descendants_empty')),
                     d => `<li>
@@ -884,6 +951,7 @@ function openPropDefModal(propertyId) {
     document.getElementById('pdType').value = p.property_type;
     document.getElementById('pdDisplayOrder').value = p.display_order;
     document.getElementById('pdIsRequired').checked = p.is_required;
+    document.getElementById('pdSpreadsImpact').checked = !!Number(p.spreads_impact);
 
     // Populate target-class dropdown from cached allClasses
     const tcSel = document.getElementById('pdTargetClass');
@@ -915,6 +983,7 @@ function closePropDefModal() {
 function onPropDefTypeChange() {
     const t = document.getElementById('pdType').value;
     document.getElementById('pdTargetClassGroup').style.display = t === 'object_ref' ? 'block' : 'none';
+    document.getElementById('pdSpreadsImpactGroup').style.display = t === 'object_ref' ? 'block' : 'none';
     document.getElementById('pdOptionsGroup').style.display = t === 'dropdown' ? 'block' : 'none';
 }
 
@@ -934,6 +1003,7 @@ async function savePropDef() {
         property_type: type,
         target_class_id: type === 'object_ref' ? (targetClassId || null) : null,
         is_required: document.getElementById('pdIsRequired').checked,
+        spreads_impact: type === 'object_ref' && document.getElementById('pdSpreadsImpact').checked,
         display_order: parseInt(document.getElementById('pdDisplayOrder').value, 10) || 0,
         options
     };

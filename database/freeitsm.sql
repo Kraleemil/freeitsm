@@ -3934,6 +3934,11 @@ CREATE TABLE IF NOT EXISTS `cmdb_class_properties` (
     `target_class_id`   INT NULL,
     -- only used when property_type = 'object_ref'
     `is_required`       TINYINT(1) NULL DEFAULT 0,
+    -- object_ref only: a dependency recorded as a field rather than a
+    -- relationship (e.g. a Database whose "Host Server" points at a Server).
+    -- 1 = if the referenced object fails, the object holding this field is
+    -- affected. Ignored for every other property type.
+    `spreads_impact`    TINYINT(1) NOT NULL DEFAULT 0,
     `display_order`     INT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -4012,6 +4017,15 @@ CREATE TABLE IF NOT EXISTS `cmdb_relationship_types` (
     `verb`              VARCHAR(100) NOT NULL,
     `inverse_verb`      VARCHAR(100) NOT NULL,
     `description`       VARCHAR(500) NULL,
+    -- Whether a failure travels along this relationship, and which way.
+    --   'none'    = it does not spread impact (e.g. "is located in")
+    --   'to_from' = if the TO object fails, the FROM object is affected
+    --               ("A depends on B": B breaks, so A is affected)
+    --   'from_to' = if the FROM object fails, the TO object is affected
+    --               ("A hosts B": A breaks, so B is affected)
+    -- Defaults to 'none' so an upgraded install reports nothing until someone
+    -- deliberately says a relationship carries impact.
+    `impact_direction`  VARCHAR(10) NOT NULL DEFAULT 'none',
     `display_order`     INT NULL DEFAULT 0,
     `is_active`         TINYINT(1) NULL DEFAULT 1,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
@@ -4198,14 +4212,18 @@ INSERT INTO `cmdb_icons` (`icon_key`, `label`, `display_order`) SELECT * FROM (S
 
 -- Seed a small starter set of relationship verbs so analysts have something
 -- to work with on first run. Easily editable from CMDB → Settings.
-INSERT INTO `cmdb_relationship_types` (`verb`, `inverse_verb`, `description`, `display_order`)
-SELECT * FROM (SELECT 'depends on'  AS verb, 'is depended on by' AS inverse_verb, 'A needs B in order to function'  AS description, 10 AS display_order) AS t
+-- Only 'depends on' carries impact out of the box: "A depends on B" means B
+-- failing affects A, so impact travels to_from. A network link and a management
+-- relationship do NOT propagate failure, so they stay 'none' — the blast radius
+-- should under-claim by default rather than invent consequences.
+INSERT INTO `cmdb_relationship_types` (`verb`, `inverse_verb`, `description`, `impact_direction`, `display_order`)
+SELECT * FROM (SELECT 'depends on'  AS verb, 'is depended on by' AS inverse_verb, 'A needs B in order to function'  AS description, 'to_from' AS impact_direction, 10 AS display_order) AS t
 WHERE NOT EXISTS (SELECT 1 FROM `cmdb_relationship_types` WHERE verb = 'depends on');
-INSERT INTO `cmdb_relationship_types` (`verb`, `inverse_verb`, `description`, `display_order`)
-SELECT * FROM (SELECT 'connects to' AS verb, 'is connected from' AS inverse_verb, 'A has a network or data link to B' AS description, 20 AS display_order) AS t
+INSERT INTO `cmdb_relationship_types` (`verb`, `inverse_verb`, `description`, `impact_direction`, `display_order`)
+SELECT * FROM (SELECT 'connects to' AS verb, 'is connected from' AS inverse_verb, 'A has a network or data link to B' AS description, 'none' AS impact_direction, 20 AS display_order) AS t
 WHERE NOT EXISTS (SELECT 1 FROM `cmdb_relationship_types` WHERE verb = 'connects to');
-INSERT INTO `cmdb_relationship_types` (`verb`, `inverse_verb`, `description`, `display_order`)
-SELECT * FROM (SELECT 'managed by'  AS verb, 'manages'           AS inverse_verb, 'A is administered by B'           AS description, 30 AS display_order) AS t
+INSERT INTO `cmdb_relationship_types` (`verb`, `inverse_verb`, `description`, `impact_direction`, `display_order`)
+SELECT * FROM (SELECT 'managed by'  AS verb, 'manages'           AS inverse_verb, 'A is administered by B'           AS description, 'none' AS impact_direction, 30 AS display_order) AS t
 WHERE NOT EXISTS (SELECT 1 FROM `cmdb_relationship_types` WHERE verb = 'managed by');
 
 SET FOREIGN_KEY_CHECKS = 1;

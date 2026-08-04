@@ -2366,10 +2366,11 @@ try {
     if ($tableExists('cmdb_relationship_types')) {
         $cnt = (int) $conn->query("SELECT COUNT(*) FROM cmdb_relationship_types")->fetchColumn();
         if ($cnt === 0) {
-            $conn->exec("INSERT INTO cmdb_relationship_types (verb, inverse_verb, description, display_order) VALUES
-                ('depends on',  'is depended on by', 'A needs B in order to function',           10),
-                ('connects to', 'is connected from', 'A has a network or data link to B',       20),
-                ('managed by',  'manages',           'A is administered by B',                  30)");
+            // Only 'depends on' carries impact by default — see freeitsm.sql.
+            $conn->exec("INSERT INTO cmdb_relationship_types (verb, inverse_verb, description, impact_direction, display_order) VALUES
+                ('depends on',  'is depended on by', 'A needs B in order to function',     'to_from', 10),
+                ('connects to', 'is connected from', 'A has a network or data link to B',  'none',    20),
+                ('managed by',  'manages',           'A is administered by B',             'none',    30)");
             $results[] = ['table' => 'cmdb_relationship_types', 'status' => 'seeded', 'details' => ['Inserted 3 default CMDB relationship types']];
         }
     }

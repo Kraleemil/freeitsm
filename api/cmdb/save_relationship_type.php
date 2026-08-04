@@ -6,6 +6,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
+require_once '../../includes/cmdb_impact.php';   // impact direction vocabulary
 
 header('Content-Type: application/json');
 
@@ -26,6 +27,14 @@ try {
     $displayOrder = isset($data['display_order']) ? (int)$data['display_order'] : 0;
     $isActive = !empty($data['is_active']) ? 1 : 0;
 
+    // Whether a failure travels along this relationship, and which way. Anything
+    // unrecognised falls back to 'none' rather than being stored — an unknown
+    // value would silently drop the edge from the blast radius with no clue why.
+    $impactDirection = (string)($data['impact_direction'] ?? CMDB_IMPACT_NONE);
+    if (!in_array($impactDirection, cmdbImpactDirections(), true)) {
+        $impactDirection = CMDB_IMPACT_NONE;
+    }
+
     if ($verb === '') throw new Exception('Verb is required');
     if ($inverse === '') throw new Exception('Inverse verb is required');
     if (mb_strlen($verb) > 100) throw new Exception('Verb too long (max 100 chars)');
@@ -42,20 +51,20 @@ try {
 
     if ($id === null) {
         $stmt = $conn->prepare(
-            "INSERT INTO cmdb_relationship_types (verb, inverse_verb, description, display_order, is_active, created_datetime)
-             VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())"
+            "INSERT INTO cmdb_relationship_types (verb, inverse_verb, description, impact_direction, display_order, is_active, created_datetime)
+             VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
         );
-        $stmt->execute([$verb, $inverse, $description ?: null, $displayOrder, $isActive]);
+        $stmt->execute([$verb, $inverse, $description ?: null, $impactDirection, $displayOrder, $isActive]);
         $newId = (int)$conn->lastInsertId();
         wf_emit('cmdb_relationship_type', 'created', $newId, $verb);
         echo json_encode(['success' => true, 'id' => $newId]);
     } else {
         $stmt = $conn->prepare(
             "UPDATE cmdb_relationship_types
-                SET verb = ?, inverse_verb = ?, description = ?, display_order = ?, is_active = ?
+                SET verb = ?, inverse_verb = ?, description = ?, impact_direction = ?, display_order = ?, is_active = ?
               WHERE id = ?"
         );
-        $stmt->execute([$verb, $inverse, $description ?: null, $displayOrder, $isActive, $id]);
+        $stmt->execute([$verb, $inverse, $description ?: null, $impactDirection, $displayOrder, $isActive, $id]);
         wf_emit('cmdb_relationship_type', 'updated', $id, $verb);
         echo json_encode(['success' => true, 'id' => $id]);
     }

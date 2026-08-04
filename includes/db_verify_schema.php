@@ -2780,6 +2780,9 @@ return [
         'property_type'     => 'VARCHAR(20) NOT NULL',
         'target_class_id'   => 'INT NULL',
         'is_required'       => 'TINYINT(1) NULL DEFAULT 0',
+        // object_ref only: 1 = a failure of the referenced object affects the
+        // object holding this field. Drives the blast-radius walk.
+        'spreads_impact'    => 'TINYINT(1) NOT NULL DEFAULT 0',
         'display_order'     => 'INT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
     ],
@@ -2824,6 +2827,10 @@ return [
         'verb'              => 'VARCHAR(100) NOT NULL',
         'inverse_verb'      => 'VARCHAR(100) NOT NULL',
         'description'       => 'VARCHAR(500) NULL',
+        // none | to_from | from_to — whether a failure travels along this
+        // relationship and which way. Defaults to 'none' so an upgraded
+        // install spreads nothing until someone says it should.
+        'impact_direction'  => "VARCHAR(10) NOT NULL DEFAULT 'none'",
         'display_order'     => 'INT NULL DEFAULT 0',
         'is_active'         => 'TINYINT(1) NULL DEFAULT 1',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',

@@ -261,6 +261,7 @@ function openPropertyModal(id = null) {
     document.getElementById('propertyType').value = prop ? prop.property_type : 'text';
     document.getElementById('propertyDisplayOrder').value = prop ? prop.display_order : 0;
     document.getElementById('propertyIsRequired').checked = prop ? prop.is_required : false;
+    document.getElementById('propertySpreadsImpact').checked = prop ? !!Number(prop.spreads_impact) : false;
 
     // Populate the target class dropdown
     const tcSel = document.getElementById('propertyTargetClass');
@@ -282,7 +283,11 @@ function closePropertyModal() { document.getElementById('propertyModal').classLi
 
 function onPropertyTypeChange() {
     const t = document.getElementById('propertyType').value;
+    // Only an object reference can be a dependency, so the impact toggle follows
+    // the target-class field. The server also clears the flag on a type change,
+    // so a hidden tick can never keep feeding the blast radius.
     document.getElementById('targetClassGroup').style.display = t === 'object_ref' ? 'block' : 'none';
+    document.getElementById('spreadsImpactGroup').style.display = t === 'object_ref' ? 'block' : 'none';
     document.getElementById('dropdownOptionsGroup').style.display = t === 'dropdown' ? 'block' : 'none';
 }
 
@@ -319,6 +324,7 @@ async function saveProperty(ev) {
         property_type: type,
         target_class_id: type === 'object_ref' ? (targetClassId || null) : null,
         is_required: document.getElementById('propertyIsRequired').checked,
+        spreads_impact: type === 'object_ref' && document.getElementById('propertySpreadsImpact').checked,
         display_order: parseInt(document.getElementById('propertyDisplayOrder').value, 10) || 0,
         options
     };
@@ -371,10 +377,23 @@ async function loadRelTypes() {
     }
 }
 
+/**
+ * At-a-glance impact setting for the list. Reads with the row's own verbs so a
+ * scan of the table answers "which of these actually spread a failure?".
+ */
+function relTypeImpactCell(r) {
+    const dir = r.impact_direction || 'none';
+    if (dir === 'none') {
+        return `<span style="color: #9ca3af;">${escapeHtml(window.t('cmdb.settings.impact_cell_none'))}</span>`;
+    }
+    const word = dir === 'to_from' ? (r.verb || '') : (r.inverse_verb || '');
+    return `<span class="badge active">${escapeHtml(window.t('cmdb.settings.impact_cell_spreads', { verb: word }))}</span>`;
+}
+
 function renderRelTypes() {
     const tbody = document.getElementById('relTypesTableBody');
     if (!relTypes.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="empty-row">${window.t('cmdb.settings.no_rel_types')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-row">${window.t('cmdb.settings.no_rel_types')}</td></tr>`;
         return;
     }
     tbody.innerHTML = relTypes.map(r => `
@@ -382,6 +401,7 @@ function renderRelTypes() {
             <td><strong>${escapeHtml(r.verb)}</strong></td>
             <td>${escapeHtml(r.inverse_verb)}</td>
             <td style="color: #6b7280;">${escapeHtml(r.description || '')}</td>
+            <td>${relTypeImpactCell(r)}</td>
             <td>${r.display_order}</td>
             <td><span class="badge ${r.is_active ? 'active' : 'inactive'}">${r.is_active ? escapeHtml(window.t('cmdb.settings.active')) : escapeHtml(window.t('cmdb.settings.inactive'))}</span></td>
             <td>
@@ -396,6 +416,25 @@ function renderRelTypes() {
     `).join('');
 }
 
+/**
+ * Rewrite the impact-direction options using whatever is currently typed in the
+ * verb fields, so the choice reads as a sentence about the analyst's own estate
+ * ("everything that depends on it is affected") rather than as jargon. Both
+ * impact options share one frame — the only difference is which verb reads
+ * correctly from the affected object's side.
+ */
+function syncRelTypeImpactOptions() {
+    const sel = document.getElementById('relTypeImpactDirection');
+    if (!sel) return;
+    const verb = document.getElementById('relTypeVerb').value.trim()
+        || window.t('cmdb.settings.rel_type_impact_verb_fallback');
+    const inverse = document.getElementById('relTypeInverseVerb').value.trim()
+        || window.t('cmdb.settings.rel_type_impact_inverse_fallback');
+    sel.querySelector('option[value="none"]').textContent = window.t('cmdb.settings.rel_type_impact_none');
+    sel.querySelector('option[value="to_from"]').textContent = window.t('cmdb.settings.rel_type_impact_to_from', { verb: verb });
+    sel.querySelector('option[value="from_to"]').textContent = window.t('cmdb.settings.rel_type_impact_from_to', { verb: inverse });
+}
+
 function openRelTypeModal(id = null) {
     const r = id ? relTypes.find(x => x.id === id) : null;
     document.getElementById('relTypeModalTitle').textContent = r ? window.t('cmdb.settings.rel_type_modal_edit') : window.t('cmdb.settings.rel_type_modal_add');
@@ -403,8 +442,10 @@ function openRelTypeModal(id = null) {
     document.getElementById('relTypeVerb').value = r ? r.verb : '';
     document.getElementById('relTypeInverseVerb').value = r ? r.inverse_verb : '';
     document.getElementById('relTypeDescription').value = r ? (r.description || '') : '';
+    document.getElementById('relTypeImpactDirection').value = (r && r.impact_direction) ? r.impact_direction : 'none';
     document.getElementById('relTypeDisplayOrder').value = r ? r.display_order : 0;
     document.getElementById('relTypeIsActive').checked = r ? r.is_active : true;
+    syncRelTypeImpactOptions();
     document.getElementById('relTypeModal').classList.add('active');
     setTimeout(() => document.getElementById('relTypeVerb').focus(), 0);
 }
@@ -418,6 +459,7 @@ async function saveRelType(ev) {
         verb: document.getElementById('relTypeVerb').value,
         inverse_verb: document.getElementById('relTypeInverseVerb').value,
         description: document.getElementById('relTypeDescription').value,
+        impact_direction: document.getElementById('relTypeImpactDirection').value,
         display_order: parseInt(document.getElementById('relTypeDisplayOrder').value, 10) || 0,
         is_active: document.getElementById('relTypeIsActive').checked
     };

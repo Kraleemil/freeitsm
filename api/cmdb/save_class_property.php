@@ -36,6 +36,7 @@ try {
     $type = trim((string)($data['property_type'] ?? ''));
     $targetClassId = isset($data['target_class_id']) && $data['target_class_id'] !== '' ? (int)$data['target_class_id'] : null;
     $isRequired = !empty($data['is_required']) ? 1 : 0;
+    $spreadsImpact = !empty($data['spreads_impact']) ? 1 : 0;
     $displayOrder = isset($data['display_order']) ? (int)$data['display_order'] : 0;
     $options = $data['options'] ?? [];
 
@@ -46,6 +47,10 @@ try {
         throw new Exception('Object reference properties need a target class');
     }
     if ($type !== 'object_ref') $targetClassId = null;
+    // Only an object reference can be a dependency. Clearing the flag when the
+    // type changes stops a stale 1 from quietly feeding the blast radius from a
+    // property that no longer points at anything.
+    if ($type !== 'object_ref') $spreadsImpact = 0;
 
     if ($key === '') {
         $key = slugifyProp($label);
@@ -71,10 +76,10 @@ try {
 
         $stmt = $conn->prepare(
             "INSERT INTO cmdb_class_properties
-                 (class_id, property_key, label, property_type, target_class_id, is_required, display_order, created_datetime)
-             VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
+                 (class_id, property_key, label, property_type, target_class_id, is_required, spreads_impact, display_order, created_datetime)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())"
         );
-        $stmt->execute([$classId, $key, $label, $type, $targetClassId, $isRequired, $displayOrder]);
+        $stmt->execute([$classId, $key, $label, $type, $targetClassId, $isRequired, $spreadsImpact, $displayOrder]);
         $newId = (int)$conn->lastInsertId();
     } else {
         // Refuse a key change that would collide
@@ -86,10 +91,10 @@ try {
 
         $stmt = $conn->prepare(
             "UPDATE cmdb_class_properties
-                SET property_key = ?, label = ?, property_type = ?, target_class_id = ?, is_required = ?, display_order = ?
+                SET property_key = ?, label = ?, property_type = ?, target_class_id = ?, is_required = ?, spreads_impact = ?, display_order = ?
               WHERE id = ? AND class_id = ?"
         );
-        $stmt->execute([$key, $label, $type, $targetClassId, $isRequired, $displayOrder, $id, $classId]);
+        $stmt->execute([$key, $label, $type, $targetClassId, $isRequired, $spreadsImpact, $displayOrder, $id, $classId]);
         $newId = $id;
     }
 

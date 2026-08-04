@@ -50,6 +50,17 @@ Regenerated on demand (or cached and refreshed when properties/relationships cha
 
 On every object: a panel showing what would be affected if this object were taken offline — its descendants in the hierarchy plus everything linked through inverse relationships. Pure graph traversal, no AI required for v1. (V2 layers a prose AI summary on top: *"Taking this offline would interrupt the nightly archive job and break the analyst dashboard's ticket counts widget."*)
 
+**Update — transitive blast radius.** The panel originally stopped one hop out, which answers "what is attached to this?" but not "what actually breaks?". It now leads with a **blast radius** grouped by hop distance, so a server failure can be traced through its VM and its application to the customer-facing service. The three original buckets remain below it as the direct-connection detail, and their shape is unchanged because `GET /cmdb/objects/{id}/impact` publishes it.
+
+Two rules make this safe rather than noisy:
+
+- **Not every edge carries impact.** Following everything would report that a server failure affects the building it sits in. `cmdb_relationship_types.impact_direction` says whether a failure travels along a relationship and which way (`none` / `to_from` — *"A depends on B"*, B breaking affects A / `from_to` — *"A hosts B"*, A breaking affects B). Object-reference properties opt in separately via `cmdb_class_properties.spreads_impact`, because plenty of estates record a dependency as a field rather than a relationship. Containment always carries impact, since parent semantics here are ontological dependency.
+- **Everything defaults to "does not spread"**, so an upgraded install reports exactly what it did before until someone configures it. The panel distinguishes "nothing depends on this" from "nothing is configured to spread impact yet" — those look identical otherwise and call for opposite responses.
+
+The walk is breadth-first (so a hop count is the *shortest* path, not an artefact of traversal order), bounded by node and depth caps that surface as a `truncated` flag rather than silently capping, and scoped to the root object's company rather than trusting the no-cross-company-links invariant. It lives in `includes/cmdb_impact.php` — the internal endpoint and the REST API had each grown their own copy of the descendants walk, and both now share one.
+
+Full dependency-graph visualisation remains a v2 item (below); this ships as a grouped list.
+
 ### 3. Activity panel — cross-module visibility
 
 On every object: open tickets touching this object, recent changes affecting it, related KB articles. This is what makes the CMDB feel woven into the rest of the product instead of inert.
@@ -177,7 +188,7 @@ Each of these can be added later without breaking v1 data or schema. Listed roug
 V1 already ships object summaries, property suggestions, and relationship suggestions. V2 adds the larger, more open-ended features that need the v1 base data and AI plumbing in place first:
 
 - **Free-form chat panel** on the CMDB module — natural-language search and exploration ("Show me servers Bob owns that haven't been edited in 6 months", "Which databases are missing a backup_schedule property?").
-- **Impact analysis Q&A in prose** — "If I take DBPROD01 down for 2 hours tonight, what's the blast radius?" The LLM walks the hierarchy and relationships graph and answers in plain English, naming affected services, owners to notify, and tickets/changes potentially impacted. (V1 already shows the raw impact panel; v2 prose-summarises it.)
+- **Impact analysis Q&A in prose** — "If I take DBPROD01 down for 2 hours tonight, what's the blast radius?" The LLM walks the hierarchy and relationships graph and answers in plain English, naming affected services, owners to notify, and tickets/changes potentially impacted. (V1 already shows the raw impact panel; v2 prose-summarises it.) **The graph walk this needs now exists** — `cmdbBlastRadius()` returns the affected set with hop counts and how each was reached, so this becomes a prompt change rather than a new traversal.
 - **Stale-data nudges** — proactive suggestions on the dashboard when an object hasn't been edited in N months, or when a class has objects with required-but-missing fields.
 - **Bulk import / classification** — paste or upload a CSV; the AI proposes a mapping into existing classes and properties (with new class suggestions where nothing fits).
 

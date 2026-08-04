@@ -227,6 +227,69 @@ $translationNamespaces = ['common', 'cmdb'];
         .ai-summary-spinner-dot:nth-child(3) { animation-delay: 0.4s; }
         @keyframes aiblink2 { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
 
+        /* Blast radius — the transitive view, grouped by hop distance. Leads the
+           impact panel because it is the answer; the direct-connection buckets
+           below it are the supporting detail. */
+        .blast-radius { margin-bottom: 18px; }
+        .blast-radius.is-empty {
+            color: var(--text-dim, #9ca3af);
+            font-style: italic;
+            font-size: 13px;
+            padding: 10px 0;
+        }
+        .blast-headline {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text, #111827);
+            margin-bottom: 10px;
+        }
+        .blast-group { margin-bottom: 12px; }
+        .blast-group h5 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-muted, #6b7280);
+            font-weight: 600;
+            margin: 0 0 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .blast-group .count-badge {
+            background: var(--surface, #ffffff);
+            color: var(--cmdb-accent, #be185d);
+            padding: 1px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            border: 1px solid #fbcfe8;
+        }
+        .blast-group ul { list-style: none; padding: 0; margin: 0; }
+        .blast-group li {
+            padding: 5px 0 5px 12px;
+            font-size: 13px;
+            border-left: 2px solid #fbcfe8;
+            margin-bottom: 2px;
+        }
+        .blast-group a { color: var(--cmdb-accent, #be185d); text-decoration: none; font-weight: 500; }
+        .blast-group a:hover { text-decoration: underline; }
+        .blast-group .meta { color: var(--text-muted, #6b7280); font-size: 11px; display: block; }
+        .blast-truncated {
+            font-size: 12px;
+            color: var(--text-muted, #6b7280);
+            background: var(--surface-2, #fafafa);
+            border: 1px dashed var(--border, #e5e7eb);
+            border-radius: 6px;
+            padding: 8px 10px;
+        }
+        .impact-subhead {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-muted, #6b7280);
+            font-weight: 600;
+            margin: 0 0 8px;
+        }
+
         /* Impact panel — what would break if this object went offline */
         .impact-grid {
             display: grid;
@@ -794,6 +857,13 @@ $translationNamespaces = ['common', 'cmdb'];
                     <label class="form-check">
                         <input type="checkbox" id="pdIsRequired"> <?php echo htmlspecialchars(t('cmdb.prop_def.required')); ?>
                     </label>
+                </div>
+                <!-- Object references only — mirrors the same control in CMDB settings. -->
+                <div class="form-group" id="pdSpreadsImpactGroup" style="display: none;">
+                    <label class="form-check">
+                        <input type="checkbox" id="pdSpreadsImpact"> <?php echo htmlspecialchars(t('cmdb.prop_def.spreads_impact')); ?>
+                    </label>
+                    <small><?php echo htmlspecialchars(t('cmdb.prop_def.spreads_impact_help')); ?></small>
                 </div>
             </form>
         </div>

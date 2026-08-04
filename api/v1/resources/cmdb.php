@@ -41,6 +41,7 @@
 
 require_once dirname(__DIR__, 3) . '/includes/service_context.php';
 require_once dirname(__DIR__, 3) . '/includes/services/cmdb.php';
+require_once dirname(__DIR__, 3) . '/includes/cmdb_impact.php';
 
 // ---------------------------------------------------------------------------
 // Classes (read-only in v1 — class design stays an admin activity in the UI)
@@ -437,57 +438,27 @@ function apiCmdbObjectsDelete(PDO $conn, array $apiKey, array $params, array $bo
 // ---------------------------------------------------------------------------
 function apiCmdbObjectImpact(PDO $conn, array $apiKey, array $params, array $body): void {
     apiCmdbLoadObject($conn, (int)$params[0], $apiKey);
+    $id = (int)$params[0];
 
-    $descendants = [];
-    $stack = [['id' => $params[0], 'depth' => 0]];
-    $seen = [$params[0] => true];
-    $hops = 0;
-    $childStmt = $conn->prepare(
-        "SELECT o.id, o.name, c.name AS class_name FROM cmdb_objects o JOIN cmdb_classes c ON c.id = o.class_id WHERE o.parent_id = ?"
-    );
-    while ($stack && $hops < 1000) {
-        $cur = array_pop($stack);
-        $childStmt->execute([$cur['id']]);
-        foreach ($childStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $cid = (int)$row['id'];
-            if (isset($seen[$cid])) {
-                continue;
-            }
-            $seen[$cid] = true;
-            $descendants[] = ['id' => $cid, 'name' => $row['name'], 'class_name' => $row['class_name'], 'depth' => $cur['depth'] + 1];
-            $stack[] = ['id' => $cid, 'depth' => $cur['depth'] + 1];
-        }
-        $hops++;
-    }
-
-    $propRef = $conn->prepare(
-        "SELECT o.id, o.name, c.name AS class_name, p.label AS property_label
-         FROM cmdb_object_properties op
-         JOIN cmdb_objects o ON o.id = op.object_id
-         JOIN cmdb_classes c ON c.id = o.class_id
-         JOIN cmdb_class_properties p ON p.id = op.property_id
-         WHERE op.value_object_id = ? ORDER BY c.name, o.name"
-    );
-    $propRef->execute([$params[0]]);
-
-    $incoming = $conn->prepare(
-        "SELECT o.id, o.name, c.name AS class_name, rt.inverse_verb AS relationship
-         FROM cmdb_object_relationships r
-         JOIN cmdb_relationship_types rt ON rt.id = r.relationship_type_id
-         JOIN cmdb_objects o ON o.id = r.from_object_id
-         JOIN cmdb_classes c ON c.id = o.class_id
-         WHERE r.to_object_id = ? ORDER BY c.name, o.name"
-    );
-    $incoming->execute([$params[0]]);
+    // Shared engine — this endpoint used to carry its own copy of the walk.
+    // The response keys below are a published contract and stay exactly as they
+    // were; blast_radius is additive.
+    $impact = cmdbDirectImpact($conn, $id);
+    $blast  = cmdbBlastRadius($conn, $id, cmdbImpactTenantScope($conn, $id));
 
     apiRespond([
-        'descendants' => $descendants,
+        'descendants' => $impact['descendants'],
         'referenced_by_property' => array_map(function ($x) {
             return ['id' => (int)$x['id'], 'name' => $x['name'], 'class_name' => $x['class_name'], 'property' => $x['property_label']];
-        }, $propRef->fetchAll(PDO::FETCH_ASSOC)),
+        }, $impact['referenced_by_property']),
         'incoming_relationships' => array_map(function ($x) {
-            return ['id' => (int)$x['id'], 'name' => $x['name'], 'class_name' => $x['class_name'], 'relationship' => $x['relationship']];
-        }, $incoming->fetchAll(PDO::FETCH_ASSOC)),
+            return ['id' => (int)$x['id'], 'name' => $x['name'], 'class_name' => $x['class_name'], 'relationship' => $x['inverse_verb']];
+        }, $impact['referenced_by_relationship']),
+        // Transitive view: everything ultimately affected, not just what is
+        // attached directly. Each entry carries its shortest hop count and how
+        // it was reached.
+        'blast_radius' => $blast['nodes'],
+        'blast_radius_truncated' => $blast['truncated'],
     ]);
 }
 

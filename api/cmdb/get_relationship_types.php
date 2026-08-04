@@ -21,7 +21,7 @@ requireModuleAccessJson('cmdb');
 try {
     $conn = connectToDatabase();
     $stmt = $conn->query(
-        "SELECT id, verb, inverse_verb, description, display_order, is_active
+        "SELECT id, verb, inverse_verb, description, impact_direction, display_order, is_active
            FROM cmdb_relationship_types
        ORDER BY display_order, verb"
     );
