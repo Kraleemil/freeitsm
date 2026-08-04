@@ -1654,7 +1654,7 @@ $translationNamespaces = ['common', 'network-mapper'];
     <script src="../assets/js/vendor/html2canvas.min.js"></script>
     <script src="../assets/js/vendor/jspdf.umd.min.js"></script>
     <script src="../assets/js/network-mapper-icons.js"></script>
-    <script src="../assets/js/network-mapper.js?v=2"></script>
+    <script src="../assets/js/network-mapper.js?v=3"></script>
     <script>
         NM.init(<?php echo $diagramId; ?>);
 

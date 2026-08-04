@@ -276,6 +276,15 @@ function renderBlastRadius() {
         ? `<div class="blast-truncated">${escapeHtml(window.t('cmdb.impact.blast_truncated'))}</div>`
         : '';
 
+    // Hand off to Network Mapper rather than drawing a second graph here. Hidden
+    // entirely for an analyst without Network Mapper access — the endpoint
+    // refuses them too, so a visible button would only ever produce an error.
+    const diagramBtn = window.CAN_MAKE_DIAGRAM
+        ? `<button type="button" class="blast-diagram-btn" onclick="createImpactDiagram(this)">
+               ${escapeHtml(window.t('cmdb.impact.open_as_diagram'))}
+           </button>`
+        : '';
+
     return `
         <div class="blast-radius">
             <div class="blast-headline">${escapeHtml(nodes.length === 1
@@ -283,8 +292,42 @@ function renderBlastRadius() {
                 : window.t('cmdb.impact.blast_headline_other', { count: nodes.length }))}</div>
             ${groups}
             ${truncated}
+            ${diagramBtn}
         </div>
     `;
+}
+
+/**
+ * Build a Network Mapper diagram from this blast radius and open it.
+ *
+ * Deliberately creates a real, saved diagram rather than a throwaway picture:
+ * the point of handing off to the authoring tool is that the result is
+ * something you can rearrange, annotate and keep.
+ */
+async function createImpactDiagram(btn) {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = window.t('cmdb.impact.building_diagram');
+    try {
+        const res = await fetch(API + 'create_impact_diagram.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ object_id: OBJECT_ID })
+        });
+        const data = await res.json();
+        if (!data.success) {
+            throw new Error(data.error === 'empty_blast_radius'
+                ? window.t('cmdb.impact.diagram_empty')
+                : (data.error || window.t('cmdb.impact.diagram_failed')));
+        }
+        // fit=1: the ring layout's extent depends on how big the blast radius is,
+        // so there is no sensible fixed zoom to arrive at.
+        window.location.href = '../network-mapper/diagram.php?id=' + data.diagram_id + '&fit=1';
+    } catch (e) {
+        btn.disabled = false;
+        btn.textContent = original;
+        showInlineToast(e.message, true);
+    }
 }
 
 function renderImpactPanel() {

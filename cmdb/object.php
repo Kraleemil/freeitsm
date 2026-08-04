@@ -19,6 +19,11 @@ Tz::init();
 
 requireModuleAccess('cmdb');
 
+// The blast radius can hand off to Network Mapper, but only for an analyst who
+// may actually use it. Decided here rather than in JS so the button is never
+// rendered for someone the endpoint would refuse.
+$canMakeDiagram = analystCanAccessModule(connectToDatabase(), (int) $_SESSION['analyst_id'], 'network-mapper');
+
 $current_page = 'browse';
 $translationNamespaces = ['common', 'cmdb'];
 ?>
@@ -281,6 +286,20 @@ $translationNamespaces = ['common', 'cmdb'];
             border-radius: 6px;
             padding: 8px 10px;
         }
+        .blast-diagram-btn {
+            margin-top: 12px;
+            background: var(--cmdb-accent,#be185d);
+            color: #fff;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .blast-diagram-btn:hover:not(:disabled) { background: var(--cmdb-accent-hover,#9d174d); }
+        .blast-diagram-btn:disabled { opacity: .6; cursor: default; }
+
         .impact-subhead {
             font-size: 11px;
             text-transform: uppercase;
@@ -875,6 +894,7 @@ $translationNamespaces = ['common', 'cmdb'];
 
     <script>
         window.OBJECT_ID = <?php echo isset($_GET['id']) ? (int)$_GET['id'] : 0; ?>;
+        window.CAN_MAKE_DIAGRAM = <?php echo $canMakeDiagram ? 'true' : 'false'; ?>;
     </script>
     <script src="options-editor.js?v=3"></script>
     <script src="object.js?v=6"></script>

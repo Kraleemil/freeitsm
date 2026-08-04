@@ -208,6 +208,12 @@ return [
         'via_child'      => 'contained by {parent}',
         'via_property'   => '{label} points at {source}',
         'via_relationship' => '{verb} {source}',
+        // Handoff to Network Mapper — see api/cmdb/create_impact_diagram.php for
+        // why this is a handoff rather than a second graph.
+        'open_as_diagram'  => 'Open as diagram',
+        'building_diagram' => 'Building…',
+        'diagram_empty'    => 'There is nothing to draw — nothing depends on this object.',
+        'diagram_failed'   => 'Could not build the diagram.',
     ],
 
     'activity' => [
@@ -647,7 +653,7 @@ return [
         'synthesis_card1_title' => 'AI Summary',
         'synthesis_card1_body'  => '2-3 sentence prose synthesis at the top of every detail page &mdash; what it is, where it sits, who owns it, what depends on it, plus open ticket context. Click <strong>Generate</strong> / <strong>Regenerate</strong> on demand. Cached on the row so reloads don\'t re-call the AI.',
         'synthesis_card2_title' => 'Impact panel',
-        'synthesis_card2_body'  => 'Leads with the <strong>blast radius</strong> &mdash; everything that would ultimately be affected, grouped by how many steps away it is, so a server shows the databases it holds, the applications depending on those, and the service your customers would notice. Each row says how it was reached. Below it, three buckets of what is attached directly: <em>Descendants</em> (cascade-deletes), <em>Referenced by property</em>, <em>Things that link in</em>. Only links you have marked as carrying a failure are followed &mdash; see <strong>Settings &rarr; Relationship Types</strong>.',
+        'synthesis_card2_body'  => 'Leads with the <strong>blast radius</strong> &mdash; everything that would ultimately be affected, grouped by how many steps away it is, so a server shows the databases it holds, the applications depending on those, and the service your customers would notice. Each row says how it was reached. Below it, three buckets of what is attached directly: <em>Descendants</em> (cascade-deletes), <em>Referenced by property</em>, <em>Things that link in</em>. Only links you have marked as carrying a failure are followed &mdash; see <strong>Settings &rarr; Relationship Types</strong>. <strong>Open as diagram</strong> turns the whole blast radius into a Network Mapper diagram, laid out in rings by distance, which you can then rearrange, annotate, version and export.',
         'synthesis_card3_title' => 'Map (mini-graph)',
         'synthesis_card3_body'  => 'Compact visual: parent above, this object centred (pink), children below, and outgoing/incoming relationships in side columns. Click any node to navigate.',
         'synthesis_card4_title' => 'Activity panel',

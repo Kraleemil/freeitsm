@@ -265,9 +265,15 @@ function cmdbImpactEdgesFrom(PDO $conn, array $fromIds, ?int $tenantScope = null
 
     $rows = [];
 
+    // via_rel_id is the cmdb_object_relationships row an edge came from, where
+    // one exists. Only relationship edges have one — containment and property
+    // edges are not rows in that table — and it lets a diagram built from a
+    // blast radius provenance-link its connectors the same way Network Mapper's
+    // own "add related objects" flow does.
+
     // 1. Containment: parent fails, children go with it.
     $sql = "SELECT o.id, o.name, c.name AS class_name, o.parent_id AS via_from,
-                   'child' AS via_kind, NULL AS via_label
+                   'child' AS via_kind, NULL AS via_label, NULL AS via_rel_id
               FROM cmdb_objects o
               JOIN cmdb_classes c ON c.id = o.class_id
              WHERE o.parent_id IN ($ph) $tenantSql";
@@ -278,7 +284,7 @@ function cmdbImpactEdgesFrom(PDO $conn, array $fromIds, ?int $tenantScope = null
     // 2a. Relationships where the TO side failing affects the FROM side
     //     ("A depends on B" — B is in $fromIds, A is affected).
     $sql = "SELECT o.id, o.name, c.name AS class_name, r.to_object_id AS via_from,
-                   'relationship' AS via_kind, rt.verb AS via_label
+                   'relationship' AS via_kind, rt.verb AS via_label, r.id AS via_rel_id
               FROM cmdb_object_relationships r
               JOIN cmdb_objects o ON o.id = r.from_object_id
               JOIN cmdb_classes c ON c.id = o.class_id
@@ -294,7 +300,7 @@ function cmdbImpactEdgesFrom(PDO $conn, array $fromIds, ?int $tenantScope = null
     //     ("A hosts B" — A is in $fromIds, B is affected). Labelled with the
     //     inverse verb, because it reads from the affected object's side.
     $sql = "SELECT o.id, o.name, c.name AS class_name, r.from_object_id AS via_from,
-                   'relationship' AS via_kind, rt.inverse_verb AS via_label
+                   'relationship' AS via_kind, rt.inverse_verb AS via_label, r.id AS via_rel_id
               FROM cmdb_object_relationships r
               JOIN cmdb_objects o ON o.id = r.to_object_id
               JOIN cmdb_classes c ON c.id = o.class_id
@@ -309,7 +315,7 @@ function cmdbImpactEdgesFrom(PDO $conn, array $fromIds, ?int $tenantScope = null
     // 3. object_ref properties flagged as dependencies: the referenced object
     //    failing affects whoever points at it.
     $sql = "SELECT o.id, o.name, c.name AS class_name, op.value_object_id AS via_from,
-                   'property' AS via_kind, p.label AS via_label
+                   'property' AS via_kind, p.label AS via_label, NULL AS via_rel_id
               FROM cmdb_object_properties op
               JOIN cmdb_class_properties p ON p.id = op.property_id
               JOIN cmdb_objects o ON o.id = op.object_id
@@ -334,9 +340,10 @@ function cmdbImpactEdgesFrom(PDO $conn, array $fromIds, ?int $tenantScope = null
     }
 
     foreach ($rows as &$r) {
-        $r['id']        = (int) $r['id'];
-        $r['via_from']  = (int) $r['via_from'];
-        $r['via_name']  = $names[$r['via_from']] ?? null;
+        $r['id']         = (int) $r['id'];
+        $r['via_from']   = (int) $r['via_from'];
+        $r['via_name']   = $names[$r['via_from']] ?? null;
+        $r['via_rel_id'] = isset($r['via_rel_id']) && $r['via_rel_id'] !== null ? (int) $r['via_rel_id'] : null;
     }
     unset($r);
 

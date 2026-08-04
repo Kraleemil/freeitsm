@@ -218,7 +218,15 @@
             loadClasses(),
             loadAutosavePreference(),
             loadBrandingDefaults(),
-        ]).catch(() => {});
+        ]).then(() => {
+            // ?fit=1 — open zoomed to fit. Used when a diagram is arriving from
+            // somewhere that generated its layout (the CMDB blast radius), where
+            // the extent depends on the estate and no fixed zoom is right. Only
+            // honoured on load, so it never fights the user's own zooming.
+            try {
+                if (new URLSearchParams(location.search).get('fit') === '1') zoomFit();
+            } catch (e) { /* fit is a nicety, never a failure */ }
+        }).catch(() => {});
     }
 
     async function loadBrandingDefaults() {

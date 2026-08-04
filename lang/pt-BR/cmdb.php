@@ -195,6 +195,11 @@ return [
         'via_child'      => 'contido por {parent}',
         'via_property'   => '{label} aponta para {source}',
         'via_relationship' => '{verb} {source}',
+        // Transferência para o Mapeador de Rede — ver create_impact_diagram.php.
+        'open_as_diagram'  => 'Abrir como diagrama',
+        'building_diagram' => 'Construindo…',
+        'diagram_empty'    => 'Não há nada para desenhar — nada depende deste objeto.',
+        'diagram_failed'   => 'Não foi possível construir o diagrama.',
     ],
 
     'activity' => [
@@ -630,7 +635,7 @@ return [
         'synthesis_card1_title' => 'Resumo por IA',
         'synthesis_card1_body'  => 'Síntese em prosa de 2 a 3 frases no topo de cada página de detalhes &mdash; o que é, onde se encaixa, quem é o proprietário, o que depende dele, além do contexto de chamados abertos. Clique em <strong>Gerar</strong> / <strong>Gerar novamente</strong> sob demanda. Armazenado em cache na linha para que recarregamentos não chamem a IA de novo.',
         'synthesis_card2_title' => 'Painel de Impacto',
-        'synthesis_card2_body'  => 'Começa pelo <strong>raio de impacto</strong> &mdash; tudo que seria afetado no final, agrupado por quantos passos de distância está, de modo que um servidor mostra os bancos de dados que contém, as aplicações que dependem deles e o serviço que seus clientes notariam. Cada linha diz como foi alcançada. Abaixo, três grupos do que está ligado diretamente: <em>Descendentes</em> (exclusões em cascata), <em>Referenciado por propriedade</em>, <em>Coisas que se vinculam a este</em>. Apenas vínculos que você marcou como transmissores de falha são seguidos &mdash; veja <strong>Configurações &rarr; Tipos de relacionamento</strong>.',
+        'synthesis_card2_body'  => 'Começa pelo <strong>raio de impacto</strong> &mdash; tudo que seria afetado no final, agrupado por quantos passos de distância está, de modo que um servidor mostra os bancos de dados que contém, as aplicações que dependem deles e o serviço que seus clientes notariam. Cada linha diz como foi alcançada. Abaixo, três grupos do que está ligado diretamente: <em>Descendentes</em> (exclusões em cascata), <em>Referenciado por propriedade</em>, <em>Coisas que se vinculam a este</em>. Apenas vínculos que você marcou como transmissores de falha são seguidos &mdash; veja <strong>Configurações &rarr; Tipos de relacionamento</strong>. <strong>Abrir como diagrama</strong> transforma todo o raio de impacto em um diagrama do Mapeador de Rede, disposto em anéis por distância, que você pode reorganizar, anotar, versionar e exportar.',
         'synthesis_card3_title' => 'Mapa (mini-grafo)',
         'synthesis_card3_body'  => 'Visual compacto: pai acima, este objeto centralizado (rosa), filhos abaixo e relacionamentos de saída/entrada em colunas laterais. Clique em qualquer nó para navegar.',
         'synthesis_card4_title' => 'Painel de Atividade',
