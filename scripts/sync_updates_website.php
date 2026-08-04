@@ -27,6 +27,8 @@ $dryRun  = !empty($args['dry-run']);
 $apiUrl  = $args['url'] ?? 'http://localhost/freeitsm/api/updates.php';
 $apiKey  = $args['key'] ?? 'local-dev-key';
 $limit   = isset($args['limit']) ? (int)$args['limit'] : 0;
+// Migrate only the pre-numbering entries, leaving every numbered row untouched.
+$onlyUnnumbered = !empty($args['unnumbered-only']);
 $repoUrl = rtrim($args['repo'] ?? 'https://github.com/edmozley/freeitsm', '/');
 
 $root = dirname(__DIR__);
@@ -153,7 +155,7 @@ $htmlMap = parse_updates_html($htmlPath, $htmlUnnumbered);
 fwrite(STDERR, sprintf("Sources: %d curated (updates.html, + %d pre-numbering) + %d changelog. Merging…\n",
     count($htmlMap), count($htmlUnnumbered), count($clMap)));
 
-$ids = array_keys($clMap + $htmlMap);   // union of update numbers
+$ids = $onlyUnnumbered ? [] : array_keys($clMap + $htmlMap);   // union of update numbers
 rsort($ids);                            // newest first
 if ($limit > 0) $ids = array_slice($ids, 0, $limit);
 
