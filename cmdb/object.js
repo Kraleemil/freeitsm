@@ -1,33 +1,69 @@
 /**
- * CMDB Object Detail Page
- * Renders an object hydrated from get_object.php and provides:
- * - Inline edit of name and each property value (type-aware editors)
- * - Parent picker modal
- * - Children list (read-only — children are managed from their own page)
- * - Outgoing + incoming relationships with add/remove
- * - Delete object (with cascade warning)
+ * CMDB Object Detail
+ *
+ * Renders one configuration item and everything attached to it, and provides
+ * inline editing of the lot: name, parent, planned state, every property type,
+ * relationships in both directions, and the property DEFINITION modal.
+ *
+ * Layout notes worth knowing before changing anything here are in the header
+ * of object.php — in particular why Impact / Map / Hierarchy / Relationships
+ * are one panel, and why its tally counts by KIND rather than by direction.
  */
 
 const API = '../api/cmdb/';
 const OBJECT_ID = window.OBJECT_ID;
 
 let obj = null;
-let impact = null; // {descendants, referenced_by_property, referenced_by_relationship}
-let blastRadius = null; // {nodes:[{id,name,class_name,depth,via_kind,via_label,via_name}], truncated, no_impact_edges_configured}
-let activity = null; // {open, closed, total_closed} — tickets that reference this object
-let relationshipTypes = [];
-let allClasses = []; // cached for the property-edit target-class dropdown
+let impact = null;            // {descendants, referenced_by_property, referenced_by_relationship}
+let blastRadius = null;       // {nodes:[{id,name,class_name,depth,via_kind,via_label,via_name}], truncated, no_impact_edges_configured}
+let activity = null;          // {open, closed, total_closed}
+let classesById = {};         // class_id -> {name, icon_key}
+let classesByName = {};       // class_name -> icon_key  (related objects only carry the name)
+let allClasses = [];          // for the property-definition target-class picker
+let relationshipTypes = [];   // the verb library, for the add-relationship modal
+let showBlanks = false;
+let summaryGenerating = false;
 let acTimer = null;
 let acHighlightedIdx = -1;
-let summaryGenerating = false;
 
-function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+/* Property NAMES that mean "this is the field saying how much it matters".
+   Checked before the value vocabulary below, so Criticality beats Environment
+   on a Server that has both. */
+const SIGNAL_HINTS = ['critical', 'severity', 'impact', 'priority', 'tier'];
+
+/* Property VALUES that mean the same thing, for installs that never set an
+   option colour. A colour configured in class settings always wins over this. */
+
+const SEVERITY = {
+    critical: '#b91c1c',
+    urgent:   '#b91c1c',
+    high:     '#c2410c',
+    major:    '#c2410c',
+    medium:   '#a16207',
+    moderate: '#a16207',
+    low:      '#15803d',
+    minor:    '#15803d'
+};
+
+const STALE_DAYS = 183; // the audit's six months, in days
+
+/* ---------------- helpers ---------------- */
+
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
-function showInlineToast(msg, isError = false) {
-    if (typeof showToast === 'function') showToast(msg, isError ? 'error' : 'success');
-    else showToast(msg, 'error');
+
+/* showToast and showConfirm are the shared components, pulled in by
+   includes/header.php -> waffle-menu.php. Not redefined here — a second toast
+   implementation one module away from the real one is exactly the divergence
+   worth avoiding. */
+function toast(msg, isError) {
+    showToast(msg, isError ? 'error' : 'success');
 }
+function confirmAction(opts) {
+    return showConfirm(opts);
+}
+
 async function postJson(url, body) {
     const res = await fetch(url, {
         method: 'POST',
@@ -36,47 +72,68 @@ async function postJson(url, body) {
     });
     return res.json();
 }
-function formatDate(s) {
+
+/* created/updated are UTC and get converted; a `date` PROPERTY is naive and
+   must never go through the timezone path or it shifts by a day. */
+function fmtDateTime(s) {
     if (!s) return '';
-    try {
-        const d = parseUTCDate(s);
-        return d.toLocaleString(undefined, tzOpts());
-    } catch (e) { return s; }
+    try { return parseUTCDate(s).toLocaleString(undefined, tzOpts()); } catch (e) { return s; }
 }
+
+/* "2026-04-15 00:00:00" -> "2026-04-15". Never parsed as a Date: a date
+   property is naive, and round-tripping it through a timezone shifts it. */
+function dateOnly(v) {
+    const s = String(v ?? '');
+    return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+}
+
+function daysSince(sqlUtc) {
+    if (!sqlUtc) return null;
+    try {
+        const then = parseUTCDate(sqlUtc).getTime();
+        return Math.max(0, Math.floor((Date.now() - then) / 86400000));
+    } catch (e) { return null; }
+}
+
+function icon(key, size) {
+    return window.nmRenderIcon ? window.nmRenderIcon(key || 'box', size || 20) : '';
+}
+function iconForClassName(name, size) {
+    return icon(classesByName[name] || 'box', size);
+}
+function iconForClassId(id, size) {
+    const c = classesById[id];
+    return icon(c ? c.icon_key : 'box', size);
+}
+
+/* ---------------- load ---------------- */
 
 document.addEventListener('DOMContentLoaded', () => {
     if (!OBJECT_ID) {
-        document.getElementById('objPage').innerHTML = `<div style="padding:40px;text-align:center;color:#b91c1c;">${escapeHtml(window.t('cmdb.object.missing_id'))}</div>`;
+        document.querySelector('#o2Page .o2-wrap').innerHTML =
+            '<div style="padding:60px;text-align:center;color:var(--danger-text,#b91c1c);">' +
+            esc(window.t('cmdb.object.missing_id')) + '</div>';
         return;
     }
-    Promise.all([loadObject(), loadImpact(), loadActivity(), loadRelationshipTypes(), loadAllClasses()]).then(() => {
+    Promise.all([loadObject(), loadImpact(), loadActivity(), loadClasses(), loadRelationshipTypes()]).then(() => {
         if (obj) render();
     });
     initPropDefModalDrag();
 });
 
-async function loadImpact() {
+async function loadRelationshipTypes() {
     try {
-        const res = await fetch(API + 'get_object_impact.php?id=' + OBJECT_ID);
-        const data = await res.json();
-        if (data.success) { impact = data.impact; blastRadius = data.blast_radius || null; }
-    } catch (e) { /* impact panel will just show "computing…" */ }
+        const data = await (await fetch(API + 'get_relationship_types.php')).json();
+        if (data.success) relationshipTypes = (data.relationship_types || []).filter(r => r.is_active);
+    } catch (e) { /* the add-relationship modal will say none are defined */ }
 }
 
-async function loadActivity() {
-    try {
-        const res = await fetch(API + 'get_object_tickets.php?id=' + OBJECT_ID);
-        const data = await res.json();
-        if (data.success) activity = data;
-    } catch (e) { /* activity panel will just show "computing…" */ }
-}
-
-async function loadAllClasses() {
-    try {
-        const res = await fetch(API + 'get_classes.php');
-        const data = await res.json();
-        if (data.success) allClasses = (data.classes || []).filter(c => c.is_active);
-    } catch (e) { /* ignore — target-class picker will just be empty */ }
+/* Everything that reloads after a write goes through here, so no caller can
+   refresh the object but forget the impact panel and leave the blast radius
+   and the connection tally disagreeing. */
+async function reloadAndRender() {
+    await Promise.all([loadObject(), loadImpact(), loadActivity()]);
+    render();
 }
 
 async function loadObject() {
@@ -86,690 +143,660 @@ async function loadObject() {
         if (!data.success) throw new Error(data.error || window.t('cmdb.object.load_failed'));
         obj = data.object;
     } catch (err) {
-        document.getElementById('objPage').innerHTML = `<div style="padding:40px;text-align:center;color:#b91c1c;">${escapeHtml(window.t('cmdb.object.error_prefix', { message: err.message }))}</div>`;
+        document.querySelector('#o2Page .o2-wrap').innerHTML =
+            '<div style="padding:60px;text-align:center;color:var(--danger-text,#b91c1c);">' + esc(err.message) + '</div>';
     }
 }
-
-async function loadRelationshipTypes() {
+async function loadImpact() {
     try {
-        const res = await fetch(API + 'get_relationship_types.php');
-        const data = await res.json();
-        if (data.success) relationshipTypes = (data.relationship_types || []).filter(r => r.is_active);
-    } catch (e) { /* ignore */ }
+        const data = await (await fetch(API + 'get_object_impact.php?id=' + OBJECT_ID)).json();
+        if (data.success) { impact = data.impact; blastRadius = data.blast_radius || null; }
+    } catch (e) { /* panel degrades to its empty state */ }
+}
+async function loadActivity() {
+    try {
+        const data = await (await fetch(API + 'get_object_tickets.php?id=' + OBJECT_ID)).json();
+        if (data.success) activity = data;
+    } catch (e) { /* panel degrades to its empty state */ }
+}
+async function loadClasses() {
+    try {
+        const data = await (await fetch(API + 'get_classes.php')).json();
+        if (!data.success) return;
+        allClasses = (data.classes || []).filter(c => c.is_active);
+        (data.classes || []).forEach(c => {
+            classesById[c.id] = { name: c.name, icon_key: c.icon_key };
+            classesByName[c.name] = c.icon_key;
+        });
+    } catch (e) { /* falls back to the generic box glyph */ }
 }
 
-// ---------- Render ----------
+/* ---------------- derived facts ---------------- */
+
+/* The object's own signal colour, read off its data rather than configured
+   anywhere: an explicit option colour first, a severity word second. */
+function detectSignal() {
+    if (!obj) return null;
+    // Rank matters: a Server usually has several coloured dropdowns, and
+    // "Environment: Production" would otherwise win over "Criticality:
+    // Critical" purely by being defined first.
+    const cands = (obj.properties || [])
+        .filter(p => p.property_type === 'dropdown' && p.value)
+        .map(p => {
+            const opt = (p.options || []).find(o => o.value === p.value);
+            const sev = SEVERITY[String(p.value).toLowerCase()];
+            const colour = (opt && opt.colour) || sev || null;
+            if (!colour) return null;
+            const hay = ((p.property_key || '') + ' ' + (p.label || '')).toLowerCase();
+            const named = SIGNAL_HINTS.some(h => hay.indexOf(h) !== -1);
+            return { colour: colour, label: p.value, rank: named ? 0 : (sev ? 1 : 2) };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.rank - b.rank);
+    return cands.length ? cands[0] : null;
+}
+
+/* One place that counts each kind of connection, so the tally row, the
+   headline number and the columns can never disagree with each other.
+   `descendants` is the TRANSITIVE list from the impact endpoint, not just
+   direct children — a Server → Instance → Database → Job chain must not
+   report one descendant. */
+function connectionTally() {
+    const r = (obj && obj.relationships) || { outgoing: [], incoming: [] };
+    const desc = (impact && impact.descendants) ? impact.descendants : [];
+    const refsIn = (impact && impact.referenced_by_property) ? impact.referenced_by_property : [];
+    const refsOut = (obj.properties || []).filter(p => p.property_type === 'object_ref' && p.value_object);
+    return {
+        descendants: desc,
+        incoming: r.incoming || [],
+        outgoing: r.outgoing || [],
+        refsIn: refsIn,
+        refsOut: refsOut,
+        hasParent: !!obj.parent_id,
+        total: desc.length + (r.incoming || []).length + (r.outgoing || []).length +
+               refsIn.length + refsOut.length + (obj.parent_id ? 1 : 0)
+    };
+}
+
+/* ---------------- render ---------------- */
 
 function render() {
-    const html = `
-        <div class="obj-breadcrumb">
-            <a href="./">${escapeHtml(window.t('cmdb.object.breadcrumb_browse'))}</a>
-            <span class="sep">›</span>
-            <a href="./#class-${obj.class_id}">${escapeHtml(obj.class_name)}</a>
-            ${obj.parent_id ? `<span class="sep">›</span><a href="object.php?id=${obj.parent_id}">${escapeHtml(obj.parent_name)}</a>` : ''}
-            <span class="sep">›</span>
-            <span style="color: #1f2937;">${escapeHtml(obj.name)}</span>
-        </div>
+    const signal = detectSignal();
+    const wrap = document.querySelector('#o2Page .o2-wrap');
+    // The sections live in their own container so the stagger's :nth-child
+    // counts sections, not "sections plus whatever else is in the wrapper".
+    wrap.innerHTML =
+        breadcrumbHtml() +
+        '<div class="o2-secs">' +
+            '<div class="o2-sec">' + heroHtml(signal) + '</div>' +
+            '<div class="o2-sec">' + statsHtml() + '</div>' +
+            '<div class="o2-sec">' + aiHtml() + '</div>' +
+            '<div class="o2-sec">' + blastHtml() + '</div>' +
+            '<div class="o2-sec">' + connectionsHtml() + '</div>' +
+            '<div class="o2-sec">' + propsHtml() + '</div>' +
+            '<div class="o2-sec">' + activityHtml() + '</div>' +
+            '<div class="o2-sec">' + dangerHtml() + '</div>' +
+        '</div>';
 
-        <div class="obj-header${obj.is_planned ? ' is-planned' : ''}">
-            <input type="text" class="obj-name" id="objName" value="${escapeHtml(obj.name)}" maxlength="255">
-            <div class="obj-meta">
-                <span class="class-badge">${escapeHtml(obj.class_name)}</span>
-                ${obj.is_planned ? `<span class="planned-pill" title="${escapeHtml(window.t('cmdb.object.planned_title'))}">${escapeHtml(window.t('cmdb.list.planned_pill'))}</span>` : ''}
-                <span><strong>${escapeHtml(window.t('cmdb.object.parent'))}</strong>
-                    ${obj.parent_id
-                        ? `<a href="object.php?id=${obj.parent_id}">${escapeHtml(obj.parent_name)}</a> <span style="color:#9ca3af;">(${escapeHtml(obj.parent_class_name || '')})</span>`
-                        : `<span style="color:#d1d5db;">${escapeHtml(window.t('cmdb.object.parent_none'))}</span>`}
-                    <button class="btn-mini" style="margin-left: 8px;" onclick="openParentModal()">${escapeHtml(window.t('cmdb.object.edit'))}</button>
-                </span>
-                <span><strong>${escapeHtml(window.t('cmdb.object.planned'))}</strong>
-                    <label style="cursor:pointer; display:inline-flex; align-items:center; gap:5px; vertical-align:middle;">
-                        <input type="checkbox" id="objIsPlanned" ${obj.is_planned ? 'checked' : ''} onchange="togglePlanned(this.checked)" style="margin:0;">
-                        <span style="font-size:12px; color:#666;">${obj.is_planned ? escapeHtml(window.t('cmdb.object.planned_yes')) : escapeHtml(window.t('cmdb.object.planned_no'))}</span>
-                    </label>
-                </span>
-                <span><strong>${escapeHtml(window.t('cmdb.object.created'))}</strong> ${formatDate(obj.created_datetime)}</span>
-                <span><strong>${escapeHtml(window.t('cmdb.object.updated'))}</strong> ${formatDate(obj.updated_datetime)}</span>
-            </div>
-            <div class="obj-actions">
-                <button class="btn btn-danger" onclick="deleteObject()">${escapeHtml(window.t('cmdb.object.delete'))}</button>
-            </div>
-        </div>
+    if (signal) wrap.style.setProperty('--o2-signal', signal.colour);
+    else wrap.style.removeProperty('--o2-signal');
 
-        ${renderAiSummaryCard()}
-
-        ${renderImpactPanel()}
-
-        ${renderActivityPanel()}
-
-        <div class="obj-section">
-            <h3>${escapeHtml(window.t('cmdb.object.map'))}</h3>
-            ${renderMiniGraph()}
-        </div>
-
-        <div class="obj-section">
-            <h3>${escapeHtml(window.t('cmdb.object.properties'))}</h3>
-            ${renderPropertiesTable()}
-        </div>
-
-        <div class="obj-section">
-            <h3>${escapeHtml(window.t('cmdb.object.hierarchy'))}</h3>
-            ${renderHierarchy()}
-        </div>
-
-        <div class="obj-section">
-            <h3>
-                <span>${escapeHtml(window.t('cmdb.object.relationships'))}</span>
-                <button class="btn-mini" onclick="openRelModal()">${escapeHtml(window.t('cmdb.object.add_relationship'))}</button>
-            </h3>
-            <div class="rel-split">
-                <div class="rel-col">
-                    <h4>${escapeHtml(window.t('cmdb.object.outgoing'))}</h4>
-                    ${renderRelationshipList(obj.relationships.outgoing, 'outgoing')}
-                </div>
-                <div class="rel-col">
-                    <h4>${escapeHtml(window.t('cmdb.object.incoming'))}</h4>
-                    ${renderRelationshipList(obj.relationships.incoming, 'incoming')}
-                </div>
-            </div>
-        </div>
-    `;
-    document.getElementById('objPage').innerHTML = html;
-
-    // Wire the name input
-    const nameInput = document.getElementById('objName');
-    let originalName = obj.name;
-    nameInput.addEventListener('blur', () => {
-        const newName = nameInput.value.trim();
-        if (newName === originalName) return;
-        if (newName === '') { nameInput.value = originalName; showInlineToast(window.t('cmdb.object.name_empty'), true); return; }
-        savePartial({ name: newName });
-        originalName = newName;
-    });
-    nameInput.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); }
-        if (e.key === 'Escape') { nameInput.value = originalName; nameInput.blur(); }
-    });
-
-    // Wire each property's display cell to start editing on click
-    document.querySelectorAll('.prop-display').forEach(el => {
-        el.addEventListener('click', () => beginEditProperty(parseInt(el.dataset.pid, 10)));
-    });
+    wireName();
+    wireProps();
+    animateStats();
+    animateMeter();
 }
 
-function renderAiSummaryCard() {
-    const sparkleSvg = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8L20 10l-5 4.5L16.5 21 12 17.8 7.5 21 9 14.5 4 10l6.1-1.2z"/></svg>`;
-    const hasSummary = !!obj.ai_summary;
-    let body;
-    if (summaryGenerating) {
-        body = `<div class="ai-summary-empty">${escapeHtml(window.t('cmdb.summary.synthesising'))}
-            <span class="ai-summary-spinner-dot"></span><span class="ai-summary-spinner-dot"></span><span class="ai-summary-spinner-dot"></span>
-        </div>`;
-    } else if (hasSummary) {
-        body = `<div class="ai-summary-text">${escapeHtml(obj.ai_summary)}</div>
-                <div class="ai-summary-meta">${escapeHtml(window.t('cmdb.summary.generated', { datetime: formatDate(obj.ai_summary_generated_at) }))}</div>`;
-    } else {
-        body = `<div class="ai-summary-empty">${window.t('cmdb.summary.empty', { generate: `<strong>${escapeHtml(window.t('cmdb.summary.generate'))}</strong>` })}</div>`;
+function breadcrumbHtml() {
+    return '<div class="o2-breadcrumb">' +
+        '<a href="./">Browse</a><span class="sep">›</span>' +
+        '<a href="./#class-' + obj.class_id + '">' + esc(obj.class_name) + '</a>' +
+        (obj.parent_id ? '<span class="sep">›</span><a href="object.php?id=' + obj.parent_id + '">' + esc(obj.parent_name) + '</a>' : '') +
+        '<span class="sep">›</span><span class="here">' + esc(obj.name) + '</span>' +
+        '</div>';
+}
+
+function heroHtml(signal) {
+    const stale = daysSince(obj.updated_datetime);
+    const chips = [];
+    chips.push('<span class="o2-chip class">' + icon(classesById[obj.class_id] ? classesById[obj.class_id].icon_key : 'box', 13) + esc(obj.class_name) + '</span>');
+    if (signal) chips.push('<span class="o2-chip signal">' + esc(signal.label) + '</span>');
+
+    // The state is always stated, and clicking it flips it. When it is the
+    // normal case it is quiet; when it is planned it is loud.
+    chips.push('<button class="o2-chip act' + (obj.is_planned ? ' planned' : '') + '" onclick="togglePlanned()" ' +
+        'title="' + esc(window.t(obj.is_planned ? 'cmdb.object.state_make_real' : 'cmdb.object.state_make_planned')) + '">' +
+        esc(window.t(obj.is_planned ? 'cmdb.object.state_planned' : 'cmdb.object.state_real')) + '</button>');
+
+    chips.push(obj.parent_id
+        ? '<span class="o2-chip">' + esc(window.t('cmdb.object.part_of')) +
+          ' <a href="object.php?id=' + obj.parent_id + '">' + esc(obj.parent_name) + '</a>' +
+          '<button class="o2-chip-x" onclick="openParentModal()" title="' + esc(window.t('cmdb.object.parent_change_title')) + '">' +
+          esc(window.t('cmdb.object.parent_edit')) + '</button></span>'
+        : '<button class="o2-chip act" onclick="openParentModal()" title="' + esc(window.t('cmdb.object.parent_set_title')) + '">' +
+          esc(window.t('cmdb.object.parent_set')) + '</button>');
+    if (stale !== null && stale > STALE_DAYS) {
+        chips.push('<span class="o2-chip stale">' +
+            esc(window.t('cmdb.object.stale_months', { count: Math.floor(stale / 30) })) + '</span>');
     }
-    const btnLabel = hasSummary ? window.t('cmdb.summary.regenerate') : window.t('cmdb.summary.generate');
-    return `
-        <div class="ai-summary-card">
-            <div class="ai-summary-head">
-                <span class="ai-summary-label">${sparkleSvg} ${escapeHtml(window.t('cmdb.summary.label'))}</span>
-                <button class="btn-mini" onclick="generateSummary()" ${summaryGenerating ? 'disabled' : ''}>${btnLabel}</button>
-            </div>
-            ${body}
-        </div>
-    `;
+
+    const actions =
+        '<button class="o2-btn primary" id="o2GenBtn" onclick="generateSummary(this)">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>' +
+            esc(window.t(obj.ai_summary ? 'cmdb.summary.regenerate' : 'cmdb.summary.generate')) +
+        '</button>' +
+        (window.CAN_MAKE_DIAGRAM
+            ? '<button class="o2-btn" onclick="createImpactDiagram(this)">' +
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h4a2 2 0 0 1 2 2v7"/></svg>' +
+                esc(window.t('cmdb.impact.open_as_diagram')) + '</button>'
+            : '');
+
+    return '<div class="o2-hero' + (obj.is_planned ? ' is-planned' : '') + '">' +
+        '<div class="o2-hero-icon">' + iconForClassId(obj.class_id, 40) + '</div>' +
+        '<div class="o2-hero-main">' +
+            '<input class="o2-name" id="o2Name" value="' + esc(obj.name) + '" aria-label="Object name">' +
+            '<div class="o2-chips">' + chips.join('') + '</div>' +
+        '</div>' +
+        '<div class="o2-hero-actions">' + actions + '</div>' +
+    '</div>';
 }
 
-/**
- * Blast radius — what would ultimately be affected, not just what is attached.
- * Grouped by hop distance because "3 hops away" is the thing that turns a list
- * of names into a story: this server takes out that VM, which takes out the
- * service, which is what the customer notices.
- *
- * Every row says how it was reached, so a surprising entry can be traced rather
- * than doubted. Deliberately no graph here — full dependency-graph viz is a v2
- * item in docs/cmdb.md.
- */
-function renderBlastRadius() {
-    const br = blastRadius;
-    if (!br) return '';
-    const nodes = br.nodes || [];
+function statsHtml() {
+    const blast = (blastRadius && blastRadius.nodes) ? blastRadius.nodes.length : 0;
+    const open = (activity && activity.open) ? activity.open.length : 0;
+    const conns = connectionTally().total;
+    const days = daysSince(obj.updated_datetime);
 
-    // An empty result is ambiguous — it can mean "nothing depends on this" or
-    // "no relationship type is configured to carry impact yet", and those need
-    // very different responses from the reader. Say which.
+    function tile(val, unit, label, cls, target) {
+        const jump = target
+            ? ' onclick="document.getElementById(\'' + target + '\').scrollIntoView({behavior:\'smooth\',block:\'start\'})"'
+            : '';
+        return '<button class="o2-stat ' + cls + (target ? '' : ' is-quiet') + '"' + jump + '>' +
+            '<div class="o2-stat-val"><span data-count="' + val + '">0</span>' + (unit ? '<span class="unit">' + esc(unit) + '</span>' : '') + '</div>' +
+            '<div class="o2-stat-lbl">' + esc(label) + '</div>' +
+        '</button>';
+    }
+
+    return '<div class="o2-stats">' +
+        tile(blast, '', window.t(blast === 1 ? 'cmdb.stats.breaks_one' : 'cmdb.stats.breaks_other'), blast > 0 ? 'hot' : 'zero', 'o2Blast') +
+        tile(open, '', window.t(open === 1 ? 'cmdb.stats.open_tickets_one' : 'cmdb.stats.open_tickets_other'), open > 0 ? 'warm' : 'zero', 'o2Activity') +
+        tile(conns, '', window.t(conns === 1 ? 'cmdb.stats.connections_one' : 'cmdb.stats.connections_other'), conns > 0 ? '' : 'zero', 'o2Conn') +
+        tile(days === null ? 0 : days, window.t('cmdb.stats.days_unit'), window.t('cmdb.stats.since_touched'),
+             (days !== null && days > STALE_DAYS) ? 'warm' : '', null) +
+    '</div>';
+}
+
+function aiHtml() {
+    if (obj.ai_summary) {
+        return '<div class="o2-ai">' +
+            '<div class="o2-ai-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></div>' +
+            '<div><div class="o2-ai-txt" id="o2AiTxt">' + esc(obj.ai_summary) + '</div>' +
+            (obj.ai_summary_generated_at
+                ? '<div class="o2-ai-when">' + esc(window.t('cmdb.summary.generated', { datetime: fmtDateTime(obj.ai_summary_generated_at) })) + '</div>'
+                : '') +
+            '</div></div>';
+    }
+    return '<div class="o2-ai">' +
+        '<div class="o2-ai-ico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></div>' +
+        '<div class="o2-ai-txt muted" id="o2AiTxt">' +
+            window.t('cmdb.summary.empty_prompt', { generate: '<b>' + esc(window.t('cmdb.summary.generate')) + '</b>' }) +
+        '</div>' +
+    '</div>';
+}
+
+/* The blast radius as a left-to-right chain: root, then one column per hop.
+   The grouped list said the same thing; the chain shows the direction a
+   failure travels, which is the point of the panel. */
+function blastHtml() {
+    const head = '<div class="o2-card-head"><span class="o2-card-title">' + esc(window.t('cmdb.impact.if_this_failed')) + '</span>' +
+        (blastRadius && blastRadius.truncated ? '<span class="o2-card-sub">' + esc(window.t('cmdb.impact.blast_truncated')) + '</span>' : '') + '</div>';
+
+    if (!blastRadius) return '<div class="o2-card" id="o2Blast">' + head +
+        '<div class="o2-empty">' + esc(window.t('cmdb.object.working_it_out')) + '</div></div>';
+
+    const nodes = blastRadius.nodes || [];
     if (!nodes.length) {
-        const msg = br.no_impact_edges_configured
-            ? window.t('cmdb.impact.blast_unconfigured')
-            : window.t('cmdb.impact.blast_none');
-        return `<div class="blast-radius is-empty">${escapeHtml(msg)}</div>`;
+        // Two different states that produce an identical empty list and call for
+        // opposite responses — reassurance versus go and configure it.
+        const msg = blastRadius.no_impact_edges_configured
+            ? esc(window.t('cmdb.impact.blast_unconfigured'))
+            : esc(window.t('cmdb.impact.blast_none'));
+        return '<div class="o2-card" id="o2Blast">' + head + '<div class="o2-empty">' + msg + '</div></div>';
     }
 
-    const byDepth = {};
-    nodes.forEach(n => { (byDepth[n.depth] = byDepth[n.depth] || []).push(n); });
+    const maxDepth = Math.max(...nodes.map(n => n.depth));
+    let chain = '<div class="o2-hop"><div class="o2-hop-lbl">' + esc(window.t('cmdb.impact.starts_here')) + '</div><div class="o2-hop-items">' +
+        '<div class="o2-node root">' +
+            '<span class="o2-node-ico">' + iconForClassId(obj.class_id, 20) + '</span>' +
+            '<span class="o2-node-txt"><span class="o2-node-name">' + esc(obj.name) + '</span>' +
+            '<span class="o2-node-sub">' + esc(obj.class_name) + '</span></span>' +
+        '</div></div></div>';
 
-    const viaText = (n) => {
-        if (n.via_kind === 'child')    return window.t('cmdb.impact.via_child', { parent: n.via_name || '' });
-        if (n.via_kind === 'property') return window.t('cmdb.impact.via_property', { label: n.via_label || '', source: n.via_name || '' });
-        return window.t('cmdb.impact.via_relationship', { verb: n.via_label || '', source: n.via_name || '' });
-    };
+    for (let d = 1; d <= maxDepth; d++) {
+        const at = nodes.filter(n => n.depth === d);
+        if (!at.length) continue;
+        chain += '<div class="o2-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg></div>';
+        chain += '<div class="o2-hop"><div class="o2-hop-lbl">' +
+            esc(window.t(d === 1 ? 'cmdb.impact.hops_away_one' : 'cmdb.impact.hops_away_other', { count: d })) +
+            '</div><div class="o2-hop-items">' +
+            at.map(n =>
+                '<div>' +
+                '<a class="o2-node" href="object.php?id=' + n.id + '">' +
+                    '<span class="o2-node-ico">' + iconForClassName(n.class_name, 20) + '</span>' +
+                    '<span class="o2-node-txt"><span class="o2-node-name">' + esc(n.name) + '</span>' +
+                    '<span class="o2-node-sub">' + esc(n.class_name) + '</span></span>' +
+                '</a>' +
+                '<div class="o2-via">' + esc(viaText(n)) + '</div>' +
+                '</div>'
+            ).join('') +
+        '</div></div>';
+    }
 
-    const groups = Object.keys(byDepth).sort((a, b) => a - b).map(d => `
-        <div class="blast-group">
-            <h5>${escapeHtml(Number(d) === 1
-                    ? window.t('cmdb.impact.hops_away_one')
-                    : window.t('cmdb.impact.hops_away_other', { count: d }))}
-                <span class="count-badge">${byDepth[d].length}</span></h5>
-            <ul>${byDepth[d].map(n => `
-                <li>
-                    <a href="object.php?id=${n.id}">${escapeHtml(n.name)}</a>
-                    <span class="meta">${escapeHtml(n.class_name)} · ${escapeHtml(viaText(n))}</span>
-                </li>`).join('')}</ul>
-        </div>
-    `).join('');
+    const lede = nodes.length === 1
+        ? window.t('cmdb.impact.blast_headline_one')
+        : window.t('cmdb.impact.blast_headline_other', { count: nodes.length, depth: maxDepth });
 
-    // Never present a capped list as the whole answer.
-    const truncated = br.truncated
-        ? `<div class="blast-truncated">${escapeHtml(window.t('cmdb.impact.blast_truncated'))}</div>`
-        : '';
-
-    // Hand off to Network Mapper rather than drawing a second graph here. Hidden
-    // entirely for an analyst without Network Mapper access — the endpoint
-    // refuses them too, so a visible button would only ever produce an error.
-    const diagramBtn = window.CAN_MAKE_DIAGRAM
-        ? `<button type="button" class="blast-diagram-btn" onclick="createImpactDiagram(this)">
-               ${escapeHtml(window.t('cmdb.impact.open_as_diagram'))}
-           </button>`
-        : '';
-
-    return `
-        <div class="blast-radius">
-            <div class="blast-headline">${escapeHtml(nodes.length === 1
-                ? window.t('cmdb.impact.blast_headline_one')
-                : window.t('cmdb.impact.blast_headline_other', { count: nodes.length }))}</div>
-            ${groups}
-            ${truncated}
-            ${diagramBtn}
-        </div>
-    `;
+    return '<div class="o2-card" id="o2Blast">' + head +
+        '<div class="o2-lede">' + esc(lede) + '</div>' +
+        '<div class="o2-chain">' + chain + '</div>' +
+    '</div>';
 }
 
-/**
- * Build a Network Mapper diagram from this blast radius and open it.
- *
- * Deliberately creates a real, saved diagram rather than a throwaway picture:
- * the point of handing off to the authoring tool is that the result is
- * something you can rearrange, annotate and keep.
- */
-async function createImpactDiagram(btn) {
-    const original = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = window.t('cmdb.impact.building_diagram');
-    try {
-        const res = await fetch(API + 'create_impact_diagram.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ object_id: OBJECT_ID })
-        });
-        const data = await res.json();
-        if (!data.success) {
-            throw new Error(data.error === 'empty_blast_radius'
-                ? window.t('cmdb.impact.diagram_empty')
-                : (data.error || window.t('cmdb.impact.diagram_failed')));
+/* Every row says how it was reached, so a surprising entry can be traced
+   rather than doubted. */
+function viaText(n) {
+    // The engine emits 'child' / 'relationship' / 'property'. Containment
+    // carries no verb (via_label is NULL), so it needs its own sentence or it
+    // renders as the literal "null <name>".
+    if (n.via_kind === 'child') return window.t('cmdb.impact.via_child', { parent: n.via_name });
+    if (n.via_kind === 'property') return window.t('cmdb.impact.via_property', { label: n.via_label, source: n.via_name });
+    return window.t('cmdb.impact.via_relationship', { verb: n.via_label, source: n.via_name });
+}
+
+/* ONE panel where object.php had four. Impact, Map, Hierarchy and
+   Relationships are four framings of "what is this attached to", and on a
+   sparse object they produced four separate empty states. */
+function connectionsHtml() {
+    const tally = connectionTally();
+
+    // Only relationship rows carry an ×. A property reference is unlinked by
+    // clearing the field it lives in, and a descendant by re-parenting it —
+    // offering an × on those would imply a delete this panel cannot do.
+    const left = []
+        .concat(tally.incoming.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name,
+            window.t('cmdb.conn.verb_incoming', { verb: x.inverse_verb }), x.id)))
+        .concat(tally.refsIn.map(x => nodeRow(x.id, x.name, x.class_name,
+            window.t('cmdb.conn.verb_ref_in', { label: x.property_label || window.t('cmdb.conn.a_property') }))));
+
+    const right = []
+        .concat(tally.outgoing.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name,
+            window.t('cmdb.conn.verb_outgoing', { verb: x.verb }), x.id)))
+        .concat(tally.refsOut.map(p => nodeRow(p.value_object.id, p.value_object.name, p.value_object.class_name || p.target_class_name, p.label)));
+
+    const centre =
+        (obj.parent_id
+            ? '<div class="o2-updown">' + nodeRow(obj.parent_id, obj.parent_name, obj.parent_class_name, window.t('cmdb.conn.this_is_part_of')) + upArrow() + '</div>'
+            : '') +
+        '<div class="o2-centre">' + iconForClassId(obj.class_id, 30) +
+            '<div class="o2-centre-name">' + esc(obj.name) + '</div>' +
+            '<div class="o2-centre-cls">' + esc(obj.class_name) + '</div>' +
+        '</div>' +
+        (tally.descendants.length
+            ? '<div class="o2-updown">' + downArrow() +
+              tally.descendants.map(d => nodeRow(
+                  d.id, d.name, d.class_name,
+                  d.depth > 1
+                      ? window.t('cmdb.conn.inside_levels', { count: d.depth })
+                      : window.t('cmdb.conn.contained_by_this')
+              )).join('') + '</div>'
+            : '');
+
+    /* ⚠️ Always rendered, every figure, including the zeroes. "0 descendants"
+       and "we never looked" are different facts and must not both render as
+       silence — the same rule the data-quality audit is built on.
+
+       🔑 Counted by KIND, not by direction. The four kinds are created four
+       different ways, so a tally split by direction ("points at this" / "this
+       points at") cannot be matched to any control — and a single
+       "+ Add relationship" button sitting above it implies it covers all four
+       when it can only ever create one. Each row now carries its own way in,
+       and direction is still legible from the column headers and from the verb
+       printed on every row. */
+    const nRel = tally.incoming.length + tally.outgoing.length;
+    const nRef = tally.refsIn.length + tally.refsOut.length;
+    const tk = (base, n) => window.t('cmdb.conn.' + base + (n === 1 ? '_one' : '_other'), { count: n });
+    const counts = [
+        {
+            n: tally.descendants.length,
+            label: tk('tally_descendants', tally.descendants.length),
+            // Deliberately no button: a descendant is made from the CHILD's
+            // page, by naming this object as its parent. A control here would
+            // have to create an object, which is a different job.
+            hint: window.t('cmdb.conn.hint_descendants')
+        },
+        {
+            n: nRel,
+            label: tk('tally_relationships', nRel),
+            hint: window.t('cmdb.conn.hint_relationships'),
+            action: '<button class="o2-tally-act" onclick="openRelModal()">' + esc(window.t('cmdb.conn.act_add')) + '</button>'
+        },
+        {
+            n: nRef,
+            label: tk('tally_property_links', nRef),
+            hint: window.t('cmdb.conn.hint_property_links'),
+            action: '<button class="o2-tally-act" onclick="jumpToDetails()">' + esc(window.t('cmdb.conn.act_in_details')) + '</button>'
+        },
+        {
+            n: tally.hasParent ? 1 : 0,
+            label: window.t('cmdb.conn.tally_parent'),
+            hint: window.t('cmdb.conn.hint_parent'),
+            action: '<button class="o2-tally-act" onclick="openParentModal()">' +
+                    esc(window.t(tally.hasParent ? 'cmdb.conn.act_change' : 'cmdb.conn.act_set')) + '</button>'
         }
-        // fit=1: the ring layout's extent depends on how big the blast radius is,
-        // so there is no sensible fixed zoom to arrive at.
-        window.location.href = '../network-mapper/diagram.php?id=' + data.diagram_id + '&fit=1';
-    } catch (e) {
-        btn.disabled = false;
-        btn.textContent = original;
-        showInlineToast(e.message, true);
+    ].map(c =>
+        '<span class="o2-tally-item' + (c.n ? '' : ' zero') + '" title="' + esc(c.hint) + '">' +
+            '<b>' + c.n + '</b> ' + esc(c.label) + (c.action || '') +
+        '</span>'
+    ).join('');
+
+    const head = '<div class="o2-card-head"><span class="o2-card-title">' + esc(window.t('cmdb.conn.heading')) + '</span>' +
+        '<span class="o2-card-sub">' + esc(window.t('cmdb.conn.in_total', { count: tally.total })) + '</span></div>';
+
+    const tallyRow = '<div class="o2-tally">' + counts + '</div>';
+
+    if (!tally.total) {
+        return '<div class="o2-card" id="o2Conn">' + head + tallyRow +
+            '<div class="o2-empty">' + esc(window.t('cmdb.conn.nothing_attached')) + '</div></div>';
     }
+
+    return '<div class="o2-card" id="o2Conn">' + head + tallyRow +
+        '<div class="o2-conn">' +
+            '<div class="o2-conn-col"><div class="o2-conn-lbl">' + esc(window.t('cmdb.conn.points_at_this')) + '</div><div class="o2-conn-list">' +
+                (left.length ? left.join('') : '<div class="o2-empty">' + esc(window.t('cmdb.conn.none_points_at_this')) + '</div>') +
+            '</div></div>' +
+            '<div class="o2-conn-col mid">' + centre +
+                (tally.descendants.length ? ''
+                    : '<div class="o2-empty" style="text-align:center;">' + esc(window.t('cmdb.impact.descendants_empty')) + '</div>') +
+            '</div>' +
+            '<div class="o2-conn-col right"><div class="o2-conn-lbl">' + esc(window.t('cmdb.conn.this_points_at')) + '</div><div class="o2-conn-list">' +
+                (right.length ? right.join('') : '<div class="o2-empty">' + esc(window.t('cmdb.conn.points_at_nothing')) + '</div>') +
+            '</div></div>' +
+        '</div>' +
+    '</div>';
 }
 
-function renderImpactPanel() {
-    if (!impact) return ''; // suppressed until loaded
-    const desc  = impact.descendants || [];
-    const props = impact.referenced_by_property || [];
-    const rels  = impact.referenced_by_relationship || [];
-    const total = desc.length + props.length + rels.length;
-
-    const bucket = (title, items, emptyMsg, renderItem) => `
-        <div class="impact-bucket">
-            <h4><span>${title}</span><span class="count-badge">${items.length}</span></h4>
-            ${items.length === 0
-                ? `<div class="empty">${emptyMsg}</div>`
-                : `<ul>${items.map(renderItem).join('')}</ul>`}
-        </div>
-    `;
-
-    return `
-        <div class="obj-section">
-            <h3>
-                <span>${escapeHtml(window.t('cmdb.impact.heading'))}</span>
-                <span style="color: #6b7280; font-weight: 400; font-size: 12px;">${total} ${total === 1 ? escapeHtml(window.t('cmdb.impact.item')) : escapeHtml(window.t('cmdb.impact.items'))}</span>
-            </h3>
-            ${renderBlastRadius()}
-            <h4 class="impact-subhead">${escapeHtml(window.t('cmdb.impact.directly_connected'))}</h4>
-            <div class="impact-grid">
-                ${bucket(escapeHtml(window.t('cmdb.impact.descendants')), desc, escapeHtml(window.t('cmdb.impact.descendants_empty')),
-                    d => `<li>
-                        <a href="object.php?id=${d.id}">${escapeHtml(d.name)}</a>
-                        <span class="meta"> ${escapeHtml(d.class_name)}${d.depth > 1 ? ` · ${escapeHtml(window.t('cmdb.impact.levels_deep', { count: d.depth }))}` : ''}</span>
-                    </li>`)}
-                ${bucket(escapeHtml(window.t('cmdb.impact.referenced_by_property')), props, escapeHtml(window.t('cmdb.impact.referenced_by_property_empty')),
-                    p => `<li>
-                        <a href="object.php?id=${p.id}">${escapeHtml(p.name)}</a>
-                        <span class="meta"> ${escapeHtml(p.class_name)} · ${escapeHtml(window.t('cmdb.impact.via'))} <em>${escapeHtml(p.property_label)}</em></span>
-                    </li>`)}
-                ${bucket(escapeHtml(window.t('cmdb.impact.things_link_in')), rels, escapeHtml(window.t('cmdb.impact.things_link_in_empty')),
-                    r => `<li>
-                        <a href="object.php?id=${r.id}">${escapeHtml(r.name)}</a>
-                        <span class="meta"> ${escapeHtml(r.class_name)} · ${escapeHtml(r.inverse_verb)} ${escapeHtml(window.t('cmdb.impact.this'))}</span>
-                    </li>`)}
-            </div>
-        </div>
-    `;
+function nodeRow(id, name, className, verb, relId) {
+    return '<div class="o2-noderow">' +
+        (verb ? '<div class="o2-rel-verb">' + esc(verb) + '</div>' : '') +
+        '<div class="o2-node-wrap">' +
+            '<a class="o2-node" href="object.php?id=' + id + '">' +
+                '<span class="o2-node-ico">' + iconForClassName(className, 18) + '</span>' +
+                '<span class="o2-node-txt"><span class="o2-node-name">' + esc(name) + '</span>' +
+                '<span class="o2-node-sub">' + esc(className || '') + '</span></span>' +
+            '</a>' +
+            (relId ? '<button class="o2-unlink" onclick="deleteRelationship(' + relId + ')" title="' +
+                esc(window.t('cmdb.conn.unlink_title')) + '">×</button>' : '') +
+        '</div></div>';
+}
+function upArrow() {
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-faint,#d1d5db)"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg>';
+}
+function downArrow() {
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-faint,#d1d5db)"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="6 13 12 19 18 13"/></svg>';
 }
 
-function renderActivityPanel() {
-    if (!activity) return '';
+/* Filled properties first as cards; blanks collapse to one line. A row per
+   empty field is how the old page ended up mostly saying "(not set)". */
+function propsHtml() {
+    const props = obj.properties || [];
+    const filled = props.filter(p => p.value !== null && p.value !== '' && p.value !== undefined);
+    const blank = props.filter(p => !(p.value !== null && p.value !== '' && p.value !== undefined));
+
+    const head = '<div class="o2-card-head"><span class="o2-card-title">' + esc(window.t('cmdb.details.heading')) + '</span>' +
+        '<span class="o2-card-sub">' + esc(window.t('cmdb.details.filled_of', { filled: filled.length, total: props.length })) + '</span>' +
+        '<div class="o2-meter"><i id="o2Meter" style="transform:scaleX(0)"></i></div></div>';
+
+    if (!props.length) {
+        return '<div class="o2-card" id="o2Details">' + head +
+            '<div class="o2-empty">' + esc(window.t('cmdb.details.no_props_defined')) + '</div></div>';
+    }
+
+    const cards = (showBlanks ? filled.concat(blank) : filled).map(propCard).join('');
+
+    let blanksLine = '';
+    if (blank.length) {
+        blanksLine = '<div class="o2-blanks">' +
+            (showBlanks
+                ? '<button onclick="toggleBlanks()">' +
+                    esc(window.t(blank.length === 1 ? 'cmdb.details.hide_empty_one' : 'cmdb.details.hide_empty_other', { count: blank.length })) +
+                  '</button>'
+                : esc(window.t(blank.length === 1 ? 'cmdb.details.empty_count_one' : 'cmdb.details.empty_count_other', { count: blank.length })) +
+                  ' <button onclick="toggleBlanks()">' +
+                    esc(window.t(blank.length === 1 ? 'cmdb.details.show_it' : 'cmdb.details.show_them')) +
+                  '</button>') +
+        '</div>';
+    }
+
+    return '<div class="o2-card" id="o2Details">' + head +
+        (cards ? '<div class="o2-props">' + cards + '</div>'
+               : '<div class="o2-empty">' + esc(window.t('cmdb.details.nothing_filled')) + '</div>') +
+        blanksLine +
+        // The in-service state is stated positively, always. The hero only
+        // chips PLANNED because that is the exception; saying nothing at all
+        // for the normal case leaves the reader to assume it.
+        '<div style="margin-top:14px;"><span class="o2-stat-lbl">' +
+        esc(window.t(obj.is_planned ? 'cmdb.object.state_planned' : 'cmdb.object.state_real')) +
+        ' · ' + esc(window.t('cmdb.details.added_on', { datetime: fmtDateTime(obj.created_datetime) })) +
+        ' · ' + esc(window.t('cmdb.details.last_change', { datetime: fmtDateTime(obj.updated_datetime) })) +
+        '</span></div>' +
+    '</div>';
+}
+
+function propCard(p) {
+    const empty = !(p.value !== null && p.value !== '' && p.value !== undefined);
+    // The cog edits the property DEFINITION (label, type, options, required),
+    // not this object's value — same modal as the current page. It is on hover
+    // rather than permanent, because it is schema work and most visits are not.
+    return '<div class="o2-prop">' +
+        '<div class="o2-prop-lbl">' +
+            '<span>' + esc(p.label) + (p.is_required ? '<span class="req" title="' + esc(window.t('cmdb.prop_def.required')) + '">*</span>' : '') + '</span>' +
+            '<button class="o2-cog" onclick="openPropDefModal(' + p.property_id + ')" title=' + '"' + esc(window.t('cmdb.object.edit_prop_title')) + '">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' +
+            '</button>' +
+        '</div>' +
+        '<div class="o2-prop-val" id="o2p_' + p.property_id + '" data-pid="' + p.property_id + '">' +
+            (empty ? '<span style="color:var(--text-faint,#d1d5db);font-weight:400;">' + esc(window.t('cmdb.details.not_set')) + '</span>' : propValueHtml(p)) +
+        '</div>' +
+    '</div>';
+}
+
+function propValueHtml(p) {
+    if (p.property_type === 'object_ref') {
+        if (!p.value_object) return esc(p.value);
+        return '<a class="o2-ref" href="object.php?id=' + p.value_object.id + '">' +
+            iconForClassName(p.value_object.class_name || p.target_class_name, 15) +
+            esc(p.value_object.name) + '</a>';
+    }
+    if (p.property_type === 'boolean') return esc(String(p.value) === '1' || p.value === true ? window.t('cmdb.object.yes') : window.t('cmdb.object.no'));
+    if (p.property_type === 'dropdown') {
+        const opt = (p.options || []).find(o => o.value === p.value);
+        const sev = SEVERITY[String(p.value).toLowerCase()];
+        const col = (opt && opt.colour) || sev;
+        const style = col ? ' style="background:' + esc(col) + ';color:#fff;"' : '';
+        return '<span class="o2-pill"' + style + '>' + esc(p.value) + '</span>';
+    }
+    if (p.property_type === 'number') return esc(String(p.value));
+    // A date is naive — never timezone-converted — but it can come back with a
+    // 00:00:00 tail, which reads as spurious precision on a date-only field.
+    if (p.property_type === 'date') return esc(dateOnly(p.value));
+    return esc(p.value);
+}
+
+function toggleBlanks() {
+    showBlanks = !showBlanks;
+    render();
+}
+
+function activityHtml() {
+    const head = '<div class="o2-card-head"><span class="o2-card-title">' + esc(window.t('cmdb.activity.heading')) + '</span></div>';
+    if (!activity) return '<div class="o2-card" id="o2Activity">' + head + '<div class="o2-empty">' + esc(window.t('cmdb.object.working_it_out')) + '</div></div>';
+
     const open = activity.open || [];
     const closed = activity.closed || [];
-    const totalClosed = activity.total_closed || 0;
-
-    if (open.length === 0 && closed.length === 0) {
-        return `<div class="obj-section">
-            <h3>${escapeHtml(window.t('cmdb.activity.heading'))}</h3>
-            <div class="activity-empty">${escapeHtml(window.t('cmdb.activity.empty'))}</div>
-        </div>`;
+    if (!open.length && !closed.length) {
+        return '<div class="o2-card" id="o2Activity">' + head +
+            '<div class="o2-empty">' + esc(window.t('cmdb.activity.empty')) + '</div></div>';
     }
 
-    const renderTicket = (t, isClosed = false) => {
-        const status = t.status || window.t('cmdb.activity.unknown_status');
-        const colour = t.status_colour || '#6b7280';
-        const styleAttr = `style="background:${colour}22; color:${colour}; border-color:${colour}55;"`;
-        const ageText = formatDate(isClosed ? t.closed_datetime : t.updated_datetime);
-        return `<a class="ticket-card ${isClosed ? 'closed' : ''}" href="../tickets/?ticket_id=${t.id}">
-            <div class="ticket-card-body">
-                <div class="ticket-card-line1">
-                    <span class="ticket-card-number">${escapeHtml(t.ticket_number || '')}</span>
-                    <span class="ticket-card-subject">${escapeHtml(t.subject || window.t('cmdb.activity.no_subject'))}</span>
-                </div>
-                <div class="ticket-card-meta">
-                    <span class="ticket-status-pill" ${styleAttr}>${escapeHtml(status)}</span>
-                    ${t.priority ? `<span>${escapeHtml(t.priority)}</span>` : ''}
-                    ${t.assigned_to ? `<span>${escapeHtml(window.t('cmdb.activity.assigned_to'))} <strong>${escapeHtml(t.assigned_to)}</strong></span>` : `<span style="color:#d1d5db;">${escapeHtml(window.t('cmdb.activity.unassigned'))}</span>`}
-                    ${t.department_name ? `<span>${escapeHtml(t.department_name)}</span>` : ''}
-                    <span style="color:#9ca3af;">${isClosed ? escapeHtml(window.t('cmdb.activity.closed')) : escapeHtml(window.t('cmdb.activity.updated'))} ${ageText}</span>
-                </div>
-            </div>
-        </a>`;
-    };
+    const row = (t, isOpen) =>
+        '<a class="o2-tik" href="../tickets/?ticket_id=' + t.id + '">' +
+            '<span class="o2-tik-ref">' + esc(t.reference || ('#' + t.id)) + '</span>' +
+            '<span class="o2-tik-sub">' + esc(t.subject || window.t('cmdb.activity.no_subject')) + '</span>' +
+            '<span class="o2-tik-meta">' + esc(t.status_name || window.t('cmdb.activity.unknown_status')) +
+            (t.priority_name ? ' · ' + esc(t.priority_name) : '') + '</span>' +
+        '</a>';
 
-    let html = '';
-    if (open.length > 0) {
-        html += `<div style="margin-bottom: ${closed.length > 0 ? '20px' : '0'};">
-            <div class="activity-bucket-head">
-                <span>${escapeHtml(window.t('cmdb.activity.open_tickets'))}</span>
-                <span class="count-badge">${open.length}</span>
-            </div>
-            <div>${open.map(t => renderTicket(t, false)).join('')}</div>
-        </div>`;
-    }
-    if (closed.length > 0) {
-        html += `<div>
-            <div class="activity-bucket-head">
-                <span>${totalClosed > closed.length ? escapeHtml(window.t('cmdb.activity.recent_closed_showing', { shown: closed.length, total: totalClosed })) : escapeHtml(window.t('cmdb.activity.recent_closed'))}</span>
-                <span class="count-badge">${totalClosed}</span>
-            </div>
-            <div>${closed.map(t => renderTicket(t, true)).join('')}</div>
-        </div>`;
-    }
-
-    return `<div class="obj-section">
-        <h3>${escapeHtml(window.t('cmdb.activity.heading'))}</h3>
-        ${html}
-    </div>`;
+    return '<div class="o2-card" id="o2Activity">' + head +
+        (open.length ? '<div class="o2-lede">' + esc(window.t(open.length === 1 ? 'cmdb.stats.open_tickets_count_one' : 'cmdb.stats.open_tickets_count_other', { count: open.length })) + '</div>' +
+            '<div class="o2-tix">' + open.map(t => row(t, true)).join('') + '</div>' : '') +
+        (closed.length ? '<div class="o2-conn-lbl" style="margin-top:14px;">' + esc(activity.total_closed > closed.length
+                ? window.t('cmdb.activity.recent_closed_showing', { shown: closed.length, total: activity.total_closed })
+                : window.t('cmdb.activity.recent_closed')) + '</div>' +
+            '<div class="o2-tix">' + closed.map(t => row(t, false)).join('') + '</div>' : '') +
+    '</div>';
 }
 
-function renderMiniGraph() {
-    const parent = obj.parent_id ? {
-        id: obj.parent_id, name: obj.parent_name, class_name: obj.parent_class_name
-    } : null;
-    const children = obj.children || [];
-    const outgoing = (obj.relationships && obj.relationships.outgoing) || [];
-    const incoming = (obj.relationships && obj.relationships.incoming) || [];
-
-    // Cap nodes shown so the graph stays readable; overflow hint at the bottom
-    const CAP = 6;
-    const childrenShown = children.slice(0, CAP);
-    const outgoingShown = outgoing.slice(0, CAP);
-    const incomingShown = incoming.slice(0, CAP);
-    const overflowParts = [];
-    if (children.length > CAP) overflowParts.push(window.t('cmdb.map.more_children', { count: children.length - CAP }));
-    if (outgoing.length > CAP) overflowParts.push(window.t('cmdb.map.more_outgoing', { count: outgoing.length - CAP }));
-    if (incoming.length > CAP) overflowParts.push(window.t('cmdb.map.more_incoming', { count: incoming.length - CAP }));
-
-    const node = (o, isThis = false) => `
-        <a class="mg-node ${isThis ? 'this' : ''}" ${isThis ? '' : `href="object.php?id=${o.id}"`}>
-            <span class="mg-node-name">${escapeHtml(o.name)}</span>
-            <span class="mg-class">${escapeHtml(o.class_name || '')}</span>
-        </a>
-    `;
-
-    let html = '';
-    if (parent) {
-        html += `<div class="mg-row">${node(parent)}</div>`;
-        html += `<div class="mg-connector"></div>`;
-    }
-    html += `<div class="mg-row">${node({ name: obj.name, class_name: obj.class_name }, true)}</div>`;
-    if (childrenShown.length > 0) {
-        html += `<div class="mg-connector"></div>`;
-        html += `<div class="mg-row">${childrenShown.map(c => node(c)).join('')}</div>`;
-    }
-    if (outgoingShown.length > 0 || incomingShown.length > 0) {
-        html += `<div class="mg-side-rels">
-            <div class="mg-side">
-                <div class="mg-side-label">${escapeHtml(window.t('cmdb.map.outgoing'))}</div>
-                ${outgoingShown.length === 0
-                    ? `<div class="empty-row" style="padding: 0; font-size: 12px;">${escapeHtml(window.t('cmdb.map.none'))}</div>`
-                    : outgoingShown.map(r => `
-                        <a class="mg-rel-link" href="object.php?id=${r.other_id}">
-                            <span class="mg-rel-verb">${escapeHtml(r.verb)}</span>
-                            <strong>${escapeHtml(r.other_name)}</strong>
-                            <span style="color:#9ca3af; font-size: 10px;">${escapeHtml(r.other_class_name)}</span>
-                        </a>`).join('')
-                }
-            </div>
-            <div class="mg-side">
-                <div class="mg-side-label">${escapeHtml(window.t('cmdb.map.incoming'))}</div>
-                ${incomingShown.length === 0
-                    ? `<div class="empty-row" style="padding: 0; font-size: 12px;">${escapeHtml(window.t('cmdb.map.none'))}</div>`
-                    : incomingShown.map(r => `
-                        <a class="mg-rel-link" href="object.php?id=${r.other_id}">
-                            <span class="mg-rel-verb">${escapeHtml(r.inverse_verb)}</span>
-                            <strong>${escapeHtml(r.other_name)}</strong>
-                            <span style="color:#9ca3af; font-size: 10px;">${escapeHtml(r.other_class_name)}</span>
-                        </a>`).join('')
-                }
-            </div>
-        </div>`;
-    }
-    if (overflowParts.length > 0) {
-        html += `<div style="margin-top: 10px; color: #9ca3af; font-size: 11px;">${overflowParts.join(' · ')}</div>`;
-    }
-
-    return `<div class="mini-graph">${html}</div>`;
+function dangerHtml() {
+    const kids = (obj.children || []).length;
+    return '<div class="o2-danger">' +
+        '<div class="o2-danger-txt">' + window.t(kids ? 'cmdb.danger.note_children' : 'cmdb.danger.note') + '</div>' +
+        '<button class="o2-btn danger" onclick="deleteObject()">' + esc(window.t('cmdb.danger.delete')) + '</button>' +
+    '</div>';
 }
 
-async function generateSummary() {
-    summaryGenerating = true;
-    render();
-    try {
-        const data = await postJson(API + 'generate_object_summary.php', { id: obj.id });
-        if (!data.success) throw new Error(data.error || window.t('cmdb.summary.generate_failed'));
-        obj.ai_summary = data.summary;
-        obj.ai_summary_generated_at = data.generated_at;
-    } catch (err) {
-        showInlineToast(window.t('cmdb.summary.error_prefix', { message: err.message }), true);
-    } finally {
-        summaryGenerating = false;
-        render();
-    }
-}
+/* ---------------- animation ---------------- */
 
-function renderPropertiesTable() {
-    if (!obj.properties.length) {
-        return `<div class="empty-row">${window.t('cmdb.object.props_empty', { link: `<a href="settings/" style="color:#be185d;">${escapeHtml(window.t('cmdb.object.props_empty_link'))}</a>` })}</div>`;
+/* A detail page is opened occasionally, not hundreds of times a day, so the
+   numbers can afford to count up. Kept to 460ms and skipped entirely under
+   prefers-reduced-motion. */
+function animateStats() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.querySelectorAll('[data-count]').forEach(el => { el.textContent = el.dataset.count; });
+        return;
     }
-    return `
-        <table class="props-table">
-            <tbody>
-                ${obj.properties.map(p => `
-                    <tr>
-                        <td class="prop-label">
-                            ${escapeHtml(p.label)}${p.is_required ? '<span class="req">*</span>' : ''}
-                            <span class="prop-type-tag">${escapeHtml(p.property_type)}</span>
-                            <button class="prop-cog" title="${escapeHtml(window.t('cmdb.object.edit_prop_title'))}" onclick="openPropDefModal(${p.property_id})">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                            </button>
-                        </td>
-                        <td class="prop-value" id="propCell_${p.property_id}">
-                            ${renderPropertyDisplay(p)}
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-}
-
-function renderPropertyDisplay(p) {
-    if (p.property_type === 'object_ref') {
-        if (p.value_object) {
-            return `<a class="obj-ref-pill" href="object.php?id=${p.value_object.id}">
-                ${escapeHtml(p.value_object.name)}
-                <span class="pill-class">${escapeHtml(p.value_object.class_name || '')}</span>
-            </a>
-            <button class="btn-mini" style="margin-left: 8px;" data-pid="${p.property_id}" onclick="beginEditProperty(${p.property_id})">${escapeHtml(window.t('cmdb.object.change'))}</button>
-            <button class="btn-mini" style="margin-left: 4px;" data-pid="${p.property_id}" onclick="clearProperty(${p.property_id})">${escapeHtml(window.t('cmdb.object.clear'))}</button>`;
+    document.querySelectorAll('[data-count]').forEach(el => {
+        const target = parseInt(el.dataset.count, 10) || 0;
+        if (target === 0) { el.textContent = '0'; return; }
+        const dur = 460, start = performance.now();
+        function step(now) {
+            const t = Math.min(1, (now - start) / dur);
+            const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+            el.textContent = Math.round(target * eased);
+            if (t < 1) requestAnimationFrame(step);
         }
-        return `<span class="prop-display empty" data-pid="${p.property_id}">${escapeHtml(window.t('cmdb.object.not_set'))}</span>`;
-    }
-    if (p.value === null || p.value === undefined || p.value === '') {
-        return `<span class="prop-display empty" data-pid="${p.property_id}">${escapeHtml(window.t('cmdb.object.not_set'))}</span>`;
-    }
-
-    // Dropdown: render as a coloured pill if the matched option has a colour set
-    if (p.property_type === 'dropdown') {
-        const matched = (p.options || []).find(o => (o && typeof o === 'object' ? o.value : o) === p.value);
-        const colour = matched && typeof matched === 'object' ? matched.colour : null;
-        if (colour) {
-            // Tinted background + matching-colour text — same pattern as ticket status badges
-            return `<span class="prop-display dropdown-pill" data-pid="${p.property_id}"
-                          style="background:${colour}22; color:${colour}; border-color:${colour}55;">
-                ${escapeHtml(p.value)}
-            </span>`;
-        }
-        return `<span class="prop-display" data-pid="${p.property_id}">${escapeHtml(p.value)}</span>`;
-    }
-
-    let displayValue = '';
-    if (p.property_type === 'boolean') displayValue = p.value ? window.t('cmdb.object.yes') : window.t('cmdb.object.no');
-    else if (p.property_type === 'date') displayValue = String(p.value).substring(0, 10);
-    else displayValue = String(p.value);
-    return `<span class="prop-display" data-pid="${p.property_id}">${escapeHtml(displayValue)}</span>`;
+        requestAnimationFrame(step);
+    });
 }
 
-function renderHierarchy() {
-    let html = '';
-    if (obj.parent_id) {
-        html += `<div style="margin-bottom: 12px;"><strong style="color:#6b7280; font-size:12px; text-transform:uppercase;">${escapeHtml(window.t('cmdb.object.hierarchy_parent'))}</strong>
-            <ul class="item-list" style="margin-top: 6px;">
-                <li><span><a href="object.php?id=${obj.parent_id}">${escapeHtml(obj.parent_name)}</a> <span class="meta">${escapeHtml(obj.parent_class_name || '')}</span></span></li>
-            </ul>
-        </div>`;
-    } else {
-        html += `<div style="margin-bottom: 12px; color: #9ca3af; font-style: italic; font-size: 13px;">${escapeHtml(window.t('cmdb.object.hierarchy_no_parent'))}</div>`;
-    }
-    html += `<div><strong style="color:#6b7280; font-size:12px; text-transform:uppercase;">${escapeHtml(window.t('cmdb.object.hierarchy_children', { count: obj.children.length }))}</strong>`;
-    if (obj.children.length === 0) {
-        html += `<div class="empty-row" style="margin-top: 6px;">${escapeHtml(window.t('cmdb.object.hierarchy_children_empty'))}</div>`;
-    } else {
-        html += `<ul class="item-list" style="margin-top: 6px;">
-            ${obj.children.map(ch => `<li><span><a href="object.php?id=${ch.id}">${escapeHtml(ch.name)}</a> <span class="meta">${escapeHtml(ch.class_name)}</span></span></li>`).join('')}
-        </ul>`;
-    }
-    html += `</div>`;
-    return html;
+function animateMeter() {
+    const el = document.getElementById('o2Meter');
+    if (!el) return;
+    const props = obj.properties || [];
+    const filled = props.filter(p => p.value !== null && p.value !== '' && p.value !== undefined).length;
+    const pct = props.length ? filled / props.length : 1;
+    requestAnimationFrame(() => { el.style.transform = 'scaleX(' + pct + ')'; });
 }
 
-function renderRelationshipList(rels, direction) {
-    if (rels.length === 0) {
-        return `<div class="empty-row">${escapeHtml(window.t('cmdb.object.rel_none'))}</div>`;
-    }
-    return `<ul class="item-list">
-        ${rels.map(r => `
-            <li>
-                <span>
-                    <span class="verb">${escapeHtml(direction === 'outgoing' ? r.verb : r.inverse_verb)}</span>
-                    <a href="object.php?id=${r.other_id}">${escapeHtml(r.other_name)}</a>
-                    <span class="meta">${escapeHtml(r.other_class_name)}</span>
-                </span>
-                <button class="x-btn" title="${escapeHtml(window.t('cmdb.object.remove'))}" onclick="deleteRelationship(${r.id})">×</button>
-            </li>
-        `).join('')}
-    </ul>`;
+/* ---------------- editing ---------------- */
+
+function wireName() {
+    const el = document.getElementById('o2Name');
+    if (!el) return;
+    let original = obj.name;
+    el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+        if (e.key === 'Escape') { el.value = original; el.blur(); }
+    });
+    el.addEventListener('blur', async () => {
+        const v = el.value.trim();
+        if (!v || v === original) { el.value = original; return; }
+        await savePartial({ name: v });
+    });
 }
 
-// ---------- Inline property editing ----------
+function wireProps() {
+    document.querySelectorAll('.o2-prop-val').forEach(cell => {
+        cell.addEventListener('click', e => {
+            if (e.target.closest('a')) return;          // following a reference, not editing
+            if (cell.querySelector('input, select')) return;
+            beginEdit(cell);
+        });
+    });
+}
 
-function beginEditProperty(propertyId) {
-    const p = obj.properties.find(x => x.property_id === propertyId);
+function beginEdit(cell) {
+    const pid = parseInt(cell.dataset.pid, 10);
+    const p = (obj.properties || []).find(x => x.property_id === pid);
     if (!p) return;
-    const cell = document.getElementById('propCell_' + propertyId);
-    if (!cell) return;
+    if (p.property_type === 'object_ref') { beginEditObjectRef(cell, p); return; }
 
-    let editorHtml = '';
-    const v = p.value;
-
-    switch (p.property_type) {
-        case 'text':
-            editorHtml = `<input type="text" class="prop-edit" id="propEdit_${propertyId}" value="${escapeHtml(v ?? '')}">`;
-            break;
-        case 'number':
-            editorHtml = `<input type="number" class="prop-edit" id="propEdit_${propertyId}" value="${v ?? ''}" step="any">`;
-            break;
-        case 'date':
-            editorHtml = `<input type="date" class="prop-edit" id="propEdit_${propertyId}" value="${(v ?? '').substring(0, 10)}">`;
-            break;
-        case 'boolean':
-            editorHtml = `<select class="prop-edit" id="propEdit_${propertyId}">
-                <option value="">${escapeHtml(window.t('cmdb.object.not_set_option'))}</option>
-                <option value="1" ${v === true ? 'selected' : ''}>${escapeHtml(window.t('cmdb.object.yes'))}</option>
-                <option value="0" ${v === false ? 'selected' : ''}>${escapeHtml(window.t('cmdb.object.no'))}</option>
-            </select>`;
-            break;
-        case 'dropdown':
-            editorHtml = `<select class="prop-edit" id="propEdit_${propertyId}">
-                <option value="">${escapeHtml(window.t('cmdb.object.not_set_option'))}</option>
-                ${p.options.map(opt => {
-                    const val = (opt && typeof opt === 'object') ? opt.value : opt;
-                    return `<option value="${escapeHtml(val)}" ${v === val ? 'selected' : ''}>${escapeHtml(val)}</option>`;
-                }).join('')}
-            </select>`;
-            break;
-        case 'object_ref':
-            editorHtml = `<div class="autocomplete-wrap">
-                <input type="text" class="prop-edit" id="propEdit_${propertyId}" autocomplete="off"
-                       placeholder="${escapeHtml(window.t('cmdb.object.search_placeholder', { name: p.target_class_name || window.t('cmdb.new_object.objects') }))}"
-                       value="${p.value_object ? escapeHtml(p.value_object.name) : ''}">
-                <input type="hidden" id="propEditId_${propertyId}" value="${p.value_object ? p.value_object.id : ''}">
-                <div class="autocomplete-results" id="propEditResults_${propertyId}"></div>
-            </div>`;
-            break;
+    let editor;
+    if (p.property_type === 'dropdown') {
+        editor = document.createElement('select');
+        editor.innerHTML = '<option value=""></option>' +
+            (p.options || []).map(o => '<option value="' + esc(o.value) + '"' + (o.value === p.value ? ' selected' : '') + '>' + esc(o.value) + '</option>').join('');
+    } else if (p.property_type === 'boolean') {
+        editor = document.createElement('select');
+        const isYes = String(p.value) === '1' || p.value === true;
+        editor.innerHTML = '<option value=""></option>' +
+            '<option value="1"' + (isYes ? ' selected' : '') + '>Yes</option>' +
+            '<option value="0"' + (p.value !== null && !isYes ? ' selected' : '') + '>No</option>';
+    } else {
+        editor = document.createElement('input');
+        editor.type = p.property_type === 'number' ? 'number' : (p.property_type === 'date' ? 'date' : 'text');
+        // <input type="date"> silently refuses a value with a time on it.
+        editor.value = p.property_type === 'date' ? dateOnly(p.value) : (p.value ?? '');
     }
 
-    cell.innerHTML = editorHtml;
-    const editor = document.getElementById('propEdit_' + propertyId);
-    if (!editor) return;
+    const before = cell.innerHTML;
+    cell.innerHTML = '';
+    cell.appendChild(editor);
     editor.focus();
     if (editor.select) editor.select();
 
-    let saved = false;
-
-    const commit = async (newRawValue) => {
-        if (saved) return;
-        saved = true;
-        await savePropertyValue(p, newRawValue);
+    let done = false;
+    const commit = async () => {
+        if (done) return;
+        done = true;
+        const raw = editor.value === '' ? null : editor.value;
+        const unchanged = (raw === null && (p.value === null || p.value === '')) || String(raw) === String(p.value);
+        if (unchanged) { cell.innerHTML = before; return; }
+        await saveProperty(p, raw, cell, before);
     };
-    const cancel = () => {
-        if (saved) return;
-        saved = true;
-        cell.innerHTML = renderPropertyDisplay(p);
-        wirePropDisplay(cell, propertyId);
-    };
-
-    if (p.property_type === 'object_ref') {
-        const idInput = document.getElementById('propEditId_' + propertyId);
-        wireAutocomplete(editor, document.getElementById('propEditResults_' + propertyId),
-            { class_id: p.target_class_id, exclude_id: obj.id },
-            (picked) => {
-                idInput.value = picked.id;
-                editor.value = picked.name;
-                commit(picked.id);
-            }
-        );
-        editor.addEventListener('blur', () => {
-            // Allow click on a result before bailing out
-            setTimeout(() => {
-                if (saved) return;
-                if (editor.value.trim() === '') {
-                    commit(null); // cleared
-                } else if (idInput.value) {
-                    // already picked — commit was called; do nothing
-                } else {
-                    cancel(); // typed text but didn't pick anything — cancel
-                }
-            }, 200);
-        });
-        editor.addEventListener('keydown', e => { if (e.key === 'Escape') cancel(); });
-    } else {
-        editor.addEventListener('blur', () => commit(rawFromEditor(editor, p.property_type)));
-        editor.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && p.property_type !== 'date') { e.preventDefault(); editor.blur(); }
-            if (e.key === 'Escape') cancel();
-        });
-    }
+    editor.addEventListener('blur', commit);
+    editor.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); editor.blur(); }
+        if (e.key === 'Escape') { done = true; cell.innerHTML = before; }
+    });
+    if (editor.tagName === 'SELECT') editor.addEventListener('change', () => editor.blur());
 }
 
-function rawFromEditor(editor, type) {
-    const v = editor.value;
-    if (v === '' || v === null) return null;
-    if (type === 'boolean') return v === '1';
-    if (type === 'number') return v === '' ? null : Number(v);
-    return v;
-}
-
-function wirePropDisplay(cell, propertyId) {
-    const span = cell.querySelector('.prop-display');
-    if (span) span.addEventListener('click', () => beginEditProperty(propertyId));
-}
-
-async function savePropertyValue(prop, newRawValue) {
+async function saveProperty(p, raw, cell, before) {
     try {
         const data = await postJson(API + 'save_object.php', {
             id: obj.id,
             name: obj.name,
             parent_id: obj.parent_id,
-            property_values: [{ property_id: prop.property_id, value: newRawValue }]
+            property_values: [{ property_id: p.property_id, value: raw }]
         });
         if (!data.success) throw new Error(data.error || window.t('cmdb.object.save_failed'));
-        // Reload to pick up the rendered value (esp. object_ref hydration)
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
-        render();
+        await reloadAndRender();
+        toast(window.t('cmdb.details.field_saved', { label: p.label }));
     } catch (err) {
-        showInlineToast(window.t('cmdb.object.error_saving', { label: prop.label, message: err.message }), true);
-        // Restore the cell
-        const cell = document.getElementById('propCell_' + prop.property_id);
-        if (cell) {
-            cell.innerHTML = renderPropertyDisplay(prop);
-            wirePropDisplay(cell, prop.property_id);
-        }
+        cell.innerHTML = before;
+        toast(err.message, true);
     }
 }
-
-async function clearProperty(propertyId) {
-    const p = obj.properties.find(x => x.property_id === propertyId);
-    if (!p) return;
-    await savePropertyValue(p, null);
-}
-
-// ---------- Save partial (just name / parent) ----------
 
 async function savePartial(patch) {
     try {
@@ -782,58 +809,185 @@ async function savePartial(patch) {
         if (patch.is_planned !== undefined) payload.is_planned = patch.is_planned;
         const data = await postJson(API + 'save_object.php', payload);
         if (!data.success) throw new Error(data.error || window.t('cmdb.object.save_failed'));
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
-        render();
-        showInlineToast(window.t('cmdb.object.saved'));
+        await reloadAndRender();
+        toast(window.t('cmdb.object.saved'));
     } catch (err) {
-        showInlineToast(window.t('cmdb.object.error_prefix', { message: err.message }), true);
-        // Reload from DB to discard the optimistic edit
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
+        await loadObject();
         render();
+        toast(err.message, true);
     }
 }
 
-// Toggle the planned/real state from the header checkbox.
-async function togglePlanned(isPlanned) {
-    await savePartial({ is_planned: !!isPlanned });
+/* ---------------- actions ---------------- */
+
+async function generateSummary(btn) {
+    if (summaryGenerating) return;
+    summaryGenerating = true;
+    const txt = document.getElementById('o2AiTxt');
+    if (btn) btn.disabled = true;
+    if (txt) { txt.classList.add('muted'); txt.textContent = window.t('cmdb.summary.synthesising'); }
+    try {
+        const data = await postJson(API + 'generate_object_summary.php', { id: OBJECT_ID });
+        if (!data.success) throw new Error(data.error || window.t('cmdb.summary.generate_failed'));
+        await loadObject();
+        render();
+        toast(window.t('cmdb.summary.written'));
+    } catch (err) {
+        toast(err.message, true);
+        await loadObject();
+        render();
+    } finally {
+        summaryGenerating = false;
+    }
 }
 
-// ---------- Parent picker ----------
+async function createImpactDiagram(btn) {
+    if (btn) { btn.disabled = true; }
+    try {
+        // NB the endpoint takes object_id (not id), and signals the empty case
+        // through `error` rather than a separate code.
+        const data = await postJson(API + 'create_impact_diagram.php', { object_id: OBJECT_ID });
+        if (!data.success) {
+            throw new Error(data.error === 'empty_blast_radius'
+                ? window.t('cmdb.impact.diagram_empty')
+                : (data.error || window.t('cmdb.impact.diagram_failed')));
+        }
+        window.location.href = '../network-mapper/diagram.php?id=' + data.diagram_id + '&fit=1';
+    } catch (err) {
+        toast(err.message, true);
+        if (btn) btn.disabled = false;
+    }
+}
+
+/* ---------------- object_ref editing ---------------- */
+
+/* Search is scoped to the property's target class and excludes this object, so
+   a field can never be pointed at the thing that holds it. */
+function beginEditObjectRef(cell, p) {
+    const before = cell.innerHTML;
+    cell.innerHTML =
+        '<div class="autocomplete-wrap">' +
+            '<input type="text" id="o2ref_' + p.property_id + '" autocomplete="off" ' +
+                'placeholder="' + esc(window.t('cmdb.object.search_placeholder', { name: p.target_class_name || window.t('cmdb.new_object.objects') })) + '" ' +
+                'value="' + (p.value_object ? esc(p.value_object.name) : '') + '">' +
+            '<div class="autocomplete-results" id="o2refres_' + p.property_id + '"></div>' +
+        '</div>';
+
+    const input = document.getElementById('o2ref_' + p.property_id);
+    const results = document.getElementById('o2refres_' + p.property_id);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = async raw => { if (done) return; done = true; await saveProperty(p, raw, cell, before); };
+    const cancel = () => { if (done) return; done = true; cell.innerHTML = before; wireProps(); };
+
+    wireAutocomplete(input, results, { class_id: p.target_class_id, exclude_id: obj.id }, picked => {
+        input.value = picked.name;
+        results.classList.remove('active');
+        finish(picked.id);
+    });
+
+    input.addEventListener('keydown', e => { if (e.key === 'Escape') cancel(); });
+    input.addEventListener('blur', () => {
+        // Let a click on a result land before deciding what the blur meant.
+        setTimeout(() => {
+            if (done) return;
+            if (input.value.trim() === '') finish(null);   // emptied = cleared
+            else cancel();                                  // typed but picked nothing
+        }, 200);
+    });
+}
+
+/* ---------------- shared autocomplete ---------------- */
+
+function wireAutocomplete(inputEl, resultsEl, params, onPick) {
+    let lastQuery = '';
+    let current = [];
+    acHighlightedIdx = -1;
+
+    inputEl.addEventListener('input', () => {
+        const q = inputEl.value.trim();
+        if (q === lastQuery) return;
+        lastQuery = q;
+        if (acTimer) clearTimeout(acTimer);
+        if (q === '') { resultsEl.classList.remove('active'); return; }
+        acTimer = setTimeout(async () => {
+            try {
+                const url = API + 'search_objects.php?q=' + encodeURIComponent(q) +
+                    (params.class_id ? '&class_id=' + params.class_id : '') +
+                    (params.exclude_id ? '&exclude_id=' + params.exclude_id : '');
+                const data = await (await fetch(url)).json();
+                if (!data.success) return;
+                current = data.results || [];
+                acHighlightedIdx = -1;
+                draw();
+            } catch (e) { /* silent — an empty dropdown is the failure state */ }
+        }, 200);
+    });
+
+    inputEl.addEventListener('keydown', e => {
+        if (!resultsEl.classList.contains('active')) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); acHighlightedIdx = Math.min(current.length - 1, acHighlightedIdx + 1); draw(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); acHighlightedIdx = Math.max(0, acHighlightedIdx - 1); draw(); }
+        else if (e.key === 'Enter' && acHighlightedIdx >= 0) { e.preventDefault(); onPick(current[acHighlightedIdx]); }
+        else if (e.key === 'Escape') { resultsEl.classList.remove('active'); }
+    });
+
+    function draw() {
+        if (!current.length) {
+            resultsEl.innerHTML = '<div class="ac-empty">' + esc(window.t('cmdb.new_object.no_matches')) + '</div>';
+            resultsEl.classList.add('active');
+            return;
+        }
+        resultsEl.innerHTML = current.map((r, i) =>
+            '<div class="ac-result' + (i === acHighlightedIdx ? ' highlighted' : '') + '" data-idx="' + i + '">' +
+                '<span>' + esc(r.name) + '</span><span class="ac-class">' + esc(r.class_name) + '</span>' +
+            '</div>').join('');
+        resultsEl.classList.add('active');
+        resultsEl.querySelectorAll('.ac-result').forEach(el => {
+            // mousedown, so it beats the input's blur handler
+            el.addEventListener('mousedown', e => { e.preventDefault(); onPick(current[parseInt(el.dataset.idx, 10)]); });
+        });
+    }
+}
+
+/* ---------------- planned / in service ---------------- */
+
+async function togglePlanned() {
+    await savePartial({ is_planned: !obj.is_planned });
+}
+
+/* ---------------- parent picker ---------------- */
 
 function openParentModal() {
-    document.getElementById('parentInput').value = obj.parent_name || '';
-    document.getElementById('parentId').value = obj.parent_id || '';
-    document.getElementById('parentResults').classList.remove('active');
-    document.getElementById('parentModal').classList.add('active');
-    setTimeout(() => document.getElementById('parentInput').focus(), 0);
+    document.getElementById('o2ParentInput').value = obj.parent_name || '';
+    document.getElementById('o2ParentId').value = obj.parent_id || '';
+    document.getElementById('o2ParentResults').classList.remove('active');
+    document.getElementById('o2ParentModal').classList.add('active');
+    setTimeout(() => document.getElementById('o2ParentInput').focus(), 0);
 
     wireAutocomplete(
-        document.getElementById('parentInput'),
-        document.getElementById('parentResults'),
+        document.getElementById('o2ParentInput'),
+        document.getElementById('o2ParentResults'),
         { exclude_id: obj.id },
-        (picked) => {
-            document.getElementById('parentId').value = picked.id;
-            document.getElementById('parentInput').value = picked.name;
-            document.getElementById('parentResults').classList.remove('active');
+        picked => {
+            document.getElementById('o2ParentId').value = picked.id;
+            document.getElementById('o2ParentInput').value = picked.name;
+            document.getElementById('o2ParentResults').classList.remove('active');
         }
     );
 }
-function closeParentModal() { document.getElementById('parentModal').classList.remove('active'); }
+function closeParentModal() { document.getElementById('o2ParentModal').classList.remove('active'); }
 
 async function saveParent() {
-    const newId = document.getElementById('parentId').value;
-    const text = document.getElementById('parentInput').value.trim();
-    if (text === '') {
-        // user cleared the box → treat as clear
-        closeParentModal();
-        await savePartial({ parent_id: null });
-        return;
-    }
-    if (!newId) {
-        showInlineToast(window.t('cmdb.parent_modal.pick_suggestion'), true);
-        return;
-    }
+    const newId = document.getElementById('o2ParentId').value;
+    const text = document.getElementById('o2ParentInput').value.trim();
+    if (text === '') { closeParentModal(); await savePartial({ parent_id: null }); return; }
+    if (!newId) { toast(window.t('cmdb.parent_modal.pick_suggestion'), true); return; }
     closeParentModal();
+    // The server cycle-checks this — a parent that is its own descendant comes
+    // back as an error rather than being silently accepted.
     await savePartial({ parent_id: parseInt(newId, 10) });
 }
 
@@ -843,304 +997,228 @@ async function clearParent() {
     await savePartial({ parent_id: null });
 }
 
-// ---------- Relationships ----------
+/* ---------------- relationships ---------------- */
+
+/* 'out' = this object is the subject (from → to).
+   'in'  = the other object is the subject; from/to are swapped on save.
+   Without this, "SolarWinds monitors this server" cannot be recorded from the
+   server at all — you have to navigate to SolarWinds and add it there. Every
+   verb in the library is directional and already stores its own inverse, so
+   the row is identical either way; only which end is `from` changes. */
+let relDirection = 'out';
+let relTargetName = '';
 
 function openRelModal() {
-    if (relationshipTypes.length === 0) {
-        showInlineToast(window.t('cmdb.rel_modal.none_defined'), true);
+    if (!relationshipTypes.length) {
+        toast(window.t('cmdb.rel_modal.none_defined'), true);
         return;
     }
-    const sel = document.getElementById('relTypeSelect');
-    sel.innerHTML = relationshipTypes.map(rt => `<option value="${rt.id}">${escapeHtml(rt.verb)}</option>`).join('');
-    updateRelInverseHint();
-    sel.onchange = updateRelInverseHint;
-    document.getElementById('relTargetInput').value = '';
-    document.getElementById('relTargetId').value = '';
-    document.getElementById('relTargetResults').classList.remove('active');
-    document.getElementById('relModal').classList.add('active');
-    setTimeout(() => document.getElementById('relTargetInput').focus(), 0);
+    relDirection = 'out';
+    relTargetName = '';
+    const sel = document.getElementById('o2RelType');
+    sel.innerHTML = relationshipTypes.map(rt => '<option value="' + rt.id + '">' + esc(rt.verb) + '</option>').join('');
+    sel.onchange = updateRelPreview;
+    document.getElementById('o2RelTarget').value = '';
+    document.getElementById('o2RelTargetId').value = '';
+    document.getElementById('o2RelResults').classList.remove('active');
+    setRelDirection('out');
+    document.getElementById('o2RelModal').classList.add('active');
+    setTimeout(() => document.getElementById('o2RelTarget').focus(), 0);
 
     wireAutocomplete(
-        document.getElementById('relTargetInput'),
-        document.getElementById('relTargetResults'),
+        document.getElementById('o2RelTarget'),
+        document.getElementById('o2RelResults'),
         { exclude_id: obj.id },
-        (picked) => {
-            document.getElementById('relTargetId').value = picked.id;
-            document.getElementById('relTargetInput').value = picked.name;
-            document.getElementById('relTargetResults').classList.remove('active');
+        picked => {
+            document.getElementById('o2RelTargetId').value = picked.id;
+            document.getElementById('o2RelTarget').value = picked.name;
+            relTargetName = picked.name;
+            document.getElementById('o2RelResults').classList.remove('active');
+            updateRelPreview();
         }
     );
 }
-function closeRelModal() { document.getElementById('relModal').classList.remove('active'); }
+function closeRelModal() { document.getElementById('o2RelModal').classList.remove('active'); }
 
-function updateRelInverseHint() {
-    const id = parseInt(document.getElementById('relTypeSelect').value, 10);
-    const rt = relationshipTypes.find(r => r.id === id);
-    const hint = document.getElementById('relInverseHint');
-    if (rt) hint.textContent = window.t('cmdb.rel_modal.inverse_hint', { verb: rt.inverse_verb });
-    else hint.textContent = '';
+function setRelDirection(dir) {
+    relDirection = dir;
+    document.getElementById('o2RelDirOut').classList.toggle('on', dir === 'out');
+    document.getElementById('o2RelDirIn').classList.toggle('on', dir === 'in');
+    updateRelPreview();
+}
+
+/* Writes out the sentence that will actually be stored, both ways round, so
+   nobody has to hold the direction in their head while picking a verb. */
+function updateRelPreview() {
+    const rt = relationshipTypes.find(r => r.id === parseInt(document.getElementById('o2RelType').value, 10));
+    const el = document.getElementById('o2RelHint');
+    if (!rt) { el.innerHTML = ''; return; }
+    const other = relTargetName || window.t('cmdb.rel_modal.the_other_object');
+    const subject = relDirection === 'out' ? obj.name : other;
+    const object  = relDirection === 'out' ? other : obj.name;
+    el.innerHTML =
+        '<b>' + esc(subject) + '</b> ' + esc(rt.verb) + ' <b>' + esc(object) + '</b>' +
+        '<br>' + esc(window.t('cmdb.rel_modal.preview_other_end')) + ' <b>' + esc(object) + '</b> ' + esc(rt.inverse_verb) + ' <b>' + esc(subject) + '</b>';
 }
 
 async function saveRelationship() {
-    const typeId = parseInt(document.getElementById('relTypeSelect').value, 10);
-    const toId = document.getElementById('relTargetId').value;
-    if (!typeId || !toId) {
-        showInlineToast(window.t('cmdb.rel_modal.pick_verb_object'), true);
-        return;
-    }
+    const typeId = parseInt(document.getElementById('o2RelType').value, 10);
+    const targetId = parseInt(document.getElementById('o2RelTargetId').value, 10);
+    if (!typeId || !targetId) { toast(window.t('cmdb.rel_modal.pick_verb_object'), true); return; }
     try {
         const data = await postJson(API + 'save_object_relationship.php', {
-            from_object_id: obj.id,
-            to_object_id: parseInt(toId, 10),
+            from_object_id: relDirection === 'out' ? obj.id : targetId,
+            to_object_id:   relDirection === 'out' ? targetId : obj.id,
             relationship_type_id: typeId
         });
         if (!data.success) throw new Error(data.error || window.t('cmdb.rel_modal.save_failed'));
         closeRelModal();
-        showInlineToast(window.t('cmdb.rel_modal.added'));
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
-        render();
-    } catch (err) {
-        showInlineToast(window.t('cmdb.rel_modal.error_prefix', { message: err.message }), true);
-    }
+        await reloadAndRender();
+        toast(window.t('cmdb.rel_modal.added'));
+    } catch (err) { toast(err.message, true); }
+}
+
+function jumpToDetails() {
+    const el = document.getElementById('o2Details');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function deleteRelationship(id) {
-    if (!(await showConfirm({ title: window.t('cmdb.rel_modal.delete_title'), message: window.t('cmdb.rel_modal.delete_confirm'), okLabel: window.t('cmdb.rel_modal.delete_ok'), okClass: 'danger' }))) return;
+    const ok = await confirmAction({
+        title: window.t('cmdb.rel_modal.delete_title'),
+        message: window.t('cmdb.rel_modal.delete_confirm'),
+        okLabel: window.t('cmdb.rel_modal.delete_ok'),
+        okClass: 'danger'
+    });
+    if (!ok) return;
     try {
-        const data = await postJson(API + 'delete_object_relationship.php', { id });
+        const data = await postJson(API + 'delete_object_relationship.php', { id: id });
         if (!data.success) throw new Error(data.error || window.t('cmdb.rel_modal.delete_failed'));
-        showInlineToast(window.t('cmdb.rel_modal.removed'));
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
-        render();
-    } catch (err) {
-        showInlineToast(window.t('cmdb.rel_modal.error_prefix', { message: err.message }), true);
-    }
+        await reloadAndRender();
+        toast(window.t('cmdb.rel_modal.removed'));
+    } catch (err) { toast(err.message, true); }
 }
 
-// ---------- Delete object ----------
+/* ---------------- property definition (floating modal) ---------------- */
 
-async function deleteObject() {
-    let msg = window.t('cmdb.object.delete_confirm', { name: obj.name });
-    if (obj.children.length > 0) {
-        msg += '\n\n' + window.t('cmdb.object.delete_confirm_children', { count: obj.children.length });
-    }
-    msg += '\n\n' + window.t('cmdb.object.delete_confirm_undone');
-    if (!(await showConfirm({ title: window.t('cmdb.object.delete_confirm_title'), message: msg, okLabel: window.t('cmdb.object.delete_confirm_ok'), okClass: 'primary' }))) return;
-
-    try {
-        const data = await postJson(API + 'delete_object.php', { id: obj.id });
-        if (!data.success) throw new Error(data.error || window.t('cmdb.object.delete_failed'));
-        const toastMsg = data.deleted_descendants > 0
-            ? window.t('cmdb.object.deleted_with_descendants', {
-                count: data.deleted_descendants,
-                word: data.deleted_descendants === 1 ? window.t('cmdb.object.descendant') : window.t('cmdb.object.descendants')
-              })
-            : window.t('cmdb.object.deleted');
-        showInlineToast(toastMsg);
-        // Navigate back to browse
-        setTimeout(() => { window.location.href = './'; }, 600);
-    } catch (err) {
-        showInlineToast(window.t('cmdb.object.error_prefix', { message: err.message }), true);
-    }
-}
-
-// ---------- Property-definition edit (floating draggable modal) ----------
-
-let propDefDrag = { active: false, offsetX: 0, offsetY: 0 };
+let pdDrag = { active: false, dx: 0, dy: 0 };
 
 function initPropDefModalDrag() {
-    const modal = document.getElementById('propDefModal');
-    const header = document.getElementById('propDefModalHeader');
-    if (!modal || !header) return;
-
-    header.addEventListener('mousedown', (e) => {
-        // Ignore drags that start on the close button
-        if (e.target.classList.contains('float-modal-close')) return;
-        propDefDrag.active = true;
-
-        // Switch from transform-centred to absolute positioning before the drag starts
-        const rect = modal.getBoundingClientRect();
+    const head = document.getElementById('o2PdHeader');
+    const modal = document.getElementById('o2PdModal');
+    if (!head || !modal) return;
+    head.addEventListener('mousedown', e => {
+        pdDrag.active = true;
+        const r = modal.getBoundingClientRect();
+        // Drop the centring transform on first drag, or the modal jumps by half
+        // its own width the moment it is grabbed.
         modal.style.transform = 'none';
-        modal.style.left = rect.left + 'px';
-        modal.style.top  = rect.top  + 'px';
-        propDefDrag.offsetX = e.clientX - rect.left;
-        propDefDrag.offsetY = e.clientY - rect.top;
-
-        document.onmousemove = (ev) => {
-            if (!propDefDrag.active) return;
-            let nx = ev.clientX - propDefDrag.offsetX;
-            let ny = ev.clientY - propDefDrag.offsetY;
-            nx = Math.max(0, Math.min(nx, window.innerWidth  - modal.offsetWidth));
-            ny = Math.max(0, Math.min(ny, window.innerHeight - modal.offsetHeight));
-            modal.style.left = nx + 'px';
-            modal.style.top  = ny + 'px';
-        };
-        document.onmouseup = () => {
-            propDefDrag.active = false;
-            document.onmousemove = null;
-            document.onmouseup = null;
-        };
+        modal.style.left = r.left + 'px';
+        modal.style.top = r.top + 'px';
+        pdDrag.dx = e.clientX - r.left;
+        pdDrag.dy = e.clientY - r.top;
+        e.preventDefault();
     });
+    document.addEventListener('mousemove', e => {
+        if (!pdDrag.active) return;
+        modal.style.left = (e.clientX - pdDrag.dx) + 'px';
+        modal.style.top = (e.clientY - pdDrag.dy) + 'px';
+    });
+    document.addEventListener('mouseup', () => { pdDrag.active = false; });
 }
 
 function openPropDefModal(propertyId) {
-    const p = obj.properties.find(x => x.property_id === propertyId);
+    const p = (obj.properties || []).find(x => x.property_id === propertyId);
     if (!p) return;
+    document.getElementById('o2PdTitle').textContent = window.t('cmdb.prop_def.title_named', { label: p.label });
+    document.getElementById('o2PdId').value = p.property_id;
+    document.getElementById('o2PdLabel').value = p.label;
+    document.getElementById('o2PdKey').value = p.property_key;
+    document.getElementById('o2PdType').value = p.property_type;
+    document.getElementById('o2PdOrder').value = p.display_order;
+    document.getElementById('o2PdRequired').checked = !!p.is_required;
+    document.getElementById('o2PdSpreads').checked = !!Number(p.spreads_impact);
 
-    document.getElementById('propDefModalTitle').textContent = window.t('cmdb.prop_def.title_named', { label: p.label });
-    document.getElementById('pdId').value = p.property_id;
-    document.getElementById('pdLabel').value = p.label;
-    document.getElementById('pdKey').value = p.property_key;
-    document.getElementById('pdType').value = p.property_type;
-    document.getElementById('pdDisplayOrder').value = p.display_order;
-    document.getElementById('pdIsRequired').checked = p.is_required;
-    document.getElementById('pdSpreadsImpact').checked = !!Number(p.spreads_impact);
+    document.getElementById('o2PdTargetClass').innerHTML = '<option value="">' + esc(window.t('cmdb.prop_def.select')) + '</option>' +
+        allClasses.map(c => '<option value="' + c.id + '"' + (p.target_class_id === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
 
-    // Populate target-class dropdown from cached allClasses
-    const tcSel = document.getElementById('pdTargetClass');
-    tcSel.innerHTML = `<option value="">${escapeHtml(window.t('cmdb.prop_def.select'))}</option>` + allClasses.map(c =>
-        `<option value="${c.id}" ${p.target_class_id === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
-    ).join('');
-
-    // Render the row-based options editor (only visible when type === dropdown)
-    if (typeof renderOptionsEditor === 'function') {
-        renderOptionsEditor('pdOptionsContainer', p.options || []);
-    }
-
+    if (typeof renderOptionsEditor === 'function') renderOptionsEditor('o2PdOptions', p.options || []);
     onPropDefTypeChange();
 
-    // Reset position to centred each time it's opened (otherwise it'd drift across reopens)
-    const modal = document.getElementById('propDefModal');
+    const modal = document.getElementById('o2PdModal');
     modal.style.left = '50%';
-    modal.style.top = '100px';
+    modal.style.top = '90px';
     modal.style.transform = 'translateX(-50%)';
     modal.classList.add('active');
-
-    setTimeout(() => document.getElementById('pdLabel').focus(), 0);
+    setTimeout(() => document.getElementById('o2PdLabel').focus(), 0);
 }
-
-function closePropDefModal() {
-    document.getElementById('propDefModal').classList.remove('active');
-}
+function closePropDefModal() { document.getElementById('o2PdModal').classList.remove('active'); }
 
 function onPropDefTypeChange() {
-    const t = document.getElementById('pdType').value;
-    document.getElementById('pdTargetClassGroup').style.display = t === 'object_ref' ? 'block' : 'none';
-    document.getElementById('pdSpreadsImpactGroup').style.display = t === 'object_ref' ? 'block' : 'none';
-    document.getElementById('pdOptionsGroup').style.display = t === 'dropdown' ? 'block' : 'none';
+    const t = document.getElementById('o2PdType').value;
+    document.getElementById('o2PdTargetGroup').style.display = t === 'object_ref' ? 'block' : 'none';
+    document.getElementById('o2PdSpreadsGroup').style.display = t === 'object_ref' ? 'block' : 'none';
+    document.getElementById('o2PdOptionsGroup').style.display = t === 'dropdown' ? 'block' : 'none';
 }
 
 async function savePropDef() {
-    const id = document.getElementById('pdId').value;
-    const type = document.getElementById('pdType').value;
-    const options = type === 'dropdown' && typeof collectOptionsFromEditor === 'function'
-        ? collectOptionsFromEditor('pdOptionsContainer')
-        : [];
-    const targetClassId = document.getElementById('pdTargetClass').value;
+    const type = document.getElementById('o2PdType').value;
+    const options = (type === 'dropdown' && typeof collectOptionsFromEditor === 'function')
+        ? collectOptionsFromEditor('o2PdOptions') : [];
+    const targetClassId = document.getElementById('o2PdTargetClass').value;
+
+    if (type === 'object_ref' && !targetClassId) { toast(window.t('cmdb.prop_def.pick_target'), true); return; }
+    if (type === 'dropdown' && !options.length) { toast(window.t('cmdb.prop_def.add_option'), true); return; }
 
     const payload = {
-        id: id || null,
+        id: document.getElementById('o2PdId').value || null,
         class_id: obj.class_id,
-        label: document.getElementById('pdLabel').value,
-        property_key: document.getElementById('pdKey').value,
+        label: document.getElementById('o2PdLabel').value,
+        property_key: document.getElementById('o2PdKey').value,
         property_type: type,
-        target_class_id: type === 'object_ref' ? (targetClassId || null) : null,
-        is_required: document.getElementById('pdIsRequired').checked,
-        spreads_impact: type === 'object_ref' && document.getElementById('pdSpreadsImpact').checked,
-        display_order: parseInt(document.getElementById('pdDisplayOrder').value, 10) || 0,
-        options
+        target_class_id: type === 'object_ref' ? targetClassId : null,
+        is_required: document.getElementById('o2PdRequired').checked,
+        spreads_impact: type === 'object_ref' && document.getElementById('o2PdSpreads').checked,
+        display_order: parseInt(document.getElementById('o2PdOrder').value, 10) || 0,
+        options: options
     };
-
-    if (type === 'object_ref' && !payload.target_class_id) {
-        showInlineToast(window.t('cmdb.prop_def.pick_target'), true);
-        return;
-    }
-    if (type === 'dropdown' && options.length === 0) {
-        showInlineToast(window.t('cmdb.prop_def.add_option'), true);
-        return;
-    }
-
     try {
         const data = await postJson(API + 'save_class_property.php', payload);
         if (!data.success) throw new Error(data.error || window.t('cmdb.prop_def.save_failed'));
         closePropDefModal();
-        showInlineToast(window.t('cmdb.prop_def.updated'));
-        // Reload to pick up new options / type changes
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
-        render();
-    } catch (err) {
-        showInlineToast(window.t('cmdb.prop_def.error_prefix', { message: err.message }), true);
-    }
+        // Reload rather than patch — a type or options change rewrites how every
+        // object of this class renders, not just this one.
+        await reloadAndRender();
+        toast(window.t('cmdb.prop_def.updated'));
+    } catch (err) { toast(err.message, true); }
 }
 
-// ---------- Autocomplete helper ----------
-
-function wireAutocomplete(inputEl, resultsEl, params, onPick) {
-    let lastQuery = '';
-    let currentResults = [];
-    acHighlightedIdx = -1;
-
-    inputEl.addEventListener('input', () => {
-        const q = inputEl.value.trim();
-        if (q === lastQuery) return;
-        lastQuery = q;
-        if (acTimer) clearTimeout(acTimer);
-        if (q === '') {
-            resultsEl.classList.remove('active');
-            return;
-        }
-        acTimer = setTimeout(async () => {
-            try {
-                const url = API + 'search_objects.php?q=' + encodeURIComponent(q)
-                    + (params.class_id ? '&class_id=' + params.class_id : '')
-                    + (params.exclude_id ? '&exclude_id=' + params.exclude_id : '');
-                const res = await fetch(url);
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error || 'Search failed');
-                currentResults = data.results || [];
-                acHighlightedIdx = -1;
-                renderAcResults();
-            } catch (e) { /* silent */ }
-        }, 200);
+async function deleteObject() {
+    // Count the WHOLE subtree, not just direct children — the delete cascades
+    // all the way down, so a warning that says "2 objects" when it will remove
+    // nine is worse than no warning.
+    const desc = (impact && impact.descendants) ? impact.descendants.length : (obj.children || []).length;
+    const msg = desc
+        ? window.t(desc === 1 ? 'cmdb.object.delete_confirm_children_one' : 'cmdb.object.delete_confirm_children_other', { count: desc })
+        : window.t('cmdb.object.delete_confirm_undone');
+    const ok = await confirmAction({
+        title: window.t('cmdb.object.delete_confirm', { name: obj.name }),
+        message: msg,
+        okLabel: window.t('cmdb.danger.delete'),
+        okClass: 'danger'
     });
-
-    inputEl.addEventListener('keydown', e => {
-        if (!resultsEl.classList.contains('active')) return;
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            acHighlightedIdx = Math.min(currentResults.length - 1, acHighlightedIdx + 1);
-            renderAcResults();
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            acHighlightedIdx = Math.max(0, acHighlightedIdx - 1);
-            renderAcResults();
-        } else if (e.key === 'Enter' && acHighlightedIdx >= 0) {
-            e.preventDefault();
-            onPick(currentResults[acHighlightedIdx]);
-        } else if (e.key === 'Escape') {
-            resultsEl.classList.remove('active');
-        }
-    });
-
-    function renderAcResults() {
-        if (currentResults.length === 0) {
-            resultsEl.innerHTML = `<div class="ac-empty">${escapeHtml(window.t('cmdb.new_object.no_matches'))}</div>`;
-            resultsEl.classList.add('active');
-            return;
-        }
-        resultsEl.innerHTML = currentResults.map((r, i) => `
-            <div class="ac-result ${i === acHighlightedIdx ? 'highlighted' : ''}" data-idx="${i}">
-                <span>${escapeHtml(r.name)}</span>
-                <span class="ac-class">${escapeHtml(r.class_name)}</span>
-            </div>
-        `).join('');
-        resultsEl.classList.add('active');
-        resultsEl.querySelectorAll('.ac-result').forEach(el => {
-            // mousedown so it fires before the input's blur handler
-            el.addEventListener('mousedown', e => {
-                e.preventDefault();
-                onPick(currentResults[parseInt(el.dataset.idx, 10)]);
-            });
-        });
+    if (!ok) return;
+    try {
+        const data = await postJson(API + 'delete_object.php', { id: obj.id });
+        if (!data.success) throw new Error(data.error || window.t('cmdb.object.delete_failed'));
+        toast(data.deleted_descendants > 0
+            ? window.t('cmdb.object.deleted_with_descendants', {
+                count: data.deleted_descendants,
+                word: window.t(data.deleted_descendants === 1 ? 'cmdb.object.descendant' : 'cmdb.object.descendants')
+              })
+            : window.t('cmdb.object.deleted'));
+        setTimeout(() => { window.location.href = './'; }, 600);
+    } catch (err) {
+        toast(err.message, true);
     }
 }
