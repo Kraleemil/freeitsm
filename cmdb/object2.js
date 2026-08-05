@@ -18,8 +18,12 @@ let blastRadius = null;       // {nodes:[{id,name,class_name,depth,via_kind,via_
 let activity = null;          // {open, closed, total_closed}
 let classesById = {};         // class_id -> {name, icon_key}
 let classesByName = {};       // class_name -> icon_key  (related objects only carry the name)
+let allClasses = [];          // for the property-definition target-class picker
+let relationshipTypes = [];   // the verb library, for the add-relationship modal
 let showBlanks = false;
 let summaryGenerating = false;
+let acTimer = null;
+let acHighlightedIdx = -1;
 
 /* Words that mean "this matters more than that". A dropdown carrying one of
    these drives the hero rail colour, so a Critical CI does not render
@@ -48,15 +52,15 @@ function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
-let toastTimer = null;
+/* showToast and showConfirm are the shared components, pulled in by
+   includes/header.php -> waffle-menu.php. Not redefined here — a second toast
+   implementation one module away from the real one is exactly the divergence
+   worth avoiding. */
 function toast(msg, isError) {
-    const el = document.getElementById('o2Toast');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.toggle('err', !!isError);
-    el.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+    showToast(msg, isError ? 'error' : 'success');
+}
+function confirmAction(opts) {
+    return showConfirm(opts);
 }
 
 async function postJson(url, body) {
@@ -109,10 +113,26 @@ document.addEventListener('DOMContentLoaded', () => {
             '<div style="padding:60px;text-align:center;color:var(--danger-text,#b91c1c);">No object id in the URL.</div>';
         return;
     }
-    Promise.all([loadObject(), loadImpact(), loadActivity(), loadClasses()]).then(() => {
+    Promise.all([loadObject(), loadImpact(), loadActivity(), loadClasses(), loadRelationshipTypes()]).then(() => {
         if (obj) render();
     });
+    initPropDefModalDrag();
 });
+
+async function loadRelationshipTypes() {
+    try {
+        const data = await (await fetch(API + 'get_relationship_types.php')).json();
+        if (data.success) relationshipTypes = (data.relationship_types || []).filter(r => r.is_active);
+    } catch (e) { /* the add-relationship modal will say none are defined */ }
+}
+
+/* Everything that reloads after a write goes through here, so no caller can
+   refresh the object but forget the impact panel and leave the blast radius
+   and the connection tally disagreeing. */
+async function reloadAndRender() {
+    await Promise.all([loadObject(), loadImpact(), loadActivity()]);
+    render();
+}
 
 async function loadObject() {
     try {
@@ -141,6 +161,7 @@ async function loadClasses() {
     try {
         const data = await (await fetch(API + 'get_classes.php')).json();
         if (!data.success) return;
+        allClasses = (data.classes || []).filter(c => c.is_active);
         (data.classes || []).forEach(c => {
             classesById[c.id] = { name: c.name, icon_key: c.icon_key };
             classesByName[c.name] = c.icon_key;
@@ -238,10 +259,17 @@ function heroHtml(signal) {
     const chips = [];
     chips.push('<span class="o2-chip class">' + icon(classesById[obj.class_id] ? classesById[obj.class_id].icon_key : 'box', 13) + esc(obj.class_name) + '</span>');
     if (signal) chips.push('<span class="o2-chip signal">' + esc(signal.label) + '</span>');
-    if (obj.is_planned) chips.push('<span class="o2-chip planned">Planned — not yet in service</span>');
-    if (obj.parent_id) {
-        chips.push('<span class="o2-chip">Part of <a href="object2.php?id=' + obj.parent_id + '">' + esc(obj.parent_name) + '</a></span>');
-    }
+
+    // The state is always stated, and clicking it flips it. When it is the
+    // normal case it is quiet; when it is planned it is loud.
+    chips.push('<button class="o2-chip act' + (obj.is_planned ? ' planned' : '') + '" onclick="togglePlanned()" ' +
+        'title="' + (obj.is_planned ? 'Mark this as real and in service' : 'Mark this as planned — not yet in service') + '">' +
+        (obj.is_planned ? 'Planned — not yet in service' : 'In service') + '</button>');
+
+    chips.push(obj.parent_id
+        ? '<span class="o2-chip">Part of <a href="object2.php?id=' + obj.parent_id + '">' + esc(obj.parent_name) + '</a>' +
+          '<button class="o2-chip-x" onclick="openParentModal()" title="Change or clear the parent">edit</button></span>'
+        : '<button class="o2-chip act" onclick="openParentModal()" title="Put this inside another object">+ Set parent</button>');
     if (stale !== null && stale > STALE_DAYS) {
         chips.push('<span class="o2-chip stale">Not touched in ' + Math.floor(stale / 30) + ' months</span>');
     }
@@ -376,12 +404,15 @@ function viaText(n) {
 function connectionsHtml() {
     const tally = connectionTally();
 
+    // Only relationship rows carry an ×. A property reference is unlinked by
+    // clearing the field it lives in, and a descendant by re-parenting it —
+    // offering an × on those would imply a delete this panel cannot do.
     const left = []
-        .concat(tally.incoming.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, x.inverse_verb + ' this')))
+        .concat(tally.incoming.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, x.inverse_verb + ' this', x.id)))
         .concat(tally.refsIn.map(x => nodeRow(x.id, x.name, x.class_name, (x.property_label || 'a property') + ' points here')));
 
     const right = []
-        .concat(tally.outgoing.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, 'this ' + x.verb)))
+        .concat(tally.outgoing.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, 'this ' + x.verb, x.id)))
         .concat(tally.refsOut.map(p => nodeRow(p.value_object.id, p.value_object.name, p.value_object.class_name || p.target_class_name, p.label)));
 
     const centre =
@@ -417,7 +448,8 @@ function connectionsHtml() {
     ).join('');
 
     const head = '<div class="o2-card-head"><span class="o2-card-title">Connections</span>' +
-        '<span class="o2-card-sub">' + tally.total + ' in total</span></div>';
+        '<span class="o2-card-sub">' + tally.total + ' in total</span>' +
+        '<button class="o2-btn small" onclick="openRelModal()">+ Add relationship</button></div>';
 
     const tallyRow = '<div class="o2-tally">' + counts + '</div>';
 
@@ -442,14 +474,17 @@ function connectionsHtml() {
     '</div>';
 }
 
-function nodeRow(id, name, className, verb) {
-    return '<div>' +
+function nodeRow(id, name, className, verb, relId) {
+    return '<div class="o2-noderow">' +
         (verb ? '<div class="o2-rel-verb">' + esc(verb) + '</div>' : '') +
-        '<a class="o2-node" href="object2.php?id=' + id + '">' +
-            '<span class="o2-node-ico">' + iconForClassName(className, 18) + '</span>' +
-            '<span class="o2-node-txt"><span class="o2-node-name">' + esc(name) + '</span>' +
-            '<span class="o2-node-sub">' + esc(className || '') + '</span></span>' +
-        '</a></div>';
+        '<div class="o2-node-wrap">' +
+            '<a class="o2-node" href="object2.php?id=' + id + '">' +
+                '<span class="o2-node-ico">' + iconForClassName(className, 18) + '</span>' +
+                '<span class="o2-node-txt"><span class="o2-node-name">' + esc(name) + '</span>' +
+                '<span class="o2-node-sub">' + esc(className || '') + '</span></span>' +
+            '</a>' +
+            (relId ? '<button class="o2-unlink" onclick="deleteRelationship(' + relId + ')" title="Remove this relationship">×</button>' : '') +
+        '</div></div>';
 }
 function upArrow() {
     return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-faint,#d1d5db)"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="6 11 12 5 18 11"/></svg>';
@@ -500,8 +535,16 @@ function propsHtml() {
 
 function propCard(p) {
     const empty = !(p.value !== null && p.value !== '' && p.value !== undefined);
+    // The cog edits the property DEFINITION (label, type, options, required),
+    // not this object's value — same modal as the current page. It is on hover
+    // rather than permanent, because it is schema work and most visits are not.
     return '<div class="o2-prop">' +
-        '<div class="o2-prop-lbl">' + esc(p.label) + (p.is_required ? '<span class="req" title="Required">*</span>' : '') + '</div>' +
+        '<div class="o2-prop-lbl">' +
+            '<span>' + esc(p.label) + (p.is_required ? '<span class="req" title="Required">*</span>' : '') + '</span>' +
+            '<button class="o2-cog" onclick="openPropDefModal(' + p.property_id + ')" title="Edit this field’s definition">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' +
+            '</button>' +
+        '</div>' +
         '<div class="o2-prop-val" id="o2p_' + p.property_id + '" data-pid="' + p.property_id + '">' +
             (empty ? '<span style="color:var(--text-faint,#d1d5db);font-weight:400;">Not set</span>' : propValueHtml(p)) +
         '</div>' +
@@ -636,10 +679,7 @@ function beginEdit(cell) {
     const pid = parseInt(cell.dataset.pid, 10);
     const p = (obj.properties || []).find(x => x.property_id === pid);
     if (!p) return;
-    if (p.property_type === 'object_ref') {
-        toast('Object references are picked on the current page — this prototype links them only.');
-        return;
-    }
+    if (p.property_type === 'object_ref') { beginEditObjectRef(cell, p); return; }
 
     let editor;
     if (p.property_type === 'dropdown') {
@@ -691,8 +731,7 @@ async function saveProperty(p, raw, cell, before) {
             property_values: [{ property_id: p.property_id, value: raw }]
         });
         if (!data.success) throw new Error(data.error || 'Save failed.');
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
-        render();
+        await reloadAndRender();
         toast(p.label + ' saved');
     } catch (err) {
         cell.innerHTML = before;
@@ -711,8 +750,7 @@ async function savePartial(patch) {
         if (patch.is_planned !== undefined) payload.is_planned = patch.is_planned;
         const data = await postJson(API + 'save_object.php', payload);
         if (!data.success) throw new Error(data.error || 'Save failed.');
-        await Promise.all([loadObject(), loadImpact(), loadActivity()]);
-        render();
+        await reloadAndRender();
         toast('Saved');
     } catch (err) {
         await loadObject();
@@ -762,16 +800,333 @@ async function createImpactDiagram(btn) {
     }
 }
 
+/* ---------------- object_ref editing ---------------- */
+
+/* Search is scoped to the property's target class and excludes this object, so
+   a field can never be pointed at the thing that holds it. */
+function beginEditObjectRef(cell, p) {
+    const before = cell.innerHTML;
+    cell.innerHTML =
+        '<div class="autocomplete-wrap">' +
+            '<input type="text" id="o2ref_' + p.property_id + '" autocomplete="off" ' +
+                'placeholder="Search ' + esc(p.target_class_name || 'objects') + '…" ' +
+                'value="' + (p.value_object ? esc(p.value_object.name) : '') + '">' +
+            '<div class="autocomplete-results" id="o2refres_' + p.property_id + '"></div>' +
+        '</div>';
+
+    const input = document.getElementById('o2ref_' + p.property_id);
+    const results = document.getElementById('o2refres_' + p.property_id);
+    input.focus();
+    input.select();
+
+    let done = false;
+    const finish = async raw => { if (done) return; done = true; await saveProperty(p, raw, cell, before); };
+    const cancel = () => { if (done) return; done = true; cell.innerHTML = before; wireProps(); };
+
+    wireAutocomplete(input, results, { class_id: p.target_class_id, exclude_id: obj.id }, picked => {
+        input.value = picked.name;
+        results.classList.remove('active');
+        finish(picked.id);
+    });
+
+    input.addEventListener('keydown', e => { if (e.key === 'Escape') cancel(); });
+    input.addEventListener('blur', () => {
+        // Let a click on a result land before deciding what the blur meant.
+        setTimeout(() => {
+            if (done) return;
+            if (input.value.trim() === '') finish(null);   // emptied = cleared
+            else cancel();                                  // typed but picked nothing
+        }, 200);
+    });
+}
+
+/* ---------------- shared autocomplete ---------------- */
+
+function wireAutocomplete(inputEl, resultsEl, params, onPick) {
+    let lastQuery = '';
+    let current = [];
+    acHighlightedIdx = -1;
+
+    inputEl.addEventListener('input', () => {
+        const q = inputEl.value.trim();
+        if (q === lastQuery) return;
+        lastQuery = q;
+        if (acTimer) clearTimeout(acTimer);
+        if (q === '') { resultsEl.classList.remove('active'); return; }
+        acTimer = setTimeout(async () => {
+            try {
+                const url = API + 'search_objects.php?q=' + encodeURIComponent(q) +
+                    (params.class_id ? '&class_id=' + params.class_id : '') +
+                    (params.exclude_id ? '&exclude_id=' + params.exclude_id : '');
+                const data = await (await fetch(url)).json();
+                if (!data.success) return;
+                current = data.results || [];
+                acHighlightedIdx = -1;
+                draw();
+            } catch (e) { /* silent — an empty dropdown is the failure state */ }
+        }, 200);
+    });
+
+    inputEl.addEventListener('keydown', e => {
+        if (!resultsEl.classList.contains('active')) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); acHighlightedIdx = Math.min(current.length - 1, acHighlightedIdx + 1); draw(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); acHighlightedIdx = Math.max(0, acHighlightedIdx - 1); draw(); }
+        else if (e.key === 'Enter' && acHighlightedIdx >= 0) { e.preventDefault(); onPick(current[acHighlightedIdx]); }
+        else if (e.key === 'Escape') { resultsEl.classList.remove('active'); }
+    });
+
+    function draw() {
+        if (!current.length) {
+            resultsEl.innerHTML = '<div class="ac-empty">No matches</div>';
+            resultsEl.classList.add('active');
+            return;
+        }
+        resultsEl.innerHTML = current.map((r, i) =>
+            '<div class="ac-result' + (i === acHighlightedIdx ? ' highlighted' : '') + '" data-idx="' + i + '">' +
+                '<span>' + esc(r.name) + '</span><span class="ac-class">' + esc(r.class_name) + '</span>' +
+            '</div>').join('');
+        resultsEl.classList.add('active');
+        resultsEl.querySelectorAll('.ac-result').forEach(el => {
+            // mousedown, so it beats the input's blur handler
+            el.addEventListener('mousedown', e => { e.preventDefault(); onPick(current[parseInt(el.dataset.idx, 10)]); });
+        });
+    }
+}
+
+/* ---------------- planned / in service ---------------- */
+
+async function togglePlanned() {
+    await savePartial({ is_planned: !obj.is_planned });
+}
+
+/* ---------------- parent picker ---------------- */
+
+function openParentModal() {
+    document.getElementById('o2ParentInput').value = obj.parent_name || '';
+    document.getElementById('o2ParentId').value = obj.parent_id || '';
+    document.getElementById('o2ParentResults').classList.remove('active');
+    document.getElementById('o2ParentModal').classList.add('active');
+    setTimeout(() => document.getElementById('o2ParentInput').focus(), 0);
+
+    wireAutocomplete(
+        document.getElementById('o2ParentInput'),
+        document.getElementById('o2ParentResults'),
+        { exclude_id: obj.id },
+        picked => {
+            document.getElementById('o2ParentId').value = picked.id;
+            document.getElementById('o2ParentInput').value = picked.name;
+            document.getElementById('o2ParentResults').classList.remove('active');
+        }
+    );
+}
+function closeParentModal() { document.getElementById('o2ParentModal').classList.remove('active'); }
+
+async function saveParent() {
+    const newId = document.getElementById('o2ParentId').value;
+    const text = document.getElementById('o2ParentInput').value.trim();
+    if (text === '') { closeParentModal(); await savePartial({ parent_id: null }); return; }
+    if (!newId) { toast('Pick one of the suggestions.', true); return; }
+    closeParentModal();
+    // The server cycle-checks this — a parent that is its own descendant comes
+    // back as an error rather than being silently accepted.
+    await savePartial({ parent_id: parseInt(newId, 10) });
+}
+
+async function clearParent() {
+    closeParentModal();
+    if (!obj.parent_id) return;
+    await savePartial({ parent_id: null });
+}
+
+/* ---------------- relationships ---------------- */
+
+function openRelModal() {
+    if (!relationshipTypes.length) {
+        toast('No relationship types are defined yet — add some in Settings.', true);
+        return;
+    }
+    const sel = document.getElementById('o2RelType');
+    sel.innerHTML = relationshipTypes.map(rt => '<option value="' + rt.id + '">' + esc(rt.verb) + '</option>').join('');
+    sel.onchange = updateRelInverseHint;
+    updateRelInverseHint();
+    document.getElementById('o2RelTarget').value = '';
+    document.getElementById('o2RelTargetId').value = '';
+    document.getElementById('o2RelResults').classList.remove('active');
+    document.getElementById('o2RelModal').classList.add('active');
+    setTimeout(() => document.getElementById('o2RelTarget').focus(), 0);
+
+    wireAutocomplete(
+        document.getElementById('o2RelTarget'),
+        document.getElementById('o2RelResults'),
+        { exclude_id: obj.id },
+        picked => {
+            document.getElementById('o2RelTargetId').value = picked.id;
+            document.getElementById('o2RelTarget').value = picked.name;
+            document.getElementById('o2RelResults').classList.remove('active');
+        }
+    );
+}
+function closeRelModal() { document.getElementById('o2RelModal').classList.remove('active'); }
+
+/* Shows the inverse live, because the verb reads one way from here and the
+   other way from the object on the far end. */
+function updateRelInverseHint() {
+    const id = parseInt(document.getElementById('o2RelType').value, 10);
+    const rt = relationshipTypes.find(r => r.id === id);
+    document.getElementById('o2RelHint').textContent = rt
+        ? 'From the other object’s side this reads: “' + rt.inverse_verb + ' ' + obj.name + '”.'
+        : '';
+}
+
+async function saveRelationship() {
+    const typeId = parseInt(document.getElementById('o2RelType').value, 10);
+    const toId = document.getElementById('o2RelTargetId').value;
+    if (!typeId || !toId) { toast('Pick a verb and an object.', true); return; }
+    try {
+        const data = await postJson(API + 'save_object_relationship.php', {
+            from_object_id: obj.id,
+            to_object_id: parseInt(toId, 10),
+            relationship_type_id: typeId
+        });
+        if (!data.success) throw new Error(data.error || 'Could not add the relationship.');
+        closeRelModal();
+        await reloadAndRender();
+        toast('Relationship added');
+    } catch (err) { toast(err.message, true); }
+}
+
+async function deleteRelationship(id) {
+    const ok = await confirmAction({
+        title: 'Remove relationship',
+        message: 'This unlinks the two objects. Neither object is deleted.',
+        okLabel: 'Remove',
+        okClass: 'danger'
+    });
+    if (!ok) return;
+    try {
+        const data = await postJson(API + 'delete_object_relationship.php', { id: id });
+        if (!data.success) throw new Error(data.error || 'Could not remove it.');
+        await reloadAndRender();
+        toast('Relationship removed');
+    } catch (err) { toast(err.message, true); }
+}
+
+/* ---------------- property definition (floating modal) ---------------- */
+
+let pdDrag = { active: false, dx: 0, dy: 0 };
+
+function initPropDefModalDrag() {
+    const head = document.getElementById('o2PdHeader');
+    const modal = document.getElementById('o2PdModal');
+    if (!head || !modal) return;
+    head.addEventListener('mousedown', e => {
+        pdDrag.active = true;
+        const r = modal.getBoundingClientRect();
+        // Drop the centring transform on first drag, or the modal jumps by half
+        // its own width the moment it is grabbed.
+        modal.style.transform = 'none';
+        modal.style.left = r.left + 'px';
+        modal.style.top = r.top + 'px';
+        pdDrag.dx = e.clientX - r.left;
+        pdDrag.dy = e.clientY - r.top;
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+        if (!pdDrag.active) return;
+        modal.style.left = (e.clientX - pdDrag.dx) + 'px';
+        modal.style.top = (e.clientY - pdDrag.dy) + 'px';
+    });
+    document.addEventListener('mouseup', () => { pdDrag.active = false; });
+}
+
+function openPropDefModal(propertyId) {
+    const p = (obj.properties || []).find(x => x.property_id === propertyId);
+    if (!p) return;
+    document.getElementById('o2PdTitle').textContent = 'Edit field — ' + p.label;
+    document.getElementById('o2PdId').value = p.property_id;
+    document.getElementById('o2PdLabel').value = p.label;
+    document.getElementById('o2PdKey').value = p.property_key;
+    document.getElementById('o2PdType').value = p.property_type;
+    document.getElementById('o2PdOrder').value = p.display_order;
+    document.getElementById('o2PdRequired').checked = !!p.is_required;
+    document.getElementById('o2PdSpreads').checked = !!Number(p.spreads_impact);
+
+    document.getElementById('o2PdTargetClass').innerHTML = '<option value="">Select…</option>' +
+        allClasses.map(c => '<option value="' + c.id + '"' + (p.target_class_id === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
+
+    if (typeof renderOptionsEditor === 'function') renderOptionsEditor('o2PdOptions', p.options || []);
+    onPropDefTypeChange();
+
+    const modal = document.getElementById('o2PdModal');
+    modal.style.left = '50%';
+    modal.style.top = '90px';
+    modal.style.transform = 'translateX(-50%)';
+    modal.classList.add('active');
+    setTimeout(() => document.getElementById('o2PdLabel').focus(), 0);
+}
+function closePropDefModal() { document.getElementById('o2PdModal').classList.remove('active'); }
+
+function onPropDefTypeChange() {
+    const t = document.getElementById('o2PdType').value;
+    document.getElementById('o2PdTargetGroup').style.display = t === 'object_ref' ? 'block' : 'none';
+    document.getElementById('o2PdSpreadsGroup').style.display = t === 'object_ref' ? 'block' : 'none';
+    document.getElementById('o2PdOptionsGroup').style.display = t === 'dropdown' ? 'block' : 'none';
+}
+
+async function savePropDef() {
+    const type = document.getElementById('o2PdType').value;
+    const options = (type === 'dropdown' && typeof collectOptionsFromEditor === 'function')
+        ? collectOptionsFromEditor('o2PdOptions') : [];
+    const targetClassId = document.getElementById('o2PdTargetClass').value;
+
+    if (type === 'object_ref' && !targetClassId) { toast('Pick which class this points at.', true); return; }
+    if (type === 'dropdown' && !options.length) { toast('Add at least one option.', true); return; }
+
+    const payload = {
+        id: document.getElementById('o2PdId').value || null,
+        class_id: obj.class_id,
+        label: document.getElementById('o2PdLabel').value,
+        property_key: document.getElementById('o2PdKey').value,
+        property_type: type,
+        target_class_id: type === 'object_ref' ? targetClassId : null,
+        is_required: document.getElementById('o2PdRequired').checked,
+        spreads_impact: type === 'object_ref' && document.getElementById('o2PdSpreads').checked,
+        display_order: parseInt(document.getElementById('o2PdOrder').value, 10) || 0,
+        options: options
+    };
+    try {
+        const data = await postJson(API + 'save_class_property.php', payload);
+        if (!data.success) throw new Error(data.error || 'Could not save the field.');
+        closePropDefModal();
+        // Reload rather than patch — a type or options change rewrites how every
+        // object of this class renders, not just this one.
+        await reloadAndRender();
+        toast('Field updated');
+    } catch (err) { toast(err.message, true); }
+}
+
 async function deleteObject() {
-    const kids = (obj.children || []).length;
-    const msg = kids
-        ? 'Delete "' + obj.name + '" and everything inside it? That is ' + kids + ' object' + (kids === 1 ? '' : 's') + ' plus anything below them. This cannot be undone.'
-        : 'Delete "' + obj.name + '"? This cannot be undone.';
-    if (!confirm(msg)) return;
+    // Count the WHOLE subtree, not just direct children — the delete cascades
+    // all the way down, so a warning that says "2 objects" when it will remove
+    // nine is worse than no warning.
+    const desc = (impact && impact.descendants) ? impact.descendants.length : (obj.children || []).length;
+    const msg = desc
+        ? 'This also deletes the ' + desc + ' object' + (desc === 1 ? '' : 's') + ' inside it. This cannot be undone.'
+        : 'This cannot be undone.';
+    const ok = await confirmAction({
+        title: 'Delete ' + obj.name + '?',
+        message: msg,
+        okLabel: 'Delete',
+        okClass: 'danger'
+    });
+    if (!ok) return;
     try {
         const data = await postJson(API + 'delete_object.php', { id: obj.id });
         if (!data.success) throw new Error(data.error || 'Could not delete.');
-        window.location.href = './';
+        toast(data.deleted_descendants > 0
+            ? 'Deleted, along with ' + data.deleted_descendants + ' object' + (data.deleted_descendants === 1 ? '' : 's') + ' inside it'
+            : 'Deleted');
+        setTimeout(() => { window.location.href = './'; }, 600);
     } catch (err) {
         toast(err.message, true);
     }

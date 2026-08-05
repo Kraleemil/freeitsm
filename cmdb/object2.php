@@ -523,27 +523,175 @@ $translationNamespaces = ['common', 'cmdb'];
         }
         .o2-danger-txt { font-size: 13px; color: var(--text-muted, #6b7280); flex: 1 1 auto; }
 
-        /* ---------------- Toast ----------------
-           object.js calls a global showToast() that is never defined or loaded
-           on the CMDB pages, so its error path throws instead of telling you
-           anything. This prototype carries its own. */
-        .o2-toast {
-            position: fixed;
-            left: 50%; bottom: 26px;
-            transform: translateX(-50%) translateY(12px);
-            opacity: 0;
-            background: var(--text, #111827);
-            color: var(--surface, #fff);
-            padding: 11px 18px;
-            border-radius: 10px;
-            font-size: 13.5px; font-weight: 600;
-            z-index: 4000;
-            pointer-events: none;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.22);
-            transition: opacity 200ms var(--o2-ease-out), transform 200ms var(--o2-ease-out);
+        /* Toasts and confirms are the SHARED components (assets/js/toast.js and
+           confirm.js), pulled in by includes/header.php via the waffle menu.
+           Nothing bespoke here on purpose. */
+
+        /* ---------------- Editing affordances ---------------- */
+        .o2-chip.act {
+            font: inherit; font-size: 12px; font-weight: 600;
+            cursor: pointer;
+            transition: transform 160ms var(--o2-ease-out), background-color 140ms ease, border-color 140ms ease;
         }
-        .o2-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-        .o2-toast.err { background: var(--danger-text, #b91c1c); color: #fff; }
+        .o2-chip.act:active { transform: scale(0.97); }
+        @media (hover: hover) and (pointer: fine) {
+            .o2-chip.act:hover { border-color: var(--cmdb-accent, #be185d); color: var(--cmdb-accent, #be185d); }
+            .o2-chip.act.planned:hover { color: var(--warning-text, #92400e); }
+        }
+        .o2-chip-x {
+            font: inherit; font-size: 11px; font-weight: 600;
+            background: none; border: none; cursor: pointer;
+            color: var(--text-dim, #9ca3af);
+            margin-left: 7px; padding: 0;
+            text-decoration: underline;
+        }
+        .o2-chip-x:hover { color: var(--cmdb-accent, #be185d); }
+
+        .o2-btn.small { padding: 6px 11px; font-size: 12px; margin-left: auto; }
+        .o2-card-head .o2-card-sub + .o2-btn.small { margin-left: 12px; }
+
+        /* The unlink × sits outside the anchor — nesting a button inside a link
+           makes the whole row ambiguous to click and invalid markup besides. */
+        .o2-node-wrap { display: flex; align-items: stretch; gap: 4px; }
+        .o2-node-wrap .o2-node { flex: 1 1 auto; min-width: 0; }
+        .o2-unlink {
+            flex: 0 0 auto;
+            width: 26px;
+            font: inherit; font-size: 16px; line-height: 1;
+            background: none; cursor: pointer;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            color: var(--text-faint, #d1d5db);
+            opacity: 0;
+            transition: opacity 140ms ease, color 140ms ease, background-color 140ms ease;
+        }
+        .o2-noderow:hover .o2-unlink, .o2-unlink:focus { opacity: 1; }
+        .o2-unlink:hover { color: var(--danger-text, #b91c1c); background: var(--danger-bg, #fef2f2); }
+        /* Touch has no hover, so the control must never be hover-gated there. */
+        @media (hover: none) { .o2-unlink { opacity: 1; } }
+
+        .o2-prop-lbl { justify-content: space-between; }
+        .o2-cog {
+            background: none; border: none; padding: 2px;
+            cursor: pointer; line-height: 1;
+            color: var(--text-faint, #d1d5db);
+            border-radius: 4px;
+            opacity: 0;
+            transition: opacity 140ms ease, color 140ms ease;
+        }
+        .o2-prop:hover .o2-cog, .o2-cog:focus { opacity: 1; }
+        .o2-cog:hover { color: var(--cmdb-accent, #be185d); }
+        @media (hover: none) { .o2-cog { opacity: 1; } }
+
+        /* ---------------- Autocomplete ---------------- */
+        .autocomplete-wrap { position: relative; }
+        .autocomplete-wrap input { width: 100%; }
+        .autocomplete-results {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--surface, #fff);
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 8px;
+            box-shadow: 0 8px 26px var(--shadow, rgba(0,0,0,0.12));
+            max-height: 240px; overflow-y: auto;
+            z-index: 3500; margin-top: 4px;
+            display: none;
+        }
+        .autocomplete-results.active { display: block; }
+        .ac-result {
+            padding: 8px 12px; cursor: pointer;
+            display: flex; justify-content: space-between; gap: 10px;
+            font-size: 13px;
+        }
+        .ac-result:hover, .ac-result.highlighted {
+            background: var(--cmdb-accent-soft, #fdf2f8);
+            color: var(--cmdb-accent, #be185d);
+        }
+        .ac-result .ac-class { color: var(--text-dim, #9ca3af); font-size: 11px; }
+        .ac-empty { padding: 10px; color: var(--text-dim, #9ca3af); font-size: 13px; text-align: center; }
+
+        /* ---------------- Modals ---------------- */
+        .o2-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 3000;
+            display: none;
+            align-items: flex-start; justify-content: center;
+            padding-top: 12vh;
+        }
+        .o2-modal.active { display: flex; }
+        .o2-modal-box {
+            background: var(--surface, #fff);
+            border-radius: 14px;
+            width: 520px; max-width: 94vw;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.3);
+            /* Modals are not anchored to a trigger, so they scale from centre. */
+            animation: o2Pop 180ms var(--o2-ease-out) backwards;
+        }
+        @keyframes o2Pop { from { opacity: 0; transform: scale(0.96); } }
+        .o2-modal-head {
+            padding: 16px 20px 0;
+            font-size: 16px; font-weight: 650;
+            color: var(--text, #111827);
+        }
+        .o2-modal-body { padding: 14px 20px 4px; }
+        .o2-modal-actions {
+            padding: 16px 20px;
+            display: flex; gap: 9px; justify-content: flex-end;
+        }
+        .o2-modal-actions .spacer { margin-right: auto; }
+        .o2-field { margin-bottom: 14px; }
+        .o2-field label {
+            display: block;
+            font-size: 12px; font-weight: 600;
+            color: var(--text-muted, #6b7280);
+            margin-bottom: 5px;
+        }
+        .o2-field input[type=text], .o2-field input[type=number], .o2-field select {
+            width: 100%; font: inherit; font-size: 14px;
+            padding: 8px 10px;
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 8px;
+            background: var(--surface, #fff);
+            color: var(--text, #111827);
+        }
+        .o2-field input:focus, .o2-field select:focus {
+            outline: none; border-color: var(--cmdb-accent, #be185d);
+        }
+        .o2-field small { display: block; font-size: 11.5px; color: var(--text-dim, #9ca3af); margin-top: 5px; }
+        .o2-check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text, #111827); }
+        .o2-check input { width: auto; }
+        .o2-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+        /* The property-definition modal has no backdrop and is draggable, so the
+           object stays readable while its schema is edited. */
+        .o2-float {
+            position: fixed; top: 90px; left: 50%;
+            transform: translateX(-50%);
+            width: 560px; max-width: 95vw;
+            background: var(--surface, #fff);
+            border-radius: 14px;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.3);
+            z-index: 3200;
+            display: none; flex-direction: column;
+        }
+        .o2-float.active { display: flex; }
+        .o2-float-head {
+            padding: 13px 18px;
+            background: var(--cmdb-accent, #be185d);
+            color: var(--cmdb-on-accent, #fff);
+            border-radius: 14px 14px 0 0;
+            font-size: 14px; font-weight: 650;
+            cursor: move; user-select: none;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .o2-float-close {
+            background: none; border: none; cursor: pointer;
+            color: var(--cmdb-on-accent, #fff);
+            font-size: 20px; line-height: 1; padding: 0; opacity: 0.85;
+        }
+        .o2-float-close:hover { opacity: 1; }
+        .o2-float-body { padding: 16px 20px 4px; overflow-y: auto; max-height: calc(100vh - 240px); }
+        .o2-key { font-family: Consolas, Monaco, monospace; }
 
         @media (max-width: 900px) {
             .o2-stats { grid-template-columns: repeat(2, 1fr); }
@@ -575,7 +723,115 @@ $translationNamespaces = ['common', 'cmdb'];
         </div>
     </div>
 
-    <div class="o2-toast" id="o2Toast"></div>
+    <!-- Parent picker -->
+    <div class="o2-modal" id="o2ParentModal">
+        <div class="o2-modal-box">
+            <div class="o2-modal-head">Which object is this part of?</div>
+            <div class="o2-modal-body">
+                <div class="o2-field">
+                    <label for="o2ParentInput">Parent</label>
+                    <div class="autocomplete-wrap">
+                        <input type="text" id="o2ParentInput" autocomplete="off" placeholder="Search every object…">
+                        <input type="hidden" id="o2ParentId">
+                        <div class="autocomplete-results" id="o2ParentResults"></div>
+                    </div>
+                    <small>The parent owns this object: delete the parent and this goes with it. If that is not true, use a relationship instead. Empty the box to detach it.</small>
+                </div>
+            </div>
+            <div class="o2-modal-actions">
+                <button type="button" class="o2-btn danger spacer" onclick="clearParent()">Detach</button>
+                <button type="button" class="o2-btn" onclick="closeParentModal()">Cancel</button>
+                <button type="button" class="o2-btn primary" onclick="saveParent()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add relationship -->
+    <div class="o2-modal" id="o2RelModal">
+        <div class="o2-modal-box">
+            <div class="o2-modal-head">Add a relationship</div>
+            <div class="o2-modal-body">
+                <div class="o2-field">
+                    <label for="o2RelType">This object…</label>
+                    <select id="o2RelType"></select>
+                    <small id="o2RelHint"></small>
+                </div>
+                <div class="o2-field">
+                    <label for="o2RelTarget">…this object</label>
+                    <div class="autocomplete-wrap">
+                        <input type="text" id="o2RelTarget" autocomplete="off" placeholder="Search every object…">
+                        <input type="hidden" id="o2RelTargetId">
+                        <div class="autocomplete-results" id="o2RelResults"></div>
+                    </div>
+                    <small>Relationships are many-to-many and imply no ownership — nothing is deleted along with anything else.</small>
+                </div>
+            </div>
+            <div class="o2-modal-actions">
+                <button type="button" class="o2-btn" onclick="closeRelModal()">Cancel</button>
+                <button type="button" class="o2-btn primary" onclick="saveRelationship()">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Property definition — draggable, no backdrop, so the object stays visible -->
+    <div class="o2-float" id="o2PdModal">
+        <div class="o2-float-head" id="o2PdHeader">
+            <span id="o2PdTitle">Edit field</span>
+            <button type="button" class="o2-float-close" onclick="closePropDefModal()">&times;</button>
+        </div>
+        <div class="o2-float-body">
+            <form id="o2PdForm" onsubmit="event.preventDefault(); savePropDef();">
+                <input type="hidden" id="o2PdId">
+                <div class="o2-field">
+                    <label for="o2PdLabel">Label</label>
+                    <input type="text" id="o2PdLabel" required maxlength="150">
+                    <small>Free to rename — stored values reference the field's id, never its label.</small>
+                </div>
+                <div class="o2-field">
+                    <label for="o2PdKey">Key</label>
+                    <input type="text" id="o2PdKey" maxlength="100" class="o2-key">
+                    <small>The immutable slug used by integrations and AI prompts.</small>
+                </div>
+                <div class="o2-row">
+                    <div class="o2-field">
+                        <label for="o2PdType">Type</label>
+                        <select id="o2PdType" onchange="onPropDefTypeChange()">
+                            <option value="text">Text</option>
+                            <option value="number">Number</option>
+                            <option value="date">Date</option>
+                            <option value="boolean">Yes / No</option>
+                            <option value="dropdown">Dropdown</option>
+                            <option value="object_ref">Link to another object</option>
+                        </select>
+                    </div>
+                    <div class="o2-field">
+                        <label for="o2PdOrder">Display order</label>
+                        <input type="number" id="o2PdOrder" value="0">
+                    </div>
+                </div>
+                <div class="o2-field" id="o2PdTargetGroup" style="display:none;">
+                    <label for="o2PdTargetClass">Points at which class?</label>
+                    <select id="o2PdTargetClass"></select>
+                </div>
+                <div class="o2-field" id="o2PdOptionsGroup" style="display:none;">
+                    <label>Options</label>
+                    <div id="o2PdOptions"></div>
+                    <small>Give each option a colour and it renders as a coloured pill.</small>
+                </div>
+                <div class="o2-field">
+                    <label class="o2-check"><input type="checkbox" id="o2PdRequired"> Required</label>
+                </div>
+                <div class="o2-field" id="o2PdSpreadsGroup" style="display:none;">
+                    <label class="o2-check"><input type="checkbox" id="o2PdSpreads"> This is a dependency</label>
+                    <small>Tick this and a failure travels along the link, so the object holding this field appears in the target's blast radius.</small>
+                </div>
+            </form>
+        </div>
+        <div class="o2-modal-actions">
+            <button type="button" class="o2-btn" onclick="closePropDefModal()">Cancel</button>
+            <button type="button" class="o2-btn primary" onclick="savePropDef()">Save</button>
+        </div>
+    </div>
 
     <script>
         window.OBJECT_ID = <?php echo isset($_GET['id']) ? (int)$_GET['id'] : 0; ?>;
@@ -584,6 +840,8 @@ $translationNamespaces = ['common', 'cmdb'];
     <!-- The class-icon library. Its own docblock names CMDB as consumer #1;
          object.php simply never loaded it. -->
     <script src="../assets/js/network-mapper-icons.js?v=1"></script>
-    <script src="object2.js?v=1"></script>
+    <!-- The shared dropdown-options editor, same one the settings page uses. -->
+    <script src="options-editor.js?v=3"></script>
+    <script src="object2.js?v=2"></script>
 </body>
 </html>
