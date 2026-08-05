@@ -433,23 +433,52 @@ function connectionsHtml() {
 
     /* ⚠️ Always rendered, every figure, including the zeroes. "0 descendants"
        and "we never looked" are different facts and must not both render as
-       silence — the same rule the data-quality audit is built on. Collapsing
-       the four EMPTY panels the old page showed was the point; collapsing the
-       COUNTS with them was a mistake. */
+       silence — the same rule the data-quality audit is built on.
+
+       🔑 Counted by KIND, not by direction. The four kinds are created four
+       different ways, so a tally split by direction ("points at this" / "this
+       points at") cannot be matched to any control — and a single
+       "+ Add relationship" button sitting above it implies it covers all four
+       when it can only ever create one. Each row now carries its own way in,
+       and direction is still legible from the column headers and from the verb
+       printed on every row. */
+    const plural = (n, one, many) => (n === 1 ? one : many);
     const counts = [
-        ['Descendants', tally.descendants.length],
-        ['Points at this', left.length],
-        ['This points at', right.length],
-        ['Parent', tally.hasParent ? 1 : 0]
-    ].map(([lbl, n]) =>
-        '<span class="o2-tally-item' + (n ? '' : ' zero') + '">' +
-            '<b>' + n + '</b> ' + esc(lbl.toLowerCase()) +
+        {
+            n: tally.descendants.length,
+            label: plural(tally.descendants.length, 'descendant', 'descendants'),
+            // Deliberately no button: a descendant is made from the CHILD's
+            // page, by naming this object as its parent. A control here would
+            // have to create an object, which is a different job.
+            hint: 'Made by opening that object and setting this one as its parent'
+        },
+        {
+            n: tally.incoming.length + tally.outgoing.length,
+            label: plural(tally.incoming.length + tally.outgoing.length, 'relationship', 'relationships'),
+            hint: 'A named link between two objects that exist independently',
+            action: '<button class="o2-tally-act" onclick="openRelModal()">+ Add</button>'
+        },
+        {
+            n: tally.refsIn.length + tally.refsOut.length,
+            label: plural(tally.refsIn.length + tally.refsOut.length, 'property link', 'property links'),
+            hint: 'A field on one object pointing at another — an Owner, a Host Server',
+            action: '<button class="o2-tally-act" onclick="jumpToDetails()">In Details</button>'
+        },
+        {
+            n: tally.hasParent ? 1 : 0,
+            label: 'parent',
+            hint: 'The object this one is part of, and cannot outlive',
+            action: '<button class="o2-tally-act" onclick="openParentModal()">' +
+                    (tally.hasParent ? 'Change' : '+ Set') + '</button>'
+        }
+    ].map(c =>
+        '<span class="o2-tally-item' + (c.n ? '' : ' zero') + '" title="' + esc(c.hint) + '">' +
+            '<b>' + c.n + '</b> ' + esc(c.label) + (c.action || '') +
         '</span>'
     ).join('');
 
     const head = '<div class="o2-card-head"><span class="o2-card-title">Connections</span>' +
-        '<span class="o2-card-sub">' + tally.total + ' in total</span>' +
-        '<button class="o2-btn small" onclick="openRelModal()">+ Add relationship</button></div>';
+        '<span class="o2-card-sub">' + tally.total + ' in total</span></div>';
 
     const tallyRow = '<div class="o2-tally">' + counts + '</div>';
 
@@ -505,7 +534,7 @@ function propsHtml() {
         '<div class="o2-meter"><i id="o2Meter" style="transform:scaleX(0)"></i></div></div>';
 
     if (!props.length) {
-        return '<div class="o2-card">' + head + '<div class="o2-empty">This class has no properties defined yet.</div></div>';
+        return '<div class="o2-card" id="o2Details">' + head + '<div class="o2-empty">This class has no properties defined yet.</div></div>';
     }
 
     const cards = (showBlanks ? filled.concat(blank) : filled).map(propCard).join('');
@@ -520,7 +549,7 @@ function propsHtml() {
         '</div>';
     }
 
-    return '<div class="o2-card">' + head +
+    return '<div class="o2-card" id="o2Details">' + head +
         (cards ? '<div class="o2-props">' + cards + '</div>' : '<div class="o2-empty">Nothing has been filled in yet.</div>') +
         blanksLine +
         // The in-service state is stated positively, always. The hero only
@@ -940,18 +969,29 @@ async function clearParent() {
 
 /* ---------------- relationships ---------------- */
 
+/* 'out' = this object is the subject (from → to).
+   'in'  = the other object is the subject; from/to are swapped on save.
+   Without this, "SolarWinds monitors this server" cannot be recorded from the
+   server at all — you have to navigate to SolarWinds and add it there. Every
+   verb in the library is directional and already stores its own inverse, so
+   the row is identical either way; only which end is `from` changes. */
+let relDirection = 'out';
+let relTargetName = '';
+
 function openRelModal() {
     if (!relationshipTypes.length) {
         toast('No relationship types are defined yet — add some in Settings.', true);
         return;
     }
+    relDirection = 'out';
+    relTargetName = '';
     const sel = document.getElementById('o2RelType');
     sel.innerHTML = relationshipTypes.map(rt => '<option value="' + rt.id + '">' + esc(rt.verb) + '</option>').join('');
-    sel.onchange = updateRelInverseHint;
-    updateRelInverseHint();
+    sel.onchange = updateRelPreview;
     document.getElementById('o2RelTarget').value = '';
     document.getElementById('o2RelTargetId').value = '';
     document.getElementById('o2RelResults').classList.remove('active');
+    setRelDirection('out');
     document.getElementById('o2RelModal').classList.add('active');
     setTimeout(() => document.getElementById('o2RelTarget').focus(), 0);
 
@@ -962,30 +1002,43 @@ function openRelModal() {
         picked => {
             document.getElementById('o2RelTargetId').value = picked.id;
             document.getElementById('o2RelTarget').value = picked.name;
+            relTargetName = picked.name;
             document.getElementById('o2RelResults').classList.remove('active');
+            updateRelPreview();
         }
     );
 }
 function closeRelModal() { document.getElementById('o2RelModal').classList.remove('active'); }
 
-/* Shows the inverse live, because the verb reads one way from here and the
-   other way from the object on the far end. */
-function updateRelInverseHint() {
-    const id = parseInt(document.getElementById('o2RelType').value, 10);
-    const rt = relationshipTypes.find(r => r.id === id);
-    document.getElementById('o2RelHint').textContent = rt
-        ? 'From the other object’s side this reads: “' + rt.inverse_verb + ' ' + obj.name + '”.'
-        : '';
+function setRelDirection(dir) {
+    relDirection = dir;
+    document.getElementById('o2RelDirOut').classList.toggle('on', dir === 'out');
+    document.getElementById('o2RelDirIn').classList.toggle('on', dir === 'in');
+    updateRelPreview();
+}
+
+/* Writes out the sentence that will actually be stored, both ways round, so
+   nobody has to hold the direction in their head while picking a verb. */
+function updateRelPreview() {
+    const rt = relationshipTypes.find(r => r.id === parseInt(document.getElementById('o2RelType').value, 10));
+    const el = document.getElementById('o2RelHint');
+    if (!rt) { el.innerHTML = ''; return; }
+    const other = relTargetName || 'the other object';
+    const subject = relDirection === 'out' ? obj.name : other;
+    const object  = relDirection === 'out' ? other : obj.name;
+    el.innerHTML =
+        '<b>' + esc(subject) + '</b> ' + esc(rt.verb) + ' <b>' + esc(object) + '</b>' +
+        '<br>Read from the other end: <b>' + esc(object) + '</b> ' + esc(rt.inverse_verb) + ' <b>' + esc(subject) + '</b>';
 }
 
 async function saveRelationship() {
     const typeId = parseInt(document.getElementById('o2RelType').value, 10);
-    const toId = document.getElementById('o2RelTargetId').value;
-    if (!typeId || !toId) { toast('Pick a verb and an object.', true); return; }
+    const targetId = parseInt(document.getElementById('o2RelTargetId').value, 10);
+    if (!typeId || !targetId) { toast('Pick a verb and an object.', true); return; }
     try {
         const data = await postJson(API + 'save_object_relationship.php', {
-            from_object_id: obj.id,
-            to_object_id: parseInt(toId, 10),
+            from_object_id: relDirection === 'out' ? obj.id : targetId,
+            to_object_id:   relDirection === 'out' ? targetId : obj.id,
             relationship_type_id: typeId
         });
         if (!data.success) throw new Error(data.error || 'Could not add the relationship.');
@@ -993,6 +1046,11 @@ async function saveRelationship() {
         await reloadAndRender();
         toast('Relationship added');
     } catch (err) { toast(err.message, true); }
+}
+
+function jumpToDetails() {
+    const el = document.getElementById('o2Details');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function deleteRelationship(id) {

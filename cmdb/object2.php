@@ -19,10 +19,20 @@
  *     single line rather than each occupying a row saying "(not set)"
  *   - Delete demoted out of the header into a danger zone at the foot
  *
- * Deliberately NOT reimplemented here (object.php remains the real page):
- * the property-definition cog modal, the parent picker, relationship add,
- * and object_ref editing. Inline editing of the simple scalar types works,
- * through the same save_object.php endpoint.
+ * ⚠️ Merging those four panels for READING broke the mapping to WRITING: the
+ * four kinds are created four different ways, so the connection tally counts
+ * by KIND (descendants / relationships / property links / parent) rather than
+ * by direction, and each kind carries its own control. A single
+ * "+ Add relationship" button over the merged panel implied it could create
+ * all four when it can only ever create one.
+ *
+ * Editing is at full parity with object.php, through the same endpoints:
+ * name, parent (set/change/detach), planned toggle, relationship add/remove,
+ * every property type including object_ref, and the property-DEFINITION modal
+ * (reusing the shared options-editor.js). The add-relationship modal goes one
+ * further with a direction switch — object.php can only create outgoing
+ * relationships, so "SolarWinds monitors this" cannot be recorded from the
+ * server's own page there.
  *
  * Strings are English-only on purpose — this is a prototype for a layout
  * decision, and translating ~70 keys into two locales before that decision is
@@ -370,6 +380,55 @@ $translationNamespaces = ['common', 'cmdb'];
             margin-right: 2px;
         }
         .o2-tally-item.zero b { color: var(--text-faint, #d1d5db); }
+        /* Each kind carries its own way in, because each is created a different
+           way. One button above the row implied it covered all four. */
+        .o2-tally-act {
+            font: inherit; font-size: 11px; font-weight: 600;
+            background: none; cursor: pointer;
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 999px;
+            padding: 2px 9px;
+            margin-left: 8px;
+            color: var(--cmdb-accent, #be185d);
+            transition: transform 160ms var(--o2-ease-out), background-color 140ms ease, border-color 140ms ease;
+        }
+        .o2-tally-act:active { transform: scale(0.96); }
+        @media (hover: hover) and (pointer: fine) {
+            .o2-tally-act:hover { background: var(--cmdb-accent-soft, #fdf2f8); border-color: var(--cmdb-accent, #be185d); }
+        }
+
+        /* Segmented direction switch in the add-relationship modal. */
+        .o2-seg { display: flex; gap: 0; }
+        .o2-seg button {
+            flex: 1 1 0;
+            font: inherit; font-size: 13px; font-weight: 600;
+            padding: 9px 10px;
+            border: 1px solid var(--border, #e5e7eb);
+            background: var(--surface, #fff);
+            color: var(--text-muted, #6b7280);
+            cursor: pointer;
+            transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+        }
+        .o2-seg button:first-child { border-radius: 8px 0 0 8px; }
+        .o2-seg button:last-child { border-radius: 0 8px 8px 0; border-left-width: 0; }
+        .o2-seg button.on {
+            background: var(--cmdb-accent, #be185d);
+            border-color: var(--cmdb-accent, #be185d);
+            color: var(--cmdb-on-accent, #fff);
+        }
+        .o2-seg button.on + button { border-left-width: 1px; }
+
+        /* The sentence that will actually be stored, spelled out both ways. */
+        .o2-preview {
+            background: var(--surface-2, #fafafa);
+            border: 1px solid var(--border-soft, #f1f2f4);
+            border-radius: 8px;
+            padding: 11px 13px;
+            font-size: 13.5px;
+            line-height: 1.7;
+            color: var(--text-muted, #6b7280);
+        }
+        .o2-preview b { color: var(--text, #111827); font-weight: 650; }
 
         .o2-conn { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: start; }
         .o2-conn-col { min-width: 0; }
@@ -752,19 +811,29 @@ $translationNamespaces = ['common', 'cmdb'];
             <div class="o2-modal-head">Add a relationship</div>
             <div class="o2-modal-body">
                 <div class="o2-field">
-                    <label for="o2RelType">This object…</label>
-                    <select id="o2RelType"></select>
-                    <small id="o2RelHint"></small>
+                    <label>Which way round?</label>
+                    <div class="o2-seg">
+                        <button type="button" id="o2RelDirOut" class="on" onclick="setRelDirection('out')">This object does it</button>
+                        <button type="button" id="o2RelDirIn" onclick="setRelDirection('in')">The other one does it</button>
+                    </div>
+                    <small>Every verb points one way. Without this you could not record “something monitors this” without going to that something first.</small>
                 </div>
                 <div class="o2-field">
-                    <label for="o2RelTarget">…this object</label>
+                    <label for="o2RelType">Verb</label>
+                    <select id="o2RelType"></select>
+                </div>
+                <div class="o2-field">
+                    <label for="o2RelTarget">The other object</label>
                     <div class="autocomplete-wrap">
                         <input type="text" id="o2RelTarget" autocomplete="off" placeholder="Search every object…">
                         <input type="hidden" id="o2RelTargetId">
                         <div class="autocomplete-results" id="o2RelResults"></div>
                     </div>
-                    <small>Relationships are many-to-many and imply no ownership — nothing is deleted along with anything else.</small>
                 </div>
+                <div class="o2-preview" id="o2RelHint"></div>
+                <small style="display:block;font-size:11.5px;color:var(--text-dim,#9ca3af);margin:8px 0 4px;">
+                    A relationship implies no ownership — deleting one object never deletes the other. Use a parent for that.
+                </small>
             </div>
             <div class="o2-modal-actions">
                 <button type="button" class="o2-btn" onclick="closeRelModal()">Cancel</button>
@@ -842,6 +911,6 @@ $translationNamespaces = ['common', 'cmdb'];
     <script src="../assets/js/network-mapper-icons.js?v=1"></script>
     <!-- The shared dropdown-options editor, same one the settings page uses. -->
     <script src="options-editor.js?v=3"></script>
-    <script src="object2.js?v=2"></script>
+    <script src="object2.js?v=3"></script>
 </body>
 </html>
