@@ -348,6 +348,29 @@ $translationNamespaces = ['common', 'cmdb'];
         .o2-via { font-size: 11px; color: var(--text-dim, #9ca3af); font-style: italic; margin-top: 3px; padding-left: 2px; }
 
         /* ---------------- Connections ---------------- */
+        /* The always-on count row. Every figure renders, zeroes included — a
+           count of nothing is a fact, and the reader cannot tell it apart from
+           a panel that failed to load if it is simply absent. */
+        .o2-tally {
+            display: flex; flex-wrap: wrap; gap: 6px 22px;
+            padding: 0 0 16px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-soft, #f1f2f4);
+        }
+        .o2-tally-item {
+            font-size: 12px;
+            color: var(--text-muted, #6b7280);
+            letter-spacing: 0.02em;
+        }
+        .o2-tally-item b {
+            font-size: 15px;
+            font-weight: 680;
+            color: var(--text, #111827);
+            font-variant-numeric: tabular-nums;
+            margin-right: 2px;
+        }
+        .o2-tally-item.zero b { color: var(--text-faint, #d1d5db); }
+
         .o2-conn { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: start; }
         .o2-conn-col { min-width: 0; }
         .o2-conn-col.mid { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 22px; }

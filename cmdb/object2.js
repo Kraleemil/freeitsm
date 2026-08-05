@@ -173,12 +173,26 @@ function detectSignal() {
     return cands.length ? cands[0] : null;
 }
 
-function connectionCount() {
+/* One place that counts each kind of connection, so the tally row, the
+   headline number and the columns can never disagree with each other.
+   `descendants` is the TRANSITIVE list from the impact endpoint, not just
+   direct children — a Server → Instance → Database → Job chain must not
+   report one descendant. */
+function connectionTally() {
     const r = (obj && obj.relationships) || { outgoing: [], incoming: [] };
-    const refs = (impact && impact.referenced_by_property) ? impact.referenced_by_property.length : 0;
-    const outRefs = (obj.properties || []).filter(p => p.property_type === 'object_ref' && p.value_object).length;
-    return (r.outgoing || []).length + (r.incoming || []).length +
-           (obj.children || []).length + (obj.parent_id ? 1 : 0) + refs + outRefs;
+    const desc = (impact && impact.descendants) ? impact.descendants : [];
+    const refsIn = (impact && impact.referenced_by_property) ? impact.referenced_by_property : [];
+    const refsOut = (obj.properties || []).filter(p => p.property_type === 'object_ref' && p.value_object);
+    return {
+        descendants: desc,
+        incoming: r.incoming || [],
+        outgoing: r.outgoing || [],
+        refsIn: refsIn,
+        refsOut: refsOut,
+        hasParent: !!obj.parent_id,
+        total: desc.length + (r.incoming || []).length + (r.outgoing || []).length +
+               refsIn.length + refsOut.length + (obj.parent_id ? 1 : 0)
+    };
 }
 
 /* ---------------- render ---------------- */
@@ -257,7 +271,7 @@ function heroHtml(signal) {
 function statsHtml() {
     const blast = (blastRadius && blastRadius.nodes) ? blastRadius.nodes.length : 0;
     const open = (activity && activity.open) ? activity.open.length : 0;
-    const conns = connectionCount();
+    const conns = connectionTally().total;
     const days = daysSince(obj.updated_datetime);
 
     function tile(val, unit, label, cls, target) {
@@ -360,17 +374,15 @@ function viaText(n) {
    Relationships are four framings of "what is this attached to", and on a
    sparse object they produced four separate empty states. */
 function connectionsHtml() {
-    const r = obj.relationships || { outgoing: [], incoming: [] };
-    const refsIn = (impact && impact.referenced_by_property) ? impact.referenced_by_property : [];
-    const refsOut = (obj.properties || []).filter(p => p.property_type === 'object_ref' && p.value_object);
+    const tally = connectionTally();
 
     const left = []
-        .concat((r.incoming || []).map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, x.inverse_verb + ' this')))
-        .concat(refsIn.map(x => nodeRow(x.id, x.name, x.class_name, (x.property_label || 'a property') + ' points here')));
+        .concat(tally.incoming.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, x.inverse_verb + ' this')))
+        .concat(tally.refsIn.map(x => nodeRow(x.id, x.name, x.class_name, (x.property_label || 'a property') + ' points here')));
 
     const right = []
-        .concat((r.outgoing || []).map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, 'this ' + x.verb)))
-        .concat(refsOut.map(p => nodeRow(p.value_object.id, p.value_object.name, p.value_object.class_name || p.target_class_name, p.label)));
+        .concat(tally.outgoing.map(x => nodeRow(x.other_id, x.other_name, x.other_class_name, 'this ' + x.verb)))
+        .concat(tally.refsOut.map(p => nodeRow(p.value_object.id, p.value_object.name, p.value_object.class_name || p.target_class_name, p.label)));
 
     const centre =
         (obj.parent_id
@@ -380,29 +392,51 @@ function connectionsHtml() {
             '<div class="o2-centre-name">' + esc(obj.name) + '</div>' +
             '<div class="o2-centre-cls">' + esc(obj.class_name) + '</div>' +
         '</div>' +
-        ((obj.children || []).length
+        (tally.descendants.length
             ? '<div class="o2-updown">' + downArrow() +
-              (obj.children || []).map(c => nodeRow(c.id, c.name, c.class_name, 'contained by this')).join('') + '</div>'
+              tally.descendants.map(d => nodeRow(
+                  d.id, d.name, d.class_name,
+                  d.depth > 1 ? 'inside this, ' + d.depth + ' levels down' : 'contained by this'
+              )).join('') + '</div>'
             : '');
 
-    const total = left.length + right.length + (obj.children || []).length + (obj.parent_id ? 1 : 0);
-    const head = '<div class="o2-card-head"><span class="o2-card-title">Connections</span>' +
-        '<span class="o2-card-sub">' + total + ' in total</span></div>';
+    /* ⚠️ Always rendered, every figure, including the zeroes. "0 descendants"
+       and "we never looked" are different facts and must not both render as
+       silence — the same rule the data-quality audit is built on. Collapsing
+       the four EMPTY panels the old page showed was the point; collapsing the
+       COUNTS with them was a mistake. */
+    const counts = [
+        ['Descendants', tally.descendants.length],
+        ['Points at this', left.length],
+        ['This points at', right.length],
+        ['Parent', tally.hasParent ? 1 : 0]
+    ].map(([lbl, n]) =>
+        '<span class="o2-tally-item' + (n ? '' : ' zero') + '">' +
+            '<b>' + n + '</b> ' + esc(lbl.toLowerCase()) +
+        '</span>'
+    ).join('');
 
-    if (!total) {
-        return '<div class="o2-card" id="o2Conn">' + head +
-            '<div class="o2-empty">Nothing is attached to this — no parent, no children, no relationships and nothing points at it. ' +
+    const head = '<div class="o2-card-head"><span class="o2-card-title">Connections</span>' +
+        '<span class="o2-card-sub">' + tally.total + ' in total</span></div>';
+
+    const tallyRow = '<div class="o2-tally">' + counts + '</div>';
+
+    if (!tally.total) {
+        return '<div class="o2-card" id="o2Conn">' + head + tallyRow +
+            '<div class="o2-empty">Nothing is attached to this — no parent, no descendants, no relationships and nothing points at it. ' +
             'It can never appear in anyone’s blast radius, and nobody will reach it by navigating.</div></div>';
     }
 
-    return '<div class="o2-card" id="o2Conn">' + head +
+    return '<div class="o2-card" id="o2Conn">' + head + tallyRow +
         '<div class="o2-conn">' +
             '<div class="o2-conn-col"><div class="o2-conn-lbl">Points at this</div><div class="o2-conn-list">' +
-                (left.length ? left.join('') : '<div class="o2-empty">Nothing</div>') +
+                (left.length ? left.join('') : '<div class="o2-empty">Nothing points at this</div>') +
             '</div></div>' +
-            '<div class="o2-conn-col mid">' + centre + '</div>' +
+            '<div class="o2-conn-col mid">' + centre +
+                (tally.descendants.length ? '' : '<div class="o2-empty" style="text-align:center;">No descendants — nothing cascades</div>') +
+            '</div>' +
             '<div class="o2-conn-col right"><div class="o2-conn-lbl">This points at</div><div class="o2-conn-list">' +
-                (right.length ? right.join('') : '<div class="o2-empty">Nothing</div>') +
+                (right.length ? right.join('') : '<div class="o2-empty">This points at nothing</div>') +
             '</div></div>' +
         '</div>' +
     '</div>';
@@ -454,7 +488,12 @@ function propsHtml() {
     return '<div class="o2-card">' + head +
         (cards ? '<div class="o2-props">' + cards + '</div>' : '<div class="o2-empty">Nothing has been filled in yet.</div>') +
         blanksLine +
-        '<div style="margin-top:14px;"><span class="o2-stat-lbl">Added ' + esc(fmtDateTime(obj.created_datetime)) +
+        // The in-service state is stated positively, always. The hero only
+        // chips PLANNED because that is the exception; saying nothing at all
+        // for the normal case leaves the reader to assume it.
+        '<div style="margin-top:14px;"><span class="o2-stat-lbl">' +
+        (obj.is_planned ? 'Planned — not yet in service' : 'Real, in service') +
+        ' · added ' + esc(fmtDateTime(obj.created_datetime)) +
         ' · last change ' + esc(fmtDateTime(obj.updated_datetime)) + '</span></div>' +
     '</div>';
 }
