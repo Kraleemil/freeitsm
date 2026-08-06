@@ -77,6 +77,7 @@ function integrationsAvailableProviders(): array
     return [
         'jira' => [
             'key'         => 'jira',
+            'kind'        => 'tracker',
             'name'        => 'Jira',
             'blurb'       => 'system.integrations.jira_blurb',
             'url_label'   => 'system.integrations.jira_url_label',
@@ -90,6 +91,7 @@ function integrationsAvailableProviders(): array
         ],
         'azuredevops' => [
             'key'         => 'azuredevops',
+            'kind'        => 'tracker',
             'name'        => 'Azure DevOps',
             'blurb'       => 'system.integrations.azuredevops_blurb',
             'url_label'   => 'system.integrations.azuredevops_url_label',
@@ -121,7 +123,43 @@ function integrationsAvailableProviders(): array
                 ],
             ],
         ],
+
+        // ── Slack ────────────────────────────────────────────────────────────
+        // ⚠️ Listed here because this is where a user looks for "integrations",
+        // but it is NOT a tracker and shares none of that engine: Slack has no
+        // work items and no states. It is a messaging CHANNEL — the same engine
+        // as WhatsApp and web chat — so it stores its connections in
+        // `messaging_channels`, not `integration_connections`, and it has its own
+        // page rather than the registry-rendered credential form.
+        //
+        // Anything reading this registry must therefore check `kind` before
+        // assuming a provider can be escalated to. `integrationsTrackerProviders()`
+        // below is the safe list for that.
+        'slack' => [
+            'key'         => 'slack',
+            'kind'        => 'messaging',
+            'name'        => 'Slack',
+            'blurb'       => 'system.integrations.slack_blurb',
+            'page'        => 'slack.php',   // its own page; see provider.php
+            'credential_fields' => [],      // rendered by that page, not the registry
+        ],
     ];
+}
+
+/**
+ * Providers that are genuinely issue trackers — the ones an escalation, a
+ * "raise an issue" button or a workflow action can target.
+ *
+ * Use this rather than integrationsAvailableProviders() anywhere the answer
+ * "can we push a ticket into it?" matters, or Slack will be offered as somewhere
+ * to raise a work item and fail at the moment somebody tries.
+ */
+function integrationsTrackerProviders(): array
+{
+    return array_filter(
+        integrationsAvailableProviders(),
+        function ($meta) { return ($meta['kind'] ?? 'tracker') === 'tracker'; }
+    );
 }
 
 /**

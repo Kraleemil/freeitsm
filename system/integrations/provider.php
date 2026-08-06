@@ -42,6 +42,16 @@ if (!$meta) {
     exit;
 }
 
+// This page renders the TRACKER credential form from the registry. A provider of
+// another kind (Slack — a messaging channel) has its own page, because its setup
+// is nothing like a base URL plus a token: a manifest to install, a signing
+// secret, a webhook URL to paste back. Hand it over rather than teaching this
+// page a second shape.
+if (($meta['kind'] ?? 'tracker') !== 'tracker' && !empty($meta['page'])) {
+    header('Location: ' . $meta['page']);
+    exit;
+}
+
 $schemaOk     = integrationsSchemaReady($conn);
 $multiCompany = function_exists('isMultiTenant') ? isMultiTenant($conn) : false;
 $companies    = $multiCompany ? getAllTenants($conn, true) : [];

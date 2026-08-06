@@ -23,8 +23,17 @@ if (!isset($_SESSION['analyst_id'])) {
 }
 
 // Messaging settings tab — holds the channel's Twilio/Meta credentials.
-requireModuleAccessJson('tickets');
-requireCapabilityJson(Cap::TICKETS_MESSAGING);
+// Slack channels are administered from System → Integrations, which is
+// administrators-only, so an admin is authorised for those without also holding
+// the Tickets messaging capability. Everything else keeps the existing gate
+// exactly — an admin without tickets.messaging still cannot touch a WhatsApp
+// channel's credentials, which is the point of that capability.
+$rawIn = file_get_contents('php://input');
+$isSlackRequest = (json_decode($rawIn, true)['provider'] ?? '') === 'slack';
+if (!($isSlackRequest && sessionIsAdmin())) {
+    requireModuleAccessJson('tickets');
+    requireCapabilityJson(Cap::TICKETS_MESSAGING);
+}
 
 /** Treat blank or all-asterisk values as "unchanged" so masked secrets aren't wiped. */
 function provided($v): bool
@@ -34,7 +43,9 @@ function provided($v): bool
 }
 
 try {
-    $data = json_decode(file_get_contents('php://input'), true);
+    // Already read above for the authorisation decision — php://input can only
+    // be consumed once, so re-reading it here would give an empty string.
+    $data = json_decode($rawIn, true);
     if (!$data) {
         throw new Exception('Invalid request data');
     }
@@ -52,8 +63,14 @@ try {
     if ($name === '') {
         throw new Exception('Name is required');
     }
-    if (!in_array($provider, ['twilio', 'meta'], true)) {
+    if (!in_array($provider, ['twilio', 'meta', 'slack'], true)) {
         throw new Exception('Unknown provider');
+    }
+    // Slack is always a slack-type channel; nothing else may claim that type.
+    if ($provider === 'slack') {
+        $channelType = 'slack';
+    } elseif ($channelType === 'slack') {
+        throw new Exception('Only the Slack provider can create a Slack channel');
     }
 
     $conn = connectToDatabase();
@@ -96,6 +113,19 @@ try {
     if ($provider === 'twilio') {
         if (provided($data['account_sid'] ?? '')) $creds['account_sid'] = trim($data['account_sid']);
         if (provided($data['auth_token'] ?? ''))  $creds['auth_token']  = trim($data['auth_token']);
+    } elseif ($provider === 'slack') {
+        if (provided($data['bot_token'] ?? ''))      $creds['bot_token']      = trim($data['bot_token']);
+        if (provided($data['signing_secret'] ?? '')) $creds['signing_secret'] = trim($data['signing_secret']);
+        // Which Slack channel to listen to. NOT a secret, and blank must mean
+        // "any channel the app is in" — so it is set from the raw value rather
+        // than through provided(), which would treat blank as "leave as it was"
+        // and make the setting impossible to clear.
+        $watch = strtoupper(trim((string) ($data['watch_channel'] ?? '')));
+        if ($watch !== '') {
+            $creds['watch_channel'] = $watch;
+        } else {
+            unset($creds['watch_channel']);
+        }
     } else { // meta
         if (provided($data['phone_number_id'] ?? '')) $creds['phone_number_id'] = trim($data['phone_number_id']);
         if (provided($data['access_token'] ?? ''))     $creds['access_token']     = trim($data['access_token']);

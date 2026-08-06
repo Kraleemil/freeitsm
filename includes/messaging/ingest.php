@@ -23,7 +23,9 @@ require_once __DIR__ . '/../ticket_snooze.php';
 function ingestInboundMessage(PDO $conn, array $channel, array $msg): array
 {
     $channelType = $channel['channel_type'] ?? 'whatsapp';
-    $from = normaliseChannelIdentifier((string) ($msg['from'] ?? ''));
+    // ⚠️ The channel type MUST be passed: normalisation differs per channel, and
+    // the phone rules would shred a Slack user id into a shared identity.
+    $from = normaliseChannelIdentifier((string) ($msg['from'] ?? ''), $channelType);
     if ($from === '') {
         throw new Exception('Inbound message has no usable sender identifier');
     }
@@ -48,11 +50,32 @@ function ingestInboundMessage(PDO $conn, array $channel, array $msg): array
         $body = '[empty message]';
     }
 
-    $displayName = $profileName !== '' ? $profileName : $from;
-    $userId = getOrCreateChannelUser($conn, $from, $displayName, $channelType);
+    // Where a reply to this message has to go. For a phone channel that is just
+    // the sender again, so this is the business number as before. For Slack the
+    // sender and the destination are DIFFERENT things — you answer into a channel
+    // and a thread, not to a person — so parseInbound supplies it as 'to'.
+    $replyAddress = trim((string) ($msg['to'] ?? ''));
+    if ($replyAddress === '') {
+        $replyAddress = (string) ($channel['phone_number'] ?? '');
+    }
 
-    // Thread into an open conversation for this sender, else open a new ticket.
-    $ticketId  = findOpenChannelTicket($conn, $from, $channelType);
+    $displayName = $profileName !== '' ? $profileName : $from;
+    if ($channelType === 'slack') {
+        // Ask Slack who this is. Never fatal: a ticket must still be raised if
+        // the lookup fails, just with a less useful name on it.
+        [$userId, $displayName] = resolveSlackRequester($conn, $channel, $from);
+    } else {
+        $userId = getOrCreateChannelUser($conn, $from, $displayName, $channelType);
+    }
+
+    // Thread into an open conversation, else open a new ticket.
+    //
+    // ⚠️ "The same conversation" is not the same question on every channel. On
+    // WhatsApp a person has ONE conversation with the service desk, so the sender
+    // identifies it. In Slack the same person can have several unrelated threads
+    // going at once — so the THREAD is the conversation, and matching on the
+    // sender would pile every one of their questions onto a single ticket.
+    $ticketId  = findOpenChannelTicket($conn, $from, $channelType, $replyAddress);
     $isInitial = $ticketId ? 0 : 1;
     $subject   = null;
 
@@ -97,7 +120,7 @@ function ingestInboundMessage(PDO $conn, array $channel, array $msg): array
         $subject,
         $from,
         $displayName,
-        (string) ($channel['phone_number'] ?? ''),
+        $replyAddress,
         $body,
         0, // has_attachments — set below once media is actually downloaded
         $ticketId,
@@ -153,23 +176,84 @@ function ingestInboundMessage(PDO $conn, array $channel, array $msg): array
 }
 
 /**
- * Find the most recent OPEN (not closed, not trashed) ticket whose conversation
- * is this sender on this channel — so repeat messages thread into one ticket.
+ * Find the most recent OPEN (not closed, not trashed) ticket for this
+ * conversation, so repeat messages thread into one ticket.
+ *
+ * ⚠️ What counts as "this conversation" is per-channel:
+ *
+ *   phone channels — the SENDER. A person has one running conversation with the
+ *                    service desk, so their number identifies it.
+ *   slack          — the THREAD. One person can have five unrelated threads open
+ *                    at once, and matching on the sender would collapse all five
+ *                    onto one ticket. $replyAddress is "C08HELP:1719500000.0001",
+ *                    which is exactly the thread.
  */
-function findOpenChannelTicket(PDO $conn, string $from, string $channelType): ?int
+function findOpenChannelTicket(PDO $conn, string $from, string $channelType, string $replyAddress = ''): ?int
 {
+    $byThread = ($channelType === 'slack' && $replyAddress !== '');
+
     $sql = "SELECT t.id
             FROM tickets t
             JOIN emails e ON e.ticket_id = t.id
-            WHERE e.channel = ? AND e.from_address = ?
+            WHERE e.channel = ? AND " . ($byThread ? "e.to_recipients = ?" : "e.from_address = ?") . "
               AND t.deleted_datetime IS NULL
               AND t.closed_datetime IS NULL
             ORDER BY t.updated_datetime DESC
             LIMIT 1";
     $stmt = $conn->prepare($sql);
-    $stmt->execute([$channelType, $from]);
+    $stmt->execute([$channelType, $byThread ? $replyAddress : $from]);
     $id = $stmt->fetchColumn();
     return $id ? (int) $id : null;
+}
+
+/**
+ * Work out who a Slack message is from. Returns [userId|null, displayName].
+ *
+ * ⚠️ Halo's Slack integration requires the person's Slack email to equal their
+ * Halo email, which quietly fails for guests, contractors and anyone whose Slack
+ * account is a personal address. We do the lookup but never *depend* on it:
+ *
+ *   1. ask Slack for the profile (needs users:read + users:read.email)
+ *   2. if it gives an email we already know, the ticket belongs to that person
+ *   3. otherwise fall back to a channel pseudo-user — and NAME the case, so the
+ *      ticket says "Sam Okafor (Slack)" or "Slack user @U08ABCDEF" rather than
+ *      something anonymous that an analyst cannot act on
+ *
+ * Every failure path still returns a usable requester. Losing the identity must
+ * never lose the ticket.
+ */
+function resolveSlackRequester(PDO $conn, array $channel, string $slackUserId): array
+{
+    $name = '';
+    $email = '';
+    try {
+        $provider = messagingProvider($channel);
+        if ($provider instanceof SlackProvider) {
+            $info  = $provider->lookupUser($slackUserId);
+            $name  = trim((string) ($info['name'] ?? ''));
+            $email = trim((string) ($info['email'] ?? ''));
+        }
+    } catch (Exception $e) {
+        error_log('Slack requester lookup failed for ' . $slackUserId . ': ' . $e->getMessage());
+    }
+
+    // A real person we already hold — their tickets, history and company all
+    // line up with the rest of the service desk.
+    if ($email !== '') {
+        try {
+            $stmt = $conn->prepare("SELECT id, display_name FROM users WHERE email = ? LIMIT 1");
+            $stmt->execute([$email]);
+            if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $known = trim((string) ($row['display_name'] ?? ''));
+                return [(int) $row['id'], $known !== '' ? $known : ($name !== '' ? $name : $email)];
+            }
+        } catch (Exception $e) { /* fall through to the pseudo-user */ }
+    }
+
+    // Name the case rather than leaving it blank.
+    $displayName = $name !== '' ? ($name . ' (Slack)') : ('Slack user @' . $slackUserId);
+    $userId = getOrCreateChannelUser($conn, $slackUserId, $displayName, 'slack');
+    return [$userId, $displayName];
 }
 
 /**

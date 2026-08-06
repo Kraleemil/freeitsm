@@ -65,6 +65,14 @@ if (!$meta) {
     echo json_encode(['success' => false, 'error' => 'Unknown provider.']);
     exit;
 }
+// The registry also lists providers that are NOT issue trackers (Slack is a
+// messaging channel and keeps its connections in `messaging_channels`). Storing
+// one here would create a tracker connection that can never be dispatched —
+// integrationsProviderFor() would throw the moment anything used it.
+if (($meta['kind'] ?? 'tracker') !== 'tracker') {
+    echo json_encode(['success' => false, 'error' => ucfirst($provider) . ' is not an issue tracker — it is set up on its own page.']);
+    exit;
+}
 if ($name === '')    { echo json_encode(['success' => false, 'error' => 'Give the connection a name.']); exit; }
 if ($baseUrl === '') { echo json_encode(['success' => false, 'error' => 'Enter the site URL.']); exit; }
 

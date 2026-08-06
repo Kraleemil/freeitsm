@@ -700,6 +700,17 @@ try {
                 $results[] = ['table' => 'ticket_origins', 'status' => 'updated', 'details' => ['Seeded the Web chat ticket origin']];
             }
         } catch (Exception $e) {}
+        // Slack origin — for tickets raised from a message in a Slack channel.
+        // Without it getChannelOriginId() returns null and Slack tickets have no
+        // origin at all, so they vanish from any report grouped by origin.
+        try {
+            $chk = $conn->prepare("SELECT COUNT(*) FROM ticket_origins WHERE name = 'Slack' AND tenant_id IS NULL");
+            $chk->execute();
+            if ((int) $chk->fetchColumn() === 0) {
+                $conn->exec("INSERT INTO ticket_origins (name, description, display_order, is_active, tenant_id) VALUES ('Slack', 'Messages received via Slack', 52, 1, NULL)");
+                $results[] = ['table' => 'ticket_origins', 'status' => 'updated', 'details' => ['Seeded the Slack ticket origin']];
+            }
+        } catch (Exception $e) {}
     }
     // Per-company config: the generic "hide" layer + per-entity tenant_id columns.
     if ($tableExists('tenant_config_hidden') && $tableExists('tenants')) {

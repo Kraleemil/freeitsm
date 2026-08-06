@@ -968,6 +968,9 @@ CREATE TABLE IF NOT EXISTS `messaging_channels` (
     `channel_type`          VARCHAR(20) NOT NULL DEFAULT 'whatsapp',
     `provider`              VARCHAR(20) NOT NULL DEFAULT 'twilio',
     `phone_number`          VARCHAR(40) NULL,
+    -- What this channel points at in the provider's own terms when that isn't a
+    -- phone number: for Slack the workspace (team) id. NULL on phone channels.
+    `channel_ref`           VARCHAR(190) NULL,
     `credentials`           LONGTEXT NULL,
     `verify_token`          VARCHAR(255) NULL,
     `ingress_mode`          VARCHAR(10) NOT NULL DEFAULT 'direct',

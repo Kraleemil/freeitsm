@@ -71,9 +71,13 @@ try {
     $windowOpen = false;
     $channelProvider = '';
     if ($ticketChannel !== 'email') {
-        // Web chat is self-hosted — there's no provider 24h window, so replies are
-        // always allowed. Other channels honour the provider service window.
-        if ($ticketChannel === 'webchat') {
+        // Channels with no provider service window at all: web chat is self-hosted,
+        // and Slack simply has no such rule — you can reply to an old thread.
+        //
+        // ⚠️ This list MUST match the one in api/messaging/send_message.php. If the
+        // two disagree the composer greys out a reply the API would have accepted
+        // (or offers one it will refuse), and it reads as a broken integration.
+        if (in_array($ticketChannel, ['webchat', 'slack'], true)) {
             $windowOpen = true;
         } else {
             $ts = $conn->prepare("SELECT last_inbound_at FROM tickets WHERE id = ?");

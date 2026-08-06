@@ -47,7 +47,7 @@ try {
     // The conversation: most recent inbound channel message gives us the recipient
     // phone (from_address) and the channel row to reply from (channel_id).
     $stmt = $conn->prepare(
-        "SELECT from_address, channel, channel_id
+        "SELECT from_address, to_recipients, channel, channel_id
          FROM emails
          WHERE ticket_id = ? AND channel <> 'email' AND direction = 'Inbound'
          ORDER BY received_datetime DESC, id DESC
@@ -59,8 +59,21 @@ try {
         throw new Exception('This ticket has no inbound channel message to reply to.');
     }
 
-    $recipient   = $conv['from_address'];
     $channelType = $conv['channel'];
+
+    // Who to answer. On a phone channel you reply to the sender, so the sender's
+    // own address is the destination. Slack is not like that: you reply into the
+    // channel and thread the message came from, which the ingest stored as the
+    // inbound row's to_recipients ("C08HELP:1719500000.000100"). Replying to the
+    // sender there would send a DM to the person instead of answering in the
+    // thread everyone else is reading.
+    $recipient = $conv['from_address'];
+    if ($channelType === 'slack') {
+        $recipient = trim((string) ($conv['to_recipients'] ?? ''));
+        if ($recipient === '') {
+            throw new Exception('This ticket has no Slack thread to reply to.');
+        }
+    }
     $channel = loadMessagingChannel($conn, (int) $conv['channel_id']);
     if (!$channel) {
         throw new Exception('The channel this ticket arrived on no longer exists.');
@@ -69,10 +82,16 @@ try {
         throw new Exception('The channel this ticket arrived on is inactive.');
     }
 
-    // 24h service window — free-text replies are only allowed inside it. Web chat is
-    // self-hosted with no provider window, so it's exempt (the visitor simply sees the
-    // reply next time their widget polls).
-    if ($channelType !== 'webchat') {
+    // 24h service window — free-text replies are only allowed inside it.
+    //
+    // ⚠️ This is a WhatsApp Business rule, not a general one, so only the channels
+    // that actually have it are checked:
+    //   webchat — self-hosted, no provider in the middle at all
+    //   slack   — Slack has no such window; you can reply to a thread from last
+    //             year. Enforcing it here would block ordinary replies and show
+    //             an error about "pre-approved template messages", which is
+    //             meaningless in Slack and would look like a broken integration.
+    if (!in_array($channelType, ['webchat', 'slack'], true)) {
         $win = $conn->prepare("SELECT last_inbound_at FROM tickets WHERE id = ?");
         $win->execute([$ticketId]);
         if (!channelWindowOpen($win->fetchColumn() ?: null)) {

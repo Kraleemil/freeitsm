@@ -155,7 +155,9 @@ function simCleanup(PDO $conn, ?int $ticketId, string $sender, string $channelTy
             $conn->prepare("DELETE FROM tickets WHERE id = ?")->execute([$ticketId]);
         }
         // The placeholder requester keyed by the fake number, only if it has no other tickets.
-        $pseudo = ltrim(normaliseChannelIdentifier($sender), '+') . '@' . $channelType . '.local';
+        // Same normalisation the ingest used, or the cleanup looks for the wrong
+        // pseudo-user and leaves the simulation's placeholder behind.
+        $pseudo = ltrim(normaliseChannelIdentifier($sender, $channelType), '+') . '@' . $channelType . '.local';
         $uid = $conn->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
         $uid->execute([$pseudo]);
         $userId = $uid->fetchColumn();

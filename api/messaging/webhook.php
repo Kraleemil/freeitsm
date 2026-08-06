@@ -134,6 +134,22 @@ if ($ingress === 'relay') {
     }
 }
 
+// Slack's endpoint check. Unlike Meta's it is a POSTed JSON body rather than a
+// GET, so it lands here rather than in the handshake branch above.
+//
+// ⚠️ Deliberately AFTER authentication. Slack signs this request like any other,
+// so echoing the challenge to an unverified caller would let anyone on the
+// internet confirm that this URL is a FreeITSM install — and, worse, complete
+// someone else's app setup against it.
+if ($provider instanceof SlackProvider) {
+    $challenge = $provider->verifyUrlChallenge($rawBody);
+    if ($challenge !== null) {
+        header('Content-Type: text/plain');
+        echo $challenge;
+        exit;
+    }
+}
+
 // Parse → ingest. Never let one bad message 500 the whole webhook (the provider
 // would retry the batch); log and carry on.
 $results = ['created' => 0, 'appended' => 0, 'duplicate' => 0, 'errors' => 0];

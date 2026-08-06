@@ -35,8 +35,15 @@ $provider = strtolower(trim((string)($in['provider'] ?? '')));
 $baseUrl  = trim((string)($in['base_url'] ?? ''));
 $creds    = is_array($in['credentials'] ?? null) ? $in['credentials'] : [];
 
-if (!integrationsProviderMeta($provider)) {
+$meta = integrationsProviderMeta($provider);
+if (!$meta) {
     echo json_encode(['success' => false, 'error' => 'Unknown provider.']);
+    exit;
+}
+// Non-tracker providers (Slack) have their own test on their own page — this one
+// would try to reach a tracker API that does not exist.
+if (($meta['kind'] ?? 'tracker') !== 'tracker') {
+    echo json_encode(['success' => false, 'error' => ucfirst($provider) . ' is tested from its own page.']);
     exit;
 }
 if ($baseUrl !== '' && !preg_match('#^https?://#i', $baseUrl)) {

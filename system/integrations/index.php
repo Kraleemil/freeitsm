@@ -34,6 +34,11 @@ $schemaOk   = integrationsSchemaReady($conn);
 
 // Connection counts per provider, so a card can say "2 connections" rather than
 // making the admin click in to find out.
+//
+// ⚠️ Not every provider stores its connections in the same table. Trackers use
+// `integration_connections`; a messaging-kind provider (Slack) is a channel and
+// lives in `messaging_channels`. Counting only the first table would show Slack
+// as permanently "Not set up" however many workspaces were connected.
 $counts = [];
 if ($schemaOk) {
     try {
@@ -42,6 +47,19 @@ if ($schemaOk) {
         }
     } catch (Exception $e) {
         $counts = [];
+    }
+}
+foreach ($providers as $pk => $pmeta) {
+    if (($pmeta['kind'] ?? 'tracker') !== 'messaging') {
+        continue;
+    }
+    try {
+        $st = $conn->prepare("SELECT COUNT(*) FROM messaging_channels WHERE provider = ?");
+        $st->execute([$pk]);
+        $counts[$pk] = (int) $st->fetchColumn();
+    } catch (Exception $e) {
+        // messaging_channels absent on a part-migrated install → leave it unset,
+        // which the card renders as "Not set up".
     }
 }
 ?>

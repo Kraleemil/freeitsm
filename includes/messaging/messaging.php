@@ -7,7 +7,8 @@
  *
  *   messagingProvider($channel)        → a MessagingProvider for a (decrypted) row
  *   loadMessagingChannel($conn, $id)   → a channel row with credentials decrypted
- *   normaliseChannelIdentifier($raw)   → a phone number as '+<digits>'
+ *   normaliseChannelIdentifier($raw, $type) → a sender id, normalised per channel
+ *                                        (phone as '+<digits>'; Slack as 'U…')
  *   channelWindowOpen($lastInboundAt)  → is the 24h service window still open?
  *
  * The credentials column is an encrypted JSON blob; loadMessagingChannel decrypts
@@ -18,6 +19,7 @@
 require_once __DIR__ . '/MessagingProvider.php';
 require_once __DIR__ . '/TwilioProvider.php';
 require_once __DIR__ . '/MetaCloudProvider.php';
+require_once __DIR__ . '/SlackProvider.php';
 require_once __DIR__ . '/FreeitsmProvider.php';
 require_once __DIR__ . '/../encryption.php';
 
@@ -39,6 +41,8 @@ function messagingProvider(array $channel): MessagingProvider
             return new MetaCloudProvider($channel);
         case 'freeitsm':
             return new FreeitsmProvider($channel);
+        case 'slack':
+            return new SlackProvider($channel);
         default:
             throw new Exception('Unknown messaging provider: ' . ($channel['provider'] ?? '?'));
     }
@@ -123,21 +127,38 @@ function messagingWebhookUrl(PDO $conn, int $channelId): string
 }
 
 /**
- * Normalise a phone identifier to '+<digits>' for storage and matching. Strips a
- * "whatsapp:" prefix, spaces, dashes and brackets. Returns '' if nothing usable.
+ * Normalise a sender identifier for storage and matching.
+ *
+ * ⚠️ This USED to be phone-only, and silently destroyed anything that wasn't a
+ * phone number: it stripped every non-digit, so a Slack user id like
+ * "U08ABCDEF" became "+08". Every Slack user whose id contained the same digits
+ * would then collapse onto ONE requester and thread into each other's tickets —
+ * a data leak, not a cosmetic bug. Hence the channel-type argument.
+ *
+ * The phone behaviour is unchanged and must stay that way: whatsapp is the
+ * default so every existing caller keeps its exact previous result.
  */
-function normaliseChannelIdentifier(string $raw): string
+function normaliseChannelIdentifier(string $raw, string $channelType = 'whatsapp'): string
 {
     $s = trim($raw);
+
+    if ($channelType === 'slack') {
+        // A Slack user id: 'U' or 'W' (Enterprise Grid), then uppercase
+        // alphanumerics. Case-normalised because Slack is consistent about
+        // upper-case but a hand-typed value in settings might not be.
+        $s = strtoupper($s);
+        return preg_match('/^[UW][A-Z0-9]{2,}$/', $s) ? $s : '';
+    }
+
+    // --- phone identifiers (whatsapp, and the default for anything else) ---
     if (stripos($s, 'whatsapp:') === 0) {
         $s = substr($s, strlen('whatsapp:'));
     }
-    $hasPlus = strpos(ltrim($s), '+') === 0;
     $digits = preg_replace('/\D+/', '', $s);
     if ($digits === '') {
         return '';
     }
-    return ($hasPlus ? '+' : '+') . $digits;
+    return '+' . $digits;
 }
 
 /**
