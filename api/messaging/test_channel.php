@@ -25,12 +25,17 @@ if (!isset($_SESSION['analyst_id'])) {
     exit;
 }
 
-// Messaging settings tab — sends a real message.
-requireModuleAccessJson('tickets');
-requireCapabilityJson(Cap::TICKETS_MESSAGING);
+// Reached from Tickets → Settings → Messaging (RBAC) or from System →
+// Integrations → Slack (admin-only). messagingAdminMayAdministerChannel()
+// explains why an admin is allowed here for a Slack channel and nothing else.
+$rawIn = file_get_contents('php://input');
+$input = json_decode($rawIn, true);
+if (!messagingAdminMayAdministerChannel(connectToDatabase(), (int) ($input['id'] ?? $_GET['id'] ?? 0))) {
+    requireModuleAccessJson('tickets');
+    requireCapabilityJson(Cap::TICKETS_MESSAGING);
+}
 
 try {
-    $input = json_decode(file_get_contents('php://input'), true);
     $channelId = (int) ($input['id'] ?? $_GET['id'] ?? 0);
     $mode = $input['mode'] ?? ($_GET['mode'] ?? 'all');
     if ($channelId <= 0) {

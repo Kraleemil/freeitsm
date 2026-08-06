@@ -64,111 +64,11 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
     <title>Service Desk - <?php echo htmlspecialchars($meta['name']); ?></title>
     <link rel="stylesheet" href="../../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../../assets/css/inbox.css">
+    <link rel="stylesheet" href="../../assets/css/integrations.css?v=1">
     <style>
-        /* Full width, like every other System page. ⚠️ max-width alone is not
-           enough — an inherited `margin: … auto` would still centre it, so there
-           is deliberately no auto margin here either. */
-        .int-container { height: calc(100vh - 48px); overflow-y: auto; padding: 30px 20px; }
-        .page-title    { font-size: 24px; font-weight: 600; color: var(--text); margin: 0 0 6px; }
-        .page-subtitle { font-size: 14px; color: var(--text-muted); margin: 0 0 8px; line-height: 1.5; }
-        .back-link     { display: inline-block; margin-bottom: 18px; font-size: 13px;
-                         color: var(--text-muted); text-decoration: none; }
-        .back-link:hover { color: var(--sys-accent); }
-        .help-link {
-            display: inline-flex; align-items: center; gap: 7px; margin: 4px 0 18px;
-            font-size: 13px; text-decoration: none; color: var(--sys-accent);
-            border: 1px solid var(--sys-accent); border-radius: 20px; padding: 6px 14px;
-        }
-        .help-link:hover { background: var(--sys-accent-soft); }
-
-        .settings-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 10px; padding: 22px; margin-bottom: 20px;
-            box-shadow: var(--shadow);
-        }
-        .section-header {
-            display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 16px; gap: 12px; flex-wrap: wrap;
-        }
-        .section-header h3 { margin: 0; font-size: 17px; font-weight: 600; color: var(--text); }
-        .card-desc { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; line-height: 1.55; }
-
-        table.int-table { width: 100%; border-collapse: collapse; }
-        table.int-table th {
-            text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase;
-            letter-spacing: .04em; color: var(--text-faint);
-            padding: 8px 10px; border-bottom: 1px solid var(--border);
-        }
-        table.int-table td {
-            padding: 11px 10px; font-size: 14px; color: var(--text);
-            border-bottom: 1px solid var(--border-soft);
-        }
-        .status-badge {
-            display: inline-block; font-size: 12px; font-weight: 600;
-            padding: 3px 9px; border-radius: 20px;
-        }
-        .status-badge.on  { background: var(--success-bg); color: var(--text); }
-        .status-badge.off { background: var(--surface-2);  color: var(--text-faint); }
-        .badge-shared {
-            display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 20px;
-            background: var(--sys-accent-soft); color: var(--sys-accent);
-        }
-        /* Icon actions, matching tickets → settings so the two feel like one app. */
-        .action-btn {
-            background: none; border: 1px solid var(--border, #ddd);
-            color: var(--text-muted, #666); cursor: pointer; padding: 6px;
-            margin-right: 4px; border-radius: 4px;
-            display: inline-flex; align-items: center; justify-content: center;
-            transition: all 0.2s;
-        }
-        .action-btn:hover {
-            background: var(--surface-hover, #f0f0f0);
-            border-color: var(--sys-accent); color: var(--sys-accent);
-        }
-        .action-btn.delete { color: var(--danger-accent, #d13438); }
-        .action-btn.delete:hover {
-            background: var(--danger-bg, #fdf3f3);
-            border-color: var(--danger-accent, #d13438);
-            color: var(--danger-text, #a00);
-        }
-        .action-btn svg { width: 16px; height: 16px; }
-        .add-btn {
-            background: var(--sys-accent); color: var(--on-accent); border: none;
-            border-radius: 6px; padding: 8px 16px; font-size: 14px;
-            font-weight: 500; cursor: pointer;
-        }
-        .empty-row { text-align: center; color: var(--text-faint); padding: 26px 10px; font-size: 14px; }
-
-        /* ⚠️ NOT called .form-row: inbox.css defines that as `display: flex`, which
-           puts the label beside the input and squeezes it into a narrow column
-           that wraps mid-phrase. Own class, own semantics — cheaper and clearer
-           than overriding a shared one. */
-        .int-field { margin-bottom: 15px; }
-        .int-field label {
-            display: block; font-size: 13px; font-weight: 600;
-            color: var(--text); margin-bottom: 5px; white-space: nowrap;
-        }
-        .int-field .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
-        .int-field input[type=text], .int-field input[type=password], .int-field select {
-            width: 100%; padding: 9px 11px; font-size: 14px;
-            background: var(--surface-2); color: var(--text);
-            border: 1px solid var(--border); border-radius: 6px;
-        }
-        .int-field input:focus, .int-field select:focus { outline: none; border-color: var(--sys-accent); }
-        .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; }
-
-        .modal-backdrop {
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
-            z-index: 900; align-items: flex-start; justify-content: center; overflow-y: auto;
-        }
-        .modal-backdrop.open { display: flex; }
-        .modal-box {
-            background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-            width: 680px; max-width: calc(100% - 24px); margin: 50px 0;
-            padding: 24px; box-shadow: var(--shadow);
-        }
-        .modal-box h3 { margin: 0 0 18px; font-size: 18px; color: var(--text); }
-        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        /* Only what this page alone draws. The container, cards, table, fields,
+           buttons and modal all come from integrations.css — see that file for
+           why they are not repeated here. */
 
         /* Mapping screen. Wider than the connection modal because every row is a
            pair — "our thing" on the left, "their thing" on the right — and that
@@ -202,31 +102,6 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
             margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border-soft);
         }
         .map-group:first-child { margin-top: 0; }
-        .btn-primary {
-            background: var(--sys-accent); color: var(--on-accent); border: none;
-            border-radius: 6px; padding: 9px 18px; font-size: 14px; cursor: pointer;
-        }
-        .btn-secondary {
-            background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
-            border-radius: 6px; padding: 9px 18px; font-size: 14px; cursor: pointer;
-        }
-        .setup-warning {
-            background: var(--warning-bg); border: 1px solid var(--border); border-radius: 8px;
-            padding: 14px 16px; margin-bottom: 22px; font-size: 14px; color: var(--text);
-        }
-
-        /* Mobile: the connection table's columns are known, so it becomes a card
-           feed rather than a horizontal scroller (the wide-table rule). */
-        @media (max-width: 700px) {
-            .int-container { padding: 16px 12px; }
-            table.int-table thead { display: none; }
-            table.int-table, table.int-table tbody, table.int-table tr, table.int-table td { display: block; width: 100%; }
-            table.int-table tr {
-                border: 1px solid var(--border); border-radius: 8px;
-                margin-bottom: 12px; padding: 10px; background: var(--surface-2);
-            }
-            table.int-table td { border: none; padding: 5px 2px; }
-        }
     </style>
 </head>
 <body>

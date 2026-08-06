@@ -186,6 +186,47 @@ return [
         'delete_title'   => 'Delete connection',
         'confirm_delete' => 'Delete this connection?',
         'confirm_delete_named' => 'Delete the connection “{name}”? Tickets already linked to issues on it keep their links.',
+
+        // ── Slack ────────────────────────────────────────────────────────────
+        // Listed under Integrations because that is where people look, but it is
+        // a messaging CHANNEL underneath — the wording deliberately says
+        // "workspace" and "channel", never "connection" or "project".
+        'slack_blurb' => 'Turn a message in a Slack channel into a ticket, and answer it from the inbox without leaving the thread.',
+        'slack_workspaces'      => 'Slack workspaces',
+        'slack_workspaces_desc' => 'Each one is a Slack app you install in your own workspace. FreeITSM never sees your Slack traffic — the app talks straight to this server.',
+        'slack_col_channel'  => 'Watching',
+        'slack_any_channel'  => 'Any channel it is invited to',
+        'slack_empty'        => 'No Slack workspaces yet. Add one, then collect its app from Slack.',
+        'slack_needs_setup'  => 'Needs setup',
+
+        'slack_add_title'  => 'Add a Slack workspace',
+        'slack_edit_title' => 'Edit Slack workspace',
+        'slack_name_hint'  => 'Only used in this list, and as the name of the Slack app you create.',
+        'slack_name_required' => 'Give this workspace a name.',
+        'slack_unchanged'  => 'Unchanged — leave blank to keep it',
+
+        'slack_bot_token'      => 'Bot user OAuth token',
+        'slack_bot_token_hint' => 'From your Slack app, under OAuth &amp; Permissions. Starts with xoxb-. You get it after installing the app, so leave it blank on the first save.',
+        'slack_signing_secret' => 'Signing secret',
+        'slack_signing_secret_hint' => 'From your Slack app, under Basic Information. This is how FreeITSM proves a message really came from Slack, so nothing is accepted until it is set.',
+        'slack_watch_channel'  => 'Only watch this channel',
+        'slack_watch_channel_hint' => 'A Slack channel ID such as C08ABCDEF. Leave blank to raise a ticket from every channel the app is invited to — which on a busy channel means a ticket per message, so most people name one help channel here.',
+
+        'slack_company_shared' => 'Shared — decide by sender',
+        'slack_company_hint'   => 'Pin this workspace to one company, or leave it shared and let the sender decide.',
+
+        'slack_delete_confirm' => 'Delete the Slack workspace “{name}”? Tickets already raised from it keep their history; only new messages stop arriving.',
+
+        // The app-setup modal.
+        'slack_app_title'      => 'The Slack app',
+        'slack_copy_manifest'  => 'Copy the manifest',
+        'slack_scopes_heading' => 'What the app is allowed to do',
+        'slack_scopes_desc'    => 'Your Slack admin will see this list when approving the app. Nothing here lets it create channels, invite people or post anywhere it has not been invited.',
+        'slack_step1' => 'In Slack, go to <strong>api.slack.com/apps</strong> and choose <strong>Create New App → From a manifest</strong>. Pick the workspace you want the service desk in.',
+        'slack_step2' => 'Paste this manifest. It sets the name, the permissions and the address Slack sends messages to, so there is nothing to tick by hand.',
+        'slack_step3' => 'Click <strong>Install to Workspace</strong> and approve it. Then copy the <strong>Bot User OAuth Token</strong> and the <strong>Signing Secret</strong> back into the Edit form here — Slack will not show the token again.',
+        'slack_step4' => 'Check the request URL below matches what Slack shows under <strong>Event Subscriptions</strong>. Slack verifies it the moment you save the app, so this server has to be reachable from the internet.',
+        'slack_step5' => 'In Slack, invite the app to the channel you want it to watch: <strong>/invite @YourApp</strong>. It cannot read a channel it is not in.',
     ],
 
     // Branding page (system/branding/index.php)

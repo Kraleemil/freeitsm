@@ -121,8 +121,23 @@ function messagingPublicBaseUrl(PDO $conn): string
  */
 function messagingWebhookUrl(PDO $conn, int $channelId): string
 {
-    $base = messagingPublicBaseUrl($conn);
+    $base = rtrim(messagingPublicBaseUrl($conn), '/');
     $root = preg_replace('#/api/messaging/.*$#', '', $_SERVER['SCRIPT_NAME'] ?? '');
+
+    // ⚠️ The configured public base URL may ALREADY include the app's sub-path.
+    // Nothing stops an admin entering "https://example.com/freeitsm-app", and it
+    // is the natural thing to type — but the app root is derived separately from
+    // SCRIPT_NAME, so appending it produced ".../freeitsm-app/freeitsm-app/...".
+    //
+    // That URL is not merely cosmetic: it is what gets pasted into Slack or Meta
+    // as the request URL, and a 404 there fails their verification with an error
+    // that says nothing about a duplicated path. Found while setting up Slack on
+    // an install whose base URL had the sub-path in it; the same fault has always
+    // applied to WhatsApp.
+    if ($root !== '' && substr($base, -strlen($root)) === $root) {
+        $root = '';
+    }
+
     return $base . $root . '/api/messaging/webhook.php?channel=' . $channelId;
 }
 
@@ -256,4 +271,35 @@ function channelWindowOpen(?string $lastInboundAt): bool
         return false;
     }
     return (time() - $ts) < MESSAGING_WINDOW_SECONDS;
+}
+
+/**
+ * Authorise a request that acts on ONE messaging channel.
+ *
+ * ⚠️ Two doors lead to these endpoints and they are gated differently:
+ *
+ *   Tickets → Settings → Messaging / Web chat  — RBAC, Cap::TICKETS_MESSAGING
+ *   System  → Integrations → Slack             — administrators only
+ *
+ * So an admin without the Tickets messaging capability must be able to
+ * administer a SLACK channel and nothing else. Widening the capability instead
+ * would hand them a WhatsApp channel's credentials, which is precisely what that
+ * capability exists to withhold.
+ *
+ * Returns true when the caller may act on this channel by virtue of being an
+ * admin working on Slack; false means "fall through to the normal capability
+ * check", which then produces the standard error.
+ */
+function messagingAdminMayAdministerChannel(PDO $conn, int $channelId): bool
+{
+    if ($channelId <= 0 || !sessionIsAdmin()) {
+        return false;
+    }
+    try {
+        $stmt = $conn->prepare("SELECT provider FROM messaging_channels WHERE id = ?");
+        $stmt->execute([$channelId]);
+        return ((string) $stmt->fetchColumn()) === 'slack';
+    } catch (Exception $e) {
+        return false;
+    }
 }

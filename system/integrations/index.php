@@ -71,18 +71,18 @@ foreach ($providers as $pk => $pmeta) {
     <title>Service Desk - <?php echo htmlspecialchars(t('system.integrations.title')); ?></title>
     <link rel="stylesheet" href="../../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../../assets/css/inbox.css">
+    <link rel="stylesheet" href="../../assets/css/integrations.css?v=1">
     <style>
-        /* Full width, like every other System page. ⚠️ max-width alone is not
-           enough — an inherited `margin: … auto` would still centre it, so there
-           is deliberately no auto margin here either. */
-        .int-container { height: calc(100vh - 48px); overflow-y: auto; padding: 30px 20px; }
-        .page-title    { font-size: 24px; font-weight: 600; color: var(--text); margin: 0 0 6px; }
-        .page-subtitle { font-size: 14px; color: var(--text-muted); margin: 0 0 26px; line-height: 1.5; }
-
+        /* Only the card grid — the container, title and warning come from
+           integrations.css, shared with the provider and Slack pages. */
         .provider-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
             gap: 16px;
+            /* The breathing room under the subtitle belongs here, not on the
+               subtitle — the provider page puts a help pill in this space
+               instead and wants it tight. 8px + 18px = the original 26px. */
+            margin-top: 18px;
         }
         .provider-card {
             display: block;
@@ -108,22 +108,6 @@ foreach ($providers as $pk => $pmeta) {
             background: var(--sys-accent-soft); color: var(--sys-accent);
         }
         .provider-count.is-none { background: var(--surface-2); color: var(--text-faint); }
-
-        .setup-warning {
-            background: var(--warning-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 14px 16px;
-            margin-bottom: 22px;
-            font-size: 14px;
-            color: var(--text);
-        }
-
-        /* Mobile: the grid already collapses via auto-fill, so only the gutters
-           need attention. */
-        @media (max-width: 600px) {
-            .int-container { padding: 16px 12px; }
-        }
     </style>
 </head>
 <body>

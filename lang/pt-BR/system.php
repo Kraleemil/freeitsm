@@ -163,6 +163,47 @@ return [
         'delete_title'   => 'Excluir conexão',
         'confirm_delete' => 'Excluir esta conexão?',
         'confirm_delete_named' => 'Excluir a conexão “{name}”? Chamados já vinculados a problemas nela mantêm seus vínculos.',
+
+        // ── Slack ────────────────────────────────────────────────────────────
+        // Fica em Integrações porque é onde as pessoas procuram, mas por baixo é
+        // um CANAL de mensagens — o texto fala em "espaço de trabalho" e "canal",
+        // nunca em "conexão" ou "projeto".
+        'slack_blurb' => 'Transforme uma mensagem de um canal do Slack em um chamado e responda pela caixa de entrada sem sair da conversa.',
+        'slack_workspaces'      => 'Espaços de trabalho do Slack',
+        'slack_workspaces_desc' => 'Cada um é um app do Slack instalado no seu próprio espaço de trabalho. O FreeITSM nunca vê o tráfego do seu Slack — o app fala diretamente com este servidor.',
+        'slack_col_channel'  => 'Monitorando',
+        'slack_any_channel'  => 'Qualquer canal em que for convidado',
+        'slack_empty'        => 'Nenhum espaço de trabalho do Slack ainda. Adicione um e depois obtenha o app no Slack.',
+        'slack_needs_setup'  => 'Falta configurar',
+
+        'slack_add_title'  => 'Adicionar espaço de trabalho do Slack',
+        'slack_edit_title' => 'Editar espaço de trabalho do Slack',
+        'slack_name_hint'  => 'Usado apenas nesta lista e como nome do app do Slack que você criar.',
+        'slack_name_required' => 'Dê um nome a este espaço de trabalho.',
+        'slack_unchanged'  => 'Inalterado — deixe em branco para manter',
+
+        'slack_bot_token'      => 'Token OAuth do bot',
+        'slack_bot_token_hint' => 'No seu app do Slack, em OAuth &amp; Permissions. Começa com xoxb-. Você só o obtém depois de instalar o app, então deixe em branco no primeiro salvamento.',
+        'slack_signing_secret' => 'Chave de assinatura',
+        'slack_signing_secret_hint' => 'No seu app do Slack, em Basic Information. É assim que o FreeITSM comprova que uma mensagem veio mesmo do Slack, então nada é aceito enquanto não for definida.',
+        'slack_watch_channel'  => 'Monitorar apenas este canal',
+        'slack_watch_channel_hint' => 'Um ID de canal do Slack, como C08ABCDEF. Deixe em branco para abrir chamado a partir de qualquer canal em que o app for convidado — o que, em um canal movimentado, significa um chamado por mensagem, por isso a maioria indica aqui um canal de suporte.',
+
+        'slack_company_shared' => 'Compartilhado — decidir pelo remetente',
+        'slack_company_hint'   => 'Fixe este espaço de trabalho em uma empresa ou deixe-o compartilhado e deixe o remetente decidir.',
+
+        'slack_delete_confirm' => 'Excluir o espaço de trabalho do Slack “{name}”? Chamados já abertos a partir dele mantêm o histórico; apenas as novas mensagens deixam de chegar.',
+
+        // O modal de configuração do app.
+        'slack_app_title'      => 'O app do Slack',
+        'slack_copy_manifest'  => 'Copiar o manifesto',
+        'slack_scopes_heading' => 'O que o app pode fazer',
+        'slack_scopes_desc'    => 'O administrador do seu Slack verá esta lista ao aprovar o app. Nada aqui permite criar canais, convidar pessoas ou publicar onde ele não foi convidado.',
+        'slack_step1' => 'No Slack, acesse <strong>api.slack.com/apps</strong> e escolha <strong>Create New App → From a manifest</strong>. Selecione o espaço de trabalho onde quer a central de serviços.',
+        'slack_step2' => 'Cole este manifesto. Ele define o nome, as permissões e o endereço para onde o Slack envia as mensagens, então não há nada para marcar manualmente.',
+        'slack_step3' => 'Clique em <strong>Install to Workspace</strong> e aprove. Depois copie o <strong>Bot User OAuth Token</strong> e a <strong>Signing Secret</strong> de volta no formulário de edição aqui — o Slack não mostra o token de novo.',
+        'slack_step4' => 'Confira se o endereço abaixo é o mesmo que o Slack mostra em <strong>Event Subscriptions</strong>. O Slack o verifica no momento em que você salva o app, então este servidor precisa estar acessível pela internet.',
+        'slack_step5' => 'No Slack, convide o app para o canal que ele deve monitorar: <strong>/invite @SeuApp</strong>. Ele não consegue ler um canal em que não está.',
     ],
 
     // Branding page (system/branding/index.php)

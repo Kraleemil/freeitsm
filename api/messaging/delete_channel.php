@@ -9,6 +9,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/messaging/messaging.php';
 
 header('Content-Type: application/json');
 
@@ -17,12 +18,17 @@ if (!isset($_SESSION['analyst_id'])) {
     exit;
 }
 
-// Messaging settings tab.
-requireModuleAccessJson('tickets');
-requireCapabilityJson(Cap::TICKETS_MESSAGING);
+// Reached from Tickets → Settings → Messaging (RBAC) or from System →
+// Integrations → Slack (admin-only). messagingAdminMayAdministerChannel()
+// explains why an admin is allowed here for a Slack channel and nothing else.
+$rawIn = file_get_contents('php://input');
+$data  = json_decode($rawIn, true);
+if (!messagingAdminMayAdministerChannel(connectToDatabase(), (int) ($data['id'] ?? 0))) {
+    requireModuleAccessJson('tickets');
+    requireCapabilityJson(Cap::TICKETS_MESSAGING);
+}
 
 try {
-    $data = json_decode(file_get_contents('php://input'), true);
     $id = (int) ($data['id'] ?? 0);
     if ($id <= 0) {
         throw new Exception('Channel ID is required');
