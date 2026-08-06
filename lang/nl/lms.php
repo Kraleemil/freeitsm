@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Cursussen toewijzen',
-        'assigning_intro'   => 'Het tabblad <strong>Toewijzingen</strong> koppelt een cursus aan een groep, optioneel met een deadline. Zodra de toewijzing is opgeslagen, krijgt elk lid van de groep een voortgangsrecord voor die cursus (status <span class="lh-pill not-started">Niet gestart</span>) en wordt de cursus voor hen afspeelbaar.',
+        'assigning_intro'   => 'Het tabblad <strong>Toewijzingen</strong> koppelt een cursus aan een groep, optioneel met een deadline. Zodra de toewijzing is opgeslagen, krijgt elk lid van de groep een voortgangsrecord voor die cursus (status <span class="help-pill">Niet gestart</span>) en wordt de cursus voor hen afspeelbaar.',
         'assigning_step1'   => 'Klik op <strong>Toewijzen</strong> op het tabblad Toewijzingen.',
         'assigning_step2'   => 'Kies een cursus en een groep uit de keuzelijsten.',
         'assigning_step3'   => 'Stel een deadline in (optioneel). Laat leeg voor training zonder einddatum.',
         'assigning_step4'   => 'Sla op. Voortgangsrecords verschijnen direct op het tabblad Voortgang.',
-        'assigning_tip'     => '<strong>Deadlines bepalen het Te laat-filter:</strong> elk voortgangsrecord waarvan de deadline is verstreken en de status niet <span class="lh-pill completed">Voltooid</span> of <span class="lh-pill passed">Geslaagd</span> is, verschijnt onder het filter <span class="lh-pill overdue">Te laat</span> op het tabblad Voortgang.',
+        'assigning_tip'     => '<strong>Deadlines bepalen het Te laat-filter:</strong> elk voortgangsrecord waarvan de deadline is verstreken en de status niet <span class="help-pill info">Voltooid</span> of <span class="help-pill ok">Geslaagd</span> is, verschijnt onder het filter <span class="help-pill warn">Te laat</span> op het tabblad Voortgang.',
         'assigning_warn'    => '<strong>Eén toewijzing per cursus/groep-paar:</strong> een dubbele combinatie wordt geweigerd (u krijgt een vriendelijke foutmelding). Opnieuw toewijzen met een nieuwe deadline? Verwijder eerst de oude toewijzing en maak dan een nieuwe aan.',
 
         // 5. Launching

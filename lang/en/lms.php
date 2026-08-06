@@ -387,12 +387,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Assigning courses',
-        'assigning_intro'   => 'The <strong>Assignments</strong> tab pairs a course with a group, optionally with a deadline. As soon as the assignment is saved, every member of the group gets a progress record for that course (status <span class="lh-pill not-started">Not Started</span>) and the course becomes playable for them.',
+        'assigning_intro'   => 'The <strong>Assignments</strong> tab pairs a course with a group, optionally with a deadline. As soon as the assignment is saved, every member of the group gets a progress record for that course (status <span class="help-pill">Not Started</span>) and the course becomes playable for them.',
         'assigning_step1'   => 'Click <strong>Assign</strong> on the Assignments tab.',
         'assigning_step2'   => 'Pick a course and a group from the dropdowns.',
         'assigning_step3'   => 'Set a deadline (optional). Leave blank for open-ended training.',
         'assigning_step4'   => 'Save. Progress records appear immediately in the Progress tab.',
-        'assigning_tip'     => '<strong>Deadlines drive the Overdue filter:</strong> any progress record where the deadline has passed and the status isn\'t <span class="lh-pill completed">Completed</span> or <span class="lh-pill passed">Passed</span> shows up under the <span class="lh-pill overdue">Overdue</span> filter on the Progress tab.',
+        'assigning_tip'     => '<strong>Deadlines drive the Overdue filter:</strong> any progress record where the deadline has passed and the status isn\'t <span class="help-pill info">Completed</span> or <span class="help-pill ok">Passed</span> shows up under the <span class="help-pill warn">Overdue</span> filter on the Progress tab.',
         'assigning_warn'    => '<strong>One assignment per course/group pair:</strong> a duplicate combination is rejected (you\'ll see a friendly error). Want to re-assign with a new deadline? Delete the old assignment first, then create a new one.',
 
         // 5. Launching

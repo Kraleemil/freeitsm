@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Assegnare i corsi',
-        'assigning_intro'   => 'La scheda <strong>Assegnazioni</strong> abbina un corso a un gruppo, facoltativamente con una scadenza. Non appena l\'assegnazione è salvata, ogni membro del gruppo ottiene un record di avanzamento per quel corso (stato <span class="lh-pill not-started">Non iniziato</span>) e il corso diventa riproducibile per loro.',
+        'assigning_intro'   => 'La scheda <strong>Assegnazioni</strong> abbina un corso a un gruppo, facoltativamente con una scadenza. Non appena l\'assegnazione è salvata, ogni membro del gruppo ottiene un record di avanzamento per quel corso (stato <span class="help-pill">Non iniziato</span>) e il corso diventa riproducibile per loro.',
         'assigning_step1'   => 'Fai clic su <strong>Assegna</strong> nella scheda Assegnazioni.',
         'assigning_step2'   => 'Scegli un corso e un gruppo dai menu a discesa.',
         'assigning_step3'   => 'Imposta una scadenza (opzionale). Lascia vuoto per una formazione senza termine.',
         'assigning_step4'   => 'Salva. I record di avanzamento appaiono immediatamente nella scheda Avanzamento.',
-        'assigning_tip'     => '<strong>Le scadenze guidano il filtro In ritardo:</strong> qualsiasi record di avanzamento la cui scadenza è trascorsa e il cui stato non è <span class="lh-pill completed">Completato</span> o <span class="lh-pill passed">Superato</span> compare sotto il filtro <span class="lh-pill overdue">In ritardo</span> nella scheda Avanzamento.',
+        'assigning_tip'     => '<strong>Le scadenze guidano il filtro In ritardo:</strong> qualsiasi record di avanzamento la cui scadenza è trascorsa e il cui stato non è <span class="help-pill info">Completato</span> o <span class="help-pill ok">Superato</span> compare sotto il filtro <span class="help-pill warn">In ritardo</span> nella scheda Avanzamento.',
         'assigning_warn'    => '<strong>Un\'assegnazione per coppia corso/gruppo:</strong> una combinazione duplicata viene rifiutata (vedrai un messaggio di errore amichevole). Vuoi riassegnare con una nuova scadenza? Elimina prima la vecchia assegnazione, poi creane una nuova.',
 
         // 5. Launching

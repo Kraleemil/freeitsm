@@ -270,7 +270,7 @@ return [
         'nav_ahead'      => 'What\'s still ahead',
 
         // 1. Anatomy
-        'anatomy_heading' => '1. Anatomy of a workflow',
+        'anatomy_heading' => 'Anatomy of a workflow',
         'anatomy_intro'   => 'Every workflow has three parts:',
         'anatomy_trigger'    => '<strong>Trigger</strong> &mdash; the event that fires the workflow. Examples: <code>ticket.created</code>, <code>ticket.priority_changed</code>, <code>ticket.assigned</code>. Exactly one trigger per workflow.',
         'anatomy_conditions' => '<strong>Conditions</strong> <em>(optional)</em> &mdash; filters that decide whether the workflow runs. All conditions must match (AND semantics). <em>"Only when priority is Critical AND department is Finance."</em>',
@@ -278,7 +278,7 @@ return [
         'anatomy_exec'    => 'Execution is synchronous &mdash; the workflow runs in the same web request that fired the event. Each run writes a row to the execution log with the full trigger payload, every condition\'s pass/fail, and every action\'s result.',
 
         // 2. Canvas
-        'canvas_heading' => '2. The visual canvas',
+        'canvas_heading' => 'The visual canvas',
         'canvas_intro'   => 'The editor is a dot-grid canvas with three node shapes:',
         'canvas_trigger'   => '<strong>Trigger node</strong> &mdash; amber pill, pinned at the top centre. One per workflow; can\'t be deleted.',
         'canvas_condition' => '<strong>Condition nodes</strong> &mdash; orange diamonds. Add one with <em>Add condition</em>. Drag to reorder.',
@@ -287,7 +287,7 @@ return [
         'canvas_panel'   => 'Click any node to open the detail panel on the right. Click empty canvas to switch the panel back to the workflow-level fields (name / description / active flag / recent runs). Right-click or press Delete to remove the selected node (except the trigger).',
 
         // 3. Conditions
-        'conditions_heading' => '3. Conditions',
+        'conditions_heading' => 'Conditions',
         'conditions_intro'   => 'The condition panel has three controls: <strong>Field</strong>, <strong>Operator</strong>, <strong>Value</strong>. Their behaviour adapts to the chosen field type:',
         'conditions_lookup_heading' => 'Lookup fields (priority, status, department, type, analyst&hellip;)',
         'conditions_lookup_body'    => 'The value control is a <strong>checkbox list of real values</strong> pulled from the lookup table &mdash; not opaque ids. Tick one for an exact match, tick several for OR semantics (e.g. <em>"priority is Critical OR High"</em>). The operator dropdown collapses to <strong>is / is not / is empty / is not empty</strong> &mdash; the multi-select handles the rest.',
@@ -297,7 +297,7 @@ return [
         'conditions_num_body'    => 'Numeric operators: <strong>equals / not equals / is one of / is not one of / greater than / less than / is empty / is not empty</strong>. No <em>contains</em> &mdash; substring search on a number is meaningless.',
 
         // 4. Actions
-        'actions_heading' => '4. Actions',
+        'actions_heading' => 'Actions',
         'actions_intro'   => 'Nine handlers ship today. Pick an action\'s type from the dropdown and a labelled form appears below with the right widget per arg (text input, textarea, number input, lookup dropdown):',
         'actions_th_type'     => 'Type',
         'actions_th_does'     => 'What it does',
@@ -324,7 +324,7 @@ return [
         'actions_webhook_callout' => '<strong>The <code>send_webhook</code> action is a big topic of its own</strong> &mdash; chat presets, whole-object &ldquo;Full record&rdquo; payloads, HMAC signing, a Send-test button, background delivery with retries, and a health dashboard. It has a dedicated guide: <a href="help-webhooks.php"><strong>Webhooks guide &rarr;</strong></a>',
 
         // 5. Variables
-        'variables_heading' => '5. Variables &mdash; <code>{{path.to.field}}</code>',
+        'variables_heading' => 'Variables &mdash; <code>{{path.to.field}}</code>',
         'variables_intro'   => 'Any free-text action arg can pull values out of the event that fired it. You don\'t have to type the codes by hand: every variable-friendly field has an <strong>Edit with variables</strong> button that opens a roomy editor with a <strong>searchable list of variables down the side</strong> — click one and it drops in at your cursor. A live preview shows the finished text with each code swapped for what it stands for.',
         'variables_scoped'  => '<strong>You are only ever offered variables the trigger can actually fill in.</strong> This matters more than it sounds: a missing variable doesn\'t raise an error, it quietly resolves to an <em>empty string</em>. So a workflow on <code>knowledge.published</code> whose message says <code>{{ticket.subject}}</code> wouldn\'t fail — it would just post a blank where the subject should be, and you\'d never know. There is no ticket in a knowledge event, so the picker doesn\'t offer ticket variables at all, and if you type one anyway the field warns you it will come out blank.',
         'variables_names'   => '<strong>Use the name, not the id.</strong> <code>{{ticket.priority_id}}</code> renders as <code>4</code> &mdash; a number nobody reading your Slack channel can interpret. Every lookup field therefore has a readable twin: <code>{{ticket.priority_name}}</code> renders <strong>Critical</strong>. The picker lists the name as the plain choice (<em>Ticket &middot; Priority</em>) and marks the numeric one <em>(id)</em>, because the name is almost always the one you want in a message a person will read. The ids are still there when you need them &mdash; for a condition, or for a receiving system that expects them. You also get <code>{{old_priority_name}}</code> / <code>{{new_priority_name}}</code> on the change triggers, so "escalated from High to Critical" writes itself.',
@@ -339,7 +339,7 @@ return [
         'variables_tip' => '<strong>Best practice:</strong> in action <code>ticket_id</code> fields, leave the default <code>{{ticket.id}}</code> rather than typing a specific id &mdash; that way the workflow operates on whichever ticket triggered it, not a fixed one.',
 
         // 6. AI co-author
-        'ai_heading' => '6. AI co-author',
+        'ai_heading' => 'AI co-author',
         'ai_intro'   => 'Click <strong>AI co-author</strong> on the toolbar and describe the workflow in plain English. The AI returns a structured proposal &mdash; trigger, conditions, actions &mdash; that you can <em>Apply</em> to the canvas or <em>Discard</em>.',
         'ai_examples' => 'Examples that work well:',
         'ai_ex1' => '<em>"When a Critical-priority ticket is created, add a note saying \'P1 &mdash; please respond within 15 minutes\'."</em>',
@@ -355,7 +355,7 @@ return [
         'templates_scheduled' => 'The four time-based recipes need a <strong>scheduled task</strong> to be running, because nothing they watch for is an event &mdash; no-one saves anything when an SLA quietly runs out of time, so a job has to go looking. If the crons are not scheduled these workflows sit there, active, and never fire. The two expiry reminders also fire at <strong>90, 30, 7 and 1 days</strong> out, and each recipe filters to the 30-day one &mdash; change that condition, or drop it, to be told at every window. See <a href="#triggers">Triggers</a>.',
         'templates_callout' => 'A cloned template always arrives <strong>switched off</strong>. Nothing it contains can fire until you have read it, filled in the gaps and ticked <em>Active</em> &mdash; and you can <strong>Dry run</strong> it first to see precisely what it would do.',
 
-        'testing_heading' => '7. Saving and testing',
+        'testing_heading' => 'Saving and testing',
         'testing_save'    => 'The status pip in the toolbar shows <em>Unsaved</em> / <em>Saving&hellip;</em> / <em>Saved</em>. Click <strong>Save</strong> to persist. You can save in-progress drafts with zero actions &mdash; you\'ll get a soft "this workflow has no actions yet" warning rather than being blocked.',
         'testing_dry_heading' => 'Dry run &mdash; see what it would do, without doing it',
         'testing_dry_body'    => '<strong>Dry run</strong> evaluates the conditions for real, then <em>describes</em> each action instead of carrying it out. The run appears in <em>Recent runs</em> marked <em>Dry run</em>, listing every action it would have taken with the <code>{{variables}}</code> already filled in &mdash; so you read the actual email subject, the actual chat message, the actual note.',
@@ -368,7 +368,7 @@ return [
         'testing_real'    => 'To test against real data, just do the thing that triggers it &mdash; assign a ticket, change its priority, etc. The dispatch from the host module (Tickets) is live; the execution log shows every fire.',
 
         // 8. The trigger catalogue
-        'triggers_heading' => '8. The trigger catalogue',
+        'triggers_heading' => 'The trigger catalogue',
         'triggers_intro'   => 'The catalogue now spans <strong>every module &mdash; 138 triggers and counting</strong>, all wired and live. They come in two kinds:',
         'triggers_time_heading' => 'Time-based triggers &mdash; and the cron they need',
         'triggers_time_body'    => 'Most triggers fire from a <strong>write path</strong>: someone saved a ticket, so there is a moment to fire from. Four don\'t. <code>sla.warning</code>, <code>sla.breached</code>, <code>contract.expiring</code> and <code>asset.warranty_expiring</code> aren\'t events at all &mdash; <em>nothing happened, time passed</em> &mdash; so a scheduled job has to go looking for them.',
@@ -379,11 +379,11 @@ return [
         'triggers_picker'  => 'Because the list is dozens deep, the editor\'s <strong>trigger picker is searchable</strong> &mdash; start typing (<code>resolved</code>, <code>contract</code>, <code>delete</code>&hellip;) to filter it. Each event fires from a <strong>single shared write path</strong>, so it behaves identically whether the change came from the browser, the REST API, or another workflow &mdash; it can\'t drift.',
 
         // 9. Failures
-        'failures_heading' => '9. Engine failures are isolated',
+        'failures_heading' => 'Engine failures are isolated',
         'failures_callout' => '<strong>A buggy workflow cannot break the host module\'s request.</strong> Every dispatch is wrapped in a try/catch and every action\'s failure is logged to the execution row without aborting the chain. If a workflow stops doing what you expect, check the workflow\'s <em>Recent runs</em> panel &mdash; failures show up there with the underlying error, not as a 500 on the page that triggered them.',
 
         // 10. What's still ahead
-        'ahead_heading' => '10. What\'s still ahead',
+        'ahead_heading' => 'What\'s still ahead',
         'ahead_li1' => '<strong>Tier 3 actions</strong> &mdash; Microsoft Graph: <code>graph_add_to_group</code>, <code>graph_assign_license</code>, <code>graph_disable_user</code>. The new-starter / leaver automations that justify the module\'s existence vs paid ITSM suites. Reuses the existing tenant OAuth scaffolding.',
         'ahead_li4' => '<strong>Dry-run mode</strong> &mdash; run a workflow against a real event but <em>log</em> the actions rather than execute them. So you can see what would have happened before flipping it live.',
         'ahead_li5' => '<strong>Starter recipes</strong> &mdash; clonable templates for the common patterns: new-starter onboarding, P1 incident response, SLA-breach escalation, license-renewal reminder.',

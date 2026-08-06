@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Menugaskan kursus',
-        'assigning_intro'   => 'Tab <strong>Penugasan</strong> memasangkan sebuah kursus dengan sebuah grup, secara opsional dengan tenggat. Segera setelah penugasan disimpan, setiap anggota grup mendapat catatan kemajuan untuk kursus itu (status <span class="lh-pill not-started">Belum Dimulai</span>) dan kursus menjadi dapat dimainkan bagi mereka.',
+        'assigning_intro'   => 'Tab <strong>Penugasan</strong> memasangkan sebuah kursus dengan sebuah grup, secara opsional dengan tenggat. Segera setelah penugasan disimpan, setiap anggota grup mendapat catatan kemajuan untuk kursus itu (status <span class="help-pill">Belum Dimulai</span>) dan kursus menjadi dapat dimainkan bagi mereka.',
         'assigning_step1'   => 'Klik <strong>Tugaskan</strong> pada tab Penugasan.',
         'assigning_step2'   => 'Pilih sebuah kursus dan grup dari menu tarik-turun.',
         'assigning_step3'   => 'Tetapkan tenggat (opsional). Biarkan kosong untuk pelatihan tanpa batas waktu.',
         'assigning_step4'   => 'Simpan. Catatan kemajuan langsung muncul di tab Kemajuan.',
-        'assigning_tip'     => '<strong>Tenggat menggerakkan filter Terlambat:</strong> setiap catatan kemajuan yang tenggatnya telah lewat dan statusnya bukan <span class="lh-pill completed">Selesai</span> atau <span class="lh-pill passed">Lulus</span> akan muncul di bawah filter <span class="lh-pill overdue">Terlambat</span> pada tab Kemajuan.',
+        'assigning_tip'     => '<strong>Tenggat menggerakkan filter Terlambat:</strong> setiap catatan kemajuan yang tenggatnya telah lewat dan statusnya bukan <span class="help-pill info">Selesai</span> atau <span class="help-pill ok">Lulus</span> akan muncul di bawah filter <span class="help-pill warn">Terlambat</span> pada tab Kemajuan.',
         'assigning_warn'    => '<strong>Satu penugasan per pasangan kursus/grup:</strong> kombinasi duplikat ditolak (Anda akan melihat pesan kesalahan yang ramah). Ingin menugaskan ulang dengan tenggat baru? Hapus dulu penugasan lama, lalu buat yang baru.',
 
         // 5. Launching

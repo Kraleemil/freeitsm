@@ -40,76 +40,50 @@ $translationNamespaces = ['common', 'workflow'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="../assets/css/help.css?v=1">
     <style>
-        /* Same shape as workflow/help.php */
-        .wfh-container { display: flex; height: calc(100vh - 48px); background: var(--surface-3, #f5f5f5); }
-        .wfh-sidebar { width: 260px; background: var(--surface, #fff); border-right: 1px solid var(--border, #ddd); padding: 20px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; overflow-y: auto; }
-        .wfh-sidebar h3 { font-size: 12px; font-weight: 600; color: var(--text-dim, #888); text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px; }
-        .wfh-nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted, #555); text-decoration: none; transition: background 0.15s, color 0.15s; }
-        .wfh-nav-link:hover { background: var(--surface-3, #f5f5f5); color: var(--text, #333); }
-        .wfh-nav-link.active { background: var(--wf-accent-soft, #fff7ed); color: var(--warning-text, #b45309); font-weight: 600; }
-        .wfh-nav-num { display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 50%; background: var(--surface-3, #f5f5f5); color: var(--text-dim, #888); font-size: 11px; font-weight: 700; }
-        .wfh-nav-link.active .wfh-nav-num { background: var(--wf-accent, #f59e0b); color: white; }
-        .wfh-back { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 12.5px; color: var(--text-muted, #6b7280); text-decoration: none; border-radius: 6px; }
-        .wfh-back:hover { background: var(--surface-3, #f5f5f5); color: var(--text, #374151); }
-
-        .wfh-main { flex: 1; overflow-y: auto; padding: 24px 32px 60px; }
-        .wf-help h2 { font-size: 22px; color: var(--text, #333); margin: 0 0 4px; }
-        .wf-help p { color: var(--text-muted, #555); line-height: 1.6; }
-        .wf-help .lede { font-size: 15px; color: var(--text, #444); }
-        .wf-help h3 { margin: 34px 0 10px; font-size: 16px; color: var(--text, #333); padding-bottom: 6px; border-bottom: 1px solid var(--border-soft, #eee); scroll-margin-top: 20px; }
-        .wf-help h3:first-of-type { margin-top: 22px; }
-        .wf-help h4 { margin: 22px 0 6px; font-size: 14px; color: var(--text, #444); }
-        .wf-help ul, .wf-help ol { color: var(--text-muted, #555); line-height: 1.7; padding-left: 22px; }
-        .wf-help li { margin-bottom: 6px; }
-        .wf-help code { background: var(--surface-3, #f4f4f4); padding: 1px 6px; border-radius: 3px; font-size: 12.5px; color: var(--warning-text, #b45309); }
-        .wf-help pre { background: #263238; color: #eceff1; border-radius: 6px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; overflow-x: auto; margin: 14px 0; }
-        .wf-help pre code { background: none; color: inherit; padding: 0; font-size: 12.5px; }
-        .wf-help table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 13px; }
-        .wf-help table th, .wf-help table td { border: 1px solid var(--border, #e5e7eb); padding: 8px 10px; text-align: left; vertical-align: top; }
-        .wf-help table th { background: var(--surface-2, #f9fafb); font-weight: 600; color: var(--text, #374151); }
-        .wf-help .callout { background: var(--wf-accent-soft, #fff7ed); border-left: 3px solid var(--wf-accent, #f59e0b); padding: 10px 14px; margin: 14px 0; border-radius: 4px; font-size: 13.5px; color: var(--warning-text, #92400e); }
-        .wf-help .callout strong { color: var(--warning-text, #78350f); }
-        .wf-help .tip { background: #f0f9ff; border-left: 3px solid #0ea5e9; padding: 10px 14px; margin: 14px 0; border-radius: 4px; font-size: 13.5px; color: #075985; }
-        .wf-help .tip code, .wf-help .callout code { background: rgba(255,255,255,0.55); }
-        .wf-help .steps-num { counter-reset: qs; list-style: none; padding-left: 0; }
-        .wf-help .steps-num li { position: relative; padding: 2px 0 10px 40px; }
-        .wf-help .steps-num li::before { counter-increment: qs; content: counter(qs); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--wf-accent, #f59e0b); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-        /* Dark: sink the pale sky-blue tip box + the translucent-white inline
-           code chips inside tip/callout so they don't glow. */
-        [data-theme-mode="dark"] .wf-help .tip { background: #12263a; border-left-color: #38bdf8; color: #7dd3fc; }
-        [data-theme-mode="dark"] .wf-help .tip code, [data-theme-mode="dark"] .wf-help .callout code { background: rgba(0,0,0,0.30); }
+        /* The only thing a help page should need to say for itself: its colour. */
+        body {
+            --accent:       var(--wf-accent);
+            --accent-hover: var(--wf-accent-hover);
+            --accent-soft:  var(--wf-accent-soft);
+            --on-accent:    var(--wf-on-accent);
+        }
     </style>
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
 
-    <div class="wfh-container">
-        <aside class="wfh-sidebar">
-            <a href="help.php" class="wfh-back">&larr; Back to Workflows guide</a>
+    <div class="help-container">
+        <aside class="help-sidebar">
+            <a href="help.php" class="help-back">&larr; Back to Workflows guide</a>
             <h3>Webhooks</h3>
-            <a href="#what"        class="wfh-nav-link active" data-section="what"><span class="wfh-nav-num">1</span> What is a webhook?</a>
-            <a href="#how"         class="wfh-nav-link" data-section="how"><span class="wfh-nav-num">2</span> How they work here</a>
-            <a href="#quickstart"  class="wfh-nav-link" data-section="quickstart"><span class="wfh-nav-num">3</span> Quick start</a>
-            <a href="#formats"     class="wfh-nav-link" data-section="formats"><span class="wfh-nav-num">4</span> Payload formats</a>
-            <a href="#full"        class="wfh-nav-link" data-section="full"><span class="wfh-nav-num">5</span> Full-record payloads</a>
-            <a href="#testing"     class="wfh-nav-link" data-section="testing"><span class="wfh-nav-num">6</span> Test before you ship</a>
-            <a href="#signing"     class="wfh-nav-link" data-section="signing"><span class="wfh-nav-num">7</span> Signing (HMAC)</a>
-            <a href="#reliability" class="wfh-nav-link" data-section="reliability"><span class="wfh-nav-num">8</span> Reliable delivery</a>
-            <a href="#dashboard"   class="wfh-nav-link" data-section="dashboard"><span class="wfh-nav-num">9</span> The dashboard</a>
-            <a href="#catalogue"   class="wfh-nav-link" data-section="catalogue"><span class="wfh-nav-num">10</span> Event catalogue</a>
-            <a href="#dataprotection" class="wfh-nav-link" data-section="dataprotection"><span class="wfh-nav-num">&#128274;</span> What&rsquo;s stored</a>
-            <a href="#troubleshoot" class="wfh-nav-link" data-section="troubleshoot"><span class="wfh-nav-num">11</span> Troubleshooting</a>
-            <a href="#recipes"     class="wfh-nav-link" data-section="recipes"><span class="wfh-nav-num">12</span> Recipes</a>
+            <a href="#what"        class="help-nav-link active" data-section="what"><span class="help-nav-num">1</span> What is a webhook?</a>
+            <a href="#how"         class="help-nav-link" data-section="how"><span class="help-nav-num">2</span> How they work here</a>
+            <a href="#quickstart"  class="help-nav-link" data-section="quickstart"><span class="help-nav-num">3</span> Quick start</a>
+            <a href="#formats"     class="help-nav-link" data-section="formats"><span class="help-nav-num">4</span> Payload formats</a>
+            <a href="#full"        class="help-nav-link" data-section="full"><span class="help-nav-num">5</span> Full-record payloads</a>
+            <a href="#testing"     class="help-nav-link" data-section="testing"><span class="help-nav-num">6</span> Test before you ship</a>
+            <a href="#signing"     class="help-nav-link" data-section="signing"><span class="help-nav-num">7</span> Signing (HMAC)</a>
+            <a href="#reliability" class="help-nav-link" data-section="reliability"><span class="help-nav-num">8</span> Reliable delivery</a>
+            <a href="#dashboard"   class="help-nav-link" data-section="dashboard"><span class="help-nav-num">9</span> The dashboard</a>
+            <a href="#catalogue"   class="help-nav-link" data-section="catalogue"><span class="help-nav-num">10</span> Event catalogue</a>
+            <a href="#dataprotection" class="help-nav-link" data-section="dataprotection"><span class="help-nav-num">&#128274;</span> What&rsquo;s stored</a>
+            <a href="#troubleshoot" class="help-nav-link" data-section="troubleshoot"><span class="help-nav-num">11</span> Troubleshooting</a>
+            <a href="#recipes"     class="help-nav-link" data-section="recipes"><span class="help-nav-num">12</span> Recipes</a>
         </aside>
 
-        <main class="wfh-main">
-            <div class="tab-content active wf-help">
+        <main class="help-main">
+            <div class="help-content">
             <h2>Webhooks</h2>
-            <p class="lede">A webhook is how FreeITSM tells <strong>other systems</strong> that something happened &mdash; post to Slack when a P1 is raised, ping a monitoring tool when a change is approved, kick off a provisioning script when a new starter form is submitted. This guide takes you from &ldquo;what is a webhook?&rdquo; all the way to signing, retries and the delivery dashboard.</p>
+            <p class="help-lede">A webhook is how FreeITSM tells <strong>other systems</strong> that something happened &mdash; post to Slack when a P1 is raised, ping a monitoring tool when a change is approved, kick off a provisioning script when a new starter form is submitted. This guide takes you from &ldquo;what is a webhook?&rdquo; all the way to signing, retries and the delivery dashboard.</p>
 
             <!-- 1 -->
-            <h3 id="what">1. What is a webhook? (the 101)</h3>
+            <div class="help-section" id="what">
+                <div class="help-section-header">
+                    <span class="help-section-num">1</span>
+                    <div><h3>What is a webhook? (the 101)</h3></div>
+                </div>
             <p>Most integrations you know work by <em>pulling</em> &mdash; a program asks an API &ldquo;anything new?&rdquo; over and over. A webhook flips that around: instead of others polling FreeITSM, <strong>FreeITSM pushes to them the instant something happens</strong>. It&rsquo;s a plain HTTP <code>POST</code> carrying a small JSON body, sent to a URL you control (a &ldquo;receiver&rdquo;).</p>
             <ul>
                 <li><strong>Event</strong> &mdash; something happened (a ticket was raised, a change approved).</li>
@@ -117,10 +91,16 @@ $translationNamespaces = ['common', 'workflow'];
                 <li><strong>Endpoint</strong> &mdash; the URL that receives the POST (a Slack incoming-webhook URL, an automation platform like Zapier/Make, or your own server).</li>
             </ul>
             <p>If you&rsquo;ve ever set up a &ldquo;post to Slack when X happens&rdquo; rule, you&rsquo;ve used a webhook. FreeITSM is the sender; Slack is the receiver.</p>
-            <div class="tip"><strong>Inbound vs outbound.</strong> Webhooks here are <em>outbound</em> &mdash; FreeITSM makes other systems do things. The <em>inbound</em> direction (other systems making FreeITSM do things) is covered by the REST API, the email pipeline, and messaging ingest.</div>
+            <div class="help-note"><strong>Inbound vs outbound.</strong> Webhooks here are <em>outbound</em> &mdash; FreeITSM makes other systems do things. The <em>inbound</em> direction (other systems making FreeITSM do things) is covered by the REST API, the email pipeline, and messaging ingest.</div>
 
             <!-- 2 -->
-            <h3 id="how">2. How webhooks work here &mdash; a workflow action</h3>
+            </div>
+
+            <div class="help-section" id="how">
+                <div class="help-section-header">
+                    <span class="help-section-num">2</span>
+                    <div><h3>How webhooks work here &mdash; a workflow action</h3></div>
+                </div>
             <p>There is no separate &ldquo;webhooks&rdquo; feature to learn. A webhook is simply the <strong>Send a webhook</strong> action inside a <a href="help.php">Workflow</a>. That&rsquo;s deliberate: it means a webhook inherits the whole workflow engine for free.</p>
             <ul>
                 <li><strong>Triggers</strong> &mdash; fire the webhook on any of the catalogue&rsquo;s events (see <a href="#catalogue">Event catalogue</a>).</li>
@@ -131,29 +111,49 @@ $translationNamespaces = ['common', 'workflow'];
             <p>So the mental model is: <em>a workflow catches an event &rarr; conditions decide &rarr; the Send-a-webhook action posts JSON to your endpoint.</em></p>
 
             <!-- 3 -->
-            <h3 id="quickstart">3. Quick start &mdash; Slack in five steps</h3>
-            <ol class="steps-num">
+            </div>
+
+            <div class="help-section" id="quickstart">
+                <div class="help-section-header">
+                    <span class="help-section-num">3</span>
+                    <div><h3>Quick start &mdash; Slack in five steps</h3></div>
+                </div>
+            <ol>
                 <li>In Slack, create an <strong>Incoming Webhook</strong> and copy its URL (it looks like <code>https://hooks.slack.com/services/&hellip;</code>).</li>
                 <li>In FreeITSM, open <strong>Workflows &rarr; New workflow</strong> and pick a trigger &mdash; e.g. <code>ticket.created</code>.</li>
                 <li><em>(Optional)</em> Add a condition, e.g. <em>priority is Critical</em>, so you only ping Slack for P1s.</li>
                 <li>Add action &rarr; <strong>Send a webhook</strong>. Choose the <strong>Slack</strong> preset, paste the URL, and write a message like <code>P1 raised: {{ticket.subject}}</code>.</li>
                 <li>Click <strong>Send test</strong> to see it arrive in Slack, then <strong>Save</strong> and toggle the workflow <em>Active</em>.</li>
             </ol>
-            <div class="callout"><strong>One-time setup:</strong> outbound webhooks are delivered by a background worker that must be scheduled to run (once). If it isn&rsquo;t, <strong>System &rarr; Webhooks</strong> tells you in red and gives you the exact command &mdash; see <a href="#reliability">Reliable delivery</a>.</div>
+            <div class="help-note"><strong>One-time setup:</strong> outbound webhooks are delivered by a background worker that must be scheduled to run (once). If it isn&rsquo;t, <strong>System &rarr; Webhooks</strong> tells you in red and gives you the exact command &mdash; see <a href="#reliability">Reliable delivery</a>.</div>
 
             <!-- 4 -->
-            <h3 id="formats">4. Choosing a payload format</h3>
+            </div>
+
+            <div class="help-section" id="formats">
+                <div class="help-section-header">
+                    <span class="help-section-num">4</span>
+                    <div><h3>Choosing a payload format</h3></div>
+                </div>
             <p>The Send-a-webhook action offers four body formats. Pick the one that matches your receiver:</p>
+            <div class="help-table">
             <table>
                 <tr><th>Format</th><th>Best for</th><th>What it sends</th></tr>
                 <tr><td><strong>Slack / Teams / Discord</strong></td><td>Chat notifications</td><td>A templated <code>message</code> wrapped in that platform&rsquo;s exact chat-message JSON, so it lands as a proper formatted message with zero work on your side.</td></tr>
                 <tr><td><strong>Custom</strong></td><td>Any other endpoint</td><td>A raw JSON <code>body</code> you write yourself, interpolating event fields with <code>{{&hellip;}}</code> placeholders. Match any target&rsquo;s exact contract.</td></tr>
                 <tr><td><strong>Full record</strong></td><td>Data sync / automation platforms</td><td>The <em>entire object as JSON</em>, in exactly the shape the REST API returns for that record (see next section).</td></tr>
             </table>
+            </div>
             <p>In Custom mode, the field-dropdown in the editor lists the variables available for your chosen trigger, so you don&rsquo;t have to guess field names.</p>
 
             <!-- 5 -->
-            <h3 id="full">5. Full-record payloads &mdash; the whole object, for free</h3>
+            </div>
+
+            <div class="help-section" id="full">
+                <div class="help-section-header">
+                    <span class="help-section-num">5</span>
+                    <div><h3>Full-record payloads &mdash; the whole object, for free</h3></div>
+                </div>
             <p>Sometimes a receiver wants the <em>whole record</em>, not just a line of text &mdash; e.g. a data warehouse or an automation platform that mirrors your tickets. Two ways to send it:</p>
             <ul>
                 <li>The <strong>Full record</strong> preset &mdash; sends the entire object, nothing else to configure.</li>
@@ -162,20 +162,32 @@ $translationNamespaces = ['common', 'workflow'];
             <p>The magic: the payload is <strong>byte-for-byte identical to what the REST API returns</strong> for <code>GET /&lt;resource&gt;/{id}</code>, because it reuses the very same serialisers. So a webhook payload and an API response for the same record share the same rich, typed, documented (OpenAPI) shape &mdash; free consistency.</p>
             <p>Supported today &mdash; one per record type whose API <code>GET /{id}</code> is a clean single fetch:</p>
             <p><code>ticket.full</code>, <code>change.full</code>, <code>problem.full</code>, <code>task.full</code>, <code>asset.full</code>, <code>article.full</code> (knowledge), <code>contract.full</code>, <code>supplier.full</code>, <code>calendar_event.full</code>, <code>software_licence.full</code>, and <code>incident.full</code> (service-status).</p>
-            <div class="tip">It&rsquo;s loaded <strong>lazily</strong> (only when the Full-record preset is chosen or your body mentions <code>.full</code>, so a plain Slack ping never pays for it) and <strong>best-effort</strong> (if the record can&rsquo;t be loaded, the webhook still sends, just without <code>.full</code>). CMDB objects and network diagrams don&rsquo;t have a <code>.full</code> yet &mdash; their API GET hydrates deep child collections &mdash; but their events still carry id + name inline.</div>
+            <div class="help-note">It&rsquo;s loaded <strong>lazily</strong> (only when the Full-record preset is chosen or your body mentions <code>.full</code>, so a plain Slack ping never pays for it) and <strong>best-effort</strong> (if the record can&rsquo;t be loaded, the webhook still sends, just without <code>.full</code>). CMDB objects and network diagrams don&rsquo;t have a <code>.full</code> yet &mdash; their API GET hydrates deep child collections &mdash; but their events still carry id + name inline.</div>
 
             <!-- 6 -->
-            <h3 id="testing">6. Test before you ship</h3>
+            </div>
+
+            <div class="help-section" id="testing">
+                <div class="help-section-header">
+                    <span class="help-section-num">6</span>
+                    <div><h3>Test before you ship</h3></div>
+                </div>
             <p>Guessing whether a webhook is wired up correctly is miserable. Don&rsquo;t &mdash; use <strong>Send test</strong> in the Send-a-webhook action panel:</p>
             <ul>
                 <li>It renders your templates against a <strong>real, representative sample</strong> (the most recent real ticket, so <code>{{ticket.*}}</code> and Full-record look true-to-life).</li>
                 <li>It sends the request <strong>right then</strong> and shows you the endpoint&rsquo;s <strong>real response</strong> &mdash; a Delivered / Not-delivered pill, the HTTP status and round-trip time, the exact JSON that was sent, and the response body.</li>
                 <li>It does <strong>not</strong> save or enqueue anything &mdash; it&rsquo;s a one-off preview.</li>
             </ul>
-            <div class="tip">Send test uses the <em>identical</em> request builder and transport as a real delivery, so &ldquo;it worked in test&rdquo; genuinely means it will work live.</div>
+            <div class="help-note">Send test uses the <em>identical</em> request builder and transport as a real delivery, so &ldquo;it worked in test&rdquo; genuinely means it will work live.</div>
 
             <!-- 7 -->
-            <h3 id="signing">7. Signing payloads (HMAC)</h3>
+            </div>
+
+            <div class="help-section" id="signing">
+                <div class="help-section-header">
+                    <span class="help-section-num">7</span>
+                    <div><h3>Signing payloads (HMAC)</h3></div>
+                </div>
             <p>Anyone who learns your endpoint URL could POST fake events to it. To prove a delivery genuinely came from your FreeITSM instance, set a <strong>signing secret</strong> on the action. Each request is then signed:</p>
             <pre><code>X-FreeITSM-Signature: sha256=&lt;HMAC-SHA256(body, your_secret)&gt;</code></pre>
             <p>Your receiver recomputes the same signature with the same secret and rejects anything that doesn&rsquo;t match. A tiny PHP receiver:</p>
@@ -189,10 +201,16 @@ if (!hash_equals($expected, $sig)) {
     exit('bad signature');   // not from us — drop it
 }
 $event = json_decode($body, true);   // trusted from here</code></pre>
-            <div class="callout"><strong>The secret is never stored.</strong> FreeITSM computes the signature at the moment a delivery is queued and keeps only the resulting header &mdash; so your secret never lands in the database or the delivery log. Keep it out of source control and treat it like a password.</div>
+            <div class="help-note"><strong>The secret is never stored.</strong> FreeITSM computes the signature at the moment a delivery is queued and keeps only the resulting header &mdash; so your secret never lands in the database or the delivery log. Keep it out of source control and treat it like a password.</div>
 
             <!-- 8 -->
-            <h3 id="reliability">8. Reliable delivery &mdash; the async engine</h3>
+            </div>
+
+            <div class="help-section" id="reliability">
+                <div class="help-section-header">
+                    <span class="help-section-num">8</span>
+                    <div><h3>Reliable delivery &mdash; the async engine</h3></div>
+                </div>
             <p>Networks fail. Receivers go down or rate-limit you. A naive &ldquo;POST and hope&rdquo; would silently lose those events &mdash; FreeITSM doesn&rsquo;t. Every send is <strong>queued</strong> and handed to a background worker, which gives you:</p>
             <ul>
                 <li><strong>Retries with backoff</strong> &mdash; a failed delivery is retried on an increasing delay (1m &rarr; 5m &rarr; 15m &rarr; 1h &rarr; 6h), not hammered.</li>
@@ -204,27 +222,45 @@ $event = json_decode($body, true);   // trusted from here</code></pre>
             <p>The background worker (<code>cron/webhook_deliveries.php</code>) has to be scheduled to run every minute &mdash; via Windows Task Scheduler, cron, or a hosted cron service hitting it over HTTP. <strong>System &rarr; Webhooks</strong> detects live whether it&rsquo;s running and, if not, shows the exact command for <em>your</em> install with a copy button. Until it runs, webhooks queue but don&rsquo;t leave the building.</p>
 
             <!-- 9 -->
-            <h3 id="dashboard">9. The Webhooks dashboard</h3>
+            </div>
+
+            <div class="help-section" id="dashboard">
+                <div class="help-section-header">
+                    <span class="help-section-num">9</span>
+                    <div><h3>The Webhooks dashboard</h3></div>
+                </div>
             <p><strong>System &rarr; Webhooks</strong> (also reachable from <strong>Workflows &rarr; Webhook deliveries</strong>) is the single home for everything delivery-related, in three bands:</p>
             <ul>
                 <li><strong>Worker status</strong> &mdash; a live green/amber/red check of whether the background worker is running, with setup steps if it isn&rsquo;t.</li>
                 <li><strong>Overview</strong> &mdash; delivery health at a glance: a 7-day <em>success rate</em>, <em>volume sent</em> (plus last 24h), <em>average delivery time</em>, how many are <em>queued</em> and <em>dead-lettered</em>, a 14-day delivered-vs-failed <em>volume chart</em>, and tables of your busiest <em>endpoints</em> and <em>source workflows</em>, each with its own success rate. Enough to spot a failing integration without reading the log line by line.</li>
                 <li><strong>Delivery log</strong> &mdash; every send, filterable by status, with the full request payload, the full response, the last error, and a <strong>Replay</strong> button.</li>
             </ul>
-            <div class="tip">Success rate counts <em>terminal</em> outcomes only (delivered vs dead) &mdash; deliveries still in flight or mid-retry aren&rsquo;t counted against you.</div>
+            <div class="help-note">Success rate counts <em>terminal</em> outcomes only (delivered vs dead) &mdash; deliveries still in flight or mid-retry aren&rsquo;t counted against you.</div>
 
             <!-- 10 -->
-            <h3 id="catalogue">10. The event catalogue</h3>
+            </div>
+
+            <div class="help-section" id="catalogue">
+                <div class="help-section-header">
+                    <span class="help-section-num">10</span>
+                    <div><h3>The event catalogue</h3></div>
+                </div>
             <p>You can fire a webhook on any event in the catalogue &mdash; and it&rsquo;s big: <strong>138 triggers and counting</strong>, spanning every module. There are two kinds:</p>
             <ul>
                 <li><strong>Rich domain events</strong> &mdash; meaningful lifecycle moments with a full payload: <code>ticket.created</code>, <code>ticket.status_changed</code>, <code>change.approved</code>, <code>problem.status_changed</code>, <code>task.completed</code>, <code>service_status.incident_resolved</code>, <code>software.application_discovered</code>, and many more.</li>
                 <li><strong>Create / update / delete events</strong> &mdash; every reusable record and settings lookup emits <code>&lt;entity&gt;.created</code> / <code>.updated</code> / <code>.deleted</code>: tickets, assets, changes, problems, tasks, CMDB, contracts &amp; suppliers, calendar, software licences, network diagrams, and all their settings lists (statuses, priorities, types, tags&hellip;).</li>
             </ul>
             <p>Because the list is dozens deep, the workflow editor&rsquo;s <strong>trigger picker is searchable</strong> &mdash; start typing (<code>resolved</code>, <code>contract</code>, <code>delete</code>&hellip;) to filter it. Each event carries a typed payload, so conditions get real dropdowns of values rather than opaque numbers.</p>
-            <div class="tip">Every event fires from a <strong>single</strong> shared write path, so it behaves identically whether the change was made by an analyst in the browser, by a script hitting the REST API, or by another workflow &mdash; it can&rsquo;t drift. The full, always-current list lives in the <a href="https://github.com/edmozley/freeitsm/wiki/Webhooks#event-catalogue" target="_blank" rel="noopener">Webhooks wiki</a>.</div>
+            <div class="help-note">Every event fires from a <strong>single</strong> shared write path, so it behaves identically whether the change was made by an analyst in the browser, by a script hitting the REST API, or by another workflow &mdash; it can&rsquo;t drift. The full, always-current list lives in the <a href="https://github.com/edmozley/freeitsm/wiki/Webhooks#event-catalogue" target="_blank" rel="noopener">Webhooks wiki</a>.</div>
 
             <!-- 11 -->
-            <h3 id="dataprotection">What FreeITSM stores, and for how long</h3>
+            </div>
+
+            <div class="help-section" id="dataprotection">
+                <div class="help-section-header">
+                    <span class="help-section-num">\&#128274;</span>
+                    <div><h3>What FreeITSM stores, and for how long</h3></div>
+                </div>
             <p>Three things about a webhook end up on disk, and it&rsquo;s worth knowing what happens to each.</p>
             <h4>The URL and the signing secret &mdash; encrypted</h4>
             <p>A webhook URL is a <strong>credential in its own right</strong>: anyone holding your Discord or Slack URL can post into that channel. The signing secret is a true secret &mdash; its whole job is proving a message really came from you, which anyone who could read it could forge. Both are <strong>encrypted at rest</strong> (AES-256-GCM), in the workflow itself and in the delivery queue, and the URL is <strong>redacted in the delivery log</strong> so the token isn&rsquo;t sitting in a screen any analyst can open.</p>
@@ -232,9 +268,16 @@ $event = json_decode($body, true);   // trusted from here</code></pre>
             <h4>The payload &mdash; kept only as long as you choose</h4>
             <p>The delivery log stores <em>the exact payload that was sent</em>, so you can see what went out. With the <strong>Full record</strong> format that is an <strong>entire ticket</strong> &mdash; subject, requester, the lot &mdash; copied into the queue table in plain text. That is a real data-at-rest question, so it gets an explicit answer rather than an accidental one: <strong>System &rarr; Webhooks &rarr; Data protection</strong> sets how long payload bodies are kept (default <strong>7 days</strong>; you can also choose never to store them at all).</p>
             <p>When the window passes, the payload and response bodies are scrubbed but the <strong>delivery record is kept</strong> &mdash; endpoint, status, timing, errors &mdash; so your dashboard and your audit trail survive intact. The whole row is eventually removed by the separate log-retention setting.</p>
-            <div class="callout"><strong>The trade-off, stated plainly.</strong> <em>Replay</em> re-sends the stored payload. Once a payload has been scrubbed there is nothing left to re-send, so that delivery can no longer be replayed &mdash; FreeITSM tells you exactly that, rather than quietly POSTing an empty body to a live endpoint. In practice you replay a webhook within hours of it failing, not weeks, which is why the payload window is shorter than the record&rsquo;s.</div>
+            <div class="help-note"><strong>The trade-off, stated plainly.</strong> <em>Replay</em> re-sends the stored payload. Once a payload has been scrubbed there is nothing left to re-send, so that delivery can no longer be replayed &mdash; FreeITSM tells you exactly that, rather than quietly POSTing an empty body to a live endpoint. In practice you replay a webhook within hours of it failing, not weeks, which is why the payload window is shorter than the record&rsquo;s.</div>
 
-            <h3 id="troubleshoot">11. Troubleshooting</h3>
+            </div>
+
+            <div class="help-section" id="troubleshoot">
+                <div class="help-section-header">
+                    <span class="help-section-num">11</span>
+                    <div><h3>Troubleshooting</h3></div>
+                </div>
+            <div class="help-table">
             <table>
                 <tr><th>Symptom</th><th>Likely cause &amp; fix</th></tr>
                 <tr><td><em>&ldquo;unable to get local issuer certificate&rdquo;</em> / any SSL certificate error</td><td>Your server has no list of trusted certificate authorities, so it can&rsquo;t confirm it&rsquo;s really talking to Slack or Discord. Extremely common on a fresh Windows/WAMP install, and <strong>not a problem with your webhook</strong>. Full explanation and the five-minute fix: <a href="help-ssl.php" style="font-weight:600;">HTTPS certificate verification &rarr;</a></td></tr>
@@ -244,9 +287,16 @@ $event = json_decode($body, true);   // trusted from here</code></pre>
                 <tr><td>Receiver rejects with 401</td><td>Signature mismatch &mdash; the secret on the action and on your receiver differ, or the receiver hashes something other than the raw body.</td></tr>
                 <tr><td>The webhook never fires</td><td>Check the workflow is <em>Active</em>, its trigger matches, and its conditions pass &mdash; the workflow&rsquo;s <em>Recent runs</em> shows <em>skipped</em> runs and why.</td></tr>
             </table>
+            </div>
 
             <!-- 12 -->
-            <h3 id="recipes">12. Recipes</h3>
+            </div>
+
+            <div class="help-section" id="recipes">
+                <div class="help-section-header">
+                    <span class="help-section-num">12</span>
+                    <div><h3>Recipes</h3></div>
+                </div>
             <ul>
                 <li><strong>P1 &rarr; Slack / PagerDuty</strong> &mdash; trigger <code>ticket.created</code> (or <code>ticket.priority_changed</code>), condition <em>priority is Critical</em>, Slack preset or a Custom PagerDuty Events API body.</li>
                 <li><strong>Change approved &rarr; deploy pipeline</strong> &mdash; trigger <code>change.approved</code>, Custom body posting to your CI/CD webhook with <code>{{change.full}}</code>.</li>
@@ -254,7 +304,8 @@ $event = json_decode($body, true);   // trusted from here</code></pre>
                 <li><strong>New software discovered &rarr; security review</strong> &mdash; trigger <code>software.application_discovered</code>, Teams preset to your security channel.</li>
                 <li><strong>Data mirror</strong> &mdash; trigger the relevant <code>&lt;entity&gt;.created/.updated/.deleted</code>, Full-record preset to your warehouse ingest endpoint (signed).</li>
             </ul>
-            <p style="margin-top:24px;"><a href="help.php" class="wfh-back" style="display:inline-flex; padding-left:0;">&larr; Back to the Workflows guide</a></p>
+            <p style="margin-top:24px;"><a href="help.php" class="help-back" style="display:inline-flex; padding-left:0;">&larr; Back to the Workflows guide</a></p>
+            </div>
             </div>
         </main>
     </div>
@@ -262,8 +313,8 @@ $event = json_decode($body, true);   // trusted from here</code></pre>
     <script>
     // Scroll-spy (identical to workflow/help.php).
     (function () {
-        const helpMain = document.querySelector('.wfh-main');
-        const navLinks = document.querySelectorAll('.wfh-nav-link[data-section]');
+        const helpMain = document.querySelector('.help-main');
+        const navLinks = document.querySelectorAll('.help-nav-link[data-section]');
         const sections = [];
         navLinks.forEach(link => {
             const el = document.getElementById(link.dataset.section);

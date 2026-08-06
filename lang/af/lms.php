@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Kursusse toewys',
-        'assigning_intro'   => 'Die <strong>Toewysings</strong>-oortjie paar \'n kursus met \'n groep, opsioneel met \'n sperdatum. Sodra die toewysing gestoor is, kry elke lid van die groep \'n vorderingsrekord vir daardie kursus (status <span class="lh-pill not-started">Nie begin nie</span>) en die kursus word vir hulle speelbaar.',
+        'assigning_intro'   => 'Die <strong>Toewysings</strong>-oortjie paar \'n kursus met \'n groep, opsioneel met \'n sperdatum. Sodra die toewysing gestoor is, kry elke lid van die groep \'n vorderingsrekord vir daardie kursus (status <span class="help-pill">Nie begin nie</span>) en die kursus word vir hulle speelbaar.',
         'assigning_step1'   => 'Klik <strong>Wys toe</strong> op die Toewysings-oortjie.',
         'assigning_step2'   => 'Kies \'n kursus en \'n groep uit die aftreklyste.',
         'assigning_step3'   => 'Stel \'n sperdatum (opsioneel). Laat leeg vir oop opleiding.',
         'assigning_step4'   => 'Stoor. Vorderingsrekords verskyn dadelik in die Vordering-oortjie.',
-        'assigning_tip'     => '<strong>Sperdatums dryf die Agterstallig-filter:</strong> enige vorderingsrekord waar die sperdatum verby is en die status nie <span class="lh-pill completed">Voltooid</span> of <span class="lh-pill passed">Geslaag</span> is nie, verskyn onder die <span class="lh-pill overdue">Agterstallig</span>-filter op die Vordering-oortjie.',
+        'assigning_tip'     => '<strong>Sperdatums dryf die Agterstallig-filter:</strong> enige vorderingsrekord waar die sperdatum verby is en die status nie <span class="help-pill info">Voltooid</span> of <span class="help-pill ok">Geslaag</span> is nie, verskyn onder die <span class="help-pill warn">Agterstallig</span>-filter op die Vordering-oortjie.',
         'assigning_warn'    => '<strong>Een toewysing per kursus/groep-paar:</strong> \'n duplikaatkombinasie word verwerp (jy sal \'n vriendelike fout sien). Wil jy met \'n nuwe sperdatum hertoewys? Skrap eers die ou toewysing en skep dan \'n nuwe.',
 
         // 5. Launching

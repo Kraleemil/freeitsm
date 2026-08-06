@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Attribuer des cours',
-        'assigning_intro'   => 'L\'onglet <strong>Attributions</strong> associe un cours à un groupe, avec une échéance facultative. Dès que l\'attribution est enregistrée, chaque membre du groupe obtient un enregistrement de progression pour ce cours (statut <span class="lh-pill not-started">Non commencé</span>) et le cours devient accessible pour lui.',
+        'assigning_intro'   => 'L\'onglet <strong>Attributions</strong> associe un cours à un groupe, avec une échéance facultative. Dès que l\'attribution est enregistrée, chaque membre du groupe obtient un enregistrement de progression pour ce cours (statut <span class="help-pill">Non commencé</span>) et le cours devient accessible pour lui.',
         'assigning_step1'   => 'Cliquez sur <strong>Attribuer</strong> dans l\'onglet Attributions.',
         'assigning_step2'   => 'Choisissez un cours et un groupe dans les listes déroulantes.',
         'assigning_step3'   => 'Définissez une échéance (facultatif). Laissez vide pour une formation sans limite de temps.',
         'assigning_step4'   => 'Enregistrez. Les enregistrements de progression apparaissent immédiatement dans l\'onglet Progression.',
-        'assigning_tip'     => '<strong>Les échéances pilotent le filtre En retard :</strong> tout enregistrement de progression dont l\'échéance est dépassée et dont le statut n\'est pas <span class="lh-pill completed">Terminé</span> ni <span class="lh-pill passed">Réussi</span> apparaît sous le filtre <span class="lh-pill overdue">En retard</span> de l\'onglet Progression.',
+        'assigning_tip'     => '<strong>Les échéances pilotent le filtre En retard :</strong> tout enregistrement de progression dont l\'échéance est dépassée et dont le statut n\'est pas <span class="help-pill info">Terminé</span> ni <span class="help-pill ok">Réussi</span> apparaît sous le filtre <span class="help-pill warn">En retard</span> de l\'onglet Progression.',
         'assigning_warn'    => '<strong>Une seule attribution par paire cours/groupe :</strong> une combinaison en double est rejetée (vous verrez un message d\'erreur explicite). Vous voulez réattribuer avec une nouvelle échéance ? Supprimez d\'abord l\'ancienne attribution, puis créez-en une nouvelle.',
 
         // 5. Launching

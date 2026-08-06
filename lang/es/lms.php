@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Asignar cursos',
-        'assigning_intro'   => 'La pestaña <strong>Asignaciones</strong> empareja un curso con un grupo, opcionalmente con una fecha límite. En cuanto se guarda la asignación, cada miembro del grupo obtiene un registro de progreso para ese curso (estado <span class="lh-pill not-started">Sin empezar</span>) y el curso pasa a ser reproducible para ellos.',
+        'assigning_intro'   => 'La pestaña <strong>Asignaciones</strong> empareja un curso con un grupo, opcionalmente con una fecha límite. En cuanto se guarda la asignación, cada miembro del grupo obtiene un registro de progreso para ese curso (estado <span class="help-pill">Sin empezar</span>) y el curso pasa a ser reproducible para ellos.',
         'assigning_step1'   => 'Haz clic en <strong>Asignar</strong> en la pestaña Asignaciones.',
         'assigning_step2'   => 'Elige un curso y un grupo en los menús desplegables.',
         'assigning_step3'   => 'Establece una fecha límite (opcional). Déjalo en blanco para formación sin plazo.',
         'assigning_step4'   => 'Guarda. Los registros de progreso aparecen de inmediato en la pestaña Progreso.',
-        'assigning_tip'     => '<strong>Las fechas límite alimentan el filtro Vencido:</strong> cualquier registro de progreso cuya fecha límite haya pasado y cuyo estado no sea <span class="lh-pill completed">Completado</span> ni <span class="lh-pill passed">Aprobado</span> aparece bajo el filtro <span class="lh-pill overdue">Vencido</span> en la pestaña Progreso.',
+        'assigning_tip'     => '<strong>Las fechas límite alimentan el filtro Vencido:</strong> cualquier registro de progreso cuya fecha límite haya pasado y cuyo estado no sea <span class="help-pill info">Completado</span> ni <span class="help-pill ok">Aprobado</span> aparece bajo el filtro <span class="help-pill warn">Vencido</span> en la pestaña Progreso.',
         'assigning_warn'    => '<strong>Una asignación por par curso/grupo:</strong> una combinación duplicada se rechaza (verás un error amable). ¿Quieres reasignar con una nueva fecha límite? Elimina primero la asignación antigua y luego crea una nueva.',
 
         // 5. Launching

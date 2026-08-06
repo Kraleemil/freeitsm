@@ -106,7 +106,8 @@
     padding: 40px var(--help-gutter, 32px) 36px;
     text-align: center;
 }
-.help-hero h2 { margin: 0 0 8px; font-size: 26px; font-weight: 700; }
+.help-hero h1,
+.help-hero h2 { margin: 0 0 8px; font-size: 26px; font-weight: 700; color: inherit; }
 .help-hero p  { margin: 0 auto; font-size: 15px; line-height: 1.6; opacity: 0.9; max-width: 780px; }
 
 /* On dark the module accent is lifted to read on dark surfaces, so using it
@@ -162,6 +163,28 @@
     flex-shrink: 0;
 }
 
+/* A lead paragraph — the one sentence that sets up a whole guide. */
+.help-lede {
+    font-size: 15px;
+    color: var(--text, #444);
+    line-height: 1.65;
+    margin: 0 0 20px;
+}
+
+/* An aside within a paragraph — the "if it redirects you, go here instead"
+   sentence that matters to some readers and not to most. */
+.help-muted { color: var(--text-dim, #888); }
+
+/* "← Back to …" on a deep-dive page that hangs off another guide. */
+.help-back {
+    display: inline-block;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--accent);
+    text-decoration: none;
+}
+.help-back:hover { text-decoration: underline; }
+
 /* -------------------------------------------------------- level 2: body copy */
 
 .help-section > p,
@@ -171,6 +194,20 @@
     color: var(--text-muted, #555);
     line-height: 1.7;
     margin: 0 0 14px;
+}
+.help-section > h4 {
+    margin: 20px 0 8px;
+    font-size: 15px;
+    color: var(--text, #333);
+}
+.help-section > h5,
+.help-note h5 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 14px;
+    color: var(--text, #333);
 }
 .help-section > ul,
 .help-section > ol { padding-left: 20px; }
@@ -205,8 +242,9 @@
     gap: 14px;
     margin: 0 0 14px;
 }
-.help-cards.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .help-cards.cols-1 { grid-template-columns: minmax(0, 1fr); }
+.help-cards.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.help-cards.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 .help-card {
     padding: 16px;
@@ -219,6 +257,23 @@
 .help-card > :last-child { margin-bottom: 0; }
 .help-card-eg { font-size: 12px; color: var(--text-dim, #888); font-style: italic; }
 
+/* Cards whose title/body are a <strong> and loose text rather than h4 + p —
+   the shape most module guides were already written in. Same look either way. */
+.help-card > strong,
+.help-card strong:first-child {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text, #333);
+    margin-bottom: 4px;
+}
+.help-card > span { font-size: 12.5px; color: var(--text-muted, #666); line-height: 1.55; }
+
+/* The one sanctioned card variant: icon on the left rather than above. Use it
+   when the icon is an emoji standing in for a heading, not decoration. */
+.help-card.row { display: flex; align-items: flex-start; gap: 12px; font-size: 13px; color: var(--text-muted, #555); line-height: 1.55; }
+.help-card.row .help-card-icon { margin-bottom: 0; }
+
 .help-card-icon {
     width: 36px;
     height: 36px;
@@ -226,9 +281,44 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     margin-bottom: 10px;
     background: var(--accent-soft);
     color: var(--accent);
+}
+/* An emoji needs no tinted tile behind it. */
+.help-card-icon.plain { width: auto; height: auto; background: none; font-size: 22px; line-height: 1; padding-top: 2px; }
+
+/* ---------------------------------------------------------------- pill tag */
+
+/* A small status tag shown inline in running text. The variants are named for
+   what they mean, not for a colour, so they follow the theme. */
+.help-pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    vertical-align: middle;
+    background: var(--surface-3, #f5f5f5);
+    color: var(--text-muted, #666);
+    border: 1px solid var(--border, #e0e0e0);
+}
+.help-pill.ok   { background: var(--success-bg, #dcfce7); color: var(--success-text, #166534); border-color: var(--success-border, #86efac); }
+.help-pill.warn { background: var(--warning-bg, #fef3c7); color: var(--warning-text, #92400e); border-color: var(--warning-border, #fcd34d); }
+.help-pill.bad  { background: var(--danger-bg, #fee2e2);  color: var(--danger-text, #991b1b);  border-color: var(--danger-border, #fca5a5); }
+.help-pill.info { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+/* A small coloured status dot, coloured by the page that uses it. */
+.help-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--accent);
 }
 
 /* ------------------------------------------------------------------- steps */
@@ -263,6 +353,49 @@
     font-size: 13px;
     flex-shrink: 0;
 }
+
+/* --------------------------------------------------------- plain tinted list */
+
+.help-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+}
+.help-list > div,
+.help-list > li {
+    padding: 8px 14px;
+    background: var(--surface-2, #fafafa);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-muted, #555);
+    line-height: 1.55;
+}
+.help-list strong { color: var(--text, #333); }
+
+/* ------------------------------------------------------------ flow / chain */
+
+.help-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0 0 14px;
+}
+.help-flow-step {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    background: var(--surface-2, #fafafa);
+    color: var(--text, #333);
+    border: 1px solid var(--border, #e0e0e0);
+}
+.help-flow-step.accent { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.help-flow-arrow { padding: 0 6px; color: var(--text-faint, #bbb); font-size: 15px; }
 
 /* ----------------------------------------------------- definitions (term/desc) */
 
@@ -304,6 +437,37 @@
 }
 .help-note.warn strong { color: var(--warning-text, #92400e); }
 
+/* For the thing that will actually cost someone their data. Use it sparingly —
+   a page where everything is a warning has no warnings. */
+.help-note.bad {
+    background: var(--danger-bg, #fee2e2);
+    border-left-color: var(--danger-accent, #ef4444);
+    color: var(--danger-text, #991b1b);
+}
+.help-note.bad strong { color: var(--danger-text, #991b1b); }
+
+.help-note.ok {
+    background: var(--success-bg, #dcfce7);
+    border-left-color: var(--success-accent, #22c55e);
+    color: var(--success-text, #166534);
+}
+.help-note.ok strong { color: var(--success-text, #166534); }
+
+/* ---------------------------------------------------------------- timeline */
+
+/* A worked example told in order — "09:00 raised · 09:12 first reply · …". */
+.help-timeline {
+    background: var(--surface-2, #fafafa);
+    border-left: 3px solid var(--border, #94a3b8);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: var(--text-muted, #555);
+    line-height: 1.7;
+}
+.help-timeline strong { color: var(--accent); }
+
 /* ----------------------------------------------------------------- diagram */
 
 .help-diagram {
@@ -328,9 +492,64 @@
 }
 .help-diagram-line { color: var(--text-faint, #d1d5db); }
 
+/* -------------------------------------------------------------- code block */
+
+/* Deliberately the same dark scheme in both themes — a command someone will
+   paste into a terminal should look like a terminal either way. */
+.help-code,
+.help-content pre {
+    background: #263238;
+    color: #eeffff;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 0 0 14px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+}
+.help-code .comment  { color: #546e7a; }
+.help-code .param    { color: #82aaff; }
+.help-code .string   { color: #c3e88d; }
+.help-code .flag     { color: #ffcb6b; }
+.help-code .optional { color: #b2ccd6; font-style: italic; }
+
 /* --------------------------------------------------------------------- kbd */
 
-.help-content kbd {
+/* ------------------------------------------------------------------ table */
+
+/* Wrapped so a wide table scrolls inside the section instead of stretching it. */
+.help-table { overflow-x: auto; margin: 0 0 14px; }
+.help-content table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+}
+.help-content table th,
+.help-content table td {
+    border: 1px solid var(--border, #e5e7eb);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    color: var(--text-muted, #555);
+    line-height: 1.55;
+}
+.help-content table th {
+    background: var(--surface-2, #f9fafb);
+    font-weight: 600;
+    color: var(--text, #374151);
+}
+
+.help-content code {
+    background: var(--surface-2, #f5f5f5);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+}
+
+.help-content kbd,
+.help-kbd {
     display: inline-block;
     background: var(--surface, #ffffff);
     border: 1px solid var(--border, #d1d5db);
@@ -373,6 +592,9 @@
     .help-section-num { min-width: 26px; height: 26px; font-size: 13px; }
     .help-section-header h3 { font-size: 17px; }
     .help-cards,
-    .help-cards.cols-3 { grid-template-columns: minmax(0, 1fr); }
+    .help-cards.cols-3,
+    .help-cards.cols-4 { grid-template-columns: minmax(0, 1fr); }
     .help-def { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .help-flow { flex-direction: column; align-items: stretch; }
+    .help-flow-arrow { text-align: center; transform: rotate(90deg); }
 }

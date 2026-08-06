@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Kurse zuweisen',
-        'assigning_intro'   => 'Die Registerkarte <strong>Zuweisungen</strong> verknüpft einen Kurs mit einer Gruppe, optional mit einer Frist. Sobald die Zuweisung gespeichert ist, erhält jedes Gruppenmitglied einen Fortschrittsdatensatz für diesen Kurs (Status <span class="lh-pill not-started">Nicht begonnen</span>) und der Kurs wird für sie abspielbar.',
+        'assigning_intro'   => 'Die Registerkarte <strong>Zuweisungen</strong> verknüpft einen Kurs mit einer Gruppe, optional mit einer Frist. Sobald die Zuweisung gespeichert ist, erhält jedes Gruppenmitglied einen Fortschrittsdatensatz für diesen Kurs (Status <span class="help-pill">Nicht begonnen</span>) und der Kurs wird für sie abspielbar.',
         'assigning_step1'   => 'Klicken Sie auf der Registerkarte Zuweisungen auf <strong>Zuweisen</strong>.',
         'assigning_step2'   => 'Wählen Sie einen Kurs und eine Gruppe aus den Dropdown-Menüs.',
         'assigning_step3'   => 'Legen Sie eine Frist fest (optional). Leer lassen für eine zeitlich unbegrenzte Schulung.',
         'assigning_step4'   => 'Speichern. Fortschrittsdatensätze erscheinen sofort auf der Registerkarte Fortschritt.',
-        'assigning_tip'     => '<strong>Fristen steuern den Überfällig-Filter:</strong> Jeder Fortschrittsdatensatz, bei dem die Frist verstrichen ist und der Status nicht <span class="lh-pill completed">Abgeschlossen</span> oder <span class="lh-pill passed">Bestanden</span> ist, erscheint unter dem Filter <span class="lh-pill overdue">Überfällig</span> auf der Registerkarte Fortschritt.',
+        'assigning_tip'     => '<strong>Fristen steuern den Überfällig-Filter:</strong> Jeder Fortschrittsdatensatz, bei dem die Frist verstrichen ist und der Status nicht <span class="help-pill info">Abgeschlossen</span> oder <span class="help-pill ok">Bestanden</span> ist, erscheint unter dem Filter <span class="help-pill warn">Überfällig</span> auf der Registerkarte Fortschritt.',
         'assigning_warn'    => '<strong>Eine Zuweisung pro Kurs-/Gruppen-Paar:</strong> Eine doppelte Kombination wird abgelehnt (Sie sehen eine freundliche Fehlermeldung). Möchten Sie mit einer neuen Frist neu zuweisen? Löschen Sie zuerst die alte Zuweisung und erstellen Sie dann eine neue.',
 
         // 5. Launching

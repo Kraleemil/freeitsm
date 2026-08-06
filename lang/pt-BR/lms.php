@@ -379,12 +379,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Atribuir cursos',
-        'assigning_intro'   => 'A aba <strong>Atribuições</strong> combina um curso com um grupo, opcionalmente com um prazo. Assim que a atribuição é salva, cada membro do grupo recebe um registro de progresso para aquele curso (status <span class="lh-pill not-started">Não iniciado</span>) e o curso fica disponível para ser reproduzido por eles.',
+        'assigning_intro'   => 'A aba <strong>Atribuições</strong> combina um curso com um grupo, opcionalmente com um prazo. Assim que a atribuição é salva, cada membro do grupo recebe um registro de progresso para aquele curso (status <span class="help-pill">Não iniciado</span>) e o curso fica disponível para ser reproduzido por eles.',
         'assigning_step1'   => 'Clique em <strong>Atribuir</strong> na aba Atribuições.',
         'assigning_step2'   => 'Escolha um curso e um grupo nas listas suspensas.',
         'assigning_step3'   => 'Defina um prazo (opcional). Deixe em branco para treinamento sem prazo.',
         'assigning_step4'   => 'Salve. Os registros de progresso aparecem imediatamente na aba Progresso.',
-        'assigning_tip'     => '<strong>Os prazos alimentam o filtro Atrasado:</strong> qualquer registro de progresso cujo prazo já passou e cujo status não seja <span class="lh-pill completed">Concluído</span> ou <span class="lh-pill passed">Aprovado</span> aparece no filtro <span class="lh-pill overdue">Atrasado</span> na aba Progresso.',
+        'assigning_tip'     => '<strong>Os prazos alimentam o filtro Atrasado:</strong> qualquer registro de progresso cujo prazo já passou e cujo status não seja <span class="help-pill info">Concluído</span> ou <span class="help-pill ok">Aprovado</span> aparece no filtro <span class="help-pill warn">Atrasado</span> na aba Progresso.',
         'assigning_warn'    => '<strong>Uma atribuição por par curso/grupo:</strong> uma combinação duplicada é rejeitada (você verá um erro amigável). Quer reatribuir com um novo prazo? Exclua a atribuição antiga primeiro e depois crie uma nova.',
 
         // 5. Launching

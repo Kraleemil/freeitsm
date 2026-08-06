@@ -45,83 +45,58 @@ $translationNamespaces = ['common', 'workflow'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="../assets/css/help.css?v=1">
     <style>
-        /* Same shape as workflow/help.php and help-webhooks.php */
-        .wfh-container { display: flex; height: calc(100vh - 48px); background: var(--surface-3, #f5f5f5); }
-        .wfh-sidebar { width: 260px; background: var(--surface, #fff); border-right: 1px solid var(--border, #ddd); padding: 20px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; overflow-y: auto; }
-        .wfh-sidebar h3 { font-size: 12px; font-weight: 600; color: var(--text-dim, #888); text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px; }
-        .wfh-nav-link { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted, #555); text-decoration: none; transition: background 0.15s, color 0.15s; }
-        .wfh-nav-link:hover { background: var(--surface-3, #f5f5f5); color: var(--text, #333); }
-        .wfh-nav-link.active { background: var(--wf-accent-soft, #fff7ed); color: var(--warning-text, #b45309); font-weight: 600; }
-        .wfh-nav-num { display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 50%; background: var(--surface-3, #f5f5f5); color: var(--text-dim, #888); font-size: 11px; font-weight: 700; }
-        .wfh-nav-link.active .wfh-nav-num { background: var(--wf-accent, #f59e0b); color: white; }
-        .wfh-back { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin-bottom: 8px; font-size: 12.5px; color: var(--text-muted, #6b7280); text-decoration: none; border-radius: 6px; }
-        .wfh-back:hover { background: var(--surface-3, #f5f5f5); color: var(--text, #374151); }
-
-        .wfh-main { flex: 1; overflow-y: auto; padding: 24px 32px 60px; }
-        .wf-help h2 { font-size: 22px; color: var(--text, #333); margin: 0 0 4px; }
-        .wf-help p { color: var(--text-muted, #555); line-height: 1.6; }
-        .wf-help .lede { font-size: 15px; color: var(--text, #444); }
-        .wf-help h3 { margin: 34px 0 10px; font-size: 16px; color: var(--text, #333); padding-bottom: 6px; border-bottom: 1px solid var(--border-soft, #eee); scroll-margin-top: 20px; }
-        .wf-help h3:first-of-type { margin-top: 22px; }
-        .wf-help h4 { margin: 22px 0 6px; font-size: 14px; color: var(--text, #444); }
-        .wf-help ul, .wf-help ol { color: var(--text-muted, #555); line-height: 1.7; padding-left: 22px; }
-        .wf-help li { margin-bottom: 6px; }
-        .wf-help code { background: var(--surface-3, #f4f4f4); padding: 1px 6px; border-radius: 3px; font-size: 12.5px; color: var(--warning-text, #b45309); }
-        .wf-help pre { background: #263238; color: #eceff1; border-radius: 6px; padding: 14px 16px; font-size: 12.5px; line-height: 1.55; overflow-x: auto; margin: 14px 0; }
-        .wf-help pre code { background: none; color: inherit; padding: 0; font-size: 12.5px; }
-        .wf-help table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 13px; }
-        .wf-help table th, .wf-help table td { border: 1px solid var(--border, #e5e7eb); padding: 8px 10px; text-align: left; vertical-align: top; }
-        .wf-help table th { background: var(--surface-2, #f9fafb); font-weight: 600; color: var(--text, #374151); }
-        .wf-help .callout { background: var(--wf-accent-soft, #fff7ed); border-left: 3px solid var(--wf-accent, #f59e0b); padding: 10px 14px; margin: 14px 0; border-radius: 4px; font-size: 13.5px; color: var(--warning-text, #92400e); }
-        .wf-help .callout strong { color: var(--warning-text, #78350f); }
-        .wf-help .tip { background: #f0f9ff; border-left: 3px solid #0ea5e9; padding: 10px 14px; margin: 14px 0; border-radius: 4px; font-size: 13.5px; color: #075985; }
-        .wf-help .tip code, .wf-help .callout code, .wf-help .danger code { background: rgba(255,255,255,0.55); }
-        /* Red box — reserved for the genuinely dangerous advice. */
-        .wf-help .danger { background: #fef2f2; border-left: 3px solid #dc2626; padding: 10px 14px; margin: 14px 0; border-radius: 4px; font-size: 13.5px; color: #991b1b; }
-        .wf-help .danger strong { color: #7f1d1d; }
-        .wf-help .steps-num { counter-reset: qs; list-style: none; padding-left: 0; }
-        .wf-help .steps-num li { position: relative; padding: 2px 0 10px 40px; }
-        .wf-help .steps-num li::before { counter-increment: qs; content: counter(qs); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--wf-accent, #f59e0b); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-        [data-theme-mode="dark"] .wf-help .tip { background: #12263a; border-left-color: #38bdf8; color: #7dd3fc; }
-        [data-theme-mode="dark"] .wf-help .danger { background: #2c1618; border-left-color: #f87171; color: #fca5a5; }
-        [data-theme-mode="dark"] .wf-help .danger strong { color: #fecaca; }
-        [data-theme-mode="dark"] .wf-help .tip code,
-        [data-theme-mode="dark"] .wf-help .callout code,
-        [data-theme-mode="dark"] .wf-help .danger code { background: rgba(0,0,0,0.30); }
+        /* The only thing a help page should need to say for itself: its colour. */
+        body {
+            --accent:       var(--wf-accent);
+            --accent-hover: var(--wf-accent-hover);
+            --accent-soft:  var(--wf-accent-soft);
+            --on-accent:    var(--wf-on-accent);
+        }
     </style>
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
 
-    <div class="wfh-container">
-        <aside class="wfh-sidebar">
-            <a href="help.php" class="wfh-back">&larr; Back to Workflows guide</a>
+    <div class="help-container">
+        <aside class="help-sidebar">
+            <a href="help.php" class="help-back">&larr; Back to Workflows guide</a>
             <h3>HTTPS certificates</h3>
-            <a href="#symptom"  class="wfh-nav-link active" data-section="symptom"><span class="wfh-nav-num">1</span> The error you saw</a>
-            <a href="#what"     class="wfh-nav-link" data-section="what"><span class="wfh-nav-num">2</span> What verification is</a>
-            <a href="#bundle"   class="wfh-nav-link" data-section="bundle"><span class="wfh-nav-num">3</span> What a CA bundle is</a>
-            <a href="#why"      class="wfh-nav-link" data-section="why"><span class="wfh-nav-num">4</span> Why this happens</a>
-            <a href="#fix"      class="wfh-nav-link" data-section="fix"><span class="wfh-nav-num">5</span> The fix</a>
-            <a href="#verify"   class="wfh-nav-link" data-section="verify"><span class="wfh-nav-num">6</span> Check it worked</a>
-            <a href="#offswitch" class="wfh-nav-link" data-section="offswitch"><span class="wfh-nav-num">7</span> Turning it off</a>
-            <a href="#trouble"  class="wfh-nav-link" data-section="trouble"><span class="wfh-nav-num">8</span> Still failing?</a>
+            <a href="#symptom"  class="help-nav-link active" data-section="symptom"><span class="help-nav-num">1</span> The error you saw</a>
+            <a href="#what"     class="help-nav-link" data-section="what"><span class="help-nav-num">2</span> What verification is</a>
+            <a href="#bundle"   class="help-nav-link" data-section="bundle"><span class="help-nav-num">3</span> What a CA bundle is</a>
+            <a href="#why"      class="help-nav-link" data-section="why"><span class="help-nav-num">4</span> Why this happens</a>
+            <a href="#fix"      class="help-nav-link" data-section="fix"><span class="help-nav-num">5</span> The fix</a>
+            <a href="#verify"   class="help-nav-link" data-section="verify"><span class="help-nav-num">6</span> Check it worked</a>
+            <a href="#offswitch" class="help-nav-link" data-section="offswitch"><span class="help-nav-num">7</span> Turning it off</a>
+            <a href="#trouble"  class="help-nav-link" data-section="trouble"><span class="help-nav-num">8</span> Still failing?</a>
         </aside>
 
-        <main class="wfh-main">
-            <div class="tab-content active wf-help">
+        <main class="help-main">
+            <div class="help-content">
             <h2>HTTPS certificate verification</h2>
-            <p class="lede">If a webhook failed with <em>&ldquo;unable to get local issuer certificate&rdquo;</em>, this page is for you. The short version: <strong>your webhook is probably fine.</strong> The server it runs on just hasn&rsquo;t been told which certificate authorities to trust, so it can&rsquo;t confirm it&rsquo;s really talking to Slack or Discord. It&rsquo;s a one-time server fix and takes a couple of minutes.</p>
+            <p class="help-lede">If a webhook failed with <em>&ldquo;unable to get local issuer certificate&rdquo;</em>, this page is for you. The short version: <strong>your webhook is probably fine.</strong> The server it runs on just hasn&rsquo;t been told which certificate authorities to trust, so it can&rsquo;t confirm it&rsquo;s really talking to Slack or Discord. It&rsquo;s a one-time server fix and takes a couple of minutes.</p>
 
             <!-- 1 -->
-            <h3 id="symptom">1. The error you saw</h3>
+            <div class="help-section" id="symptom">
+                <div class="help-section-header">
+                    <span class="help-section-num">1</span>
+                    <div><h3>The error you saw</h3></div>
+                </div>
             <p>In the workflow editor&rsquo;s <strong>Send test</strong> panel, or in the <strong>System &rarr; Webhooks</strong> delivery log, the failure reads something like:</p>
             <pre><code>Transport error: SSL certificate problem: unable to get local issuer certificate</code></pre>
             <p>Variations mean the same thing: <code>certificate verify failed</code>, <code>self-signed certificate in certificate chain</code>, <code>unable to get issuer certificate</code>.</p>
-            <div class="callout"><strong>Read the rest of the panel before you change anything.</strong> If FreeITSM showed you the JSON it built under <em>Sent (sample data)</em>, then your workflow, your variables and your payload format all worked. Only the final network hop failed. You are much closer than the error makes it sound.</div>
+            <div class="help-note"><strong>Read the rest of the panel before you change anything.</strong> If FreeITSM showed you the JSON it built under <em>Sent (sample data)</em>, then your workflow, your variables and your payload format all worked. Only the final network hop failed. You are much closer than the error makes it sound.</div>
 
             <!-- 2 -->
-            <h3 id="what">2. What &ldquo;certificate verification&rdquo; actually is</h3>
+            </div>
+
+            <div class="help-section" id="what">
+                <div class="help-section-header">
+                    <span class="help-section-num">2</span>
+                    <div><h3>What &ldquo;certificate verification&rdquo; actually is</h3></div>
+                </div>
             <p>When FreeITSM posts a webhook to <code>https://discord.com/…</code>, two separate things have to happen:</p>
             <ul>
                 <li><strong>Encryption</strong> &mdash; scramble the traffic so nobody in between can read it.</li>
@@ -132,7 +107,13 @@ $translationNamespaces = ['common', 'workflow'];
             <p>That refusal is exactly what you saw. Not &ldquo;this certificate is fake&rdquo;, but something more basic: <em>&ldquo;I have no list of authorities, so I can&rsquo;t check anybody&rsquo;s passport.&rdquo;</em></p>
 
             <!-- 3 -->
-            <h3 id="bundle">3. What a &ldquo;CA bundle&rdquo; is, in plain English</h3>
+            </div>
+
+            <div class="help-section" id="bundle">
+                <div class="help-section-header">
+                    <span class="help-section-num">3</span>
+                    <div><h3>What a &ldquo;CA bundle&rdquo; is, in plain English</h3></div>
+                </div>
             <p>A <strong>CA bundle</strong> is that list of trusted authorities. It is simply a text file &mdash; conventionally named <code>cacert.pem</code> &mdash; containing the public certificates of the roughly 120&ndash;150 organisations the world has agreed to trust to vouch for websites. Open it in Notepad and you&rsquo;ll see block after block of <code>-----BEGIN CERTIFICATE-----</code>.</p>
             <p>The one almost everybody uses is the <strong>Mozilla CA bundle</strong>: the same trust list that ships inside Firefox, extracted and republished in this convenient format by the curl project. Using it means your server trusts exactly who a mainstream web browser trusts &mdash; no more, no less.</p>
             <p>Some important reassurance about what it is <em>not</em>:</p>
@@ -144,13 +125,25 @@ $translationNamespaces = ['common', 'workflow'];
             <p>It does go stale slowly &mdash; authorities are occasionally added or withdrawn &mdash; so re-downloading it once a year or so is good hygiene. Nothing breaks immediately if you don&rsquo;t.</p>
 
             <!-- 4 -->
-            <h3 id="why">4. Why this happens (and why it isn&rsquo;t your fault)</h3>
+            </div>
+
+            <div class="help-section" id="why">
+                <div class="help-section-header">
+                    <span class="help-section-num">4</span>
+                    <div><h3>Why this happens (and why it isn&rsquo;t your fault)</h3></div>
+                </div>
             <p>On Linux, the operating system maintains a CA bundle and PHP finds it automatically. Most people never learn any of this exists.</p>
             <p><strong>On Windows, PHP ships with no CA bundle and no pointer to one.</strong> The two settings that would tell it where to look &mdash; <code>curl.cainfo</code> and <code>openssl.cafile</code> &mdash; are commented out in the default <code>php.ini</code>, and WAMP doesn&rsquo;t supply the file. So a stock Windows/WAMP install cannot make a verified HTTPS request <em>to anything</em>, out of the box.</p>
-            <div class="callout"><strong>This is bigger than webhooks.</strong> The same missing bundle breaks every outbound HTTPS call FreeITSM makes: Slack and Teams webhooks, the AI provider calls, OAuth token refreshes, remote email APIs. Fixing it once fixes all of them &mdash; which is why it&rsquo;s worth doing properly rather than working around.</div>
+            <div class="help-note"><strong>This is bigger than webhooks.</strong> The same missing bundle breaks every outbound HTTPS call FreeITSM makes: Slack and Teams webhooks, the AI provider calls, OAuth token refreshes, remote email APIs. Fixing it once fixes all of them &mdash; which is why it&rsquo;s worth doing properly rather than working around.</div>
 
             <!-- 5 -->
-            <h3 id="fix">5. The fix</h3>
+            </div>
+
+            <div class="help-section" id="fix">
+                <div class="help-section-header">
+                    <span class="help-section-num">5</span>
+                    <div><h3>The fix</h3></div>
+                </div>
             <p>Two steps: put the bundle somewhere permanent, then tell PHP where it is.</p>
 
             <h4>Step 1 &mdash; download the Mozilla CA bundle</h4>
@@ -162,6 +155,7 @@ $translationNamespaces = ['common', 'workflow'];
 
             <h4>Step 2 &mdash; point PHP at it</h4>
             <p>You must edit <strong>both</strong> <code>php.ini</code> files. WAMP keeps two, and this is the single most common way to half-fix the problem:</p>
+            <div class="help-table">
             <table>
                 <tr><th>Which</th><th>Typical path</th><th>Why it matters</th></tr>
                 <tr>
@@ -175,6 +169,7 @@ $translationNamespaces = ['common', 'workflow'];
                     <td>Used by scheduled tasks &mdash; including the <strong>background webhook delivery worker</strong>. Miss this one and Send test passes while real deliveries keep failing.</td>
                 </tr>
             </table>
+            </div>
             <p>In each file, find these two lines (they&rsquo;ll be commented out with a leading <code>;</code>), remove the semicolon, and set the path:</p>
             <pre><code>curl.cainfo = "C:/wamp64/cacert.pem"
 openssl.cafile = "C:/wamp64/cacert.pem"</code></pre>
@@ -184,7 +179,13 @@ openssl.cafile = "C:/wamp64/cacert.pem"</code></pre>
             <p><code>php.ini</code> is read once at startup, so nothing changes until you restart. Left-click the WAMP tray icon &rarr; <strong>Restart All Services</strong>. (The CLI picks its ini up fresh on every run, so it needs no restart.)</p>
 
             <!-- 6 -->
-            <h3 id="verify">6. Check it worked</h3>
+            </div>
+
+            <div class="help-section" id="verify">
+                <div class="help-section-header">
+                    <span class="help-section-num">6</span>
+                    <div><h3>Check it worked</h3></div>
+                </div>
             <p>Easiest check, in FreeITSM: open the workflow, select the <strong>Send a webhook</strong> action and press <strong>Send test</strong> again. You want <em>Delivered</em>, an <code>HTTP 204</code> (Discord) or <code>HTTP 200</code>, and the message to actually appear in your channel.</p>
             <p>To confirm the underlying setting rather than the symptom, drop this in your web root as <code>catest.php</code>, load it in a browser, and delete it afterwards:</p>
             <pre><code>&lt;?php
@@ -198,22 +199,35 @@ echo curl_exec($ch) === false
     ? "TLS: FAILED - " . curl_error($ch) . "\n"
     : "TLS: OK - certificate verified\n";</code></pre>
             <p>Both paths should be printed, and TLS should say OK. If the paths still show <em>EMPTY</em>, Apache is running on the old configuration &mdash; you either edited the wrong <code>php.ini</code> or haven&rsquo;t restarted.</p>
-            <div class="tip"><strong>Don&rsquo;t forget the worker.</strong> A passing <strong>Send test</strong> only proves <em>Apache&rsquo;s</em> PHP is fixed. Real webhooks are delivered by the background worker running under the <strong>CLI</strong> PHP. If tests pass but live deliveries keep failing, you edited only one of the two <code>php.ini</code> files.</div>
+            <div class="help-note"><strong>Don&rsquo;t forget the worker.</strong> A passing <strong>Send test</strong> only proves <em>Apache&rsquo;s</em> PHP is fixed. Real webhooks are delivered by the background worker running under the <strong>CLI</strong> PHP. If tests pass but live deliveries keep failing, you edited only one of the two <code>php.ini</code> files.</div>
 
             <!-- 7 -->
-            <h3 id="offswitch">7. Turning verification off &mdash; and why you shouldn&rsquo;t</h3>
+            </div>
+
+            <div class="help-section" id="offswitch">
+                <div class="help-section-header">
+                    <span class="help-section-num">7</span>
+                    <div><h3>Turning verification off &mdash; and why you shouldn&rsquo;t</h3></div>
+                </div>
             <p>Sooner or later, searching this error online will suggest &ldquo;just disable SSL verification&rdquo;. It does make the error go away. Here is exactly what it costs.</p>
-            <div class="danger"><strong>Disabling verification means FreeITSM stops checking who it is talking to.</strong> It will still encrypt the connection &mdash; but it will happily hand your ticket data, your customers&rsquo; email addresses and your webhook signing secret to <em>anyone</em> who manages to intercept the connection and claim to be Discord. That is precisely the attack (a &ldquo;man-in-the-middle&rdquo;) that certificate verification exists to prevent. You would be turning off the lock because you couldn&rsquo;t find the key.</div>
+            <div class="help-note warn"><strong>Disabling verification means FreeITSM stops checking who it is talking to.</strong> It will still encrypt the connection &mdash; but it will happily hand your ticket data, your customers&rsquo; email addresses and your webhook signing secret to <em>anyone</em> who manages to intercept the connection and claim to be Discord. That is precisely the attack (a &ldquo;man-in-the-middle&rdquo;) that certificate verification exists to prevent. You would be turning off the lock because you couldn&rsquo;t find the key.</div>
             <p>So, concretely, in FreeITSM:</p>
             <h4>Webhooks: there is no off switch, deliberately</h4>
             <p>The webhook transport always verifies (<code>CURLOPT_SSL_VERIFYPEER =&gt; true</code>, in <code>includes/webhook_delivery.php</code>) and offers no setting to change that. Webhooks carry record data out to third parties over the public internet; that is the worst possible place to stop checking identities. Install the CA bundle instead &mdash; it is a five-minute job and it is the actual fix.</p>
             <h4>AI providers, mailboxes, everything else: one global switch</h4>
             <p>There are <strong>no per-module &ldquo;Verify SSL&rdquo; toggles</strong>. Certificate verification for every outbound connection FreeITSM makes &mdash; AI providers, mailboxes, single sign-on, asset syncs, share emails and the rest &mdash; is governed by a single setting, <code>SSL_VERIFY_PEER</code>, in <code>config.php</code>. It ships <strong>on</strong>, and to make that work out of the box FreeITSM now bundles its own CA certificate list (<code>includes/cacert.pem</code>) and points cURL at it automatically when your server has none configured. Turning the switch off disables verification <em>everywhere at once</em>, so it is not something to do lightly.</p>
             <p>If you are behind a corporate network that intercepts outbound TLS with its own inspection proxy &mdash; presenting a certificate signed by an <em>internal</em> authority your server has never heard of &mdash; do <em>not</em> reach for that switch. The correct fix is to add your company&rsquo;s internal root certificate to the CA bundle (append it to your <code>cacert.pem</code>), so your server trusts the proxy legitimately and keeps verifying everything else. Whoever runs your network will have that root certificate ready, because every other application on the network needs it too.</p>
-            <div class="callout"><strong>A reasonable rule of thumb.</strong> Turning verification off is only ever defensible for a service <em>inside</em> your own network that you fully control, and even then it&rsquo;s a stopgap. For anything on the public internet &mdash; Slack, Discord, Teams, OpenAI, Anthropic &mdash; it is never the right answer. If it &ldquo;fixed&rdquo; your problem, what it actually did was hide it.</div>
+            <div class="help-note"><strong>A reasonable rule of thumb.</strong> Turning verification off is only ever defensible for a service <em>inside</em> your own network that you fully control, and even then it&rsquo;s a stopgap. For anything on the public internet &mdash; Slack, Discord, Teams, OpenAI, Anthropic &mdash; it is never the right answer. If it &ldquo;fixed&rdquo; your problem, what it actually did was hide it.</div>
 
             <!-- 8 -->
-            <h3 id="trouble">8. Still failing?</h3>
+            </div>
+
+            <div class="help-section" id="trouble">
+                <div class="help-section-header">
+                    <span class="help-section-num">8</span>
+                    <div><h3>Still failing?</h3></div>
+                </div>
+            <div class="help-table">
             <table>
                 <tr><th>What you see</th><th>What it usually means</th></tr>
                 <tr>
@@ -237,7 +251,9 @@ echo curl_exec($ch) === false
                     <td>Not a certificate problem at all &mdash; DNS. Check the URL for a typo and that the server can reach the internet.</td>
                 </tr>
             </table>
+            </div>
             <p style="margin-top:22px;">Once a webhook delivers cleanly, the rest of the picture &mdash; signing, retries, dead-lettering and the delivery dashboard &mdash; is covered in the <a href="help-webhooks.php" style="color:var(--warning-text,#b45309); font-weight:600;">Webhooks guide</a>.</p>
+            </div>
             </div>
         </main>
     </div>
@@ -245,8 +261,8 @@ echo curl_exec($ch) === false
     <script>
     // Scroll-spy (identical to workflow/help.php).
     (function () {
-        const helpMain = document.querySelector('.wfh-main');
-        const navLinks = document.querySelectorAll('.wfh-nav-link[data-section]');
+        const helpMain = document.querySelector('.help-main');
+        const navLinks = document.querySelectorAll('.help-nav-link[data-section]');
         const sections = [];
         navLinks.forEach(link => {
             const el = document.getElementById(link.dataset.section);

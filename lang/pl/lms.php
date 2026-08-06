@@ -232,12 +232,12 @@ return [
 
         // 4. Assigning
         'assigning_heading' => 'Przydzielanie kursów',
-        'assigning_intro'   => 'Karta <strong>Przydziały</strong> łączy kurs z grupą, opcjonalnie z terminem. Gdy tylko przydział zostanie zapisany, każdy członek grupy otrzymuje rekord postępu dla tego kursu (status <span class="lh-pill not-started">Nierozpoczęty</span>), a kurs staje się dla niego dostępny do odtwarzania.',
+        'assigning_intro'   => 'Karta <strong>Przydziały</strong> łączy kurs z grupą, opcjonalnie z terminem. Gdy tylko przydział zostanie zapisany, każdy członek grupy otrzymuje rekord postępu dla tego kursu (status <span class="help-pill">Nierozpoczęty</span>), a kurs staje się dla niego dostępny do odtwarzania.',
         'assigning_step1'   => 'Kliknij <strong>Przydziel</strong> na karcie Przydziały.',
         'assigning_step2'   => 'Wybierz kurs i grupę z list rozwijanych.',
         'assigning_step3'   => 'Ustaw termin (opcjonalnie). Pozostaw puste dla szkolenia bez ograniczeń czasowych.',
         'assigning_step4'   => 'Zapisz. Rekordy postępu pojawiają się natychmiast na karcie Postęp.',
-        'assigning_tip'     => '<strong>Terminy zasilają filtr Po terminie:</strong> każdy rekord postępu, w którym termin minął, a status nie jest <span class="lh-pill completed">Ukończony</span> ani <span class="lh-pill passed">Zaliczony</span>, pojawia się pod filtrem <span class="lh-pill overdue">Po terminie</span> na karcie Postęp.',
+        'assigning_tip'     => '<strong>Terminy zasilają filtr Po terminie:</strong> każdy rekord postępu, w którym termin minął, a status nie jest <span class="help-pill info">Ukończony</span> ani <span class="help-pill ok">Zaliczony</span>, pojawia się pod filtrem <span class="help-pill warn">Po terminie</span> na karcie Postęp.',
         'assigning_warn'    => '<strong>Jeden przydział na parę kurs/grupa:</strong> zduplikowana kombinacja jest odrzucana (zobaczysz przyjazny komunikat o błędzie). Chcesz przydzielić ponownie z nowym terminem? Najpierw usuń stary przydział, a następnie utwórz nowy.',
 
         // 5. Launching
