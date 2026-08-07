@@ -53,10 +53,26 @@ class SlackProvider extends MessagingProvider
     /**
      * Slack's url_verification handshake: echo back the challenge.
      *
-     * ⚠️ Called BEFORE signature verification is possible in one respect only —
-     * it is not. Slack signs this request like any other, so the endpoint must
-     * still verify it first. Returning the challenge to an unverified caller
-     * would let anyone confirm this URL belongs to a FreeITSM install.
+     * ⚠️ THE SETUP DEADLOCK, and why this is allowed through unsigned.
+     *
+     * Slack verifies the request URL the instant the app is created from the
+     * manifest. But the signing secret does not exist until the app exists — so
+     * at that moment FreeITSM cannot possibly hold it. Requiring a valid
+     * signature here therefore makes setup impossible, not merely awkward:
+     *
+     *     create the app  →  Slack POSTs the challenge  →  403 (no secret yet)
+     *     →  Slack refuses the URL  →  you never get the secret  →  ↺
+     *
+     * Found by actually doing it, not by testing: every unit test passed.
+     *
+     * So the handshake is answered without a signature ONLY while the channel
+     * has no signing secret — the setup window, which lasts minutes. Once the
+     * secret is stored the endpoint verifies this like anything else.
+     *
+     * What this does NOT open up: a real message. `event_callback` always
+     * requires a valid signature, secret or no secret, so nothing can be
+     * injected into the ticket system through the gap. The worst an outsider can
+     * do is learn that a FreeITSM install answers at a URL they already knew.
      */
     public function verifyUrlChallenge(string $rawBody): ?string
     {
@@ -66,6 +82,15 @@ class SlackProvider extends MessagingProvider
             return $challenge !== '' ? $challenge : null;
         }
         return null;
+    }
+
+    /**
+     * Has this channel been given its signing secret yet? Drives the one-time
+     * exemption above — see verifyUrlChallenge().
+     */
+    public function hasSigningSecret(): bool
+    {
+        return trim((string) ($this->channel['credentials']['signing_secret'] ?? '')) !== '';
     }
 
     /**
