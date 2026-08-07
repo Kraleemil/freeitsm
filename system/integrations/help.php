@@ -57,6 +57,9 @@ if (!$meta) {
 $name    = $meta['name'];
 $isJira  = ($providerKey === 'jira');
 $isDevOps = ($providerKey === 'azuredevops');
+// Slack is not a tracker: no base URL, no API token, no project. It gets its own
+// sections from help_slack.php rather than an awkward reading of the tracker ones.
+$isSlack = ($providerKey === 'slack');
 
 /**
  * What each tracker calls its credential, because getting this wrong is not a
@@ -70,7 +73,16 @@ $isDevOps = ($providerKey === 'azuredevops');
 $tokenNoun = $isDevOps ? 'personal access token' : 'API token';
 
 /** The left-nav sections, in order. Single source for nav + scroll-spy. */
-$sections = [
+$sections = $isSlack ? [
+    ['id' => 'overview',  'title' => 'What this does'],
+    ['id' => 'workspace', 'title' => 'If you have never used Slack'],
+    ['id' => 'add',       'title' => 'Add the workspace here first'],
+    ['id' => 'app',       'title' => 'Create the Slack app'],
+    ['id' => 'secrets',   'title' => 'Copy the two secrets back'],
+    ['id' => 'invite',    'title' => 'Invite it to a channel'],
+    ['id' => 'try',       'title' => 'Try it'],
+    ['id' => 'trouble',   'title' => 'If something is wrong'],
+] : [
     ['id' => 'overview', 'title' => 'What this does'],
     ['id' => 'token',    'title' => 'Get a ' . $tokenNoun],
     ['id' => 'connect',  'title' => 'Add the connection'],
@@ -119,9 +131,14 @@ $sections = [
             <div class="help-hero">
                 <h2>Setting up <?php echo htmlspecialchars($name); ?></h2>
                 <p>
-                    Hand a ticket to the development team without leaving FreeITSM: raise the issue,
-                    watch its status, and read the developers' replies on the ticket. This guide starts
-                    from nothing and assumes you have <strong>not</strong> used
+                    <?php if ($isSlack): ?>
+                        Let people ask for help in Slack and have it become a ticket, answered from the
+                        FreeITSM inbox without either of you leaving the thread.
+                    <?php else: ?>
+                        Hand a ticket to the development team without leaving FreeITSM: raise the issue,
+                        watch its status, and read the developers' replies on the ticket.
+                    <?php endif; ?>
+                    This guide starts from nothing and assumes you have <strong>not</strong> used
                     <?php echo htmlspecialchars($name); ?> before.
                 </p>
             </div>
@@ -129,6 +146,8 @@ $sections = [
             <a class="help-back" href="<?php echo htmlspecialchars($providerUrl . $providerKey); ?>">&larr; Back to <?php echo htmlspecialchars($name); ?> settings</a>
 
             <div class="help-content">
+
+                <?php if ($isSlack): include __DIR__ . '/help_slack.php'; else: ?>
 
                 <!-- 1 ───────────────────────────────────────────── -->
                 <div class="help-section" id="overview">
@@ -405,6 +424,8 @@ $sections = [
                     </table>
                     </div>
                 </div>
+
+                <?php endif; ?>
 
             </div>
         </div>
