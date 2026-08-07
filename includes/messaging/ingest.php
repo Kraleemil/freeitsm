@@ -50,13 +50,17 @@ function ingestInboundMessage(PDO $conn, array $channel, array $msg): array
         $body = '[empty message]';
     }
 
-    // Where a reply to this message has to go. For a phone channel that is just
-    // the sender again, so this is the business number as before. For Slack the
-    // sender and the destination are DIFFERENT things — you answer into a channel
-    // and a thread, not to a person — so parseInbound supplies it as 'to'.
-    $replyAddress = trim((string) ($msg['to'] ?? ''));
-    if ($replyAddress === '') {
-        $replyAddress = (string) ($channel['phone_number'] ?? '');
+    // Where a reply to this message has to go.
+    //
+    // ⚠️ Phone channels keep their previous value EXACTLY — the channel's own
+    // number. Twilio and Meta do both supply a 'to' in the parsed message and it
+    // is normally the same number, but "normally" is not a good enough reason to
+    // change what a working WhatsApp install writes to the database. Only Slack,
+    // where the sender and the destination are genuinely different things (you
+    // answer into a channel and a thread, not to a person), reads it.
+    $replyAddress = (string) ($channel['phone_number'] ?? '');
+    if ($channelType === 'slack') {
+        $replyAddress = trim((string) ($msg['to'] ?? ''));
     }
 
     $displayName = $profileName !== '' ? $profileName : $from;
