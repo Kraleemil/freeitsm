@@ -194,6 +194,16 @@ return [
 
         'slack_delete_confirm' => 'Excluir o espaço de trabalho do Slack “{name}”? Chamados já abertos a partir dele mantêm o histórico; apenas as novas mensagens deixam de chegar.',
 
+        // A verificação de integridade. O texto importa aqui: a maior parte do que
+        // ela encontra está silenciosamente errado, não visivelmente quebrado.
+        'slack_diag_title'     => 'Verificação do Slack',
+        'slack_diag_desc'      => 'Verifica tudo o que pode estar silenciosamente errado — não apenas se o token funciona. Cada resultado diz o que fazer a respeito.',
+        'slack_diag_running'   => 'Verificando — isto fala com o Slack e com o seu próprio endereço público, então leva alguns segundos…',
+        'slack_diag_rerun'     => 'Verificar de novo',
+        'slack_diag_all_ok'    => 'Está tudo certo. Mensagens publicadas no canal monitorado do Slack virarão chamados, e as respostas voltarão para a conversa.',
+        'slack_diag_some_warn' => 'Funcionando, com algo que vale saber. Nada abaixo impede a chegada dos chamados, mas vale a leitura.',
+        'slack_diag_some_fail' => 'Algo está errado e as mensagens não vão chegar. As verificações que falharam abaixo dizem o que fazer.',
+
         // O modal de configuração do app.
         'slack_app_title'      => 'O app do Slack',
         'slack_copy_manifest'  => 'Copiar o manifesto',

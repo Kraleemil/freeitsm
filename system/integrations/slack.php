@@ -108,13 +108,42 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
             background: var(--surface-2); border-radius: 3px; padding: 1px 5px;
             font-size: 12px; color: var(--text);
         }
-        .test-result {
-            margin-top: 12px; font-size: 13px; line-height: 1.55;
-            padding: 10px 13px; border-radius: 6px; display: none;
+        /* The health check. One row per thing that can silently be wrong, each
+           with the sentence that fixes it — every one of these corresponds to a
+           real failure hit while getting the first workspace working. */
+        .diag-summary {
+            padding: 12px 15px; border-radius: 8px; margin-bottom: 16px;
+            font-size: 14px; line-height: 1.5;
         }
-        .test-result.show { display: block; }
-        .test-result.ok   { background: var(--success-bg); color: var(--success-text); }
-        .test-result.bad  { background: var(--danger-bg);  color: var(--danger-text); }
+        .diag-summary.ok   { background: var(--success-bg); color: var(--success-text); }
+        .diag-summary.warn { background: var(--warning-bg); color: var(--warning-text); }
+        .diag-summary.fail { background: var(--danger-bg);  color: var(--danger-text); }
+
+        .diag-row {
+            display: grid; grid-template-columns: 22px 1fr; gap: 12px;
+            padding: 12px 0; border-bottom: 1px solid var(--border-soft);
+        }
+        .diag-row:last-child { border-bottom: none; }
+        .diag-icon {
+            width: 20px; height: 20px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; margin-top: 1px;
+        }
+        .diag-icon.ok   { background: var(--success-bg); color: var(--success-text); }
+        .diag-icon.warn { background: var(--warning-bg); color: var(--warning-text); }
+        .diag-icon.fail { background: var(--danger-bg);  color: var(--danger-text); }
+        .diag-icon.skip { background: var(--surface-2);  color: var(--text-faint); }
+        .diag-label  { font-size: 14px; font-weight: 600; color: var(--text); }
+        .diag-detail { font-size: 13px; color: var(--text-muted); line-height: 1.55; margin-top: 2px; word-break: break-word; }
+        /* The fix is the point of the whole panel, so it is styled to be read —
+           a diagnostic that names a fault and stops has moved the problem. */
+        .diag-fix {
+            font-size: 13px; line-height: 1.55; margin-top: 6px;
+            padding: 8px 11px; border-radius: 6px;
+            background: var(--surface-2); color: var(--text);
+            border-left: 3px solid var(--sys-accent);
+        }
+        .diag-running { font-size: 14px; color: var(--text-muted); padding: 20px 0; }
     </style>
 </head>
 <body>
@@ -214,6 +243,19 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
             <div class="modal-actions">
                 <button class="btn-secondary" id="editCancel"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
                 <button class="btn-primary" id="editSave"><?php echo htmlspecialchars(t('common.save')); ?></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Health check -->
+    <div class="modal-backdrop" id="diagModal">
+        <div class="modal-box map-box">
+            <h3><?php echo htmlspecialchars(t('system.integrations.slack_diag_title')); ?></h3>
+            <p class="card-desc"><?php echo htmlspecialchars(t('system.integrations.slack_diag_desc')); ?></p>
+            <div id="diagBody"><div class="diag-running"><?php echo htmlspecialchars(t('common.loading')); ?></div></div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="diagRerun"><?php echo htmlspecialchars(t('system.integrations.slack_diag_rerun')); ?></button>
+                <button class="btn-primary" id="diagClose"><?php echo htmlspecialchars(t('common.close')); ?></button>
             </div>
         </div>
     </div>
@@ -411,6 +453,56 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
         $('copyManifest').addEventListener('click', function () { copyFrom($('manifestBox'), this); });
         $('copyUrl').addEventListener('click', function () { copyFrom($('webhookBox'), this); });
 
+        // ---- the health check --------------------------------------------
+        // Replaces what used to be a one-line "connected as @x" alert. Everything
+        // it reports is something that can be silently wrong: the token works,
+        // tickets even arrive, and one thing quietly is not right.
+        let diagChannel = null;
+
+        function runDiagnostics(c) {
+            diagChannel = c;
+            $('diagBody').innerHTML = '<div class="diag-running">' +
+                <?php echo json_encode(t('system.integrations.slack_diag_running')); ?> + '</div>';
+            $('diagRerun').disabled = true;
+            $('diagModal').classList.add('open');
+
+            fetch(API + 'slack_diagnose.php', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: c.id })
+            }).then(r => r.json()).then(d => {
+                $('diagRerun').disabled = false;
+                if (!d.success) {
+                    $('diagBody').innerHTML = '<div class="diag-summary fail">' + esc(d.error || 'Check failed') + '</div>';
+                    return;
+                }
+                const summary = {
+                    ok:   <?php echo json_encode(t('system.integrations.slack_diag_all_ok')); ?>,
+                    warn: <?php echo json_encode(t('system.integrations.slack_diag_some_warn')); ?>,
+                    fail: <?php echo json_encode(t('system.integrations.slack_diag_some_fail')); ?>
+                }[d.overall];
+                const mark = { ok: '✓', warn: '!', fail: '✕', skip: '–' };
+
+                $('diagBody').innerHTML =
+                    '<div class="diag-summary ' + d.overall + '">' + esc(summary) + '</div>' +
+                    d.checks.map(k =>
+                        '<div class="diag-row">'
+                        + '<div class="diag-icon ' + k.status + '">' + mark[k.status] + '</div>'
+                        + '<div>'
+                        +   '<div class="diag-label">' + esc(k.label) + '</div>'
+                        +   '<div class="diag-detail">' + esc(k.detail) + '</div>'
+                        +   (k.fix ? '<div class="diag-fix">' + esc(k.fix) + '</div>' : '')
+                        + '</div></div>'
+                    ).join('');
+            }).catch(() => {
+                $('diagRerun').disabled = false;
+                $('diagBody').innerHTML = '<div class="diag-summary fail">Check failed</div>';
+            });
+        }
+
+        $('diagClose').addEventListener('click', () => $('diagModal').classList.remove('open'));
+        $('diagRerun').addEventListener('click', () => { if (diagChannel) runDiagnostics(diagChannel); });
+
         // ---- row actions -------------------------------------------------
         $('chanRows').addEventListener('click', function (e) {
             const btn = e.target.closest('button');
@@ -434,19 +526,7 @@ $companies    = $multiCompany ? getAllTenants($conn, true) : [];
                 return;
             }
 
-            if (btn.dataset.test) {
-                const c = find(btn.dataset.test);
-                btn.disabled = true;
-                fetch(API + 'test_channel.php', {
-                    method: 'POST', credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: c.id, mode: 'credentials' })
-                }).then(r => r.json()).then(d => {
-                    btn.disabled = false;
-                    const r = (d.results && d.results.credentials) || {};
-                    alert(r.detail || d.error || 'No result');
-                }).catch(() => { btn.disabled = false; alert('Test failed'); });
-            }
+            if (btn.dataset.test) { runDiagnostics(find(btn.dataset.test)); return; }
         });
 
         load();

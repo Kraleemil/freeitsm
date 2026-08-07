@@ -217,6 +217,16 @@ return [
 
         'slack_delete_confirm' => 'Delete the Slack workspace “{name}”? Tickets already raised from it keep their history; only new messages stop arriving.',
 
+        // The health check. Wording matters here: most of what it finds is
+        // something that is silently wrong rather than obviously broken.
+        'slack_diag_title'     => 'Slack health check',
+        'slack_diag_desc'      => 'Checks everything that can be quietly wrong — not just whether the token works. Each result says what to do about it.',
+        'slack_diag_running'   => 'Checking — this talks to Slack and to your own public address, so give it a few seconds…',
+        'slack_diag_rerun'     => 'Run again',
+        'slack_diag_all_ok'    => 'Everything checks out. Messages posted in the watched Slack channel will become tickets, and replies will go back into the thread.',
+        'slack_diag_some_warn' => 'Working, with something worth knowing. Nothing below stops tickets arriving, but it is worth a read.',
+        'slack_diag_some_fail' => 'Something is wrong and messages will not arrive. The failed checks below say what to do.',
+
         // The app-setup modal.
         'slack_app_title'      => 'The Slack app',
         'slack_copy_manifest'  => 'Copy the manifest',

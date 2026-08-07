@@ -293,6 +293,74 @@ class SlackProvider extends MessagingProvider
     // ---------------------------------------------------------------- helpers
 
     /**
+     * The bot's own Slack user id, or '' if the token will not authenticate.
+     * Used as a harmless probe subject for the profile-lookup health check —
+     * a user that certainly exists and certainly is not somebody's real account.
+     */
+    public function botUserId(): string
+    {
+        try {
+            return (string) ($this->call('auth.test')['user_id'] ?? '');
+        } catch (Exception $e) {
+            return '';
+        }
+    }
+
+    /**
+     * The scopes this token was actually granted, lowercased.
+     *
+     * ⚠️ This is the single most useful thing to check, because the way it goes
+     * wrong is invisible: Slack grants an app its scopes at INSTALL time, so an
+     * app created from a manifest holds a token missing most of them until
+     * somebody clicks "Reinstall to Workspace". Nothing breaks — tickets simply
+     * arrive without the sender's name. Comparing granted against required is
+     * the only way to see it before a user reports it.
+     *
+     * Slack returns them in the X-OAuth-Scopes response header, so any call will
+     * do; auth.test is the cheapest and needs no permission at all.
+     */
+    public function grantedScopes(): array
+    {
+        try {
+            $this->call('auth.test');
+        } catch (Exception $e) {
+            return [];
+        }
+        if ($this->lastScopes === null || $this->lastScopes === '') {
+            return [];
+        }
+        return array_values(array_filter(array_map(
+            function ($s) { return strtolower(trim($s)); },
+            explode(',', $this->lastScopes)
+        )));
+    }
+
+    /**
+     * Is the app actually a member of this Slack channel?
+     *
+     * ⚠️ The single most common setup failure, and it looks like nothing at all:
+     * an app cannot read a channel it was not invited to, so messages simply
+     * never arrive. No error anywhere.
+     *
+     * Deliberately asks conversations.history rather than conversations.info,
+     * because history needs `channels:history` — which we already require — while
+     * info needs `channels:read`, which we do not. Adding a scope purely to run a
+     * diagnostic would mean asking every Slack admin to approve a permission the
+     * product does not otherwise use.
+     *
+     * @return array ['in' => bool, 'error' => string]  error is '' when in.
+     */
+    public function channelMembership(string $slackChannelId): array
+    {
+        try {
+            $this->call('conversations.history', ['channel' => $slackChannelId, 'limit' => 1]);
+            return ['in' => true, 'error' => ''];
+        } catch (Exception $e) {
+            return ['in' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Look up a Slack user. Returns ['name' => …, 'email' => …]; either may be ''.
      * Never throws — identity is a nice-to-have and must not stop a ticket being
      * raised. A missing email simply means the app has no users:read.email scope.
