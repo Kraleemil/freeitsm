@@ -40,8 +40,8 @@ class I18n {
         // ⚠️ A locale listed here MUST have a complete lang/<code>/ folder. Listing
         // one whose files are missing or unparseable is a fatal on that module, not
         // a fallback — the per-key English fallback only covers a file that LOADS.
-        // nn is therefore added in its own commit, with its own files.
         'nb'    => 'Norsk bokmål',
+        'nn'    => 'Norsk nynorsk',
         'ru'    => 'Русский',
         'uk'    => 'Українська',
         'id'    => 'Bahasa Indonesia',

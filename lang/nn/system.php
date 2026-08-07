@@ -1,0 +1,844 @@
+<?php
+/**
+ * Norsk nynorsk (nn) — Strengar for System-modulen.
+ *
+ * Fell tilbake nøkkel for nøkkel til lang/en/system.php for alt som manglar her
+ * (sjå includes/i18n.php).
+ *
+ * Dekkjer landingssida for System, den delte toppnavigasjonen og kvar
+ * undersida i System: merkevare, fargar, db-verify, feilsøkingsverktøy,
+ * demodata, kryptering, modular (tilgang), innstillingar, tryggleik og SSO.
+ *
+ * Ikkje omsett (blir ståande som bokstavleg innhald): lagra oppsettsverdiar,
+ * kortinnhaldet per modul i demodata, identifikatorar for krypterte
+ * nøklar/innstillingar, modul- og løyvenøklar, enum-kodar og loggstrengar
+ * frå tenaren.
+ */
+return [
+    'title' => 'System',
+
+    // Shared header navigation (system/includes/header.php)
+    'nav' => [
+        'encryption'  => 'Kryptering',
+        'modules'     => 'Modular',
+        'db_verify'   => 'Verifiser DB',
+        'colours'     => 'Fargar',
+        'branding'    => 'Merkevare',
+        'security'    => 'Tryggleik',
+        'preferences' => 'Innstillingar',
+        'demo_data'   => 'Demodata',
+        'debug_tools' => 'Feilsøkingsverktøy',
+    ],
+
+    // System landing page (system/index.php)
+    'landing' => [
+        'heading'  => 'Systemadministrasjon',
+        'subtitle' => 'Set opp innstillingar på systemnivå og tilgangskontroll',
+
+        // Card search box. Keywords below carry search synonyms so e.g. typing
+        // "oidc" finds Single Sign-On; they are never shown, only matched.
+        'search_placeholder' => 'Søk i systemområde…',
+        'no_results'         => 'Ingen systemområde passar med søket ditt.',
+
+        'help_title' => 'Hjelp og rettleiingar',
+        'help_desc'  => 'Steg-for-steg-rettleiingar for kvart systemområde, mellom anna oppsett av single sign-on.',
+
+        'topology_title'    => 'Topologi',
+        'topology_desc'     => 'Sjå korleis selskap, postkassar, domene, innlogging og analytikarar heng saman',
+        'topology_keywords' => 'topology map overview tree relationships companies mailboxes domains analysts structure diagram graph topologi kart oversikt selskap postkassar domene analytikarar struktur',
+
+        'orphaned_title'    => 'Foreldrelause saker',
+        'orphaned_desc'     => 'Finn saker som står fast i ei sletta avdeling, og tildel dei på nytt',
+        'orphaned_keywords' => 'orphaned tickets department missing deleted hidden reassign fix stuck lost broken foreldrelause saker avdeling sletta gøymde',
+
+        'encryption_title'  => 'Kryptering',
+        'encryption_desc'   => 'Lag og handter krypteringsnøkkelen som vernar sensitive data som API-nøklar og innloggingsopplysningar.',
+        'encryption_keywords' => 'encryption key master key crypto secrets credentials api keys cipher kryptering nøkkel løyndomar',
+        'analysts_title'    => 'Analytikarar',
+        'analysts_desc'     => 'Handter analytikarkontoar — opprett, rediger og deaktiver brukarar, nullstill passord, tildel single sign-on og team, og set tilgang per selskap.',
+        'analysts_keywords' => 'analysts users accounts staff agents people login passwords reset sso team membership access user management analytikarar brukarar kontoar passord team tilgang',
+        'teams_title'       => 'Team',
+        'teams_desc'        => 'Handter teama analytikarane høyrer til. Team blir brukte på tvers av saker, oppgåver, kontraktar og arbeidsflyter for tildeling og tilgang.',
+        'teams_keywords'    => 'teams groups squads assignment routing access members analysts departments team grupper tildeling medlemmer avdelingar',
+        'roles_title'       => 'Roller',
+        'roles_desc'        => 'Gi andre enn administratorar retten til å styre innstillingane for bestemte modular — utan å gjere dei til fulle systemadministratorar.',
+        'roles_keywords'    => 'roles permissions rbac capabilities access control manage settings grant admin rights delegate lms manager roller løyve tilgangskontroll delegere',
+        'modules_title'     => 'Modultilgang',
+        'modules_desc'      => 'Styr kva modular kvar analytikar får tilgang til. Avgrens kva som er synleg på heimeskjermen og i navigasjonsmenyen.',
+        'modules_keywords'  => 'module access permissions analyst rights visibility roles enable disable modultilgang løyve synlegheit',
+        'db_verify_title'   => 'Verifiser databasen',
+        'db_verify_desc'    => 'Sjekk at alle tabellar og kolonnar finst i databasen. Lagar automatisk dei som manglar.',
+        'db_verify_keywords' => 'database verify schema tables columns migration repair sql db database verifiser tabellar kolonnar',
+        'colours_title'     => 'Fargar',
+        'colours_desc'      => 'Tilpass fargetemaet for kvar modul. Endringane gjeld topptekstar, ikon og heimeskjermen.',
+        'colours_keywords'  => 'colours colors theme palette appearance customise branding fargar tema utsjånad',
+        'branding_title'    => 'Merkevare',
+        'branding_desc'     => 'Last opp logoen til organisasjonen og set standardtekst for topptekst/botntekst på diagram og eksporterte dokument.',
+        'branding_keywords' => 'branding logo header footer organisation company export documents merkevare logo topptekst botntekst eksport',
+        'security_title'    => 'Tryggleik',
+        'security_desc'     => 'Set opp reglar for klarerte einingar, utløp av passord og låsing av kontoar.',
+        'security_keywords' => 'security password expiry lockout trusted device mfa 2fa login policy brute force tryggleik passord låsing klarert eining innlogging',
+        'sso_title'         => 'Autentisering',
+        'sso_desc'          => 'Vel korleis folk loggar inn: single sign-on gjennom ein identitetsleverandør (OpenID Connect), eller mot LDAP / Active Directory.',
+        'sso_keywords'      => 'authentication auth sso single sign-on single sign on oidc openid connect saml identity provider idp keycloak entra azure ad okta google oauth federation login ldap active directory ad domain directory bind samba openldap autentisering innlogging identitetsleverandør katalog domene',
+        'api_title'         => 'API',
+        'api_desc'          => 'Lag API-nøklar med detaljerte løyve, og utforsk REST-API-et med interaktiv dokumentasjon.',
+        'api_keywords'      => 'api rest keys tokens integration webhook endpoints documentation swagger developer external nøklar integrasjon dokumentasjon utviklar',
+        'webhooks_title'    => 'Webhook-kø',
+        'webhooks_desc'     => 'Følg med på utgåande webhook-leveringar: sjekk at arbeidaren køyrer, sjå innhald og svar for kvar sending, og send kva som helst av det på nytt.',
+        'webhooks_keywords' => 'webhooks webhook queue outbound deliveries delivery worker cron slack teams discord payload replay retries hmac signature integration workflow kø leveringar utgåande signatur arbeidsflyt',
+        'preferences_title' => 'Innstillingar',
+        'preferences_desc'  => 'Personlege innstillingar som plasseringa av varsel. Dei blir lagra per nettlesar og gjeld berre deg.',
+        'preferences_keywords' => 'preferences personal settings notifications toast position per-browser innstillingar personlege varsel plassering nettlesar',
+        'demo_data_title'   => 'Demodata',
+        'demo_data_desc'    => 'Importer realistiske eksempeldata i alle modular. Ideelt for evaluering og testing på ein ny installasjon.',
+        'demo_data_keywords' => 'demo data sample seed test evaluation import fixtures example demodata eksempel import',
+        'debug_tools_title' => 'Feilsøkingsverktøy',
+        'debug_tools_desc'  => 'Samling av diagnosar for å feilsøkje flyter som ikkje verkar. Køyr dei på oppmoding og send resultatet til support.',
+        'debug_tools_keywords' => 'debug tools diagnostics troubleshoot logs errors support fix feilsøking diagnose loggar feil',
+        'companies_title'   => 'Selskap',
+        'companies_desc'    => 'Handter kundeselskapa denne installasjonen betener.',
+        'companies_keywords' => 'companies clients tenants multi-tenancy multi tenant organisations msp selskap kundar organisasjonar',
+        'routing_test_title' => 'Test av e-postruting',
+        'routing_test_desc'  => 'Køyr ein prøve på ein innkomande e-post for å sjå kva selskap han ville blitt lagd til, og kvifor.',
+        'routing_test_keywords' => 'email routing test dry run mailbox sender domain triage tenant inbound diagnostic e-post ruting test postkasse avsendar domene',
+        'integrations_title'    => 'Integrasjonar',
+        'integrations_desc'     => 'Kople FreeITSM til feilsporingssystema utviklingsteamet ditt brukar, slik at ei sak som viser seg å vere ein feil kan eskalerast og følgjast opp utan å forlate servicedesken.',
+        'integrations_keywords' => 'integrations integration jira atlassian issue tracker bug escalate escalation github gitlab azure devops connector developer dev team link linked issue integrasjonar feilsporing eskalere utviklar kopla sak',
+    ],
+
+    // Integrations (system/integrations/)
+    'integrations' => [
+        'title'    => 'Integrasjonar',
+        'subtitle' => 'Kople FreeITSM til eit eksternt feilsporingssystem, slik at ei sak som viser seg å vere ein feil kan meldast til utviklingsteamet og følgjast opp herifrå.',
+
+        'needs_db_verify' => 'Integrasjonstabellane finst ikkje i databasen enno. Køyr Databaseverifisering under System før du legg til ei tilkopling.',
+
+        'jira_blurb'     => 'Opprett Jira-issues frå saker og sjå statusen deira utan å forlate FreeITSM. Verkar med både Jira Cloud og Jira Data Center.',
+        'jira_url_label' => 'URL til Jira-nettstaden',
+        'azuredevops_blurb'     => 'Opprett Azure DevOps-arbeidselement frå saker og sjå tilstanden deira utan å forlate FreeITSM. Verkar med Azure DevOps Services og Azure DevOps Server.',
+        'azuredevops_url_label' => 'URL til organisasjonen',
+        'field_resolved_means'  => 'Når eit arbeidselement blir merkt som Resolved',
+        // Deliberately phrased as what the requester experiences. "Map Resolved to
+        // a status category" is accurate and tells an admin nothing about which to pick.
+        'field_resolved_means_hint' => 'Azure DevOps har ein Resolved-tilstand som tyder at ein utviklar meiner det er retta, men at ingen har sjekka det enno. Bugs brukar han; user stories gjer det ikkje.',
+        'resolved_in_progress'  => 'Rekn det framleis som under arbeid',
+        'resolved_done'         => 'Rekn det som ferdig',
+
+        'one_connection' => '1 tilkopling',
+        'n_connections'  => '{n} tilkoplingar',
+        'no_connections' => 'Ingen tilkoplingar enno.',
+
+        'connections_heading' => 'Tilkoplingar',
+        'connections_desc'    => 'Kvar tilkopling er éin nettstad du kan opprette issues i. Legg til fleire dersom ulike team eller kundar brukar kvar sin nettstad.',
+
+        'col_name'    => 'Namn',
+        'col_url'     => 'URL til nettstaden',
+        'col_company' => 'Selskap',
+        'col_status'  => 'Status',
+
+        'add_heading'  => 'Legg til tilkopling',
+        'edit_heading' => 'Rediger tilkopling',
+
+        'field_email'      => 'E-postadresse',
+        'field_email_hint' => 'Berre Jira Cloud — kontoen API-tokenet høyrer til. La feltet stå tomt for Jira Data Center, som brukar eit personleg tilgangstoken åleine.',
+        'field_token'      => 'API-token',
+        'field_pat'        => 'Personleg tilgangstoken',
+        'creds_keep_hint'  => 'La tokenet stå tomt for å behalde det som allereie er lagra.',
+
+        'company_shared' => 'Alle selskap',
+        'company_hint'   => 'La det stå på alle selskap for eit system ditt eige team brukar. Vel eit selskap for å avgrense det til den kunden — saker frå andre selskap kan då ikkje eskalerast dit.',
+
+        'active_label'   => 'Aktiv',
+        'inactive_label' => 'Av',
+        // {name} is the provider — this page is shared, so the label must not
+        // hardcode "Jira" the way the design doc's Jira-specific wording does.
+        'inbound_badge'  => 'Oppdateringar på',
+        // Mapping (V3) — what our values mean in the tracker's vocabulary.
+        'help_link'         => 'Slik set du opp {name}',
+        'mapping_help_link' => 'Usikker på kva desse tyder?',
+        'mapping_title'        => 'Kopling',
+        'mapping_intro'        => 'Bestem kva verdiane dine tyder i {name}, så slepp nokon å skrive ein prosjektnøkkel inn i kvar einaste regel. Alt som står tomt, blir rett og slett ikkje sendt.',
+        'map_projects'         => 'Kva prosjekt issues hamnar i',
+        'map_projects_hint'    => 'Set ein standard, og legg så til unntak der du treng dei. Den mest spesifikke regelen vinn: ei avdeling slår eit selskap, og eit selskap slår standarden.',
+        'map_group_default'    => 'Standard',
+        'map_group_dept'       => 'Unntak per avdeling — desse slår alt nedanfor',
+        'map_group_company'    => 'Unntak per selskap',
+        'map_types'            => 'Sakstype blir issue-type',
+        'map_types_hint'       => 'Issue-typar er ulike frå prosjekt til prosjekt, så dette er forslag frå standardprosjektet ditt — du kan skrive kva verdi du vil.',
+        'map_priorities'       => 'Prioritet',
+        'map_priorities_hint'  => 'Her er det med vilje ingen standard: å merkje kvar einaste issue som hastesak hjelper ingen. Ein prioritet som ikkje er kopla, står framleis som tekst i skildringa. Dersom eit prosjekt avviser ein prioritet, blir issuen likevel oppretta, berre utan prioritet.',
+        'map_default'          => 'Alt anna',
+        'map_none'             => 'Ikkje kopla',
+        'map_saved'            => 'Koplinga er lagra',
+        'map_needs_verify'     => 'Køyr Databaseverifisering først — koplingstabellen finst ikkje på denne installasjonen enno.',
+        'map_load_failed'      => 'Klarte ikkje å laste koplinga.',
+        // ⚠️ \' — NOT \x27. PHP does not interpret hex escapes inside single
+        // quotes, so \x27 rendered literally on screen: "the ticket\x27s attachments".
+        'attach_label'   => 'Send vedlegga i saka til {name}',
+        'attach_hint'    => 'I ei feilmelding ER skjermbiletet som regel sjølve meldinga. Bilete som ligg inne i ein e-post — signaturar, logoar, sporingspikslar — blir aldri sende, berre filer nokon har lagt ved med vilje. Store filer blir hoppa over i staden for at eskaleringa feilar, og du ser alltid lista før noko blir sendt.',
+        'inbound_label'  => 'Ta imot oppdateringar frå {name}',
+        'inbound_hint'   => 'Kommentarar som blir skrivne i {name}, kjem inn på den kopla saka som interne notat. Dei blir aldri viste til innmeldaren. Den første sjekken etter at du slår dette på, importerer ingenting — han berre markerer startpunktet, så det å slå det på kan ikkje hente fram eit etterslep av gamle kommentarar.',
+
+        'test'           => 'Test',
+        'save_failed'    => 'Klarte ikkje å lagre tilkoplinga.',
+        'saved'          => 'Tilkoplinga er lagra.',
+        'deleted'        => 'Tilkoplinga er sletta.',
+        'delete_title'   => 'Slett tilkopling',
+        'confirm_delete' => 'Slette denne tilkoplinga?',
+        'confirm_delete_named' => 'Slette tilkoplinga «{name}»? Saker som allereie er kopla til issues på henne, held på koplingane sine.',
+
+        // ── Slack ────────────────────────────────────────────────────────────
+        // Listed under Integrations because that is where people look, but it is
+        // a messaging CHANNEL underneath — the wording deliberately says
+        // "workspace" and "channel", never "connection" or "project".
+        'slack_blurb' => 'Gjer ei melding i ein Slack-kanal om til ei sak, og svar på henne frå innboksen utan å forlate tråden.',
+        'slack_workspaces'      => 'Slack-arbeidsområde',
+        'slack_workspaces_desc' => 'Kvart av dei er ein Slack-app du installerer i ditt eige arbeidsområde. FreeITSM ser aldri Slack-trafikken din — appen snakkar rett med denne tenaren.',
+        'slack_col_channel'  => 'Følgjer med på',
+        'slack_any_channel'  => 'Alle kanalar han blir invitert til',
+        'slack_empty'        => 'Ingen Slack-arbeidsområde enno. Legg til eitt, og hent så appen frå Slack.',
+        'slack_needs_setup'  => 'Manglar oppsett',
+
+        'slack_add_title'  => 'Legg til eit Slack-arbeidsområde',
+        'slack_edit_title' => 'Rediger Slack-arbeidsområde',
+        'slack_name_hint'  => 'Blir berre brukt i denne lista, og som namn på Slack-appen du lagar.',
+        'slack_name_required' => 'Gi dette arbeidsområdet eit namn.',
+        'slack_unchanged'  => 'Uendra — la det stå tomt for å behalde det',
+
+        'slack_bot_token'      => 'OAuth-token for botbrukaren',
+        'slack_bot_token_hint' => 'Frå Slack-appen din, under OAuth &amp; Permissions. Startar med xoxb-. Du får det etter at appen er installert, så la det stå tomt første gongen du lagrar.',
+        'slack_signing_secret' => 'Signeringsnøkkel',
+        'slack_signing_secret_hint' => 'Frå Slack-appen din, under Basic Information. Det er slik FreeITSM stadfestar at ei melding verkeleg kom frå Slack, så ingenting blir teke imot før han er sett.',
+        'slack_watch_channel'  => 'Følg berre med på denne kanalen',
+        'slack_watch_channel_hint' => 'Ein Slack-kanal-ID som C08ABCDEF. La feltet stå tomt for å opprette ei sak frå kvar kanal appen blir invitert til — noko som i ein travel kanal tyder éi sak per melding, så dei fleste oppgir éin hjelpekanal her.',
+
+        'slack_company_shared' => 'Delt — la avsendaren avgjere',
+        'slack_company_hint'   => 'Fest dette arbeidsområdet til eitt selskap, eller la det vere delt og la avsendaren avgjere.',
+
+        'slack_delete_confirm' => 'Slette Slack-arbeidsområdet «{name}»? Saker som allereie er oppretta derifrå, held på historikken sin; berre nye meldingar sluttar å kome inn.',
+
+        // The health check. Wording matters here: most of what it finds is
+        // something that is silently wrong rather than obviously broken.
+        'slack_diag_title'     => 'Helsesjekk for Slack',
+        'slack_diag_desc'      => 'Sjekkar alt som kan vere stille gale — ikkje berre om tokenet verkar. Kvart resultat seier kva du bør gjere med det.',
+        'slack_diag_running'   => 'Sjekkar — dette snakkar med Slack og med di eiga offentlege adresse, så gi det nokre sekund…',
+        'slack_diag_rerun'     => 'Køyr på nytt',
+        'slack_diag_all_ok'    => 'Alt er i orden. Meldingar som blir lagde ut i Slack-kanalen du følgjer med på, blir til saker, og svar går tilbake inn i tråden.',
+        'slack_diag_some_warn' => 'Verkar, men med noko som er verdt å vite. Ingenting nedanfor stoppar saker frå å kome inn, men det er verdt ei lesing.',
+        'slack_diag_some_fail' => 'Noko er gale, og meldingar vil ikkje kome fram. Sjekkane som feila nedanfor, seier kva du skal gjere.',
+
+        // The app-setup modal.
+        'slack_app_title'      => 'Slack-appen',
+        'slack_copy_manifest'  => 'Kopier manifestet',
+        'slack_scopes_heading' => 'Kva appen har lov til å gjere',
+        'slack_scopes_desc'    => 'Slack-administratoren din ser denne lista når appen blir godkjend. Ingenting her lèt han opprette kanalar, invitere folk eller leggje ut noko der han ikkje er invitert.',
+        'slack_step1' => 'Gå til <strong>api.slack.com/apps</strong> i Slack og vel <strong>Create New App → From a manifest</strong>. Vel arbeidsområdet du vil ha servicedesken i.',
+        'slack_step2' => 'Lim inn dette manifestet. Det set namnet, løyva og adressa Slack sender meldingar til, så det er ingenting å hake av for hand.',
+        'slack_step3' => 'Klikk <strong>Install to Workspace</strong> og godkjenn. Kopier så <strong>Bot User OAuth Token</strong> og <strong>Signing Secret</strong> tilbake inn i redigeringsskjemaet her — Slack viser ikkje tokenet på nytt. <strong>Dersom Slack viser eit gult &ldquo;Reinstall to Workspace&rdquo;-banner, klikk på det først</strong> — elles manglar tokenet dei fleste løyva sine, og saker kjem inn utan namnet på avsendaren.',
+        'slack_step4' => 'Sjekk at førespurnads-URL-en nedanfor er den same som Slack viser under <strong>Event Subscriptions</strong>. Slack stadfestar han i det du lagrar appen, så denne tenaren må vere tilgjengeleg frå internett.',
+        'slack_step5' => 'Inviter appen i Slack til kanalen du vil at han skal følgje med på: <strong>/invite @DinApp</strong>. Han kan ikkje lese ein kanal han ikkje er med i.',
+    ],
+
+    // Branding page (system/branding/index.php)
+    'branding' => [
+        'title'    => 'Merkevare',
+        'subtitle' => 'Set logoen til organisasjonen og standardteksten for topptekst/botntekst som blir brukt på diagram og eksporterte dokument',
+
+        'logo_heading'  => 'Selskapslogo',
+        'logo_desc'     => 'Blir brukt som {code}-tokenet i alle felt i topptekst/botntekst. PNG, JPG eller SVG, maks 2&nbsp;MB. SVG er tilrådd for skarp utskrift og eksport.',
+        'no_logo'       => 'Ingen logo',
+        'remove'        => 'Fjern',
+        'logo_hint'     => 'Vel ei fil som skal erstatte den noverande logoen. Det nye biletet blir lagra når du trykkjer Lagre.',
+
+        'header_heading' => 'Topptekst',
+        'header_desc'    => 'Tre felt som blir teikna langs toppen av sida. La eit felt stå tomt for å utelate det.',
+        'footer_heading' => 'Botntekst',
+        'footer_desc'    => 'Tre felt som blir teikna langs botnen av sida.',
+        'col_left'       => 'Venstre',
+        'col_centre'     => 'Midten',
+        'col_right'      => 'Høgre',
+        'row_header'     => 'Topptekst',
+        'row_footer'     => 'Botntekst',
+
+        'tokens_heading' => 'Tilgjengelege token',
+        'tokens_intro'   => 'desse blir bytte ut når topptekst/botntekst blir teikna på eit diagram eller ein eksport:',
+        'token_logo'     => 'logobiletet til selskapet',
+        'token_title'    => 'tittelen på diagrammet eller dokumentet',
+        'token_author'   => 'namnet på forfattaren',
+        'token_version'  => 'versjonsmerkelappen',
+        'token_modified' => 'datoen for siste endring',
+        'tokens_example_prefix' => 'Bland token med vanleg tekst — t.d.',
+        'tokens_example_suffix' => 'blir vist som',
+        'tokens_example_render' => 'Forfattar: Ed Mozley',
+
+        'save'             => 'Lagre',
+        'reset_defaults'   => 'Nullstill til standard',
+
+        'load_failed'         => 'Klarte ikkje å laste merkevara: {error}',
+        'load_failed_generic' => 'Klarte ikkje å laste merkevareinnstillingane',
+        'logo_too_large'      => 'Logoen er for stor (maks 2 MB)',
+        'reset_hint'          => 'Felta er nullstilte til standard — trykk Lagre for å ta dei i bruk',
+        'saved'               => 'Merkevara er lagra',
+        'error'               => 'Feil: {error}',
+        'save_failed'         => 'Klarte ikkje å lagre merkevara',
+    ],
+
+    // Module colours page (system/colours/index.php)
+    'colours' => [
+        'title'     => 'Modulfargar',
+        'subtitle'  => 'Tilpass fargetemaet for kvar modul i topptekstar, ikon og på heimeskjermen',
+        'save'      => 'Lagre',
+        'primary'   => 'Primær',
+        'secondary' => 'Sekundær',
+        'reset'     => 'Nullstill',
+        'saved'     => 'Modulfargane er lagra',
+        'error'     => 'Feil: {error}',
+        'save_failed' => 'Klarte ikkje å lagre fargane',
+    ],
+
+    // Database verification page (system/db-verify/index.php)
+    'db_verify' => [
+        'heading'     => 'Databaseverifisering',
+        'intro'       => 'Sjekk at alle tabellar og kolonnar finst. Lagar automatisk dei som manglar.',
+        'run'         => 'Køyr verifisering',
+        'verifying'   => 'Verifiserer...',
+        'checking'    => 'Sjekkar tabellar...',
+        'placeholder' => 'Klikk «Køyr verifisering» for å sjekke databaseskjemaet ditt',
+
+        'count_ok'      => 'OK',
+        'count_created' => 'Oppretta',
+        'count_updated' => 'Oppdaterte',
+        'count_errors'  => 'Feil',
+
+        'col_table'   => 'Tabell',
+        'col_status'  => 'Status',
+        'col_details' => 'Detaljar',
+
+        'status_ok' => 'OK',
+
+        'fix'         => 'Rett',
+        'fixing'      => 'Rettar…',
+        'fix_confirm' => 'Slette {count} foreldrelaus(e) rad(er) frå {table} for alltid? Forelderposten deira finst ikkje lenger, så desse dataa er utilgjengelege.',
+        'fix_failed'  => 'Rettinga feila: {message}',
+
+        'error'        => 'Feil: {message}',
+        'connect_fail' => 'Klarte ikkje å kople til: {message}',
+    ],
+
+    // Debug tools page (system/debug-tools/index.php)
+    'debug' => [
+        'heading' => 'Feilsøkingsverktøy',
+        'intro'   => 'Samling av sjølvstendige diagnosar. Når noko ikkje verkar, køyr det aktuelle verktøyet og send resultatet til support — kvar diagnose fangar nok detaljar om miljø og køyretid til å finne årsaka utan fram og tilbake.',
+        'how_label' => 'Slik brukar du dei:',
+        'how_text'  => 'Support fortel deg kva diagnose du skal køyre (t.d. «køyr D001»). Klikk {run}, vent til resultatet dukkar opp, klikk så {copy} og lim heile rapporten inn i svaret ditt. Diagnosane les stort sett berre — dei som skriv til databasen, seier frå om det på kortet.',
+        'checks_label'   => 'Kva han sjekkar',
+        'runtime_label'  => 'Køyretid:',
+        'side_effects_label' => 'Sideverknader:',
+        'run'     => 'Køyr',
+        'running' => 'Køyrer…',
+        'copy'    => 'Kopier',
+        'copied'  => 'Kopiert',
+        'output_running' => 'Køyrer diagnose…',
+        'fetch_failed'   => 'Klarte ikkje å hente diagnosen: {message}',
+        'input_required' => 'Skriv inn ein verdi før du køyrer dette verktøyet.',
+        'search_placeholder' => 'Søk i feilsøkingsverktøy…',
+        'no_results'         => 'Ingen feilsøkingsverktøy passar med søket ditt.',
+    ],
+
+    // Demo data page (system/demo-data/index.php)
+    'demo' => [
+        'heading'  => 'Demodata',
+        'subtitle' => 'Importer realistiske eksempeldata modul for modul. Importer Core først, og vel så kva modular som skal fyllast.',
+
+        'warning_strong' => 'Laga berre for nye installasjonar.',
+        'warning_text'   => 'Å importere demodata i eit system som allereie inneheld verkelege data, kan skape konfliktar. Kvar modul kan berre importerast éin gong.',
+        'tip_text_prefix' => 'Importer både',
+        'tip_text_and'    => 'og',
+        'tip_text_suffix' => 'for å låse opp eit ekstraval som koplar installert programvare til datamaskiner.',
+        'tip_assets'      => 'Ressursar',
+        'tip_software'    => 'Programvare',
+
+        'step1' => 'Steg 1 — Påkravd',
+        'step2' => 'Steg 2 — Vel modular',
+        'step3_cross' => 'Steg 3 — Data på tvers av modular',
+        'step3_dashboards' => 'Steg 3 — Dashbord',
+
+        'import'           => 'Importer',
+        'importing'        => 'Importerer...',
+        'imported_count'   => '{total} importerte',
+        'already_imported' => 'Allereie importert',
+
+        'delete_title'   => 'Slett',
+        'delete_confirm' => 'Dette slettar eksisterande demodata for {module} og importerer dei på nytt. Halde fram?',
+        'delete_ok'      => 'Slett',
+        'connection_failed' => 'Tilkoplinga feila: {message}',
+    ],
+
+    // Encryption page (system/encryption/index.php)
+    'encryption' => [
+        'title'    => 'Kryptering',
+        'subtitle' => 'Handter krypteringsnøkkelen som vernar sensitive data i kvile',
+        'checking' => 'Sjekkar krypteringsstatus...',
+
+        'how_heading'   => 'Slik verkar krypteringa',
+        'how_point1'    => 'FreeITSM brukar {strong} autentisert kryptering for å verne sensitive data som er lagra i databasen, som API-nøklar, vCenter-legitimasjon og tilkoplingsdetaljar for postkassar.',
+        'how_point1_strong' => 'AES-256-GCM',
+        'how_point2'    => 'Krypteringsnøkkelen er ein heksadesimal streng på 64 teikn (256 bit) som er lagra i ei fil {strong}, slik at han ikkje kan hentast via ein nettlesar.',
+        'how_point2_strong' => 'utanfor webrota',
+        'how_point3'    => 'Plassering av nøkkelfila:',
+        'how_point4'    => 'Krypterte verdiar i databasen har {enc} framfor, følgt av den base64-koda chiffreteksten. Ukrypterte verdiar blir ståande som dei er, slik at ein kan migrere gradvis.',
+
+        'backup_strong' => 'Ta sikkerheitskopi av krypteringsnøkkelen.',
+        'backup_text'   => 'Dersom nøkkelen går tapt, kan ingen data som er krypterte med han hentast att. Oppbevar ein kopi ein trygg stad utanfor denne tenaren.',
+
+        'whats_heading'    => 'Kva som blir kryptert',
+        'group_settings'   => 'Systeminnstillingar',
+        'group_mailbox'    => 'Postkassetilkoplingar',
+
+        'status_ok_title'      => 'Krypteringa er sett opp',
+        'status_ok_detail'     => 'Krypteringsnøkkelen finst og er gyldig i {path}. Sensitive data blir krypterte i kvile med AES-256-GCM.',
+        'status_invalid_title' => 'Ugyldig krypteringsnøkkel',
+        'status_invalid_detail'=> 'Det vart funne ei nøkkelfil i {path}, men ho er ikkje ein gyldig heksadesimal streng på 64 teikn. Nøkkelen må vere nøyaktig 64 heksadesimale teikn (256 bit).',
+        'generate_valid'       => 'Lag gyldig nøkkel',
+        'status_missing_title' => 'Fann ingen krypteringsnøkkel',
+        'status_missing_detail'=> 'Det finst ingen krypteringsnøkkelfil i {path}. Sensitive data kan ikkje krypterast før ein nøkkel er laga. Klikk på knappen nedanfor for å lage ein automatisk.',
+        'generate'             => 'Lag krypteringsnøkkel',
+        'generating'           => 'Lagar...',
+
+        'check_failed' => 'Klarte ikkje å sjekke krypteringsstatusen',
+        'error'        => 'Feil: {error}',
+        'generate_failed' => 'Klarte ikkje å lage nøkkelen',
+        'error_prefix' => 'Feil: {message}',
+    ],
+
+    // Module access page (system/modules/index.php)
+    'modules' => [
+        'title'    => 'Modultilgang',
+        'subtitle' => 'Styr kva modular kvar analytikar ser på heimeskjermen og i navigasjonen',
+
+        'info_text' => 'Som standard har alle analytikarar tilgang til kvar modul. Slå av {all_access} for å avgrense ein analytikar til bestemte modular. System-modulen kan ikkje slåast av.',
+        'all_access_strong' => 'Full tilgang',
+
+        'loading' => 'Lastar analytikarar...',
+
+        'empty_heading' => 'Fann ingen analytikarar',
+        'empty_text'    => 'Legg til analytikarar i innstillingane for Saker-modulen først.',
+
+        'col_analyst'    => 'Analytikar',
+        'col_all_access' => 'Full tilgang',
+
+        'load_failed' => 'Klarte ikkje å laste data',
+        'save_failed' => 'Klarte ikkje å lagre',
+    ],
+
+    // Preferences page (system/preferences/index.php)
+    'preferences' => [
+        'title'    => 'Innstillingar',
+        'subtitle' => 'Personlege innstillingar som blir lagra på kontoen din — dei følgjer deg på tvers av nettlesarar.',
+
+        'language_heading' => 'Språk i grensesnittet',
+        'language_desc'    => 'Språket som blir brukt i heile FreeITSM-grensesnittet. Omsetjingane fell tilbake til engelsk for tekstar som enno ikkje er dekte i språket du har valt. Sida blir lasta på nytt når du endrar det.',
+        'saving'           => 'Lagrar…',
+
+        'timezone_heading' => 'Tidssone',
+        'timezone_desc'    => 'Datoar og klokkeslett i heile FreeITSM blir viste i denne tidssona. Står som standard til tidssona på tenaren til du vel ei.',
+        'timezone_saved'   => 'Tidssona er lagra',
+
+        'position_heading' => 'Plassering av varsel',
+        'position_desc'    => 'Kvar varsla dukkar opp på skjermen.',
+
+        'animation_heading' => 'Animasjon for varsel',
+        'animation_desc'    => 'Korleis varsla kjem inn på og går ut av skjermen.',
+        'anim_slide'        => 'Gli',
+        'anim_fade'         => 'Ton',
+
+        'panels_heading' => 'Venstrepanel',
+        'panels_desc'    => 'Vel, per modul, om venstrepanelet står fast ope eller trekkjer seg saman til ei tynn stripe som utvidar seg når du held peikaren over. Modular med ei innstillingsside tilbyr dette òg på si eiga fane for venstrepanel.',
+        'panel_knowledge'         => 'Kunnskap',
+        'panel_process_mapper'    => 'Process Mapper',
+        'panel_contracts'         => 'Kontraktar',
+        'panel_calendar'          => 'Kalender',
+        'panel_tasks'             => 'Oppgåver',
+        'panel_cmdb'              => 'CMDB',
+        'panel_change_management' => 'Endringshandtering',
+        'panel_asset_management'  => 'Ressurshandtering',
+        'panel_system_wiki'       => 'Systemwiki',
+
+        // Tickets inbox: what happens when several tickets are selected at once.
+        'multiselect_heading'      => 'Når du vel fleire saker',
+        'multiselect_desc'         => 'I saksinnboksen kan du velje fleire saker om gongen — Ctrl+klikk for å plukke dei éi for éi, Shift+klikk for ein bolk. Dette avgjer kva skjermen viser medan meir enn éi er vald.',
+        'multiselect_summary'      => 'Samandragspanel',
+        'multiselect_keep'         => 'Hald saka open',
+        'multiselect_bar'          => 'Stripe over lista',
+        'multiselect_summary_hint' => 'Lesepanelet listar opp det du har valt, med masse-handlingane på seg.',
+        'multiselect_keep_hint'    => 'Lesepanelet held fram med å vise saka du opna, med ei påminning om at ei handling råkar alle saman.',
+        'multiselect_bar_hint'     => 'Ei kompakt stripe dukkar opp over sakslista med talet og handlingane.',
+
+        'mc_heading' => 'Stolpefyll i morgonsjekkar',
+        'mc_desc'    => 'Einsfarga fyll eller gradient i trenddiagrammet over 30 dagar for Morgonsjekkar. Òg tilgjengeleg på innstillingssida for Morgonsjekkar.',
+        'fill_plain'    => 'Einsfarga',
+        'fill_gradient' => 'Gradient',
+
+        'pos_top_left'      => 'Oppe til venstre',
+        'pos_top_center'    => 'Oppe i midten',
+        'pos_top_right'     => 'Oppe til høgre',
+        'pos_middle_left'   => 'Midt til venstre',
+        'pos_middle_center' => 'Midt i midten',
+        'pos_middle_right'  => 'Midt til høgre',
+        'pos_bottom_left'   => 'Nede til venstre',
+        'pos_bottom_center' => 'Nede i midten',
+        'pos_bottom_right'  => 'Nede til høgre',
+
+        'pos_preview'   => 'Varsla dukkar opp her',
+        'anim_preview'  => 'Førehandsvising: {anim}-animasjon',
+        'save_failed'   => 'Klarte ikkje å lagre',
+    ],
+
+    // Security page (system/security/index.php)
+    'security' => [
+        'title'    => 'Tryggleik',
+        'subtitle' => 'Set opp reglar for autentisering og vern av kontoar',
+
+        'selfreg_heading' => 'Sjølvregistrering',
+        'selfreg_desc'    => 'Om folk kan opprette sin eigen konto i sjølvbeteningsportalen frå innloggingssida. Av som standard. Når det er på, blir registreringa framleis stadfesta med ei lenkje på e-post før noko passord blir sett.',
+        'selfreg_label'   => 'Tillat sjølvregistrering',
+        'selfreg_hint'    => 'Av = berre kontoar du opprettar kan logge inn i portalen',
+        'trusted_heading' => 'Klarert eining',
+        'trusted_desc'    => 'La brukarar hoppe over OTP-stadfesting i klarerte nettlesarar. Brukarane vel dette sjølve i avatarmenyen sin. Set til 0 for å slå av funksjonen heilt.',
+        'trust_duration'  => 'Varigheit på klareringa',
+        'trust_duration_hint' => 'Kor lenge ei eining held fram med å vere klarert etter OTP-stadfesting',
+
+        'password_heading' => 'Passordreglar',
+        'password_desc'    => 'Krev at brukarane byter passord med jamne mellomrom. Når eit passord går ut, blir brukaren send til ein obligatorisk skjerm for passordbyte ved neste innlogging. Set til 0 for å slå av.',
+        'password_expiry'  => 'Passordet går ut',
+        'password_expiry_hint' => 'Høgste alder på eit passord før det må bytast',
+
+        'lockout_heading' => 'Kontolåsing',
+        'lockout_desc'    => 'Lås kontoar etter gjentekne mislukka innloggingsforsøk for å hindre brute force-åtak. Set maks forsøk til 0 for å slå av låsing.',
+        'max_attempts'    => 'Maks mislukka forsøk',
+        'max_attempts_hint' => 'Talet på feil passord før kontoen blir låst',
+        'lockout_duration' => 'Varigheit på låsinga',
+        'lockout_duration_hint' => 'Kor lenge kontoen held fram med å vere låst (teljaren blir nullstilt etter opplåsing)',
+
+        'ipban_heading' => 'IP-utestenging',
+        'ipban_desc'    => 'Steng automatisk ute IP-adresser som gong på gong prøver å logge inn på kontoar som ikkje finst eller er låste. Kvar utestenging varer i 24 timar. Etter kvar utestenging går grensa ned med 1 (heilt ned til minimum), slik at gjengangarar blir vanskelegare å misbruke. Set maks forsøk til 0 for å slå av.',
+        'first_ban'     => 'Grense for første utestenging',
+        'first_ban_hint' => 'Mislukka forsøk før IP-en blir stengd ute første gongen',
+        'min_threshold' => 'Lågaste grense',
+        'min_threshold_hint' => 'Grensa sluttar å gå ned når ho når dette golvet',
+        'ipban_example_strong' => 'Døme:',
+        'ipban_example_text'   => 'Med maks 5 og minimum 2 slår den første utestenginga inn etter 5 mislukka forsøk, den andre etter 4, så 3, så 2. Ho blir ståande på 2 for kvar utestenging etterpå. Berre forsøk mot brukarnamn som ikkje finst eller kontoar som allereie er låste, tel med.',
+
+        'attachments_heading'       => 'Vedlegg',
+        'attachments_desc'          => 'FreeITSM tek berre imot vedleggstypar han kjenner att. Alt anna — eit program, eit skript, ei nettside — blir aldri lagra under sitt eige namn, så det kan ikkje køyrast.',
+        'rejected_behaviour'        => 'Når ein filtype ikkje blir teken imot',
+        'rejected_behaviour_hint'   => 'Gjeld e-post, portalen og chatkanalar.',
+        'rejected_store'            => 'Behald henne, berre nedlasting',
+        'rejected_drop'             => 'Ikkje behald henne',
+        'rejected_note'             => 'Uansett fortel saka kva som skjedde og kvifor, så ingen treng å lure på kvar fila deira vart av.',
+
+        'unit_days'     => 'dagar',
+        'unit_attempts' => 'forsøk',
+        'unit_minutes'  => 'minutt',
+
+        'save'        => 'Lagre',
+        'saved'       => 'Tryggleiksinnstillingane er lagra',
+        'error'       => 'Feil: {error}',
+        'save_failed' => 'Klarte ikkje å lagre innstillingane',
+    ],
+
+    // Authentication page (system/sso/index.php)
+    'sso' => [
+        'title'    => 'Autentisering',
+        'subtitle' => 'La brukarar logge inn gjennom ein ekstern identitetsleverandør (OpenID Connect) som Keycloak, Microsoft Entra, Okta eller Google, eller mot LDAP / Active Directory — side om side med lokale kontoar.',
+
+        'global_heading' => 'Globale innstillingar',
+        'global_desc'    => 'Hovudkontrollar for innlogging i heile systemet.',
+        'enable_sso'     => 'Slå på single sign-on',
+        'enable_sso_desc'=> 'Vis knappane for dei oppsette leverandørane på innloggingssida. Slå av for å falle tilbake til lokal innlogging over alt med ein gong (naudløysing).',
+        'allow_local'    => 'Tillat lokal innlogging',
+        'allow_local_desc' => 'Hald skjemaet med brukarnamn + passord tilgjengeleg. La det stå på, slik at ein feiloppsett leverandør eller ein som er nede aldri kan låse alle ute.',
+        'save'           => 'Lagre',
+
+        'redirect_heading' => 'Redirect-URI',
+        'redirect_desc'    => 'Registrer nøyaktig denne URL-en hos kvar identitetsleverandør som ein tillaten redirect-/callback-URL. Det er dit leverandøren sender brukarane tilbake etter innlogging.',
+        'copy'             => 'Kopier',
+
+        'providers_heading' => 'Innloggingsmåtar',
+        'providers_desc'    => 'Kvar rad er éin måte å logge inn på — ein identitetsleverandør (SSO) eller ein katalog (LDAP). Tildel ulike brukarar til ulike måtar for å køyre pilotar parallelt.',
+        'add'               => '+ Legg til',
+
+        'col_name'        => 'Namn',
+        'col_company'     => 'Selskap',
+        'col_issuer'      => 'Issuer',
+        'col_status'      => 'Status',
+        'col_auto_create' => 'Auto-oppretting',
+        'col_actions'     => 'Handlingar',
+        'global_badge'    => 'Global',
+
+        'loading'        => 'Lastar…',
+        'no_providers'   => 'Ingen leverandørar enno. Klikk {add} for å setje opp ein.',
+        'add_strong'     => 'Legg til',
+        'enabled'        => 'På',
+        'disabled'       => 'Av',
+        'jit_on'         => 'JIT på',
+        'jit_off'        => 'Av',
+        'edit'           => 'Rediger',
+        'delete'         => 'Slett',
+
+        'modal_add_title'  => 'Legg til leverandør',
+        'modal_edit_title' => 'Rediger leverandør',
+        'field_display_name' => 'Visingsnamn',
+        'field_display_name_hint' => 'Blir vist på innloggingsknappen, t.d. «Logg inn med Keycloak»',
+        'field_display_name_placeholder' => 'Logg inn med Keycloak',
+        'field_issuer'     => 'Issuer-URL',
+        'field_issuer_hint'=> 'Basis-URL-en til leverandøren. t.d. http://localhost:8080/realms/freeitsm',
+        'field_issuer_placeholder' => 'https://your-idp/realms/your-realm',
+        'test'             => 'Test',
+        'field_client_id'  => 'Client ID',
+        'field_client_id_hint' => 'Klient-/app-identifikatoren som er oppretta hos leverandøren, t.d. freeitsm-app',
+        'field_client_secret' => 'Client secret',
+        'field_client_secret_hint' => 'Løyndomen til klienten, henta frå leverandøren. Blir lagra kryptert.',
+        'field_scopes'     => 'Scopes',
+        'field_scopes_hint'=> 'OIDC-scopes skilde med mellomrom. La standarden stå med mindre leverandøren din treng fleire.',
+        'cb_enabled'       => 'På',
+        'cb_enabled_desc'  => 'Vis knappen for denne leverandøren på innloggingssida',
+        'cb_autocreate'    => 'Opprett brukarar automatisk ved første innlogging (JIT)',
+        'cb_autocreate_desc' => 'Opprett ein analytikar automatisk første gongen nokon loggar inn via denne leverandøren. La det stå av for stramt styrte pilotar der berre førehandsoppretta brukarar skal sleppe inn.',
+        'cb_verified'      => 'Krev ein claim om stadfesta e-post',
+        'cb_verified_desc' => 'Nekt innlogging med mindre leverandøren sender {claim}. La det stå av for leverandørar som utelet denne claimen heilt (t.d. org-tenaren til Okta). Ein uttrykkjeleg {claim_false} blir alltid nekta uansett kva denne innstillinga står på. Slå det berre på for IdP-ar der brukarar kan registrere seg sjølve med adresser som ikkje er stadfesta.',
+        'field_default_modules' => 'Standard modultilgang for brukarar som blir oppretta automatisk',
+        'field_default_modules_hint' => 'Modulnøklar skilde med komma som blir gitt til analytikarar oppretta med JIT (t.d. {example}). {strong} — set dette for pilotar, slik at brukarar som blir oppretta automatisk ikkje blir administratorar.',
+        'field_default_modules_strong' => 'La det stå tomt, og dei får full tilgang til alle modular',
+        'field_default_modules_placeholder' => 'tickets, knowledge',
+        'field_company'        => 'Selskap',
+        'field_company_hint'   => 'Kva kundeselskap som eig denne identitetsleverandøren — innmeldarane deira blir sende hit i sjølvbeteningsportalen. La det stå på Global for ein leverandør som er intern hos MSP-en (t.d. innlogging for analytikarar).',
+        'field_company_global' => 'Global (intern / alle)',
+        'cancel'           => 'Avbryt',
+
+        // --- LDAP / Active Directory ---
+        'field_protocol'       => 'Type',
+        'field_protocol_hint'  => 'Korleis folk loggar inn med denne leverandøren.',
+        'protocol_oidc'        => 'OpenID Connect (single sign-on)',
+        'protocol_ldap'        => 'LDAP / Active Directory',
+        'col_type'             => 'Type',
+        'ldap_badge'           => 'LDAP',
+        'oidc_badge'           => 'OIDC',
+
+        'ldap_preset'          => 'Førehandsval',
+        'ldap_preset_hint'     => 'Fyller inn dei vanlege filter- og attributtnamna for katalogen din. Du kan framleis endre alt nedanfor.',
+        'ldap_preset_ad'       => 'Active Directory',
+        'ldap_preset_openldap' => 'OpenLDAP',
+        'ldap_preset_applied'  => 'Førehandsvalet er teke i bruk',
+
+        'field_ldap_host'      => 'Tenar',
+        'field_ldap_host_hint' => 'Vertsnamn eller IP til ein domenekontrollar, t.d. dc1.example.local',
+        'field_ldap_port'      => 'Port',
+        'field_ldap_encryption'=> 'Kryptering',
+        'ldap_enc_none'        => 'Ingen (rein LDAP)',
+        'ldap_enc_starttls'    => 'STARTTLS',
+        'ldap_enc_ldaps'       => 'LDAPS (SSL)',
+        'ldap_enc_hint'        => 'Passord går over nettet ved kvar innlogging. Bruk STARTTLS eller LDAPS i produksjon — mange Active Directory-tenarar nektar uansett passord-bind over rein LDAP.',
+
+        'field_ldap_bind_dn'   => 'Tenestekonto',
+        'field_ldap_bind_dn_hint' => 'Ein konto med berre lesetilgang som vi bind oss som for å slå opp brukarar — dette er IKKJE måten folk loggar inn på. Active Directory godtek brukar@domene; OpenLDAP vil ha eit fullt DN som cn=svc,dc=example,dc=com. La det stå tomt for å søkje anonymt (sjeldan tillate).',
+        'field_ldap_bind_password' => 'Passord for tenestekontoen',
+        'field_ldap_bind_password_hint' => 'Blir lagra kryptert. Denne kontoen treng berre løyve til å LESE katalogen — gi han aldri skrivetilgang.',
+        'bind_password_stored_hint' => 'Eit passord er lagra. La det stå tomt for å behalde det.',
+
+        'field_ldap_base_dn'   => 'Base-DN',
+        'field_ldap_base_dn_hint' => 'Kvar i treet det skal søkjast frå, t.d. DC=example,DC=local. Tenestekontoen må ha lov til å lese det — elles svarar dei fleste katalogar «no such object» i staden for ein løyvefeil.',
+        'field_ldap_filter'    => 'Brukarfilter',
+        'field_ldap_filter_hint' => 'Korleis vi finn personen som loggar inn. {token} blir bytt ut med det vedkomande skreiv, så ved å liste opp fleire attributt kan dei bruke brukarnamnet ELLER e-postadressa si.',
+
+        'ldap_attrs_heading'   => 'Attributt',
+        'ldap_attrs_desc'      => 'Kva felt i katalogen som svarar til ein FreeITSM-konto. Førehandsvala ovanfor passar for dei fleste.',
+        'field_ldap_attr_username' => 'Brukarnamn',
+        'field_ldap_attr_email'    => 'E-post',
+        'field_ldap_attr_name'     => 'Fullt namn',
+        'field_ldap_attr_guid'     => 'Unik ID',
+        'field_ldap_attr_guid_hint'=> 'Eit attributt som aldri endrar seg, brukt til å halde på koplinga til FreeITSM-kontoen når nokon blir omdøypt eller flytta. {ad} på Active Directory, {openldap} på OpenLDAP.',
+
+        'ldap_groups_heading'  => 'Tilgang etter gruppe',
+        'ldap_groups_desc'     => 'Oppgi katalog-gruppene som gir tilgang. {strong} Den som ikkje er med i nokon av gruppene, kan ikkje logge inn, sjølv med rett passord — og det er dette som hindrar at auto-oppretting gjer kvar einaste tilsette i katalogen til ein analytikar.',
+        'ldap_groups_desc_strong' => 'La begge stå tomme, og alle katalogen kjenner att blir analytikarar.',
+        'field_ldap_analyst_group' => 'Analytikargruppe',
+        'field_ldap_user_group'    => 'Gruppe for sjølvbeteningsbrukarar',
+        'field_ldap_group_filter'  => 'Gruppefilter — korleis vi finn gruppene nokon er med i. %s blir bytt ut med DN-et deira.',
+        'field_ldap_group_base_dn' => 'Base-DN for grupper (valfritt — brukar base-DN-et ovanfor som standard)',
+        'field_ldap_group_base_dn_placeholder' => 'OU=Groups,DC=example,DC=local',
+        'ldap_test_groups'     => 'Grupper: {groups}',
+        'ldap_test_role'       => 'Tilgang: {role}',
+        'ldap_role_analyst'    => 'analytikar',
+        'ldap_role_user'       => 'sjølvbeteningsbrukar',
+        'ldap_role_none'       => 'NEKTA — ikkje med i nokon av gruppene',
+
+        'ldap_test_heading'    => 'Test',
+        'ldap_test_desc'       => 'Sjekk innstillingane før du lagrar. La brukaren stå tom for berre å teste at tenestekontoen får kopla seg til og lese base-DN-et.',
+        'ldap_test_user'       => 'Testbrukarnamn (valfritt)',
+        'ldap_test_pass'       => 'Testpassord',
+        'ldap_test_running'    => 'Testar…',
+        'ldap_test_found'      => 'Fann: {name} <{email}>',
+        'ldap_required_fields' => 'Tenar, base-DN og brukarfilter er påkravde',
+        'ldap_ext_missing'     => 'PHP-utvidinga «ldap» er ikkje slått på på denne tenaren, så LDAP-leverandørar kan ikkje brukast enno. Slå på extension=ldap i php.ini og start webtenaren på nytt.',
+
+        'global_saved'   => 'Dei globale innstillingane er lagra',
+        'error'          => 'Feil: {error}',
+        'save_failed'    => 'Klarte ikkje å lagre',
+        'redirect_copied'=> 'Redirect-URI-en er kopiert',
+        'enter_issuer'   => 'Skriv inn ein issuer-URL først.',
+        'discovery_ok'   => '✓ Discovery OK — issuer: {issuer}',
+        'discovery_err'  => '✗ {error}',
+        'request_failed' => '✗ Førespurnaden feila',
+        'secret_stored_placeholder' => '•••••••• (la stå tomt for å behalde den noverande)',
+        'secret_stored_hint' => 'Ein løyndom er allereie lagra. La feltet stå tomt for å behalde han, eller skriv ein ny for å byte han ut.',
+        'required_fields' => 'Visingsnamn, issuer-URL og Client ID er påkravde',
+        'provider_saved'  => 'Leverandøren er lagra',
+        'delete_confirm'  => 'Slette «{name}»? Brukarar som er tildelte han, går tilbake til lokal innlogging.',
+        'delete_this'     => 'denne leverandøren',
+        'provider_deleted'=> 'Leverandøren er sletta',
+        'delete_failed'   => 'Klarte ikkje å slette',
+    ],
+
+    // Companies page (system/companies/index.php). "Company" is the
+    // user-facing word for a tenant; the underlying table/code stays `tenants`.
+    'companies' => [
+        'title'    => 'Selskap',
+        'subtitle' => 'Kundeselskapa denne installasjonen betener. Kvart nye selskap er eit eige rom; standardselskapet er alltid aktivt.',
+
+        'add' => 'Legg til',
+
+        'col_name'    => 'Namn',
+        'col_domains' => 'E-postdomene',
+        'col_status'  => 'Status',
+        'col_actions' => 'Handlingar',
+        'domains_dash'  => '—',
+
+        'loading'      => 'Lastar…',
+        'no_companies' => 'Ingen selskap enno. Klikk {add} for å opprette eitt.',
+        'add_strong'   => 'Legg til',
+        'default'      => 'Standard',
+        'active'       => 'Aktivt',
+        'inactive'     => 'Inaktivt',
+        'edit'         => 'Rediger',
+
+        'modal_add_title'  => 'Legg til selskap',
+        'modal_edit_title' => 'Rediger selskap',
+        'field_name'       => 'Namn',
+        'field_name_hint'  => 'Selskapsnamnet som blir vist i heile appen.',
+        'field_name_placeholder' => 'Acme AS',
+        'cb_active'        => 'Aktivt',
+        'cb_active_desc'   => 'Inaktive selskap er gøymde frå den daglege bruken. Standardselskapet er alltid aktivt.',
+        'cancel'          => 'Avbryt',
+        'save'            => 'Lagre',
+
+        'required_name' => 'Namn er påkravd',
+        'company_saved' => 'Selskapet er lagra',
+        'error'         => 'Feil: {error}',
+        'save_failed'   => 'Klarte ikkje å lagre',
+
+        // Email domains (shared-intake routing)
+        'domains_label'       => 'E-postdomene',
+        'domains_hint'        => 'E-post frå ein delt mottakspostkasse blir ruta til dette selskapet når domenet til avsendaren passar med eitt av desse. Offentlege leverandørar (gmail.com osv.) kan ikkje leggjast til — den posten blir lagd på plass for hand frå triageringa.',
+        'domains_save_first'  => 'Lagre selskapet først, og legg så til e-postdomena.',
+        'domains_none'        => 'Ingen domene enno.',
+        'domain_placeholder'  => 'acme.com',
+        'domain_add'          => 'Legg til',
+        'domain_remove'       => 'Fjern',
+        'domain_added'        => 'Domenet er lagt til',
+        'domain_removed'      => 'Domenet er fjerna',
+        'domain_add_failed'   => 'Klarte ikkje å leggje til domenet',
+        'domain_remove_failed'=> 'Klarte ikkje å fjerne domenet',
+
+        // Specific senders (shared-intake routing, address-level)
+        'senders_label'       => 'Bestemte avsendarar',
+        'senders_hint'        => 'Enkeltadresser som blir ruta til dette selskapet, sjekka før domenet. Bruk dette for folk hos offentlege leverandørar (jane@gmail.com) der domenet ikkje kan koplast — posten deira når likevel rett selskap i staden for å hamne i triageringa.',
+        'senders_none'        => 'Ingen bestemte avsendarar enno.',
+        'sender_placeholder'  => 'jane@gmail.com',
+        'sender_add'          => 'Legg til',
+        'sender_remove'       => 'Fjern',
+        'sender_added'        => 'Avsendaren er lagd til',
+        'sender_removed'      => 'Avsendaren er fjerna',
+        'sender_add_failed'   => 'Klarte ikkje å leggje til avsendaren',
+        'sender_remove_failed'=> 'Klarte ikkje å fjerne avsendaren',
+
+        // "How email reaches this company" — derived, read-only routing summary.
+        'routing_label'        => 'Korleis e-post når dette selskapet',
+        'routing_hint'         => 'Eit samandrag som berre kan lesast, rekna ut frå postkassane og domena ovanfor. Svar går alltid ut frå den same postkassen meldinga kom inn på.',
+        'routing_loading'      => 'Reknar ut ruting…',
+        'routing_pinned'       => 'Eigen postkasse',
+        'routing_pinned_desc'  => 'Post til {address} høyrer alltid til dette selskapet. Svar går ut frå denne adressa.',
+        'routing_shared'       => 'Delt mottak',
+        'routing_shared_desc'  => 'Post til {address} blir ruta hit når domenet til avsendaren er {domains}. Svar går ut frå denne adressa.',
+        'routing_shared_desc_senders' => 'Post til {address} blir ruta hit når avsendaren er {senders}. Svar går ut frå denne adressa.',
+        'routing_shared_desc_both'    => 'Post til {address} blir ruta hit når domenet til avsendaren er {domains}, eller avsendaren er {senders}. Svar går ut frå denne adressa.',
+        'routing_reply_from'   => 'Svar frå {address}',
+        'routing_inactive'     => 'inaktiv',
+        'routing_unauth'       => 'ikkje autentisert',
+        'routing_default_note' => 'Som standardselskap tek det òg imot all post som ikkje passa med noko anna selskap (triagekøen).',
+        'routing_warn_no_route'   => 'Inga automatisk e-postrute. Post til dette selskapet må leggjast på plass for hand frå triagekøen. Fest ein postkasse til det, eller registrer eit e-postdomene så delt mottak kan finne treff.',
+        'routing_warn_domains_no_shared' => 'Det er registrert domene, men det finst ingen aktiv postkasse for delt mottak å samanlikne dei med. Legg til ein, eller fest ein postkasse til dette selskapet.',
+        'routing_warn_unauth'     => 'Ein postkasse på ei av rutene ovanfor er ikkje autentisert, så posten flyt ikkje før han er kopla til på nytt under Innstillingar.',
+        'routing_failed'       => 'Klarte ikkje å laste rutingsamandraget.',
+
+        // Public email domains (global, add-only)
+        'freemail_title'          => 'Offentlege e-postdomene',
+        'freemail_hint'           => 'Post frå offentlege leverandørar som Gmail og Outlook blir aldri ruta automatisk til eit selskap — to kundar kan dele same leverandør, så han hamnar i triageringa og blir lagd på plass for hand. Dei vanlege leverandørane er alltid med; legg til andre kundane dine brukar, så blir dei handsama på same måten.',
+        'freemail_placeholder'    => 'example-isp.com',
+        'freemail_add'            => 'Legg til',
+        'freemail_remove'         => 'Fjern',
+        'freemail_none'           => 'Ingen ekstra domene lagde til — berre dei innebygde leverandørane nedanfor.',
+        'freemail_added'          => 'Domenet er lagt til',
+        'freemail_removed'        => 'Domenet er fjerna',
+        'freemail_add_failed'     => 'Klarte ikkje å leggje til domenet',
+        'freemail_remove_failed'  => 'Klarte ikkje å fjerne domenet',
+        'freemail_builtin_toggle' => 'Vis dei {count} innebygde leverandørane',
+    ],
+
+    // Email routing test — dry-run diagnostic (system/email-routing-test/).
+    'routing_test' => [
+        'title'    => 'Test av e-postruting',
+        'subtitle' => 'Lat som ein e-post kom inn, og sjå kvar ei ny sak ville blitt lagd — kva selskap, eller triagekøen — og kva regel som avgjorde det. Ingenting blir oppretta; dette les berre innstillingane dine for postkassar og domene.',
+        'single_company_note' => 'Denne installasjonen har berre eitt selskap, så all e-post blir lagd der. Legg til eit selskap nummer to for at rutinga skal ha noko å avgjere.',
+
+        'from_label'       => 'Adressa til avsendaren',
+        'from_hint'        => 'Adressa e-posten kjem frå. Delt mottak samanliknar først med den nøyaktige adressa, deretter med domenet.',
+        'from_placeholder' => 'jane@acme.com',
+        'mailbox_label'    => 'Kjem inn på postkassen',
+        'mailbox_hint'     => 'Postkassen som tok imot e-posten. Ein fest postkasse avgjer selskapet direkte; ein med delt mottak rutar etter domenet til avsendaren.',
+        'mailbox_loading'  => 'Lastar…',
+        'mailbox_choose'   => 'Vel ein postkasse…',
+        'no_mailboxes'     => 'Ingen postkassar er sette opp',
+        'opt_pinned'       => 'Fest til {company}',
+        'opt_shared'       => 'Delt mottak',
+        'run'              => 'Test',
+        'pick_mailbox'     => 'Vel ein postkasse først',
+        'failed'           => 'Rutingtesten feila',
+
+        'placeholder'          => 'Køyr ein test for å sjå kvar ein e-post ville hamna.',
+        'result_company_label' => 'Lagd til selskapet',
+        'result_triage_label'  => 'Sendt til',
+        'result_triage_value'  => 'Triagekøen (ikkje tildelt)',
+        'steps_title'          => 'Korleis det vart avgjort',
+
+        'step_reply'          => 'Svar på ei sak som finst frå før?',
+        'step_reply_detail'   => 'Blir sjekka først i verkelegheita (eit svar arvar selskapet til saka si), men det er avhengig av at emnefeltet ber ein saksreferanse — så det kan ikkje testast ut frå ein avsendar og ein postkasse åleine.',
+        'step_single'         => 'Installasjon med eitt selskap',
+        'step_single_detail'  => 'Berre eitt selskap finst, så all post blir lagd til {company}.',
+        'step_pinned'         => 'Fest postkasse?',
+        'step_pinned_fired'   => '{mailbox} er fest til {company}, så e-posten blir lagd der. Avsendaren blir ignorert.',
+        'step_pinned_skipped' => '{mailbox} er ein postkasse for delt mottak, så rutinga går vidare til avsendaren.',
+        'step_sender'         => 'Er adressa til avsendaren kopla til eit selskap?',
+        'step_sender_fired'   => 'Adressa {address} står på lista over bestemte avsendarar hos {company}, så e-posten blir lagd der. Blir sjekka før domenet.',
+        'step_sender_nomatch' => 'Ingen selskap har {address} på lista si over bestemte avsendarar, så rutinga går vidare til domenet til avsendaren.',
+        'step_sender_noaddress'=> 'Det vart ikkje oppgitt noka avsendaradresse, så det er ingenting å samanlikne med.',
+        'step_domain'         => 'Passar domenet til avsendaren med eit selskap?',
+        'step_domain_fired'   => 'Domenet {domain} er registrert på {company}.',
+        'step_domain_freemail'=> '{domain} er ein offentleg e-postleverandør, som aldri blir registrert på eit selskap — så det kan ikkje gi treff her og går til triagering.',
+        'step_domain_nomatch' => 'Ingen selskap har registrert {domain}.',
+        'step_domain_nodomain'=> 'Det vart ikkje oppgitt noko avsendardomene, så det er ingenting å samanlikne med.',
+        'step_triage'         => 'Triagekø',
+        'step_triage_detail'  => 'Ingenting gav treff, så saka blir ståande utan selskap og ventar i triagekøen på å bli lagd på plass for hand. Ingenting går tapt.',
+    ],
+];
