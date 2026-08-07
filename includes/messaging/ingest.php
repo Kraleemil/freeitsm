@@ -255,8 +255,30 @@ function resolveSlackRequester(PDO $conn, array $channel, string $slackUserId): 
     }
 
     // Name the case rather than leaving it blank.
-    $displayName = $name !== '' ? ($name . ' (Slack)') : ('Slack user @' . $slackUserId);
+    $fallbackName = 'Slack user @' . $slackUserId;
+    $displayName  = $name !== '' ? ($name . ' (Slack)') : $fallbackName;
     $userId = getOrCreateChannelUser($conn, $slackUserId, $displayName, 'slack');
+
+    // ⚠️ Let the name HEAL. getOrCreateChannelUser only sets a display name when
+    // it creates the row, so somebody first seen while the lookup was failing
+    // would keep "Slack user @U0A1B2C3" for ever — even after the cause is fixed.
+    //
+    // That is not a rare edge: Slack grants an app its scopes at install time, so
+    // an app created from a manifest cannot read profiles until someone clicks
+    // "Reinstall to Workspace". Tickets raised before that all name nobody, and
+    // there is no obvious way for an admin to connect the two facts.
+    //
+    // Only ever replaces our OWN fallback string. A name an analyst has edited by
+    // hand does not match that pattern, so it is never overwritten.
+    if ($userId && $name !== '') {
+        try {
+            $upd = $conn->prepare(
+                "UPDATE users SET display_name = ? WHERE id = ? AND display_name = ?"
+            );
+            $upd->execute([$displayName, $userId, $fallbackName]);
+        } catch (Exception $e) { /* cosmetic — never worth failing the ticket */ }
+    }
+
     return [$userId, $displayName];
 }
 
