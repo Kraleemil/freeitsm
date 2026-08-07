@@ -158,6 +158,17 @@
             </div>
         </div>
     </div>
+    <div class="help-note warn">
+        <strong>If Slack shows a yellow &ldquo;Reinstall to Workspace&rdquo; banner, click it.</strong>
+        Slack grants an app its permissions at the moment you install it, so if the permissions were
+        set after that — which is what happens when the app is created from a manifest — the token you
+        already hold is missing most of them. Nothing looks broken: tickets still arrive, they just
+        come in as <em>Slack user @U0A1B2C3</em> instead of the person&rsquo;s name, because reading
+        profiles was one of the permissions that never made it.
+        <br><br>
+        Reinstalling issues a <strong>new</strong> bot token, so copy it again afterwards. This caught
+        the first person to set it up, which is why it has a box to itself.
+    </div>
     <p>
         Back in FreeITSM, edit the row, paste both, and save. Then press the tick button to test it.
         A good result names your workspace.
@@ -241,8 +252,8 @@
                 <td>The app was removed from the channel after setup. Invite it again.</td>
             </tr>
             <tr>
-                <td>Tickets arrive but the requester has no name</td>
-                <td>The app is missing the permission to read profiles. The ticket still says which Slack user it was, so nothing is lost — reinstall the app from the manifest to add it.</td>
+                <td>Tickets arrive as &ldquo;Slack user @U0A1B2C3&rdquo; instead of a name</td>
+                <td>The app was installed before it had permission to read profiles. Go to <strong>OAuth &amp; Permissions</strong> and click <strong>Reinstall to Workspace</strong> — then copy the new bot token into FreeITSM, because reinstalling replaces it. Nothing is lost in the meantime: the ticket still records exactly who sent it.</td>
             </tr>
             <tr>
                 <td>One person&rsquo;s messages all pile onto one ticket</td>

@@ -324,9 +324,19 @@ class SlackProvider extends MessagingProvider
     /**
      * One Slack Web API call.
      *
-     * ⚠️ Slack answers HTTP 200 for its own errors and puts the truth in
-     * {"ok": false, "error": "…"} — so a status-code check alone reports a
-     * failed call as a success. The body is what matters.
+     * ⚠️ Arguments are sent FORM-ENCODED, not as a JSON body, and that is not a
+     * style choice. Slack's write methods (chat.postMessage) accept JSON, but its
+     * read methods do not — users.info given a JSON body parses no arguments at
+     * all and answers `user_not_found` for a user that plainly exists. Nothing
+     * errors; the parameter is simply ignored.
+     *
+     * Cost me a live debugging session: auth.test takes no arguments, so it
+     * worked, and every test I had written passed. Form encoding is accepted by
+     * every method, so it is the one that cannot be wrong.
+     *
+     * ⚠️ Slack also answers HTTP 200 for its own errors and puts the truth in
+     * {"ok": false, "error": "…"} — so a status-code check alone reports a failed
+     * call as a success. The body is what matters.
      */
     private function call(string $method, array $args = []): array
     {
@@ -338,10 +348,10 @@ class SlackProvider extends MessagingProvider
         [$code, $resp, $headers] = $this->httpRequestWithHeaders(self::API . $method, [
             'method'  => 'POST',
             'headers' => [
-                'Content-Type: application/json; charset=utf-8',
+                'Content-Type: application/x-www-form-urlencoded; charset=utf-8',
                 'Authorization: Bearer ' . $token,
             ],
-            'body'    => json_encode($args),
+            'body'    => http_build_query($args),
         ]);
 
         if (isset($headers['x-oauth-scopes'])) {

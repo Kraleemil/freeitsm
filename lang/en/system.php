@@ -224,7 +224,7 @@ return [
         'slack_scopes_desc'    => 'Your Slack admin will see this list when approving the app. Nothing here lets it create channels, invite people or post anywhere it has not been invited.',
         'slack_step1' => 'In Slack, go to <strong>api.slack.com/apps</strong> and choose <strong>Create New App → From a manifest</strong>. Pick the workspace you want the service desk in.',
         'slack_step2' => 'Paste this manifest. It sets the name, the permissions and the address Slack sends messages to, so there is nothing to tick by hand.',
-        'slack_step3' => 'Click <strong>Install to Workspace</strong> and approve it. Then copy the <strong>Bot User OAuth Token</strong> and the <strong>Signing Secret</strong> back into the Edit form here — Slack will not show the token again.',
+        'slack_step3' => 'Click <strong>Install to Workspace</strong> and approve it. Then copy the <strong>Bot User OAuth Token</strong> and the <strong>Signing Secret</strong> back into the Edit form here — Slack will not show the token again. <strong>If Slack shows a yellow &ldquo;Reinstall to Workspace&rdquo; banner, click it first</strong> — otherwise the token is missing most of its permissions and tickets arrive without the sender&rsquo;s name.',
         'slack_step4' => 'Check the request URL below matches what Slack shows under <strong>Event Subscriptions</strong>. Slack verifies it the moment you save the app, so this server has to be reachable from the internet.',
         'slack_step5' => 'In Slack, invite the app to the channel you want it to watch: <strong>/invite @YourApp</strong>. It cannot read a channel it is not in.',
     ],

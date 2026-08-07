@@ -201,7 +201,7 @@ return [
         'slack_scopes_desc'    => 'O administrador do seu Slack verá esta lista ao aprovar o app. Nada aqui permite criar canais, convidar pessoas ou publicar onde ele não foi convidado.',
         'slack_step1' => 'No Slack, acesse <strong>api.slack.com/apps</strong> e escolha <strong>Create New App → From a manifest</strong>. Selecione o espaço de trabalho onde quer a central de serviços.',
         'slack_step2' => 'Cole este manifesto. Ele define o nome, as permissões e o endereço para onde o Slack envia as mensagens, então não há nada para marcar manualmente.',
-        'slack_step3' => 'Clique em <strong>Install to Workspace</strong> e aprove. Depois copie o <strong>Bot User OAuth Token</strong> e a <strong>Signing Secret</strong> de volta no formulário de edição aqui — o Slack não mostra o token de novo.',
+        'slack_step3' => 'Clique em <strong>Install to Workspace</strong> e aprove. Depois copie o <strong>Bot User OAuth Token</strong> e a <strong>Signing Secret</strong> de volta no formulário de edição aqui — o Slack não mostra o token de novo. <strong>Se o Slack exibir um aviso amarelo &ldquo;Reinstall to Workspace&rdquo;, clique nele primeiro</strong> — caso contrário o token fica sem a maioria das permissões e os chamados chegam sem o nome de quem enviou.',
         'slack_step4' => 'Confira se o endereço abaixo é o mesmo que o Slack mostra em <strong>Event Subscriptions</strong>. O Slack o verifica no momento em que você salva o app, então este servidor precisa estar acessível pela internet.',
         'slack_step5' => 'No Slack, convide o app para o canal que ele deve monitorar: <strong>/invite @SeuApp</strong>. Ele não consegue ler um canal em que não está.',
     ],
