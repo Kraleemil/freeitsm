@@ -33,6 +33,15 @@ class I18n {
         'nl'    => 'Nederlands',
         'it'    => 'Italiano',
         'pl'    => 'Polski',
+        // Norwegian ships as both written standards rather than one "Norwegian":
+        // bokmål is what ~85-90% write, nynorsk is co-official and dominant in the
+        // west. Naming them natively is the point of this map — a nynorsk reader
+        // offered only "Norsk" cannot tell which one they are about to get.
+        // ⚠️ A locale listed here MUST have a complete lang/<code>/ folder. Listing
+        // one whose files are missing or unparseable is a fatal on that module, not
+        // a fallback — the per-key English fallback only covers a file that LOADS.
+        // nn is therefore added in its own commit, with its own files.
+        'nb'    => 'Norsk bokmål',
         'ru'    => 'Русский',
         'uk'    => 'Українська',
         'id'    => 'Bahasa Indonesia',
