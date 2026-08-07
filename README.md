@@ -26,7 +26,7 @@ FreeITSM is a complete web-based ITSM platform: **21 integrated modules** coveri
 - 🆓 **Genuinely free** — MIT licence, no per-seat/per-agent fees, no "Enterprise tier". Everything ships to everyone.
 - 🏠 **Self-hosted** — your tickets, your customers' conversations and your knowledge base live in your database, under your backups and your privacy policy.
 - 🤖 **AI included, not upsold** — reply cleanup, knowledge Q&A, form generation, course authoring, RCA drafting and more, all bring-your-own-key (Anthropic, OpenAI, or OpenRouter).
-- 📥 **Every channel becomes a ticket** — email (Microsoft 365, Gmail, IMAP), WhatsApp, an embeddable web chat widget, and a portal that even staff **without a company email address** can use.
+- 📥 **Every channel becomes a ticket** — email (Microsoft 365, Gmail, IMAP), WhatsApp, Slack, an embeddable web chat widget, and a portal that even staff **without a company email address** can use.
 
 ## Screenshots
 
@@ -66,7 +66,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | Module | What it does |
 |--------|--------------|
 | [Watchtower](https://github.com/edmozley/freeitsm/wiki/Watchtower) | Unified attention dashboard — one glance shows what needs you across every module |
-| [Tickets](https://github.com/edmozley/freeitsm/wiki/Tickets) | Outlook-style inbox with email, WhatsApp and web chat channels, SLAs, CSAT, canned responses, multi-select bulk actions, snooze, collision detection, AI reply cleanup |
+| [Tickets](https://github.com/edmozley/freeitsm/wiki/Tickets) | Outlook-style inbox with email, WhatsApp, Slack and web chat channels, SLAs, CSAT, canned responses, multi-select bulk actions, snooze, collision detection, AI reply cleanup |
 | [Self-Service Portal](https://github.com/edmozley/freeitsm/wiki/Self-Service-Portal) | End-user portal — request catalogue, knowledge, replies, screen recording; works even with no email address |
 | [Tasks](https://github.com/edmozley/freeitsm/wiki/Tasks) | Kanban board, list, calendar and timeline views for internal work |
 | [Assets](https://github.com/edmozley/freeitsm/wiki/Assets) | Asset register with custody tracking, locations, warranties, [QR labels and an in-app camera scanner for stocktakes](https://github.com/edmozley/freeitsm/wiki/Asset-QR-Labels), vCenter and Intune sync |
