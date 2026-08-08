@@ -3,9 +3,9 @@
  * Generator: rebuild includes/db_verify_indexes.php from database/freeitsm.sql.
  *
  * freeitsm.sql is the source of truth for the schema. This script extracts every
- * named secondary index (UNIQUE KEY / KEY / INDEX — not PRIMARY, not FOREIGN KEY)
- * with its columns, and writes them as a PHP array the Database Verification
- * endpoint uses to restore any index a grown install is missing.
+ * named secondary index (UNIQUE KEY / FULLTEXT KEY / KEY / INDEX — not PRIMARY,
+ * not FOREIGN KEY) with its columns, and writes them as a PHP array the Database
+ * Verification endpoint uses to restore any index a grown install is missing.
  *
  * Run after adding or changing an index in freeitsm.sql:
  *   php scripts/gen_db_verify_indexes.php
@@ -29,26 +29,34 @@ if ($sql === false) {
     exit(1);
 }
 
-$rows = dbVerifyParseIndexesFromSql($sql);   // [ [table, name, isUnique, cols], ... ]
+$rows = dbVerifyParseIndexesFromSql($sql);   // [ [table, name, type, cols], ... ]
 
 $out  = "<?php\n";
 $out .= "/**\n";
 $out .= " * GENERATED — do not edit by hand.\n";
 $out .= " *\n";
-$out .= " * Every named secondary index in database/freeitsm.sql: [table, name, isUnique,\n";
-$out .= " * columns]. Consumed by api/system/db_verify.php to restore indexes a grown\n";
-$out .= " * install is missing. Regenerate with scripts/gen_db_verify_indexes.php after\n";
-$out .= " * changing an index in freeitsm.sql.\n";
+$out .= " * Every named secondary index in database/freeitsm.sql: [table, name, type,\n";
+$out .= " * columns], where type is 'unique', 'fulltext' or 'key'. Consumed by\n";
+$out .= " * api/system/db_verify.php to restore indexes a grown install is missing.\n";
+$out .= " * Regenerate with scripts/gen_db_verify_indexes.php after changing an index in\n";
+$out .= " * freeitsm.sql.\n";
 $out .= " */\n";
 $out .= "return [\n";
 foreach ($rows as $r) {
-    // $r = [table, name, isUnique, cols]
+    // $r = [table, name, type, cols]
     $out .= sprintf(
-        "    ['%s', '%s', %s, '%s'],\n",
-        $r[0], $r[1], $r[2] ? 'true' : 'false', $r[3]
+        "    ['%s', '%s', '%s', '%s'],\n",
+        $r[0], $r[1], $r[2], $r[3]
     );
 }
 $out .= "];\n";
 
 file_put_contents($outPath, $out);
-fwrite(STDERR, sprintf("Wrote %d indexes to %s\n", count($rows), $outPath));
+
+// Report the breakdown, not just the total — a FULLTEXT index silently parsed as
+// an ordinary KEY would still make the count look right.
+$byType = array_count_values(array_column($rows, 2));
+ksort($byType);
+$parts = [];
+foreach ($byType as $t => $n) $parts[] = "$n $t";
+fwrite(STDERR, sprintf("Wrote %d indexes to %s (%s)\n", count($rows), $outPath, implode(', ', $parts)));

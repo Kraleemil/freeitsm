@@ -2567,11 +2567,21 @@ try {
             $resultPosByTable[$rr['table']] = $ri;
         }
     }
-    foreach ($allNamedIndexes as [$idxTable, $idxName, $idxUnique, $idxCols]) {
+    foreach ($allNamedIndexes as [$idxTable, $idxName, $idxType, $idxCols]) {
         if (!$tableExists($idxTable) || $idxExists($idxTable, $idxName)) continue;
-        $keyword = $idxUnique ? 'UNIQUE KEY' : 'KEY';
+        // The third element carried a boolean before 2026-08 and a type string
+        // after it. dbVerifyIndexTypeOf reads both — guessing here would be worse
+        // than an error, because the string 'key' is truthy and a naive ternary
+        // would build a UNIQUE index over columns that are not unique.
+        $idxType = dbVerifyIndexTypeOf($idxType);
+        $keyword = ['unique' => 'UNIQUE KEY', 'fulltext' => 'FULLTEXT KEY'][$idxType] ?? 'KEY';
         $pos = $resultPosByTable[$idxTable] ?? null;
         try {
+            // ⚠️ The FIRST full-text index on an InnoDB table rebuilds that table,
+            // so it is slow on a populated one. In practice this is fine: db_verify
+            // creates a missing table from $schema moments earlier and then indexes
+            // it while empty. The slow path only exists if someone drops a full-text
+            // index from a table that already holds rows.
             $conn->exec("ALTER TABLE `$idxTable` ADD $keyword `$idxName` $idxCols");
             if ($pos !== null) {
                 $results[$pos]['details'][] = 'Restored missing index ' . $idxName;
@@ -2579,9 +2589,17 @@ try {
             }
         } catch (Exception $e) {
             if ($pos !== null) {
-                $results[$pos]['details'][] = $idxUnique
-                    ? ('Could not add unique index ' . $idxName . ' — duplicate rows exist; resolve them, then re-run')
-                    : ('Could not add index ' . $idxName . ': ' . $e->getMessage());
+                if ($idxType === 'unique') {
+                    $detail = 'Could not add unique index ' . $idxName . ' — duplicate rows exist; resolve them, then re-run';
+                } elseif ($idxType === 'fulltext') {
+                    // Nearly always the column type: InnoDB full-text indexes only
+                    // accept CHAR, VARCHAR and TEXT.
+                    $detail = 'Could not add full-text index ' . $idxName
+                            . ' — full-text indexes only work on CHAR, VARCHAR or TEXT columns. ' . $e->getMessage();
+                } else {
+                    $detail = 'Could not add index ' . $idxName . ': ' . $e->getMessage();
+                }
+                $results[$pos]['details'][] = $detail;
                 $results[$pos]['status'] = 'error';
             }
         }
