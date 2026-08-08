@@ -30,7 +30,7 @@ $translationNamespaces = ['common', 'tickets'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(t('tickets.title')); ?> - <?php echo htmlspecialchars(t('tickets.nav.inbox')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
-    <link rel="stylesheet" href="../assets/css/inbox.css?v=55">
+    <link rel="stylesheet" href="../assets/css/inbox.css?v=56">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=31">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
@@ -395,6 +395,14 @@ $translationNamespaces = ['common', 'tickets'];
                     <label><?php echo htmlspecialchars(t('tickets.search_modal.subject')); ?></label>
                     <input type="text" id="searchSubject" placeholder="<?php echo htmlspecialchars(t('tickets.search_modal.subject_ph')); ?>">
                 </div>
+                <?php // Content search asks the search corpus rather than LIKE-ing a column,
+                      // so it reaches message bodies and notes. Its own field because it
+                      // returns a different shape of result — snippets, and which part matched. ?>
+                <div class="search-field">
+                    <label><?php echo htmlspecialchars(t('tickets.search_modal.content')); ?></label>
+                    <input type="text" id="searchContent" placeholder="<?php echo htmlspecialchars(t('tickets.search_modal.content_ph')); ?>">
+                    <div class="search-field-hint"><?php echo htmlspecialchars(t('tickets.search_modal.content_hint')); ?></div>
+                </div>
                 <div class="search-actions">
                     <button class="btn btn-primary" onclick="performSearch()"><?php echo htmlspecialchars(t('tickets.search_modal.search_btn')); ?></button>
                     <button class="btn btn-secondary" onclick="clearSearch()"><?php echo htmlspecialchars(t('tickets.search_modal.clear_btn')); ?></button>
@@ -756,7 +764,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=83"></script>
+    <script src="../assets/js/inbox.js?v=84"></script>
     <script src="../assets/js/mobile.js?v=14"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

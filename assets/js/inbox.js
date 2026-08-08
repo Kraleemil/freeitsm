@@ -5731,6 +5731,14 @@ async function performSearch() {
     const ticketNumber = document.getElementById('searchTicketNumber').value.trim();
     const email = document.getElementById('searchEmail').value.trim();
     const subject = document.getElementById('searchSubject').value.trim();
+    const contentEl = document.getElementById('searchContent');
+    const content = contentEl ? contentEl.value.trim() : '';
+
+    // Content search is a different question — "which tickets mention this?" rather
+    // than "which ticket is this?" — so it goes to its own endpoint and renders its
+    // own result shape. It wins when both are filled, because it is the more
+    // specific thing the analyst asked for.
+    if (content) { return performContentSearch(content); }
 
     // Validate at least one field
     if (!ticketNumber && !email && !subject) {
@@ -5792,6 +5800,80 @@ function renderSearchResults(results) {
     container.innerHTML = html;
 }
 
+// --- Searching INSIDE tickets (message bodies and notes) --------------------
+// Its own function because the results answer a different question and so carry
+// a different shape: a snippet, and which parts of the ticket matched.
+async function performContentSearch(query) {
+    const container = document.getElementById('searchResults');
+    container.innerHTML = '<div class="search-loading"><div class="spinner"></div></div>';
+
+    try {
+        const response = await fetch(API_BASE + 'search_content.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
+        });
+        const data = await response.json();
+
+        if (!data.success) {
+            container.innerHTML = `<div class="search-results-empty">${escapeHtml(data.error || 'Search failed')}</div>`;
+            return;
+        }
+        renderContentSearchResults(data);
+    } catch (error) {
+        console.error('Content search error:', error);
+        container.innerHTML = '<div class="search-results-empty">Search failed. Please try again.</div>';
+    }
+}
+
+function renderContentSearchResults(data) {
+    const container = document.getElementById('searchResults');
+    const T = (k, p) => window.t ? window.t('tickets.search_modal.' + k, p) : k;
+
+    // "We could not search that" is not the same as "it is not in your tickets",
+    // and saying so is the difference between a useful answer and a dead end.
+    if (data.reason === 'no_usable_terms') {
+        container.innerHTML = `<div class="search-results-empty">${escapeHtml(T('too_short', { n: data.min_length || 3 }))}</div>`;
+        return;
+    }
+    if (data.reason === 'not_ready') {
+        container.innerHTML = `<div class="search-results-empty">${escapeHtml(T('not_indexed'))}</div>`;
+        return;
+    }
+    if (!data.results || data.results.length === 0) {
+        let msg = 'No tickets found matching your criteria';
+        if (data.dropped && data.dropped.length) {
+            msg += ' — ' + T('ignored_terms', { terms: data.dropped.join(', ') });
+        }
+        container.innerHTML = `<div class="search-results-empty">${escapeHtml(msg)}</div>`;
+        return;
+    }
+
+    const partName = (t) => T('part_' + t) || t;
+    let html = `<div class="search-results-count">${data.total} ticket${data.total === 1 ? '' : 's'} found</div>`;
+    if (data.dropped && data.dropped.length) {
+        html += `<div class="search-results-note">${escapeHtml(T('ignored_terms', { terms: data.dropped.join(', ') }))}</div>`;
+    }
+
+    data.results.forEach(r => {
+        const where = (r.matched || []).map(partName).join(', ');
+        const more  = r.hit_count > 1 ? ` ${escapeHtml(T('more_hits', { n: r.hit_count - 1 }))}` : '';
+        html += `
+            <div class="search-result-item" onclick="selectSearchResult(${r.email_id})">
+                <div class="search-result-ticket">${escapeHtml(r.ticket_number)}</div>
+                <div class="search-result-subject">${escapeHtml(r.subject)}</div>
+                ${r.snippet ? `<div class="search-result-snippet">${escapeHtml(r.snippet)}</div>` : ''}
+                <div class="search-result-meta">
+                    <span>${escapeHtml(T('found_in'))}: ${escapeHtml(where)}${more}</span>
+                    <span>${escapeHtml(r.status || '')}</span>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
 function selectSearchResult(emailId) {
     // Keep the modal open so user can try another result if needed
     // Select the email in the reading pane
@@ -5802,12 +5884,14 @@ function clearSearch() {
     document.getElementById('searchTicketNumber').value = '';
     document.getElementById('searchEmail').value = '';
     document.getElementById('searchSubject').value = '';
+    const c = document.getElementById('searchContent');
+    if (c) c.value = '';
     document.getElementById('searchResults').innerHTML = '<div class="search-results-empty">Enter search criteria above</div>';
 }
 
 // Allow Enter key to trigger search
 document.addEventListener('DOMContentLoaded', function() {
-    const searchInputs = ['searchTicketNumber', 'searchEmail', 'searchSubject'];
+    const searchInputs = ['searchTicketNumber', 'searchEmail', 'searchSubject', 'searchContent'];
     searchInputs.forEach(id => {
         const input = document.getElementById(id);
         if (input) {

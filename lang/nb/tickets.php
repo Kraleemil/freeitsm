@@ -458,6 +458,18 @@ return [
         'search_btn'        => 'Søk',
         'clear_btn'         => 'Nullstill',
         'empty_state'       => 'Fyll inn søkekriterier ovenfor',
+        'content'           => 'Hvor som helst i saken',
+        'content_ph'        => 'Ord fra en melding, et notat eller et emne',
+        'content_hint'      => 'Søker inne i hver melding og hvert notat, ikke bare i emnene.',
+        'found_in'          => 'Funnet i',
+        'part_ticket'       => 'emne',
+        'part_email'        => 'melding',
+        'part_note'         => 'notat',
+        'part_attachment'   => 'vedlegg',
+        'more_hits'         => '+{n} til',
+        'ignored_terms'     => 'Ignorert, for kort til å søke på: {terms}',
+        'too_short'         => 'Bruk et ord på minst {n} bokstaver for å søke inne i saker.',
+        'not_indexed'       => 'Saksinnholdet er ikke indeksert på denne installasjonen ennå.',
     ],
 
     'schedule_modal' => [

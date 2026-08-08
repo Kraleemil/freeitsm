@@ -460,6 +460,18 @@ return [
         'search_btn'        => 'Search',
         'clear_btn'         => 'Clear',
         'empty_state'       => 'Enter search criteria above',
+        'content'           => 'Anywhere in the ticket',
+        'content_ph'        => 'Words from a message, a note, or a subject',
+        'content_hint'      => 'Searches inside every message and note, not just subjects.',
+        'found_in'          => 'Found in',
+        'part_ticket'       => 'subject',
+        'part_email'        => 'message',
+        'part_note'         => 'note',
+        'part_attachment'   => 'attachment',
+        'more_hits'         => '+{n} more',
+        'ignored_terms'     => 'Ignored, too short to search: {terms}',
+        'too_short'         => 'Use a word of at least {n} letters to search inside tickets.',
+        'not_indexed'       => 'Ticket content has not been indexed on this installation yet.',
     ],
 
     'schedule_modal' => [
