@@ -45,6 +45,11 @@ class I18n {
         'ru'    => 'Русский',
         'uk'    => 'Українська',
         'id'    => 'Bahasa Indonesia',
+        // Malay and Indonesian are two national standards of one language, so they
+        // sit together — but they are NOT interchangeable. Vocabulary diverges in
+        // exactly the register software uses (Indonesian borrowed from Dutch, Malay
+        // from English): kualitas/kualiti, perangkat lunak/perisian, unduh/muat turun.
+        'ms'    => 'Bahasa Melayu',
         'hi'    => 'हिन्दी',
         'bn'    => 'বাংলা',
         'ta'    => 'தமிழ்',
