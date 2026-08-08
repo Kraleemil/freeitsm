@@ -593,6 +593,15 @@ try {
             try { $conn->exec("ALTER TABLE rbac_analyst_roles ADD CONSTRAINT fk_rar_role FOREIGN KEY (role_id) REFERENCES rbac_roles (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
     }
+    // Search corpus. The cascade is the point, not tidiness: a corpus row holds a
+    // COPY of ticket content that is searchable outside the ticket's own access
+    // check, so a deleted ticket whose text is still findable would be a
+    // data-protection problem rather than an untidy table.
+    if ($tableExists('search_documents') && $tableExists('tickets')) {
+        if (!$fkExists('search_documents', 'fk_search_docs_ticket')) {
+            try { $conn->exec("ALTER TABLE search_documents ADD CONSTRAINT fk_search_docs_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+    }
     if ($tableExists('rbac_team_roles') && $tableExists('rbac_roles') && $tableExists('teams')) {
         if (!$fkExists('rbac_team_roles', 'fk_rtr_team')) {
             try { $conn->exec("ALTER TABLE rbac_team_roles ADD CONSTRAINT fk_rtr_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE"); } catch (Exception $e) {}

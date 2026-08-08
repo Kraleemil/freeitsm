@@ -2901,4 +2901,26 @@ return [
         'label'                => 'VARCHAR(255) NULL',
         'line_style'           => "VARCHAR(20) NULL DEFAULT 'solid'",
     ],
+
+    // Search corpus — one row per searchable unit (ticket subject, email body,
+    // note, and later attachment text). Fully derived: every row is rebuildable
+    // from its source, so losing this table costs a reindex and nothing else.
+    // The full-text indexes are NOT here — indexes come from the generated
+    // includes/db_verify_indexes.php, which understands 'fulltext' as of #991.
+    // See database/freeitsm.sql for why tenant_scope exists rather than a
+    // nullable tenant_id alone: NULL means "the default company" on a ticket and
+    // "every company" on a knowledge article.
+    'search_documents' => [
+        'id'               => 'BIGINT NOT NULL AUTO_INCREMENT',
+        'source_type'      => 'VARCHAR(32) NOT NULL',
+        'source_id'        => 'INT NOT NULL',
+        'ticket_id'        => 'INT NULL',
+        'tenant_id'        => 'INT NULL',
+        'tenant_scope'     => "VARCHAR(16) NOT NULL DEFAULT 'company'",
+        'is_internal'      => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'title'            => 'VARCHAR(500) NULL',
+        'body'             => 'MEDIUMTEXT NULL',
+        'source_datetime'  => 'DATETIME NULL',
+        'indexed_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
 ];

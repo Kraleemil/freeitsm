@@ -4138,6 +4138,56 @@ CREATE TABLE IF NOT EXISTS `network_diagram_connectors` (
     CONSTRAINT `fk_net_conn_rel`  FOREIGN KEY (`cmdb_relationship_id`) REFERENCES `cmdb_object_relationships` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ---------------------------------------------------------------------------
+-- Search corpus. One row per SEARCHABLE UNIT, whatever it came from: a ticket
+-- subject, an email body, an internal note, and later the extracted text of an
+-- attachment or a knowledge article. Keeping them in one table (rather than a
+-- FULLTEXT index per source table) is what lets a single query rank a note hit
+-- against an attachment hit -- relevance scores from different full-text indexes
+-- are computed against their own corpus statistics and are not comparable.
+--
+-- DERIVED, NOT AUTHORITATIVE. Every row is rebuildable from its source; nothing
+-- is stored here that does not exist elsewhere. `body` holds STRIPPED PLAINTEXT,
+-- never the HTML in emails.body_content -- indexing markup makes every ticket
+-- "contain" div, span and style.
+--
+-- ⚠️ tenant_scope exists because NULL means DIFFERENT THINGS in the source
+-- tables: a ticket with tenant_id IS NULL belongs to the DEFAULT company, while
+-- a knowledge article with tenant_id IS NULL is SHARED WITH EVERY company -- the
+-- exact opposite. Overloading NULL here would make the scope of a row depend on
+-- which source_type it came from, so the meaning is written down instead:
+--   'company' -> visible to tenant_id only
+--   'default' -> the source's NULL meant "the default company"
+--   'shared'  -> the source's NULL meant "every company"
+--
+-- ⚠️ PORTAL EXPOSURE IS DELIBERATELY NOT MODELLED YET. is_internal is a fact we
+-- can always establish (a note is internal or it is not). Whether a requester
+-- may see a message sent to a third party is an install SETTING applied at read
+-- time, and whether portal users get content search at all is still an open
+-- product question -- so phase 1 is analyst-only and nothing here should be read
+-- as sufficient for exposing search to customers.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `search_documents` (
+    `id`               BIGINT NOT NULL AUTO_INCREMENT,
+    `source_type`      VARCHAR(32) NOT NULL,
+    `source_id`        INT NOT NULL,
+    `ticket_id`        INT NULL,
+    `tenant_id`        INT NULL,
+    `tenant_scope`     VARCHAR(16) NOT NULL DEFAULT 'company',
+    `is_internal`      TINYINT(1) NOT NULL DEFAULT 0,
+    `title`            VARCHAR(500) NULL,
+    `body`             MEDIUMTEXT NULL,
+    `source_datetime`  DATETIME NULL,
+    `indexed_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_search_docs_source` (`source_type`,`source_id`),
+    KEY `idx_search_docs_ticket` (`ticket_id`),
+    KEY `idx_search_docs_tenant` (`tenant_id`),
+    FULLTEXT KEY `ft_search_docs` (`title`,`body`),
+    FULLTEXT KEY `ft_search_docs_title` (`title`),
+    CONSTRAINT `fk_search_docs_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Seed the curated icon library on first run. Adding more icons later means
 -- inserting a row here AND adding the SVG path to cmdb/includes/icons.php.
 INSERT INTO `cmdb_icons` (`icon_key`, `label`, `display_order`)
