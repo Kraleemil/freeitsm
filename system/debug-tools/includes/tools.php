@@ -166,6 +166,28 @@ function getDebugTools() {
             'duration' => '~1–8 seconds (depends on how quickly the tested services answer)',
             'persists' => 'None. Read-only — it makes unauthenticated HEAD requests to public endpoints and writes nothing. Prints no secrets (no API keys, no request bodies) — only certificate/verification signals.',
         ],
+        [
+            'id'       => 'D007',
+            'slug'     => 'd007',
+            'file'     => 'D007_search_corpus.php',
+            'title'    => 'Search corpus health',
+            'category' => 'Database',
+            'icon'     => 'database',
+            'desc'     => 'Check that searching inside tickets can work — and catch the server settings that make words silently unfindable.',
+            'keywords' => 'search corpus full text fulltext index search_documents match against token size stopword indexing attachments notes d007',
+            'when'     => 'Run this when a search finds nothing it should have found, after adding the search feature to an installation, or simply to confirm a server is set up so that searching inside ticket content will work at all. Full-text search fails QUIETLY — MySQL has settings that decide which words it will even remember, and when one is wrong nothing errors, searches just come back empty. The worst is a low "longest word" limit, which makes a word like "authentication" unfindable while "printer" works perfectly. This tool looks at the whole chain in one place and ends with a plain-English verdict and the fix.',
+            'checks'   => [
+                'The corpus table exists, uses InnoDB, and has every column it should',
+                'Its indexes — including the two FULL-TEXT ones searching actually depends on, and whether an index of the right NAME is the wrong KIND (the failure that finds nothing while looking fine)',
+                'The link to tickets deletes a ticket\'s searchable copy along with the ticket — a privacy matter, not a tidiness one',
+                'The MySQL settings that silently decide which words can be found: shortest word, longest word, and whether common words are ignored — each compared against the standard value, in plain English',
+                'What the corpus currently holds, broken down by kind, and when it was last updated',
+                'A LIVE search — writes one probe row, searches for a word that is in it and one that is not, then deletes it',
+                'A plain-English verdict: all good, or a numbered list of problems each with what to do about it',
+            ],
+            'duration' => '~1 second',
+            'persists' => 'Writes ONE probe row and deletes it again (removed in a finally block, and the tool reports if any was left behind). It has to write rather than use a rolled-back transaction, because MySQL does not let a search see rows that have not been committed. The row uses a reserved type that nothing else writes. Nothing else is modified.',
+        ],
     ];
 }
 
