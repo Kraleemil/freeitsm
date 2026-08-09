@@ -92,6 +92,7 @@ $emojis = ['', '😡', '🙁', '😐', '🙂', '😀'];
 <!DOCTYPE html>
 <html lang="<?= htmlspecialchars(I18n::getLocale()) ?>" data-theme="<?= htmlspecialchars(Theme::active()) ?>" data-theme-mode="<?= htmlspecialchars(Theme::mode()) ?>">
 <head>
+    <link rel="icon" type="image/svg+xml" href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>favicon.svg">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title><?= htmlspecialchars(t('tickets.csat.page_title')) ?></title>

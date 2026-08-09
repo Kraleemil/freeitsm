@@ -138,6 +138,7 @@ if ($ready && $ids) {
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>">
 <head>
+    <link rel="icon" type="image/svg+xml" href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>favicon.svg">
     <meta charset="UTF-8">
     <title>Asset labels · FreeITSM</title>
     <script src="../assets/js/qrcode.min.js"></script>
