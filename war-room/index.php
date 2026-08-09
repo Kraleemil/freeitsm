@@ -86,7 +86,7 @@ foreach ($channels as $ch) {
     <title>Service Desk - <?php echo htmlspecialchars(t('war-room.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
-    <link rel="stylesheet" href="../assets/css/war-room.css?v=5">
+    <link rel="stylesheet" href="../assets/css/war-room.css?v=6">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=43">
     <style>
         /* Pin the shared accent to the module's amber so buttons and focus

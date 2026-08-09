@@ -129,6 +129,19 @@ $choices = [0, 7, 30, 90, 180, 365];
     <script src="../../assets/js/ai-settings.js"></script>
     <script src="../../assets/js/mobile.js?v=22"></script>
     <script>
+        // ⚠️ The tab bar is rendered by the shared helper but SWITCHING is each
+        // page's own job — renderSettingsTabBar() only emits the buttons. This
+        // page had one tab until the AI settings arrived, so nothing was needed
+        // and nothing was noticed; the second tab is what exposed it.
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            const btn = document.querySelector('.tab[data-tab="' + tab + '"]');
+            if (btn) btn.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const panel = document.getElementById(tab + '-tab');
+            if (panel) panel.classList.add('active');
+        }
+
         // Saved through the generic settings writer. That endpoint refuses any
         // key nobody owns, and this key's owner is declared in the module's
         // settings manifest — so the tab that shows it and the capability that

@@ -436,6 +436,7 @@
 /* Files chosen but not yet sent, so nobody presses Send believing a screenshot
    is attached when the picker was cancelled. */
 .wr-pending { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.wr-pending[hidden] { display: none; }      /* same trap as .wr-panel above */
 .wr-chip {
     display: inline-flex;
     align-items: center;
@@ -464,6 +465,13 @@
    A panel rather than a page, so the conversation stays visible while you use
    either — during an incident, losing sight of the chat to run a search is a
    real cost. */
+/* ⚠️ An explicit `display` in author CSS BEATS the `hidden` attribute, whose
+   `display: none` comes from the browser's own stylesheet. Every element in this
+   file that JS toggles with .hidden and that also sets a display here needs its
+   own [hidden] rule — without it the panel simply never closes, which is exactly
+   what happened to the × button. */
+.wr-panel[hidden] { display: none; }
+
 .wr-panel {
     width: 380px;
     flex-shrink: 0;
