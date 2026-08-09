@@ -169,7 +169,16 @@ function initTinyMCE() {
             { text: 'JSON', value: 'json' },
             { text: 'Plain Text', value: 'plaintext' }
         ],
-        content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; line-height: 1.6; }',
+        // The `pointer: coarse` block is the one thing mobile.css cannot do
+        // from outside: TinyMCE renders into an IFRAME, so no rule in our
+        // stylesheet reaches this text. It has to be 16px on a touch device —
+        // iOS zooms in on focus for anything smaller, which on a full-screen
+        // mobile editor spills the layout wide and makes Safari reflow the
+        // whole page to desktop width, switching every mobile rule off. Keyed
+        // on the pointer rather than a width so a desktop browser resized
+        // narrow is unaffected. Same single justified edit inbox.js took (#766).
+        content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; line-height: 1.6; }' +
+                       ' @media (pointer: coarse) { body { font-size: 16px; } }',
         setup: function(editor) {
             articleEditor = editor;
         }

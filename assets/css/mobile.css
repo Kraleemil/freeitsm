@@ -1762,4 +1762,337 @@
         min-height: 38px;
         font-size: 14px;
     }
+
+    /* ====================================================================
+       LAYER 17 — KNOWLEDGE module (#1000)
+
+       The fourth module. Two things make it different from the first three.
+
+       1. **It needs no pane stack.** `.knowledge-main` already shows exactly
+          one of three views at a time (list / detail / editor), toggled by
+          `showView()` with `display`. So there is nothing to slide — the
+          mobile job is what each view looks like once it has the screen.
+
+       2. **The primary action is SEARCH**, and search lives in the sidebar
+          that has to go. On a phone you come to a knowledge base to find one
+          article, so the search box is RELOCATED into the sub-bar rather than
+          buried in a sheet behind a button. The tag filters, New article and
+          the recycle bin go into the sheet; search does not.
+
+       mobile.js mirrors the current view onto `body[data-kb-view]` so these
+       rules can react to it — the module's own JS carries that state only in
+       three inline `display` values.
+       -------------------------------------------------------------------- */
+
+    /* --------------------------------------------------------------------
+       17a — Page shell.
+       -------------------------------------------------------------------- */
+    .knowledge-container {
+        flex-direction: column;
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    /* Relocated into the sub-bar + sheet by mobile.js; this hides the shell if
+       that JS hasn't run. `> ` so the copy inside the sheet is unaffected. */
+    .knowledge-container > .knowledge-sidebar { display: none; }
+    .knowledge-main { padding: 12px; min-width: 0; }
+
+    /* The sub-bar carries the real `#articleSearch` input, moved here — so it
+       keeps its id and its `onkeyup="debounceSearch()"`. 16px because it is a
+       focusable field (iOS would zoom and reflow the page otherwise). */
+    .mobile-subbar .search-box { flex: 1; min-width: 0; }
+    .mobile-subbar .search-box input {
+        width: 100%;
+        min-height: 40px;
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+    /* The sub-bar belongs to the LIST. Searching or tag-filtering from inside
+       an article would silently rearrange a list you can't see, and both the
+       detail and editor views already carry their own Back / Cancel. So the
+       whole bar goes away rather than sitting there offering the wrong verbs
+       — which is also one less strip of chrome above the thing you came to
+       read. `!important` beats the inline `display: flex` mobile.js sets. */
+    body[data-kb-view="detail"] .mobile-subbar,
+    body[data-kb-view="editor"] .mobile-subbar { display: none !important; }
+
+    /* --------------------------------------------------------------------
+       17b — The article list.
+       -------------------------------------------------------------------- */
+    .article-list-header { margin-bottom: 12px; gap: 10px; }
+    .article-list-header h2 { font-size: 19px; }
+    .article-list { gap: 10px; }
+    .article-card { padding: 14px; }
+    /* A lift-on-hover sticks after a tap on a touchscreen. */
+    .article-card:hover { transform: none; box-shadow: 0 2px 4px var(--shadow, rgba(0,0,0,0.08)); }
+    .article-card-title { font-size: 16px; padding-right: 40px; }
+    .article-card-preview { font-size: 13px; margin-bottom: 10px; }
+    /* Date and tags side by side at 360px squeeze both; give tags their row. */
+    .article-card-meta { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .article-card-info { gap: 12px; flex-wrap: wrap; }
+    /* The bulk tick is a 13px checkbox in the card corner — a miss-tap that
+       opens the article instead. Widen the hit area, not the tick. */
+    .article-select { top: 8px; right: 8px; padding: 11px; }
+    .article-select input { width: 18px; height: 18px; }
+
+    /* The bulk bar already wraps; it just needs thumb-sized controls. */
+    .kb-bulk-bar { padding: 12px; gap: 8px; }
+    .kb-bulk-bar select { flex: 1 1 100%; min-height: 44px; font-size: 16px; }
+    .kb-bulk-bar .btn { flex: 1; min-height: 40px; }
+
+    /* --------------------------------------------------------------------
+       17c — Reading an article. THE journey this module exists on a phone
+       for, and the one with the widest content in the product.
+
+       An article body is author-written HTML from TinyMCE: it can hold a
+       screenshot at its natural pixel width, a table of firewall rules, a
+       pasted iframe, a code sample. Any one of those is wider than 360px, and
+       a wide thing loose in the layout doesn't just overflow — it reflows the
+       whole page to desktop width and switches the media query off
+       (Techniques §3). `pre` was already an `overflow-x: auto` island;
+       everything else here is the same treatment applied to the rest.
+       -------------------------------------------------------------------- */
+    .article-detail-header { flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .article-actions { flex-wrap: wrap; gap: 8px; flex: 1 1 100%; }
+    .article-actions .btn { flex: 1; justify-content: center; min-height: 42px; }
+    .article-detail-header > .btn { min-height: 42px; }
+
+    .article-content { padding: 16px; border-radius: 8px; }
+    .article-content-title { font-size: 22px; }
+    .article-content-meta { flex-direction: column; gap: 4px; font-size: 13px; }
+
+    /* Images and media scale to the column instead of setting it. */
+    .article-content-body img,
+    .article-content-body video,
+    .article-content-body iframe,
+    .article-content-body embed {
+        max-width: 100%;
+        height: auto;
+    }
+    /* A table's columns are the author's, not ours, and there is no telling
+       how many — so it stays a table and gets its own scroll box (the LAYER 12
+       / 15c rule). `display: block` is what makes overflow apply to a table. */
+    .article-content-body table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+    /* `nowrap` is doing the real work, not the overflow. Without it a seven-
+       column table doesn't scroll — it CRUSHES, wrapping every cell down to
+       one word per line inside 360px, which is contained and unreadable. The
+       trade is that a cell holding a sentence becomes a long swipe; for the
+       tables people actually put in a runbook (rules, ports, versions) that
+       is the right way round, and it matches 15c and 15f. */
+    .article-content-body th,
+    .article-content-body td { white-space: nowrap; }
+    .article-content-body pre {
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        font-size: 12.5px;
+    }
+    /* A long unbroken string — a URL, a registry path, a hash — is a single
+       word no wrapping algorithm will break by default. */
+    .article-content-body { overflow-wrap: anywhere; }
+    .article-content-body code { overflow-wrap: anywhere; }
+
+    /* Share: an absolutely-positioned dropdown pinned to a button that is now
+       full-width becomes a bottom sheet, the same move as the calendar's
+       quick-view popup (16e). `position: fixed` beats the parent's
+       `position: relative` without touching the JS that opens it. */
+    .share-dropdown { position: static; }
+    .share-dropdown-menu.active {
+        position: fixed;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        border-radius: 14px 14px 0 0;
+        z-index: 1600;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .share-dropdown-menu a { padding: 16px; font-size: 15px; min-height: 52px; }
+
+    /* --------------------------------------------------------------------
+       17d — The editor.
+
+       ⚠️ The landmine here is the same one as the tickets pop-out (#762): a
+       DESKTOP MODE HELD IN localStorage. `applyEditorPopoutFromPref()` reads
+       `knowledge_editor_popout` on every edit and re-applies `.editor-popout`,
+       which turns the form into a `row-reverse` flex with a **fixed 340px**
+       property panel. At 360px that is the entire screen and the editor itself
+       gets nothing. mobile.js strips the class at the source; this is the CSS
+       backstop, because a backstop is what saved the tickets one.
+       -------------------------------------------------------------------- */
+    .knowledge-container.editor-popout .editor-form {
+        display: block;
+        flex-direction: initial;
+    }
+    .knowledge-container.editor-popout .editor-properties {
+        width: auto;
+        flex-shrink: initial;
+        padding: 0;
+        background: none;
+        border: none;
+        overflow-y: visible;
+    }
+    .knowledge-container.editor-popout .editor-content { display: block; }
+    /* The pop-out toggle itself is meaningless on a phone — the editor is
+       already the whole screen — and leaving it would re-arm the pref. */
+    .editor-popout-toggle { display: none; }
+
+    .editor-scroll { padding: 12px; margin: 0; }
+    .editor-header h2 { font-size: 19px; }
+    .editor-form { padding: 14px; }
+    /* Two-up property rows are two unusable fields at 360px. `.form-row` here
+       is FLEX (LAYER 3's grid-stacking rule is inert on it — see 16f). */
+    .editor-form .form-row { flex-direction: column; gap: 0; }
+    .editor-form .form-row > .form-group { margin-bottom: 16px; }
+    .editor-form .form-input,
+    .editor-form .form-select,
+    .editor-form .tag-input,
+    .editor-form input[type="text"],
+    .editor-form input[type="date"],
+    .editor-form select,
+    .editor-form textarea {
+        font-size: 16px;
+        min-height: 44px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    .editor-form input[type="date"] {
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    /* Label and chips share one row on desktop; on a phone the chips need
+       their own, left-aligned under the label. */
+    .tag-label-row { flex-wrap: wrap; gap: 6px; }
+    .selected-tags { justify-content: flex-start; flex: 1 1 100%; }
+    .tag-suggestion { padding: 13px 12px; font-size: 15px; }
+
+    /* The action row is a real footer; give it full-width thumb targets and
+       cancel the negative margins that cancelled the desktop pane padding. */
+    .editor-actions { margin: 0; padding: 12px; flex-wrap: wrap; gap: 8px; }
+    .editor-actions .btn { flex: 1 1 auto; min-height: 44px; }
+
+    /* --------------------------------------------------------------------
+       17e — The tags / actions sheet (LAYER 7 chrome, as 16g).
+       -------------------------------------------------------------------- */
+    .mobile-sheet-kbopts .sidebar-section {
+        padding: 4px 0 16px;
+        border-bottom: 1px solid var(--border-soft, #eee);
+    }
+    .mobile-sheet-kbopts .sidebar-section:last-child { border-bottom: none; }
+    /* The search box is in the sub-bar, so its section in the sheet is dead
+       weight — mobile.js marks it rather than trusting a position. */
+    .mobile-sheet-kbopts .kb-dup { display: none; }
+    /* One heading per sheet: the sheet's own "Tags" title already labels the
+       filter list, so drop the panel's "Filter by Tags" above it. Matched via
+       :has() on the list's id — the sections below it have no headings to
+       lose, but keying on position would break the moment one gained one. */
+    .mobile-sheet-kbopts .sidebar-section:has(#tagFilterList) h3 { display: none; }
+    .mobile-sheet-kbopts .tag-filter { padding: 12px 10px; min-height: 46px; font-size: 15px; }
+    .mobile-sheet-kbopts .btn-full { min-height: 46px; font-size: 15px; }
+
+    /* --------------------------------------------------------------------
+       17f — The Review page (knowledge/review/).
+
+       Six columns — title, owner, review date, days overdue, modified, edit —
+       so by the "columns known" rule it becomes a card feed rather than a
+       scroller. Keyed on `.review-table`, and on `:first-child` /
+       `:last-child` rather than a column count.
+       -------------------------------------------------------------------- */
+    .review-container { padding: 12px; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+    .review-header { flex-direction: column; align-items: stretch; gap: 10px; }
+    .review-header h1 { font-size: 20px; }
+    .review-search { width: 100%; font-size: 16px; min-height: 44px; box-sizing: border-box; }
+    /* Four tabs with badges don't fit; scroll them rather than wrap to two
+       rows that push the list off the screen (the 15e tab-strip move). */
+    .filter-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+    .filter-tabs::-webkit-scrollbar { display: none; }
+    .filter-tab { flex: 0 0 auto; white-space: nowrap; min-height: 42px; }
+
+    .review-table,
+    .review-table tbody,
+    .review-table tr,
+    .review-table td { display: block; }
+    .review-table thead { display: none; }
+    .review-table tr {
+        position: relative;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+    }
+    .review-table td {
+        border-bottom: none;
+        padding: 0;
+        width: auto;
+        white-space: normal;
+        font-size: 13px;
+    }
+    .review-table td:first-child {
+        font-size: 15px;
+        font-weight: 600;
+        padding-right: 62px;        /* clears the pinned Edit action */
+    }
+    /* Once the column headers are gone, a stack of bare values needs a
+       hierarchy or it reads as a list of unexplained strings. The title is the
+       only thing that stays full-strength; everything under it is subordinate,
+       and `.review-date.overdue` keeps its own red on top of this — so the one
+       cell that matters is the one that stands out. No CSS-generated labels:
+       that string would be hardcoded English (this ships in 24 languages), and
+       the reading order does the work instead. */
+    .review-table td + td { margin-top: 5px; color: var(--text-muted, #666); }
+
+    /* ⚠️ The days-overdue cell is a BARE NUMBER — the renderer emits
+       `<span class="days-overdue">139</span>` with the word "days" living only
+       in the column header we just dropped. On a card it reads as noise, and
+       there is no translated string to relabel it with. It also says nothing
+       the line above doesn't: the review date immediately preceding it is
+       already rendered red for exactly this case. So it goes. */
+    .review-table td:has(.days-overdue) { display: none; }
+    /* As 16i: the empty/loading row is one colspan cell — first AND last —
+       and must not be pinned out of its card. */
+    .review-table td:last-child:not(:first-child) {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        margin-top: 0;
+    }
+    .review-table td:last-child:not(:first-child) a,
+    .review-table td:last-child:not(:first-child) button {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+    }
+
+    /* --------------------------------------------------------------------
+       17g — The Assistant page (knowledge/assistant/).
+       -------------------------------------------------------------------- */
+    .ka-page { padding: 12px; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+    .ka-head { flex-direction: column; align-items: stretch; gap: 12px; }
+    .ka-head h1 { font-size: 20px; }
+    .ka-btn { min-height: 44px; }
+    .ka-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+    .ka-tabs::-webkit-scrollbar { display: none; }
+    .ka-tab { flex: 0 0 auto; white-space: nowrap; min-height: 42px; }
 }

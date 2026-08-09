@@ -97,6 +97,18 @@
     // ------------------------------------------------------------------
     if (document.getElementById('calendarGrid')) { initCalendarMobile(); return; }
 
+    // ------------------------------------------------------------------
+    // KNOWLEDGE (#1000) — the fourth module.
+    //
+    // No pane stack either, and for a better reason than the calendar's:
+    // `.knowledge-main` ALREADY shows one of three views at a time (list /
+    // detail / editor), toggled by showView(). Nothing to slide. What that
+    // state doesn't do is reach CSS, so the wrap below mirrors it onto
+    // body[data-kb-view]. Guarded on .knowledge-container so the module's
+    // other pages (review / assistant / settings / help) take the shell only.
+    // ------------------------------------------------------------------
+    if (document.querySelector('.knowledge-container')) { initKnowledgeMobile(); return; }
+
     // Flat pages (Assets' table view, dashboard, settings, servers — #937) have
     // no pane stack: the shell above is the whole of their JS. The servers page
     // is the reason this test isn't just `!mc` — it DOES carry .main-container
@@ -433,6 +445,163 @@
         syncCalendarBar();
         if (mq.addEventListener) { mq.addEventListener('change', syncCalendarBar); }
         else if (mq.addListener) { mq.addListener(syncCalendarBar); }
+    }
+
+    /* ==================================================================
+       KNOWLEDGE (#1000)
+
+       Paired with mobile.css LAYER 17. knowledge.js is not edited here — the
+       one change it needed (16px inside the TinyMCE iframe, which CSS cannot
+       reach) is a `@media (pointer: coarse)` block in its `content_style`,
+       the same single justified edit inbox.js took in #766.
+
+       Three pieces:
+         1. the search box, MOVED into the sub-bar — on a phone the primary
+            action in a knowledge base is finding one article, so it must not
+            be behind a button. The tag filters and the two buttons go into a
+            sheet; search does not.
+         2. showView() mirrored onto body[data-kb-view] so CSS can react.
+         3. the editor pop-out neutralised — a localStorage desktop mode, the
+            exact shape of the #762 tickets bug.
+       ================================================================== */
+    function initKnowledgeMobile() {
+        var container = document.querySelector('.knowledge-container');
+        if (!container) return;
+
+        function tr(key, fallback) {
+            if (typeof window.t !== 'function') return fallback;
+            var v = window.t(key);
+            return (!v || v === key) ? fallback : v;
+        }
+        var tagsLabel = tr('knowledge.editor.field_tags', 'Tags');
+
+        // ---- sub-bar: the real search input + the sheet button ----
+        var bar = document.createElement('div');
+        bar.className = 'mobile-subbar';
+        bar.style.display = 'none';          // @media CSS can't hide injected chrome
+        bar.innerHTML = '<button type="button" class="msb-kbopts">☰ <span></span></button>';
+        bar.querySelector('.msb-kbopts span').textContent = tagsLabel;
+        bar.querySelector('.msb-kbopts').setAttribute('aria-label', tagsLabel);
+        container.parentNode.insertBefore(bar, container);
+
+        // ---- sheet chrome (LAYER 7's .mobile-sheet) ----
+        var sheet = document.createElement('div');
+        sheet.className = 'mobile-sheet mobile-sheet-kbopts';
+        sheet.style.display = 'none';
+        sheet.innerHTML =
+            '<div class="ms-head"><span class="ms-title"></span>' +
+            '<button type="button" class="ms-close"></button></div>' +
+            '<div class="ms-body"></div>';
+        sheet.querySelector('.ms-title').textContent = tagsLabel;
+        sheet.querySelector('.ms-close').textContent = tr('knowledge.modal.close', tr('common.close', 'Close'));
+        sheet.querySelector('.ms-close').addEventListener('click', closeSheet);
+        document.body.appendChild(sheet);
+
+        function openSheet() {
+            sheet.style.display = 'flex';
+            history.pushState({ kbSheet: true }, '');
+        }
+        function hideSheet() { sheet.style.display = 'none'; }
+        function closeSheet() {
+            if (history.state && history.state.kbSheet) history.back();
+            else hideSheet();
+        }
+        window.addEventListener('popstate', function () { hideSheet(); });
+
+        /* The search box is MOVED, not copied — `#articleSearch` keeps its id
+           and its inline `onkeyup="debounceSearch()"`, so the module's own
+           search keeps working with no rewiring. Its now-empty section in the
+           sidebar is marked rather than found by position. */
+        function sidebarIntoPlace() {
+            var sb = container.querySelector('.knowledge-sidebar');
+            if (!sb) return;                                  // already moved
+            var box = sb.querySelector('.search-box');
+            if (box) {
+                var sec = box.closest('.sidebar-section');
+                if (sec) sec.classList.add('kb-dup');          // heading with nothing under it
+                bar.insertBefore(box, bar.firstChild);
+            }
+            sheet.querySelector('.ms-body').appendChild(sb);
+        }
+        function sidebarBackToPage() {
+            var sb = sheet.querySelector('.knowledge-sidebar');
+            if (!sb) return;
+            var box = bar.querySelector('.search-box');
+            var sec = sb.querySelector('.sidebar-section.kb-dup');
+            if (box && sec) { sec.classList.remove('kb-dup'); sec.appendChild(box); }
+            container.insertBefore(sb, container.firstChild);
+        }
+
+        bar.querySelector('.msb-kbopts').addEventListener('click', function () {
+            sidebarIntoPlace();
+            openSheet();
+        });
+        // Picking a tag filters the list behind the sheet; close it so you can
+        // see what you just did.
+        sheet.addEventListener('click', function (e) {
+            if (e.target.closest('.tag-filter, .btn-full')) closeSheet();
+        });
+
+        // ---- mirror the current view onto <body> for CSS ----
+        function readView() {
+            var d = document.getElementById('articleDetailView');
+            var e = document.getElementById('articleEditorView');
+            if (e && e.style.display !== 'none' && e.style.display !== '') return 'editor';
+            if (d && d.style.display !== 'none' && d.style.display !== '') return 'detail';
+            return 'list';
+        }
+        // Named setKbView, not setView: the inbox branch has a top-level
+        // setView-alike (`setPane`) and a plain `setView` here would read as
+        // the calendar module's view toggle.
+        function setKbView(v) { document.body.setAttribute('data-kb-view', v); }
+        setKbView(readView());
+
+        if (typeof window.showView === 'function') {
+            var _showView = window.showView;
+            window.showView = function (view) {
+                var r = _showView.apply(this, arguments);
+                setKbView(view || readView());
+                stripEditorPopout();
+                return r;
+            };
+        }
+
+        /* ⚠️ The #762 trap, second sighting. `applyEditorPopoutFromPref()`
+           reads localStorage on every edit and re-applies `.editor-popout`,
+           which gives the form a FIXED 340px property panel — the whole screen
+           at 360px, leaving the editor itself nothing. Neutralise at the
+           source (the CSS in 17d is only the backstop), and leave the stored
+           preference alone so the desktop behaviour is unchanged. */
+        function stripEditorPopout() {
+            if (mq.matches) container.classList.remove('editor-popout');
+        }
+        ['applyEditorPopoutFromPref', 'toggleEditorPopout'].forEach(function (fn) {
+            if (typeof window[fn] !== 'function') return;
+            var _orig = window[fn];
+            window[fn] = function () {
+                var r = _orig.apply(this, arguments);
+                stripEditorPopout();
+                return r;
+            };
+        });
+        stripEditorPopout();
+
+        function syncKnowledgeBar() {
+            var on = mq.matches;
+            bar.style.display = on ? 'flex' : 'none';
+            var vb = document.querySelector('.mobile-views-btn');
+            if (vb) vb.style.display = on ? '' : 'none';
+            if (on) { sidebarIntoPlace(); }
+            else {
+                document.body.classList.remove('mobile-views-open');
+                hideSheet();
+                sidebarBackToPage();
+                document.body.removeAttribute('data-kb-view');
+            }
+        }
+        syncKnowledgeBar();
+        if (mq.addEventListener) { mq.addEventListener('change', syncKnowledgeBar); }
+        else if (mq.addListener) { mq.addListener(syncKnowledgeBar); }
     }
 
     // ---- pane state, mirrored on <body> so CSS ancestor selectors can react ----
