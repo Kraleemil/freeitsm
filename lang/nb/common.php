@@ -57,7 +57,8 @@ return [
     'copied'       => 'Kopiert',
     'retry'        => 'Prøv igjen',
     'export'       => 'Eksporter',
-    'open'         => 'Åpne',
+    'back'         => 'Tilbake',
+    'open'         =>  'Åpne',
     'apply'        => 'Bruk',
 
     // Bekreftelse / tilstand

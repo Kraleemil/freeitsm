@@ -24,7 +24,8 @@ return [
     'copied'       => 'Tersalin',
     'retry'        => 'Coba lagi',
     'export'       => 'Ekspor',
-    'open'         => 'Buka',
+    'back'         => 'Kembali',
+    'open'         =>  'Buka',
     'apply'        => 'Terapkan',
 
     // Confirm / state

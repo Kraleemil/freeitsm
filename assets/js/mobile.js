@@ -542,6 +542,55 @@
             if (e.target.closest('.tag-filter, .btn-full')) closeSheet();
         });
 
+        /* ---- "Back to list" -> "Back" ----
+           Four buttons share one row on a phone, and the long label is what
+           stops them fitting. `common.back` was added for this and harvested
+           from each locale's existing translation of the same word, so no
+           locale falls back to English. The desktop label is restored when
+           the viewport leaves mobile — the element is shared, not duplicated. */
+        var backLink = document.querySelector('.article-detail-header > .btn');
+        var backLong = backLink ? backLink.textContent.trim() : '';
+        var backShort = tr('common.back', backLong);
+        function syncBackLabel() {
+            if (!backLink) return;
+            backLink.textContent = mq.matches ? backShort : backLong;
+        }
+
+        /* ---- the collapsible meta block (Gmail-style) ----
+           The whole meta row is the control: a bigger target than a chevron,
+           and its accessible name is the visible "Modified: …" text, so the
+           toggle needs no label string in 24 languages. The reading pane is
+           rebuilt on every article open, so this re-runs after each render
+           and is idempotent. */
+        function wireMetaToggle() {
+            if (!mq.matches) return;
+            var head = document.querySelector('.article-content-header');
+            var meta = head && head.querySelector('.article-content-meta');
+            if (!meta || meta.dataset.kbToggle) return;      // idempotent
+            meta.dataset.kbToggle = '1';
+            meta.setAttribute('role', 'button');
+            meta.setAttribute('tabindex', '0');
+            meta.setAttribute('aria-expanded', 'false');
+            function toggle() {
+                var open = head.classList.toggle('kb-meta-open');
+                meta.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+            meta.addEventListener('click', toggle);
+            meta.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+            });
+        }
+
+        if (typeof window.renderArticleDetail === 'function') {
+            var _renderArticleDetail = window.renderArticleDetail;
+            window.renderArticleDetail = function () {
+                var r = _renderArticleDetail.apply(this, arguments);
+                wireMetaToggle();
+                return r;
+            };
+        }
+        wireMetaToggle();          // an article opened straight from a ?article= URL
+
         // ---- mirror the current view onto <body> for CSS ----
         function readView() {
             var d = document.getElementById('articleDetailView');
@@ -591,8 +640,12 @@
             bar.style.display = on ? 'flex' : 'none';
             var vb = document.querySelector('.mobile-views-btn');
             if (vb) vb.style.display = on ? '' : 'none';
-            if (on) { sidebarIntoPlace(); }
+            syncBackLabel();
+            if (on) { sidebarIntoPlace(); wireMetaToggle(); }
             else {
+                // Leaving mobile: the meta block must not stay half-collapsed.
+                var head = document.querySelector('.article-content-header');
+                if (head) head.classList.remove('kb-meta-open');
                 document.body.classList.remove('mobile-views-open');
                 hideSheet();
                 sidebarBackToPage();

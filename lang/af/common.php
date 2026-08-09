@@ -23,7 +23,8 @@ return [
     'copied'       => 'Gekopieer',
     'retry'        => 'Probeer weer',
     'export'       => 'Voer uit',
-    'open'         => 'Maak oop',
+    'back'         => 'Terug',
+    'open'         =>  'Maak oop',
     'apply'        => 'Pas toe',
 
     // Confirm / state

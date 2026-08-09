@@ -57,7 +57,8 @@ return [
     'copied'       => 'Copied',
     'retry'        => 'Retry',
     'export'       => 'Export',
-    'open'         => 'Open',
+    'back'         => 'Back',
+    'open'         =>  'Open',
     'apply'        => 'Apply',
 
     // Confirm / state

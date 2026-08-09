@@ -51,7 +51,8 @@ return [
     'copied'       => 'Copiado',
     'retry'        => 'Tentar novamente',
     'export'       => 'Exportar',
-    'open'         => 'Abrir',
+    'back'         => 'Voltar',
+    'open'         =>  'Abrir',
     'apply'        => 'Aplicar',
 
     'yes'          => 'Sim',

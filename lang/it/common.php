@@ -22,7 +22,8 @@ return [
     'copied'       => 'Copiato',
     'retry'        => 'Riprova',
     'export'       => 'Esporta',
-    'open'         => 'Apri',
+    'back'         => 'Indietro',
+    'open'         =>  'Apri',
     'apply'        => 'Applica',
 
     'yes'          => 'Sì',

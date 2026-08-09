@@ -58,7 +58,8 @@ return [
     'copied'       => 'Disalin',
     'retry'        => 'Cuba lagi',
     'export'       => 'Eksport',
-    'open'         => 'Buka',
+    'back'         => 'Kembali',
+    'open'         =>  'Buka',
     'apply'        => 'Guna',
 
     // Sahkan / status

@@ -57,7 +57,8 @@ return [
     'copied'       => 'Kopiert',
     'retry'        => 'Prøv igjen',
     'export'       => 'Eksporter',
-    'open'         => 'Opne',
+    'back'         => 'Tilbake',
+    'open'         =>  'Opne',
     'apply'        => 'Bruk',
 
     // Confirm / state

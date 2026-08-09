@@ -22,7 +22,8 @@ return [
     'copied'       => 'Gekopieerd',
     'retry'        => 'Opnieuw proberen',
     'export'       => 'Exporteren',
-    'open'         => 'Openen',
+    'back'         => 'Terug',
+    'open'         =>  'Openen',
     'apply'        => 'Toepassen',
 
     'yes'          => 'Ja',

@@ -1857,14 +1857,114 @@
        (Techniques §3). `pre` was already an `overflow-x: auto` island;
        everything else here is the same treatment applied to the rest.
        -------------------------------------------------------------------- */
-    .article-detail-header { flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-    .article-actions { flex-wrap: wrap; gap: 8px; flex: 1 1 100%; }
-    .article-actions .btn { flex: 1; justify-content: center; min-height: 42px; }
-    .article-detail-header > .btn { min-height: 42px; }
+    /* --------------------------------------------------------------------
+       17h — Giving the article the screen.
+
+       Everything above the text is overhead, so it is squeezed onto as few
+       rows as possible: Back joins Share / Edit / Archive on ONE row (its
+       label shortens to just "Back" — mobile.js, using the shared
+       `common.back`), and the four meta lines collapse to one.
+       -------------------------------------------------------------------- */
+    .article-detail-header {
+        display: flex;
+        flex-wrap: nowrap;          /* one row: Back | Share | Edit | Archive */
+        align-items: stretch;
+        gap: 6px;
+        margin: 0 0 10px;
+    }
+    .article-detail-header > .btn {
+        flex: 0 0 auto;             /* Back sizes to its (now short) label */
+        min-height: 42px;
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+    .article-actions { flex: 1 1 auto; flex-wrap: nowrap; gap: 6px; min-width: 0; }
+    .article-actions .share-dropdown { flex: 1; min-width: 0; }
+    .article-actions .btn {
+        flex: 1;
+        min-width: 0;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 8px;
+        font-size: 13px;
+        white-space: nowrap;
+    }
 
     .article-content { padding: 16px; border-radius: 8px; }
-    .article-content-title { font-size: 22px; }
-    .article-content-meta { flex-direction: column; gap: 4px; font-size: 13px; }
+    .article-content-title { font-size: 22px; line-height: 1.25; }
+
+    /* ---- the Gmail-style collapsible meta ----
+       Collapsed, the header shows the one line that answers "is this still
+       current?" — Modified — plus the tags. Author, Created and Views are a
+       tap away. `.article-content-meta` itself is the tap target (mobile.js
+       gives it role=button / aria-expanded): a whole row is a far better
+       target than a chevron, and it means the accessible name is the visible
+       text rather than a label string that would need translating into 24
+       locales. The chevron is a glyph, not a word, so it needs no locale. */
+    .article-content-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        font-size: 13px;
+        padding: 4px 0;
+        cursor: pointer;
+    }
+    .article-content-header .kb-meta-by,
+    .article-content-header .kb-meta-created,
+    .article-content-header .kb-meta-views { display: none; }
+    .article-content-header.kb-meta-open .kb-meta-by,
+    .article-content-header.kb-meta-open .kb-meta-created,
+    .article-content-header.kb-meta-open .kb-meta-views { display: block; }
+
+    /* Drawn with borders rather than a ▾ glyph: at 11px the character rendered
+       as a faint dot in the app's font stack, and a chevron that reads as a
+       full stop is not an affordance. Borders are font-independent. */
+    .article-content-meta .kb-meta-modified::after {
+        content: '';
+        display: inline-block;
+        width: 0;
+        height: 0;
+        margin-left: 8px;
+        vertical-align: 2px;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid var(--text-dim, #888);
+        transition: transform 0.15s ease;
+    }
+    .article-content-header.kb-meta-open .kb-meta-modified::after { transform: rotate(180deg); }
+
+    .article-content-tags { margin-top: 8px; }
+
+    /* ---- the peek-through strip (Ed spotted this on device) ----
+       `knowledge.css:729` makes `.article-content-header` `position: sticky;
+       top: 0` so the title stays put while the body scrolls. A sticky element
+       sticks to the top of its scroll container's CONTENT box — i.e. BELOW
+       that container's padding-top — so the 12px of padding on
+       `.knowledge-main` became a transparent gap between the purple app bar
+       and the pinned title, and the article text scrolled up through it.
+
+       Exactly the trap the audit sheet hit in #855 (Techniques §5), and the
+       fix is the same shape: take the padding off the scroll container so the
+       sticky header tucks flush, and give that space back to something that
+       scrolls away instead — here the button row's own margin. Scoped to the
+       detail view via body[data-kb-view], because the article LIST still
+       wants its top padding. */
+    body[data-kb-view="detail"] .knowledge-main { padding-top: 0; }
+    body[data-kb-view="detail"] .article-detail-header { margin-top: 12px; }
+
+    /* The header's own -20px top margin was cancelling the desktop card's
+       30px padding; on mobile the card is padded 16px, so match it exactly —
+       an over-long negative margin would lift the header clear of the card
+       and re-open a strip of its own. Full-bleed side margins (cancelled by
+       equal padding, so they cannot add width) let the pinned bar reach the
+       card edges rather than floating in the middle of it. */
+    .article-content-header {
+        margin: -16px -16px 16px;
+        padding: 14px 16px;
+    }
 
     /* Images and media scale to the column instead of setting it. */
     .article-content-body img,

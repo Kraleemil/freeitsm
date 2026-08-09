@@ -467,11 +467,16 @@ function renderArticleDetail() {
     container.innerHTML = `
         <div class="article-content-header">
             <h1 class="article-content-title">${escapeHtml(currentArticle.title)}</h1>
+            <!-- The four meta lines carry a class each purely so a stylesheet
+                 can name them. Nothing targets these on desktop; mobile.css
+                 collapses all but "modified" behind a tap (LAYER 17h), and
+                 doing that by :nth-child would silently point at the wrong
+                 line the moment a fifth is added or the order changes. -->
             <div class="article-content-meta">
-                <span>${escapeHtml(window.t('knowledge.detail.by', { name: currentArticle.author_name }))}</span>
-                <span>${escapeHtml(window.t('knowledge.detail.created', { date: formatDate(currentArticle.created_datetime), version: currentArticle.version || 1 }))}</span>
-                <span>${escapeHtml(window.t('knowledge.detail.modified', { date: formatDate(currentArticle.modified_datetime) }))}</span>
-                <span>${escapeHtml(window.t('knowledge.detail.views', { count: currentArticle.view_count }))}</span>
+                <span class="kb-meta-by">${escapeHtml(window.t('knowledge.detail.by', { name: currentArticle.author_name }))}</span>
+                <span class="kb-meta-created">${escapeHtml(window.t('knowledge.detail.created', { date: formatDate(currentArticle.created_datetime), version: currentArticle.version || 1 }))}</span>
+                <span class="kb-meta-modified">${escapeHtml(window.t('knowledge.detail.modified', { date: formatDate(currentArticle.modified_datetime) }))}</span>
+                <span class="kb-meta-views">${escapeHtml(window.t('knowledge.detail.views', { count: currentArticle.view_count }))}</span>
             </div>
             <div class="article-content-tags">
                 ${(currentArticle.tags || []).map(tag => `<span class="article-tag">${escapeHtml(tag.name)}</span>`).join('')}
