@@ -279,8 +279,13 @@ $translationNamespaces = ['common', 'tickets'];
             line-height: 1.6;
         }
     </style>
+    <!-- Mobile: LAYER 15e (container, tab strip, fields, all tables scroll).
+         data-mobile-shell="own" opts OUT of LAYER 2's flex body — this page
+         deliberately keeps <body> unstyled (see the .settings-shell comment
+         above) and builds its own scroll shell one level down. -->
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=39">
 </head>
-<body>
+<body data-mobile-page="settings" data-mobile-shell="own">
     <div class="settings-shell">
     <?php include '../includes/header.php'; ?>
 
@@ -5772,5 +5777,6 @@ $translationNamespaces = ['common', 'tickets'];
         }
 
     </script>
+    <script src="../../assets/js/mobile.js?v=21"></script>
 </body>
 </html>

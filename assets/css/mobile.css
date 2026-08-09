@@ -1151,6 +1151,26 @@
        on the page itself, so only pages that ask for this get it. Other
        modules' settings pages can opt in the same way.
        -------------------------------------------------------------------- */
+    /* ---- pages that already own their layout shell (#1005) ----
+       LAYER 2 makes `<body>` a `100dvh` flex column, which is how most pages
+       get a scroll region. The tickets settings page must NOT have that, and
+       its own stylesheet says why in as many words: a flex `<body>` turned
+       extension-injected nodes (LastPass and friends) into flex items and
+       wrecked the layout, so the page builds the same structure one level
+       down in a `.settings-shell` wrapper instead — which does the identical
+       job. Opting it in without this would have re-created a bug somebody had
+       already hit, diagnosed and written a comment about.
+
+       The marker is explicit rather than `body:has(.settings-shell)` so it
+       cannot silently stop matching, and so the intent is greppable from the
+       page. `100dvh` on the shell is the one thing it does want from mobile:
+       `100vh` is wrong the moment a mobile browser shows its chrome. */
+    body[data-mobile-shell="own"] {
+        display: block;
+        height: auto;
+    }
+    .settings-shell { height: 100dvh; }
+
     body[data-mobile-page="settings"] .container {
         height: auto;
         flex: 1 1 auto;
@@ -1188,60 +1208,105 @@
         min-height: 42px;
     }
 
+    /* ---- inline multi-column grids stack (#1005) ----
+       Tickets settings lays several forms out with an INLINE
+       `style="display:grid;grid-template-columns:1fr 1fr"` (nine of them; no
+       other settings page has any). At 360px that is two ~150px columns, and
+       a radio group headed "When a ticket's priority changes mid-flight"
+       wraps to five lines inside one. Nothing overflows, so every
+       measurement passed — this is the "contained but crushed" failure again,
+       and it took looking at the page to see it.
+
+       The attribute-substring selector is deliberately blunt: it says "any
+       inline grid on a settings page is one column on a phone", which is the
+       actual intent and covers the ones nobody has written yet. `!important`
+       because an inline style beats any ordinary rule. */
+    body[data-mobile-page="settings"] [style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+    /* ⚠️ Stacking the grid is only half of it. 35 children carry an inline
+       `grid-column: span 2`, and a child spanning two columns of a ONE-column
+       grid makes the browser create an IMPLICIT second column — so the form
+       stayed two-up, with unequal tracks (measured: 93px + 111px), and the
+       rule above looked like it had simply failed. It hadn't; the span was
+       re-creating the column behind it. Both have to go. */
+    body[data-mobile-page="settings"] [style*="grid-column"] {
+        grid-column: auto !important;
+    }
+
     body[data-mobile-page="settings"] .settings-section { margin-bottom: 14px; }
     body[data-mobile-page="settings"] .settings-section-header { padding: 14px; }
     body[data-mobile-page="settings"] .settings-section-body { padding: 14px; }
 
-    /* Anti-zoom on every field, and buttons wide enough for a thumb. */
+    /* ---- Anti-zoom on EVERY field, and buttons wide enough for a thumb ----
+       Rewritten in #1005. The old version listed six input types and missed
+       whatever wasn't on the list — tickets settings turned up a
+       `datetime-local` sitting at the browser default of 13.3px. `:not()` on
+       the types that must keep their native size is the right way round:
+       a new input type is then covered by default instead of forgotten.
+
+       ⚠️ `!important` on the font-size, and this one is earned. Fields in
+       this codebase carry INLINE styles (`<select id="rcTone" style="…
+       font-size: 14px">`), and an inline style beats any ordinary author
+       rule however specific. Losing here is not cosmetic: under 16px iOS
+       zooms on focus, the layout spills wide, Safari reflows the page to
+       desktop width and the entire mobile block switches off. Same failure
+       the #999 specificity bug caused, reached by a different route.
+       min-height stays un-important so a page can still size a field. */
+    body[data-mobile-page="settings"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]),
+    body[data-mobile-page="settings"] select,
+    body[data-mobile-page="settings"] textarea,
     body[data-mobile-page="settings"] .form-input,
     body[data-mobile-page="settings"] .form-select,
-    body[data-mobile-page="settings"] .form-textarea,
-    body[data-mobile-page="settings"] input[type="text"],
-    body[data-mobile-page="settings"] input[type="number"],
-    body[data-mobile-page="settings"] input[type="password"],
-    body[data-mobile-page="settings"] select {
-        font-size: 16px;
-        min-height: 44px;
+    body[data-mobile-page="settings"] .form-textarea {
+        font-size: 16px !important;
         max-width: 100%;
         box-sizing: border-box;
     }
-    body[data-mobile-page="settings"] textarea { font-size: 16px; max-width: 100%; }
+    body[data-mobile-page="settings"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]),
+    body[data-mobile-page="settings"] select,
+    body[data-mobile-page="settings"] .form-input,
+    body[data-mobile-page="settings"] .form-select {
+        min-height: 44px;
+    }
+    /* Native date/time pickers take an intrinsic width from iOS that ignores
+       width:100% and spills off the right — the #767 reset, applied here too. */
+    body[data-mobile-page="settings"] input[type="date"],
+    body[data-mobile-page="settings"] input[type="time"],
+    body[data-mobile-page="settings"] input[type="datetime-local"] {
+        -webkit-appearance: none;
+        appearance: none;
+        min-width: 0;
+    }
     body[data-mobile-page="settings"] .btn { min-height: 42px; }
 
-    /* Settings tables (tag ranges, custom fields, …) scroll rather than spill. */
-    body[data-mobile-page="settings"] .settings-section-body table {
-        display: block;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        white-space: nowrap;
-    }
-    /* …and the ones that aren't in a `.settings-section-body` at all. Half the
-       settings pages put a bare `<table>` straight inside the `.tab-content`
-       (Assets' asset-types / asset-statuses / suppliers, all three of
-       service-status'), so the rule above never matched them. They looked
-       fine to the overflow check for the same reason the Calendar's did —
-       `.container` carries `overflow-y: auto`, and a non-visible value on one
-       axis computes the other to `auto`, so the page silently became the
-       scroller. Found while bringing service-status along (#1003); it fixes
-       the shipped Assets settings page in the same stroke.
+    /* ---- EVERY table on a settings screen scrolls sideways ----
+       One rule, deliberately blunt (#1005). It started as
+       `.settings-section-body table`, gained `.tab-content > table` when
+       service-status showed that half the pages don't use a section body
+       (#1003), and lost its `.lookup-table` exclusion when the Calendar's
+       card feed was dropped for consistency (#1004). Tickets settings then
+       arrived with 18 tables, some inside a `.settings-group` and one inside
+       an inline-styled scroll wrapper — a third structural variant.
 
-       A scroller and not a card feed on purpose: these are 6- and 7-column
-       CONFIG tables whose columns include unlabelled booleans (Resolved?
-       Default?). Reading order can carry three or four self-describing
-       values; it cannot carry seven, so these keep their header row.
+       At that point enumerating containers is losing to the codebase. Every
+       table on a settings page is a DATA table (all 18 on tickets carry a
+       `<thead>`; none is used for layout), and Ed's rule is that they should
+       all behave the same, so the selector is simply "a table on a settings
+       page". Anything nested anywhere is covered, including the next variant
+       nobody has written yet.
 
-       This rule now covers EVERY table on a settings screen, including the
-       Calendar's `.lookup-table`, which was briefly a card feed (#1000) and
-       is not any more (#1004 — see 16i). One behaviour across the set beat a
-       better behaviour on one screen of it. */
-    body[data-mobile-page="settings"] .tab-content > table {
+       A scroller and not a card feed: these are config tables whose columns
+       include unlabelled booleans (Resolved? Default?). Reading order can
+       carry three or four self-describing values; it cannot carry seven, so
+       they keep their header row. */
+    body[data-mobile-page="settings"] table {
         display: block;
         overflow-x: auto;
         overscroll-behavior-x: contain;
         white-space: nowrap;
         max-width: 100%;
     }
-
     /* --------------------------------------------------------------------
        15f — The Servers view.
 
@@ -2298,7 +2363,7 @@
 
        The settings page needed nothing of its own: it is `.container` +
        renderSettingsTabBar (15e), and its three tables are covered by the
-       `.tab-content > table` rule added up in 15e. Help inherits 16h.
+       "every table on a settings page" rule up in 15e. Help inherits 16h.
        -------------------------------------------------------------------- */
 
     /* --------------------------------------------------------------------
