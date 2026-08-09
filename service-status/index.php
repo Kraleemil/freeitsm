@@ -269,7 +269,7 @@ $translationNamespaces = ['common', 'service-status'];
         [data-theme-mode="dark"] .affected-row .remove-svc:hover { background: #3a1a1a; }
     </style>
     <!-- Mobile: LAYER 18 — board grid two-up, incidents as a card feed. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=37">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=38">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -512,8 +512,25 @@ $translationNamespaces = ['common', 'service-status'];
             row.innerHTML = `
                 <select class="svc-select">${svcOptions}</select>
                 <select class="impact-select">${impactOptions}</select>
-                <button type="button" class="remove-svc" onclick="this.parentElement.remove()">&times;</button>
+                <button type="button" class="remove-svc">&times;</button>
             `;
+
+            // Removing an affected service used to happen on the first tap with
+            // no way back — easy to do by accident on a phone, where the × sits
+            // next to two dropdowns. Uses the app-wide showConfirm (not the
+            // browser's confirm()) so it matches every other destructive action,
+            // and the generic delete_title / delete_message pair so no new
+            // translation key is needed.
+            row.querySelector('.remove-svc').addEventListener('click', async function () {
+                const name = row.querySelector('.svc-select')?.selectedOptions[0]?.textContent || '';
+                const ok = await showConfirm({
+                    title: window.t('service-status.confirm.delete_title'),
+                    message: window.t('service-status.confirm.delete_message', { name: name }),
+                    okLabel: window.t('service-status.confirm.delete_label'),
+                    okClass: 'danger'
+                });
+                if (ok) row.remove();
+            });
 
             container.appendChild(row);
         }
@@ -603,6 +620,6 @@ $translationNamespaces = ['common', 'service-status'];
             if (e.target === this) closeIncidentModal();
         });
     </script>
-    <script src="../assets/js/mobile.js?v=19"></script>
+    <script src="../assets/js/mobile.js?v=20"></script>
 </body>
 </html>

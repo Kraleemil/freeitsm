@@ -42,7 +42,7 @@ $translationNamespaces = ['common', 'calendar'];
     <!-- Mobile: help.css already reflows the guide's body at 900px, but the
          page had no app shell — the header's view links spilled off the right
          instead of becoming a drawer. LAYER 16h covers the rest. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=37">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=38">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
@@ -367,6 +367,6 @@ $translationNamespaces = ['common', 'calendar'];
             });
         });
     </script>
-    <script src="../assets/js/mobile.js?v=19"></script>
+    <script src="../assets/js/mobile.js?v=20"></script>
 </body>
 </html>

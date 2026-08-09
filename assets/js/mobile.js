@@ -109,6 +109,16 @@
     // ------------------------------------------------------------------
     if (document.querySelector('.knowledge-container')) { initKnowledgeMobile(); return; }
 
+    // ------------------------------------------------------------------
+    // SERVICE STATUS (#1003 shipped CSS-only; #1004 added this branch).
+    //
+    // The board needed no JS at first. Two of Ed's follow-ups do need it —
+    // splitting Services and Incidents onto their own screens needs a
+    // switcher that doesn't exist on desktop, and "tap anywhere on the card"
+    // needs a delegated handler. Both are mq-gated, so desktop is untouched.
+    // ------------------------------------------------------------------
+    if (document.querySelector('.status-layout')) { initStatusMobile(); return; }
+
     // Flat pages (Assets' table view, dashboard, settings, servers — #937) have
     // no pane stack: the shell above is the whole of their JS. The servers page
     // is the reason this test isn't just `!mc` — it DOES carry .main-container
@@ -445,6 +455,90 @@
         syncCalendarBar();
         if (mq.addEventListener) { mq.addEventListener('change', syncCalendarBar); }
         else if (mq.addListener) { mq.addListener(syncCalendarBar); }
+    }
+
+    /* ==================================================================
+       SERVICE STATUS (#1004)
+
+       Two behaviours, both additive:
+         1. a Services / Incidents switcher, because a board plus a feed on
+            one scroll is a lot of thumb;
+         2. the whole incident card opens the incident, not just its title.
+       ================================================================== */
+    function initStatusMobile() {
+        var layout = document.querySelector('.status-layout');
+        if (!layout) return;
+
+        function tr(key, fallback) {
+            if (typeof window.t !== 'function') return fallback;
+            var v = window.t(key);
+            return (!v || v === key) ? fallback : v;
+        }
+
+        /* The services heading and grid are siblings with nothing wrapping
+           them, so they are MARKED rather than restructured — CSS can then
+           hide them as a unit. Marking beats `:first-of-type` here: a heading
+           added above would silently re-point a positional selector, whereas
+           a class says which nodes are meant. */
+        var grid = layout.querySelector('.service-grid');
+        var firstTitle = layout.querySelector('.section-title');
+        if (grid) grid.classList.add('ss-services-part');
+        if (firstTitle) firstTitle.classList.add('ss-services-part');
+
+        var switcher = document.createElement('div');
+        switcher.className = 'ss-switch';
+        switcher.style.display = 'none';         // @media CSS can't hide injected chrome
+        switcher.innerHTML = '<button type="button" data-ss="services"></button>' +
+                             '<button type="button" data-ss="incidents"></button>';
+        var btns = switcher.querySelectorAll('button');
+        btns[0].textContent = tr('service-status.board.services', 'Services');
+        btns[1].textContent = tr('service-status.board.incidents', 'Incidents');
+        layout.insertBefore(switcher, layout.firstChild);
+
+        function setTab(name) {
+            document.body.setAttribute('data-ss-tab', name);
+            btns.forEach(function (b) {
+                var on = b.dataset.ss === name;
+                b.classList.toggle('active', on);
+                b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+            layout.scrollTop = 0;
+        }
+        btns.forEach(function (b) {
+            b.addEventListener('click', function () { setTab(b.dataset.ss); });
+        });
+
+        /* Tap anywhere on an incident card. Delegated, because the rows are
+           re-rendered on every poll. It CLICKS THE TITLE rather than calling
+           editIncident(id) directly: the id lives only in that element's
+           inline handler, so going through it means there is still exactly
+           one place that knows how to open an incident. */
+        document.addEventListener('click', function (e) {
+            if (!mq.matches) return;
+            var row = e.target.closest && e.target.closest('#incidentList tr');
+            if (!row) return;
+            // The title has its own handler — let it do its job, don't double-fire.
+            if (e.target.closest('.incident-title')) return;
+            var title = row.querySelector('.incident-title');
+            if (title) title.click();
+        });
+
+        function syncStatusBar() {
+            var on = mq.matches;
+            switcher.style.display = on ? 'flex' : 'none';
+            var vb = document.querySelector('.mobile-views-btn');
+            if (vb) vb.style.display = on ? '' : 'none';
+            if (on) {
+                if (!document.body.getAttribute('data-ss-tab')) setTab('services');
+            } else {
+                document.body.classList.remove('mobile-views-open');
+                // Desktop shows both halves — never leave one hidden.
+                document.body.removeAttribute('data-ss-tab');
+            }
+        }
+        syncStatusBar();
+        if (mq.addEventListener) { mq.addEventListener('change', syncStatusBar); }
+        else if (mq.addListener) { mq.addListener(syncStatusBar); }
     }
 
     /* ==================================================================

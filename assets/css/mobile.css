@@ -1155,7 +1155,11 @@
         height: auto;
         flex: 1 1 auto;
         min-height: 0;
-        padding: 14px;
+        /* Tighter at the top than the sides (#1004): the tab strip is the
+           first thing under the app bar, and 14px of gap between a coloured
+           bar and a row of tabs reads as a seam rather than as breathing
+           room. The sides keep their 14px. */
+        padding: 4px 14px 14px;
         /* LAYER 2 makes <body> a flex column, and a flex item's automatic
            minimum size is its CONTENT width — so a wide tab strip inside this
            container stretched the container itself to 776px at a 360px
@@ -1226,14 +1230,11 @@
        Default?). Reading order can carry three or four self-describing
        values; it cannot carry seven, so these keep their header row.
 
-       ⚠️ `:not(.lookup-table)` is not decoration. This selector is (0,2,2)
-       and 16i's card-feed rules are (0,2,1), so on the Calendar's categories
-       table — which is both — this one WINS. It happens to be harmless today
-       because the conflicting declarations land on different elements (that
-       was measured, not assumed), but relying on that is a trap for whoever
-       edits either rule next. The exclusion states the intent instead: a
-       `.lookup-table` is a card feed, everything else scrolls. */
-    body[data-mobile-page="settings"] .tab-content > table:not(.lookup-table) {
+       This rule now covers EVERY table on a settings screen, including the
+       Calendar's `.lookup-table`, which was briefly a card feed (#1000) and
+       is not any more (#1004 — see 16i). One behaviour across the set beat a
+       better behaviour on one screen of it. */
+    body[data-mobile-page="settings"] .tab-content > table {
         display: block;
         overflow-x: auto;
         overscroll-behavior-x: contain;
@@ -1687,91 +1688,37 @@
     .help-nav-link { min-height: 40px; display: inline-flex; align-items: center; }
 
     /* --------------------------------------------------------------------
-       16i — Settings: the categories table stops being a table.
+       16i — Settings: shared chrome for a settings page's own content.
 
-       LAYER 15e already handles a settings page built on `.container` +
-       renderSettingsTabBar, which is what let the Calendar's settings page
-       come along for two <link> lines. What 15e does NOT reach is this table:
-       15e's table rule targets `.settings-section-body table`, and this page
-       puts a `.lookup-table` straight inside a `.tab-content`. So the page
-       measured clean — the table WAS contained, because `.container` carries
-       `overflow-y: auto` and a non-visible value on one axis computes the
-       other to `auto` — while actually presenting a four-column table you had
-       to drag sideways to read. **Contained is not the same as usable.**
+       ⚠️ This block USED to turn `.lookup-table` into a card feed. It no
+       longer does — Ed's call (#1004): every table on every settings screen
+       should behave the same way, and the way they behave is scroll
+       sideways. So the card feed is gone and `.lookup-table` falls through to
+       the one rule in 15e along with everything else, which is why that rule
+       no longer needs its `:not(.lookup-table)` exclusion.
 
-       Columns here are KNOWN (name / description / status / actions), so by
-       the Assets round-2 rule it becomes a card feed rather than a scroller.
-       No CSS-generated column labels: that string would be hardcoded English
-       and this ships in 24 languages. Reading order carries the meaning —
-       name prominent, description subordinate, status as its badge.
-
-       Keyed on `.lookup-table` rather than on this page, because it is the
-       shared settings-table idiom (change-management, morning-checks and
-       tasks use it too) — they inherit this the moment they opt in, the same
-       way 15c was named for the shared `.dt-*` engine. `:first-child` /
-       `:last-child` are used rather than `:nth-child(n)` deliberately: they
-       say "the name cell" and "the actions cell" without assuming a column
-       COUNT, which is what made the History/Custody rules fragile in #937.
+       Worth recording WHY the card feed lost, because the reasoning that
+       built it wasn't wrong: a 4-column table whose columns self-describe is
+       a good card feed in isolation. But settings screens are a SET, and the
+       6- and 7-column config tables next to it can't be cards (unlabelled
+       booleans — Resolved? Default?). One screen behaving differently from
+       its neighbours costs more than the individual screen gains.
+       See [[Consistency over bespoke]].
        -------------------------------------------------------------------- */
     body[data-mobile-page="settings"] .section-header { flex-wrap: wrap; gap: 10px; }
     body[data-mobile-page="settings"] .add-btn { min-height: 40px; padding: 9px 16px; font-size: 14px; }
 
-    body[data-mobile-page="settings"] .lookup-table,
-    body[data-mobile-page="settings"] .lookup-table tbody,
-    body[data-mobile-page="settings"] .lookup-table tr,
-    body[data-mobile-page="settings"] .lookup-table td { display: block; }
-    body[data-mobile-page="settings"] .lookup-table thead { display: none; }
-
-    body[data-mobile-page="settings"] .lookup-table tr {
-        position: relative;
-        border: 1px solid var(--border, #ddd);
-        border-radius: 8px;
-        padding: 12px 14px;
-        margin-bottom: 10px;
-    }
-    body[data-mobile-page="settings"] .lookup-table td {
-        border-bottom: none;
-        padding: 0;
-        width: auto;
-        white-space: normal;        /* the actions cell is nowrap on desktop */
-        font-size: 14px;
-    }
-    body[data-mobile-page="settings"] .lookup-table td:first-child {
-        font-size: 15px;
-        font-weight: 600;
-        padding-right: 88px;        /* clears the pinned action buttons */
-    }
-    body[data-mobile-page="settings"] .lookup-table td + td { margin-top: 6px; }
-    body[data-mobile-page="settings"] .lookup-table td:nth-child(2) { color: var(--text-muted, #666); }
-
-    /* Actions pinned to the card's top-right, thumb-sized. `:not(:first-child)`
-       matters: the loading and empty rows are a single `<td colspan="4">`,
-       which is both the first AND the last cell — without the guard it would
-       be positioned out of the card and the empty state would vanish. */
-    body[data-mobile-page="settings"] .lookup-table td:last-child:not(:first-child) {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        margin-top: 0;
-        display: flex;
-        gap: 4px;
-    }
-    body[data-mobile-page="settings"] .lookup-table .action-btn {
+    /* Thumb-sized row actions inside the (now horizontally scrolling) tables. */
+    body[data-mobile-page="settings"] .action-btn {
         min-width: 40px;
         min-height: 40px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
     }
-    /* The full-width loading / empty row is a card of plain text, not a name. */
-    body[data-mobile-page="settings"] .lookup-table td[colspan] {
-        padding-right: 0;
-        font-size: 14px;
-        font-weight: 400;
-    }
 
     /* A colour swatch is a tap target on this page (it opens the picker in the
-       modal) and a 24px square is easier to read in a card than an 18px one. */
+       modal) and a 22px square is easier to hit than an 18px one. */
     body[data-mobile-page="settings"] .swatch { width: 22px; height: 22px; }
     body[data-mobile-page="settings"] .modal input[type="color"] {
         width: 100%;
@@ -2389,11 +2336,85 @@
     .service-card { padding: 12px 10px; }
     .service-card:hover { box-shadow: none; }      /* a hover lift sticks after a tap */
     .service-card .service-name { font-size: 13px; }
-    /* The description reserves `min-height: 16px` so desktop cards line up.
-       Two-up on a phone that reserved gap is dead space in every card, and
-       the name plus the status badge is the point. */
-    .service-card .service-desc { font-size: 11px; min-height: 0; margin-bottom: 8px; }
-    .impact-badge { font-size: 11px; padding: 4px 10px; }
+
+    /* ---- lining the cards up (#1004) ----
+       Grid rows already stretch every card to the tallest in the row, but the
+       CONTENT inside them didn't stretch with it — so a one-line description
+       put its badge higher than the two-line card beside it, and the row read
+       as ragged. Making the card a flex column and letting the description
+       take the slack pins every badge to the same baseline. */
+    .service-card {
+        display: flex;
+        flex-direction: column;
+    }
+    .service-card .service-desc {
+        font-size: 11px;
+        margin-bottom: 8px;
+        flex: 1 1 auto;             /* absorb the height difference */
+        /* Two lines is the most a 150px card can carry before it starts
+           setting the height of the whole row. `min-height: 0` drops the
+           desktop reservation that keeps empty descriptions aligned — the
+           flex fill does that job better here. */
+        min-height: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    /* A long status ("Degraded Performance") wrapped to two lines, so that one
+       pill stood taller than every other and the row lost its rhythm. One
+       line, ellipsis if it doesn't fit — Ed's call, and mobile-only: there is
+       room for the full text on a desktop card. The full string stays in the
+       DOM, so it is still read out and still copyable. */
+    .impact-badge {
+        font-size: 11px;
+        padding: 4px 10px;
+        display: block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        box-sizing: border-box;
+    }
+
+    /* ---- Services and Incidents as two screens (#1004) ----
+       A board plus a feed on one scroll is a lot of thumb. mobile.js injects
+       a two-way switcher and marks the services heading + grid, so each half
+       gets the screen to itself. The attribute lives on <body>, so a page
+       that hasn't been switched yet (or a desktop viewport, where the JS is
+       inert) shows both — the default is the old behaviour. */
+    body[data-ss-tab="incidents"] .ss-services-part { display: none; }
+    body[data-ss-tab="services"] .incidents-section { display: none; }
+
+    .ss-switch {
+        display: flex;
+        gap: 0;
+        margin: 0 0 12px;
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .ss-switch button {
+        flex: 1;
+        min-height: 40px;
+        padding: 8px 6px;
+        border: none;
+        background: var(--surface, #fff);
+        color: var(--text-muted, #666);
+        font-size: 13px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+    }
+    .ss-switch button + button { border-left: 1px solid var(--border, #e5e7eb); }
+    .ss-switch button.active {
+        background: var(--accent, #10b981);
+        color: var(--on-accent, #fff);
+    }
+    /* With the switcher naming the section, the section's own heading repeats
+       it — but the Services one carries the count and the Incidents one
+       carries the New button, so neither can simply go. Shrink instead. */
+    .status-layout .section-title { font-size: 14px; }
 
     /* --------------------------------------------------------------------
        18c — Incidents: four columns become a card feed.
@@ -2427,6 +2448,10 @@
     }
     .incident-table td { border-bottom: none; padding: 0; }
     .incident-table td + td { margin-top: 7px; }
+    /* The whole card opens the incident, not just the title (#1004) —
+       mobile.js delegates the tap. The title keeps its own handler for
+       desktop, so the pointer cue moves to the row. */
+    .incident-table tr { cursor: pointer; }
     /* Keyed on the renderer's own classes, never on cell position. */
     .incident-title { font-size: 15px; font-weight: 600; display: inline-block; }
     .incident-services-list { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -2438,13 +2463,72 @@
        18d — The incident modal. LAYER 3 makes it a full-screen sheet and the
        #999 rule sizes its fields; this is the page's own bespoke chrome.
        -------------------------------------------------------------------- */
-    #incidentModal .modal-content { padding: 0 !important; }
-    #incidentModal .modal-header { padding: 14px 16px; margin-bottom: 0; }
-    #incidentModal form { padding: 16px; }
-    #incidentModal .modal-actions { flex-wrap: wrap; gap: 8px; }
-    #incidentModal .modal-actions .btn { flex: 1 1 auto; min-height: 44px; }
-    /* Delete is `margin-right: auto` on desktop; give it its own row. */
-    #incidentModal .modal-actions .btn-danger { flex: 1 1 100%; margin-right: 0 !important; order: 2; }
+    #incidentModal .modal-content {
+        padding: 0 !important;
+        display: flex;
+        flex-direction: column;
+    }
+    #incidentModal .modal-header { padding: 14px 16px; margin-bottom: 0; flex-shrink: 0; }
+    /* The form is everything below the header INCLUDING the buttons, so it is
+       the scroller and the buttons stick to its bottom edge (below). */
+    #incidentModal form {
+        /* No bottom padding: the action bar below supplies it. A negative
+           bottom margin on the bar would NOT work here — in a flex column,
+           `margin-top: auto` absorbs whatever free space a negative
+           margin-bottom creates, so the two cancel and the bar lands 16px
+           short of the edge. Take the padding off instead. */
+        padding: 16px 16px 0;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        /* A flex column so the action bar can be pushed to the bottom with
+           `margin-top: auto`. Sticky alone is not enough: sticky only stops an
+           element scrolling AWAY, so on a SHORT form (a new incident, one
+           affected service) the bar just sat wherever the fields ended,
+           halfway up the screen. auto-margin handles the short case, sticky
+           handles the long one, and between them the bar is always on the
+           bottom edge. */
+        display: flex;
+        flex-direction: column;
+    }
+    /* Flex children shrink by default — without this the roomy comment box
+       would be squeezed back down whenever the form overflowed. */
+    #incidentModal form > * { flex-shrink: 0; }
+    /* A comment is the substance of an incident update; 80px is a two-line
+       slot. Give it room without letting it push the fields off screen. */
+    #incidentComment { min-height: 140px; height: auto; }
+
+    /* ---- Cancel / Save (/ Delete) pinned to the bottom (#1004) ----
+       `position: sticky` rather than a fixed footer: the actions are inside
+       the <form>, so sticky keeps them there — no DOM restructuring, and the
+       submit button stays a real submit button. The negative margins cancel
+       the form's 16px padding so the bar spans the sheet edge to edge, and
+       are matched exactly by the padding put back, so they cannot add width. */
+    #incidentModal .modal-actions {
+        position: sticky;               /* long form: stay there while scrolling */
+        bottom: 0;
+        z-index: 1;
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 8px;
+        margin: 16px -16px 0;
+        /* AFTER the shorthand, or the shorthand's `16px` top wins and the bar
+           stops being pushed to the bottom on a short form. */
+        margin-top: auto;
+        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        background: var(--surface, #fff);
+        border-top: 1px solid var(--border, #e5e7eb);
+    }
+    /* All three on one row when editing (#1004) — Delete included, so it takes
+       an equal third rather than the desktop `margin-right: auto` shove. */
+    #incidentModal .modal-actions .btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 44px;
+        padding: 10px 8px;
+        white-space: nowrap;
+    }
+    #incidentModal .modal-actions .btn-danger { margin-right: 0 !important; }
     /* Each affected service is a select plus a remove button; the select has
        to be allowed to shrink or the pair overflows. */
     .affected-row { gap: 8px; }
