@@ -289,15 +289,21 @@ $translationNamespaces = ['common', 'war-room'];
 
                     <h4><?php echo htmlspecialchars(t('war-room.help.warbot_cmds_heading')); ?></h4>
                     <div class="help-cmds">
-                        <code>/p1</code>            <span><?php echo htmlspecialchars(t('war-room.help.cmd_p1')); ?></span>
-                        <code>/open</code>          <span><?php echo htmlspecialchars(t('war-room.help.cmd_open')); ?></span>
-                        <code>/status</code>        <span><?php echo htmlspecialchars(t('war-room.help.cmd_status')); ?></span>
-                        <code>/changes</code>       <span><?php echo htmlspecialchars(t('war-room.help.cmd_changes')); ?></span>
-                        <code>/oncall</code>        <span><?php echo htmlspecialchars(t('war-room.help.cmd_oncall')); ?></span>
-                        <code>/asset &lt;name&gt;</code>  <span><?php echo htmlspecialchars(t('war-room.help.cmd_asset')); ?></span>
-                        <code>/impact &lt;name&gt;</code> <span><?php echo htmlspecialchars(t('war-room.help.cmd_impact')); ?></span>
-                        <code>/kb &lt;words&gt;</code>    <span><?php echo htmlspecialchars(t('war-room.help.cmd_kb')); ?></span>
-                        <code>/help</code>          <span><?php echo htmlspecialchars(t('war-room.help.cmd_help')); ?></span>
+                        <code>/p1</code>                <span><?php echo htmlspecialchars(t('war-room.help.cmd_p1')); ?></span>
+                        <code>/open</code>              <span><?php echo htmlspecialchars(t('war-room.help.cmd_open')); ?></span>
+                        <code>/spike [mins]</code>      <span><?php echo htmlspecialchars(t('war-room.help.cmd_spike')); ?></span>
+                        <code>/status</code>            <span><?php echo htmlspecialchars(t('war-room.help.cmd_status')); ?></span>
+                        <code>/changes [days]</code>    <span><?php echo htmlspecialchars(t('war-room.help.cmd_changes')); ?></span>
+                        <code>/checks [date]</code>     <span><?php echo htmlspecialchars(t('war-room.help.cmd_checks')); ?></span>
+                        <code>/oncall</code>            <span><?php echo htmlspecialchars(t('war-room.help.cmd_oncall')); ?></span>
+                        <code>/known &lt;words&gt;</code>     <span><?php echo htmlspecialchars(t('war-room.help.cmd_known')); ?></span>
+                        <code>/kb &lt;words&gt;</code>        <span><?php echo htmlspecialchars(t('war-room.help.cmd_kb')); ?></span>
+                        <code>/find &lt;words&gt;</code>      <span><?php echo htmlspecialchars(t('war-room.help.cmd_find')); ?></span>
+                        <code>/asset &lt;name&gt;</code>      <span><?php echo htmlspecialchars(t('war-room.help.cmd_asset')); ?></span>
+                        <code>/impact &lt;name&gt;</code>     <span><?php echo htmlspecialchars(t('war-room.help.cmd_impact')); ?></span>
+                        <code>/linked &lt;ref&gt;</code>      <span><?php echo htmlspecialchars(t('war-room.help.cmd_linked')); ?></span>
+                        <code>/supplier &lt;name&gt;</code>   <span><?php echo htmlspecialchars(t('war-room.help.cmd_supplier')); ?></span>
+                        <code>/help</code>              <span><?php echo htmlspecialchars(t('war-room.help.cmd_help')); ?></span>
                     </div>
 
                     <div class="help-note">

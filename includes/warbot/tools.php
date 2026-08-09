@@ -131,6 +131,104 @@ function warbotTools(): array
             'handler'    => 'warbotToolImpactOf',
         ],
 
+        /* ── the highest-value question in an incident ─────────────────────── */
+        // Problem Management holds root causes and workarounds that nobody reads
+        // at 3am because nobody thinks to open the module. Warbot can.
+        'known_errors' => [
+            'description' => 'Search Problem Management for known errors, root causes and workarounds. '
+                           . 'Use this for "have we seen this before", "is there a workaround", '
+                           . '"is this a known error" — ask it EARLY, before diagnosing from scratch.',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Words to look for in the problem title or description.'],
+                ],
+                'required' => ['query'],
+            ],
+            'capability' => null,
+            'handler'    => 'warbotToolKnownErrors',
+        ],
+
+        /* ── the thing nobody in the room knows yet ─────────────────────────── */
+        'ticket_spike' => [
+            'description' => 'Compare how many tickets have been raised in the last hour against the '
+                           . 'usual rate for the same hour on previous days. Use this to answer '
+                           . '"are we seeing a spike", "how many people are affected", or to check '
+                           . 'whether something is bigger than it looks.',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'minutes' => ['type' => 'integer', 'description' => 'Window to measure, default 60, max 720.'],
+                ],
+                'required' => [],
+            ],
+            'capability' => null,
+            'handler'    => 'warbotToolTicketSpike',
+        ],
+
+        /* ── who do I ring at 3am ───────────────────────────────────────────── */
+        'supplier_contact' => [
+            'description' => 'Find a supplier, their contract, and the people to ring — direct dial, '
+                           . 'switchboard, mobile and email. Use this for "who is our supplier for X", '
+                           . '"what is the support number", "do we have a contract for this".',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Supplier name, or words from a contract title.'],
+                ],
+                'required' => ['query'],
+            ],
+            'capability' => null,
+            'handler'    => 'warbotToolSupplierContact',
+        ],
+
+        /* ── the incident that was already flagged this morning ─────────────── */
+        'morning_checks' => [
+            'description' => 'The results of the morning checks for a given day, and which ones failed. '
+                           . 'Use this for "did the checks pass this morning" — an incident at 09:30 is '
+                           . 'often something the 08:00 checks already caught.',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'date' => ['type' => 'string', 'description' => 'YYYY-MM-DD. Defaults to today.'],
+                ],
+                'required' => [],
+            ],
+            'capability' => null,
+            'handler'    => 'warbotToolMorningChecks',
+        ],
+
+        /* ── what did we already say in here ────────────────────────────────── */
+        'search_chat' => [
+            'description' => 'Search the war room conversations this person can see. Use this for '
+                           . '"what did we say about X", "who mentioned the certificate", or when '
+                           . 'somebody joins late and asks what has happened.',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Words to look for in the chat.'],
+                ],
+                'required' => ['query'],
+            ],
+            'capability' => null,
+            'handler'    => 'warbotToolSearchChat',
+        ],
+
+        /* ── the duplicates and children ────────────────────────────────────── */
+        'related_tickets' => [
+            'description' => 'Tickets linked to a given ticket number — duplicates, children, related. '
+                           . 'Use this to find out whether several reports are the same thing.',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'ticket' => ['type' => 'string', 'description' => 'Ticket number, e.g. ABC-123-45678.'],
+                ],
+                'required' => ['ticket'],
+            ],
+            'capability' => null,
+            'handler'    => 'warbotToolRelatedTickets',
+        ],
+
         /* ── have we seen this before ──────────────────────────────────────── */
         'search_knowledge' => [
             'description' => 'Search published knowledge base article titles for a phrase, and return '
@@ -402,6 +500,254 @@ function warbotToolImpactOf(PDO $conn, array $args, int $analystId): string
         $lines[] = sprintf('- %s %s', $verb ?: 'related to', $r['other']);
     }
     $lines[] = 'This is one hop only. Use the CMDB impact view for the full blast radius.';
+    return implode("\n", $lines);
+}
+
+/** Escape the LIKE wildcards themselves, or a search for "50%" matches everything. */
+function warbotLike(string $s): string
+{
+    return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], trim($s)) . '%';
+}
+
+function warbotToolKnownErrors(PDO $conn, array $args, int $analystId): string
+{
+    $q = trim((string)($args['query'] ?? ''));
+    if ($q === '') return 'Give me something to look for.';
+    $like = warbotLike($q);
+
+    $stmt = $conn->prepare(
+        "SELECT p.problem_number, p.title, p.root_cause, p.workaround, p.is_known_error,
+                st.name AS state, a.full_name AS owner,
+                (SELECT COUNT(*) FROM problem_tickets pt WHERE pt.problem_id = p.id) AS ticket_count
+           FROM problems p
+           LEFT JOIN problem_statuses st ON st.id = p.status_id
+           LEFT JOIN analysts a ON a.id = p.assigned_analyst_id
+          WHERE p.title LIKE :q1 ESCAPE '\\\\' OR p.description LIKE :q2 ESCAPE '\\\\'
+             OR p.root_cause LIKE :q3 ESCAPE '\\\\' OR p.workaround LIKE :q4 ESCAPE '\\\\'
+          ORDER BY p.is_known_error DESC, p.id DESC
+          LIMIT 6"
+    );
+    $stmt->execute([':q1' => $like, ':q2' => $like, ':q3' => $like, ':q4' => $like]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$rows) return "No problem record matches \"$q\". That does not mean it is new — it means nobody has written it up.";
+
+    $lines = [count($rows) . " problem record(s) matching \"$q\":"];
+    foreach ($rows as $r) {
+        $lines[] = sprintf('- %s "%s" [%s]%s, %d linked ticket(s)',
+            $r['problem_number'], $r['title'], $r['state'] ?: '?',
+            $r['is_known_error'] ? ' KNOWN ERROR' : '', (int) $r['ticket_count']);
+        // The workaround is the reason anybody asked, so it is quoted in full
+        // rather than summarised away.
+        if (trim((string)$r['workaround']) !== '') $lines[] = '    WORKAROUND: ' . mb_substr(trim((string)$r['workaround']), 0, 500);
+        if (trim((string)$r['root_cause']) !== '') $lines[] = '    Root cause: ' . mb_substr(trim((string)$r['root_cause']), 0, 300);
+    }
+    return implode("\n", $lines);
+}
+
+function warbotToolTicketSpike(PDO $conn, array $args, int $analystId): string
+{
+    $mins = max(5, min(720, (int)($args['minutes'] ?? 60)));
+
+    $now = $conn->prepare(
+        "SELECT COUNT(*) FROM tickets
+          WHERE deleted_datetime IS NULL
+            AND created_datetime >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL :m MINUTE)"
+    );
+    $now->bindValue(':m', $mins, PDO::PARAM_INT);
+    $now->execute();
+    $current = (int) $now->fetchColumn();
+
+    // The baseline is the SAME window on each of the previous 7 days, not simply
+    // "the last week divided by seven": ticket volume is wildly time-of-day
+    // dependent, so comparing 09:00 against a 24-hour average would call every
+    // weekday morning a spike.
+    $base = $conn->prepare(
+        "SELECT COUNT(*) / 7.0 FROM tickets
+          WHERE deleted_datetime IS NULL
+            AND created_datetime >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 7 DAY)
+            AND created_datetime <  DATE_SUB(UTC_TIMESTAMP(), INTERVAL :m1 MINUTE)
+            AND TIME(created_datetime) BETWEEN TIME(DATE_SUB(UTC_TIMESTAMP(), INTERVAL :m2 MINUTE)) AND TIME(UTC_TIMESTAMP())"
+    );
+    $base->bindValue(':m1', $mins, PDO::PARAM_INT);
+    $base->bindValue(':m2', $mins, PDO::PARAM_INT);
+    $base->execute();
+    $baseline = round((float) $base->fetchColumn(), 1);
+
+    $lines = [sprintf('%d ticket(s) raised in the last %d minutes. Usual for this time of day: about %s.',
+        $current, $mins, $baseline)];
+
+    if ($baseline >= 1 && $current >= $baseline * 3) {
+        $lines[] = 'That is roughly ' . round($current / max($baseline, 0.1)) . '× the normal rate — treat this as a spike.';
+    } elseif ($current === 0) {
+        $lines[] = 'Nothing at all, which is worth noticing too: if users cannot reach the service desk you would also see zero.';
+    }
+
+    // What they are ABOUT is the actionable half — a spike of one subject is an
+    // incident, a spike of twenty different subjects is a bad morning.
+    $subj = $conn->prepare(
+        "SELECT subject FROM tickets
+          WHERE deleted_datetime IS NULL
+            AND created_datetime >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL :m MINUTE)
+          ORDER BY id DESC LIMIT 8"
+    );
+    $subj->bindValue(':m', $mins, PDO::PARAM_INT);
+    $subj->execute();
+    foreach ($subj->fetchAll(PDO::FETCH_COLUMN) as $s) $lines[] = '- ' . $s;
+
+    return implode("\n", $lines);
+}
+
+function warbotToolSupplierContact(PDO $conn, array $args, int $analystId): string
+{
+    $q = trim((string)($args['query'] ?? ''));
+    if ($q === '') return 'Give me a supplier name or something from a contract title.';
+    $like = warbotLike($q);
+
+    $stmt = $conn->prepare(
+        "SELECT DISTINCT s.id, s.trading_name, s.legal_name
+           FROM suppliers s
+           LEFT JOIN contracts c ON c.supplier_id = s.id
+          WHERE s.trading_name LIKE :q1 ESCAPE '\\\\' OR s.legal_name LIKE :q2 ESCAPE '\\\\'
+             OR c.title LIKE :q3 ESCAPE '\\\\'
+          ORDER BY s.trading_name LIMIT 3"
+    );
+    $stmt->execute([':q1' => $like, ':q2' => $like, ':q3' => $like]);
+    $sups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$sups) return "No supplier or contract matches \"$q\".";
+
+    $lines = [];
+    foreach ($sups as $s) {
+        $name = $s['trading_name'] ?: $s['legal_name'];
+        $lines[] = $name . ':';
+
+        $cs = $conn->prepare(
+            "SELECT c.contract_number, c.title, c.contract_end, st.name AS state
+               FROM contracts c LEFT JOIN contract_statuses st ON st.id = c.contract_status_id
+              WHERE c.supplier_id = :id ORDER BY c.contract_end DESC LIMIT 3"
+        );
+        $cs->execute([':id' => (int)$s['id']]);
+        foreach ($cs->fetchAll(PDO::FETCH_ASSOC) as $c) {
+            $lines[] = sprintf('  Contract %s "%s" [%s]%s',
+                $c['contract_number'] ?: '?', $c['title'], $c['state'] ?: '?',
+                $c['contract_end'] ? ', ends ' . $c['contract_end'] : '');
+        }
+
+        // The numbers are the point of this tool, so they come last and in full.
+        $ct = $conn->prepare(
+            "SELECT first_name, surname, job_title, direct_dial, switchboard, mobile, email
+               FROM contacts WHERE supplier_id = :id AND (is_active IS NULL OR is_active = 1)
+              ORDER BY surname LIMIT 5"
+        );
+        $ct->execute([':id' => (int)$s['id']]);
+        $contacts = $ct->fetchAll(PDO::FETCH_ASSOC);
+        if (!$contacts) {
+            $lines[] = '  No contacts recorded for this supplier.';
+            continue;
+        }
+        foreach ($contacts as $c) {
+            $bits = array_filter([
+                $c['direct_dial']  ? 'direct ' . $c['direct_dial'] : null,
+                $c['switchboard']  ? 'switchboard ' . $c['switchboard'] : null,
+                $c['mobile']       ? 'mobile ' . $c['mobile'] : null,
+                $c['email']        ?: null,
+            ]);
+            $lines[] = sprintf('  %s %s%s — %s',
+                $c['first_name'], $c['surname'],
+                $c['job_title'] ? ' (' . $c['job_title'] . ')' : '',
+                implode(', ', $bits) ?: 'no contact details recorded');
+        }
+    }
+    return implode("\n", $lines);
+}
+
+function warbotToolMorningChecks(PDO $conn, array $args, int $analystId): string
+{
+    $date = (string)($args['date'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = gmdate('Y-m-d');
+
+    // ⚠️ This module uses PascalCase throughout — CheckID, StatusID, and the
+    // status text is `Label`, not `name`. Guessing `st.name` here (as every other
+    // lookup table in the schema uses) produced an outright SQL error, which is
+    // the LUCKY version of this mistake: the CMDB one returned no rows and would
+    // have lied quietly forever.
+    $stmt = $conn->prepare(
+        "SELECT c.CheckName, r.Status, r.Notes, st.Label AS state
+           FROM morningchecks_results r
+           LEFT JOIN morningchecks_checks   c  ON c.CheckID  = r.CheckID
+           LEFT JOIN morningchecks_statuses st ON st.StatusID = r.StatusID
+          WHERE DATE(r.CheckDate) = :d
+          ORDER BY c.SortOrder, c.CheckName"
+    );
+    $stmt->execute([':d' => $date]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$rows) return "No morning checks were recorded for $date.";
+
+    $bad = [];
+    foreach ($rows as $r) {
+        $state = strtolower((string)($r['state'] ?: $r['Status']));
+        if ($state !== '' && !preg_match('/ok|pass|green|success|complete/i', $state)) $bad[] = $r;
+    }
+
+    $lines = [count($rows) . " check(s) recorded for $date; " . count($bad) . ' not clear.'];
+    foreach (($bad ?: array_slice($rows, 0, 6)) as $r) {
+        $lines[] = sprintf('- %s: %s%s', $r['CheckName'] ?: '(unnamed check)',
+            $r['state'] ?: $r['Status'] ?: '?',
+            trim((string)$r['Notes']) !== '' ? ' — ' . mb_substr(trim((string)$r['Notes']), 0, 200) : '');
+    }
+    return implode("\n", $lines);
+}
+
+function warbotToolSearchChat(PDO $conn, array $args, int $analystId): string
+{
+    $q = trim((string)($args['query'] ?? ''));
+    if ($q === '') return 'Give me something to search the chat for.';
+
+    // Reuses the module's own search, so the channel scoping is the same one the
+    // search panel uses — Warbot cannot surface a channel the asker cannot read.
+    require_once __DIR__ . '/../warroom.php';
+    $hits = warRoomSearch($conn, $analystId, $q, null, 8);
+    if (!$hits) return "Nothing in the war room matches \"$q\".";
+
+    $lines = [count($hits) . " message(s) matching \"$q\":"];
+    foreach ($hits as $h) {
+        $lines[] = sprintf('- [#%s] %s at %s: %s', $h['channel'], $h['author'],
+            substr((string)$h['created'], 11, 5) . ' UTC', $h['snippet']);
+    }
+    return implode("\n", $lines);
+}
+
+function warbotToolRelatedTickets(PDO $conn, array $args, int $analystId): string
+{
+    $ref = trim((string)($args['ticket'] ?? ''));
+    if ($ref === '') return 'Give me a ticket number.';
+
+    $find = $conn->prepare("SELECT id, ticket_number, subject FROM tickets WHERE ticket_number = :r AND deleted_datetime IS NULL LIMIT 1");
+    $find->execute([':r' => $ref]);
+    $t = $find->fetch(PDO::FETCH_ASSOC);
+    if (!$t) return "No ticket numbered \"$ref\".";
+
+    $stmt = $conn->prepare(
+        "SELECT l.relation_type,
+                CASE WHEN l.source_ticket_id = :id1 THEN 'to' ELSE 'from' END AS dir,
+                o.ticket_number, o.subject, s.name AS state
+           FROM ticket_links l
+           JOIN tickets o ON o.id = CASE WHEN l.source_ticket_id = :id2 THEN l.target_ticket_id ELSE l.source_ticket_id END
+           LEFT JOIN ticket_statuses s ON s.id = o.status_id
+          WHERE (l.source_ticket_id = :id3 OR l.target_ticket_id = :id4) AND o.deleted_datetime IS NULL
+          LIMIT 20"
+    );
+    foreach (['id1', 'id2', 'id3', 'id4'] as $p) $stmt->bindValue(':' . $p, (int)$t['id'], PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$rows) return sprintf('%s "%s" has no linked tickets.', $t['ticket_number'], $t['subject']);
+
+    $lines = [sprintf('%s "%s" is linked to %d ticket(s):', $t['ticket_number'], $t['subject'], count($rows))];
+    foreach ($rows as $r) {
+        $lines[] = sprintf('- %s (%s %s) [%s] %s', $r['ticket_number'], $r['relation_type'] ?: 'related', $r['dir'], $r['state'] ?: '?', $r['subject']);
+    }
     return implode("\n", $lines);
 }
 

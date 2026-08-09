@@ -54,26 +54,52 @@ function warbotIsAddressed(string $body): bool
 function warbotCommands(): array
 {
     return [
-        'p1'      => ['tool' => 'open_incidents',   'args' => ['priority' => 'Critical']],
-        'open'    => ['tool' => 'open_incidents',   'args' => []],
-        'status'  => ['tool' => 'service_status',   'args' => []],
-        'changes' => ['tool' => 'recent_changes',   'args' => ['days' => 2]],
-        'oncall'  => ['tool' => 'on_call',          'args' => []],
-        'asset'   => ['tool' => 'asset_lookup',     'args' => [], 'takes' => 'query'],
-        'impact'  => ['tool' => 'impact_of',        'args' => [], 'takes' => 'name'],
-        'kb'      => ['tool' => 'search_knowledge', 'args' => [], 'takes' => 'query'],
-        'help'    => ['tool' => null,               'args' => []],
+        'p1'      => ['tool' => 'open_incidents',   'args' => ['priority' => 'Critical'], 'desc' => 'open critical tickets'],
+        'open'    => ['tool' => 'open_incidents',   'args' => [],                          'desc' => 'all open tickets'],
+        // `optional` = the argument may be omitted. Without it "/checks 2026-07-04"
+        // silently discarded the date and answered for today, which is the sort of
+        // wrong answer that gets believed.
+        'spike'   => ['tool' => 'ticket_spike',     'args' => [], 'takes' => 'minutes', 'optional' => true, 'hint' => '[mins]', 'desc' => 'ticket surge?'],
+        'status'  => ['tool' => 'service_status',   'args' => [],                          'desc' => 'service status'],
+        'changes' => ['tool' => 'recent_changes',   'args' => ['days' => 2], 'takes' => 'days', 'optional' => true, 'hint' => '[days]', 'desc' => 'what changed recently'],
+        'checks'  => ['tool' => 'morning_checks',   'args' => [], 'takes' => 'date', 'optional' => true, 'hint' => '[date]', 'desc' => 'morning checks'],
+        'oncall'  => ['tool' => 'on_call',          'args' => [],                          'desc' => 'who is on call'],
+        'known'   => ['tool' => 'known_errors',     'args' => [], 'takes' => 'query',  'hint' => '<words>', 'desc' => 'known errors, workarounds'],
+        'kb'      => ['tool' => 'search_knowledge', 'args' => [], 'takes' => 'query',  'hint' => '<words>', 'desc' => 'find a runbook'],
+        'find'    => ['tool' => 'search_chat',      'args' => [], 'takes' => 'query',  'hint' => '<words>', 'desc' => 'search this chat'],
+        'asset'   => ['tool' => 'asset_lookup',     'args' => [], 'takes' => 'query',  'hint' => '<name>',  'desc' => 'look up a machine'],
+        'impact'  => ['tool' => 'impact_of',        'args' => [], 'takes' => 'name',   'hint' => '<name>',  'desc' => 'what depends on it'],
+        'linked'  => ['tool' => 'related_tickets',  'args' => [], 'takes' => 'ticket', 'hint' => '<ref>',   'desc' => 'linked tickets'],
+        'supplier'=> ['tool' => 'supplier_contact', 'args' => [], 'takes' => 'query',  'hint' => '<name>',  'desc' => 'who to ring'],
+        'help'    => ['tool' => null,               'args' => [],                          'desc' => 'this list'],
     ];
 }
 
-/** The one-screen help, built from the command table so it cannot drift from it. */
+/**
+ * The one-screen help, GENERATED from the command table.
+ *
+ * ⚠️ It used to be a hand-written list that merely claimed to be generated, and
+ * it went stale the moment six commands were added. Two columns, laid out from
+ * the table itself, so adding a command adds a line here and cannot not.
+ */
 function warbotHelpText(): string
 {
+    $items = [];
+    foreach (warbotCommands() as $name => $spec) {
+        $items[] = ['/' . $name . (isset($spec['hint']) ? ' ' . $spec['hint'] : ''), $spec['desc'] ?? ''];
+    }
+    $width = 0;
+    foreach ($items as $i) $width = max($width, mb_strlen($i[0]));
+
+    // Two per line on a desktop, and still readable when a phone wraps it.
     $lines = ['I can look things up. Ask me in plain English, or use a command:'];
-    $lines[] = '/p1 — open critical tickets        /open — all open tickets';
-    $lines[] = '/status — service status           /changes — what changed recently';
-    $lines[] = '/oncall — who is on call           /asset <name> — look up a machine';
-    $lines[] = '/impact <name> — what depends on it  /kb <words> — find a runbook';
+    for ($i = 0; $i < count($items); $i += 2) {
+        $left = str_pad($items[$i][0], $width + 2) . '— ' . $items[$i][1];
+        if (isset($items[$i + 1])) {
+            $left = str_pad($left, 46) . '   ' . str_pad($items[$i + 1][0], $width + 2) . '— ' . $items[$i + 1][1];
+        }
+        $lines[] = rtrim($left);
+    }
     $lines[] = 'Commands work even when I cannot reach my AI provider. Plain English needs it.';
     return implode("\n", $lines);
 }
@@ -95,8 +121,15 @@ function warbotTryCommand(PDO $conn, int $analystId, string $body): ?string
     $spec = $cmds[$cmd];
     $args = $spec['args'];
     if (isset($spec['takes'])) {
-        if ($rest === '') return 'Give me something to look for, e.g. /' . $cmd . ' SRV-MAIL-01';
-        $args[$spec['takes']] = $rest;
+        if ($rest === '') {
+            // An optional argument just falls back to the tool's own default;
+            // a required one has to be asked for rather than guessed.
+            if (empty($spec['optional'])) {
+                return 'Give me something to look for, e.g. /' . $cmd . ' ' . ($spec['hint'] ?? '<value>');
+            }
+        } else {
+            $args[$spec['takes']] = $rest;
+        }
     }
     return warbotRunTool($conn, $analystId, $spec['tool'], $args);
 }
