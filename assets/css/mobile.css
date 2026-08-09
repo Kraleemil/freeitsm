@@ -2077,10 +2077,125 @@
     .selected-tags { justify-content: flex-start; flex: 1 1 100%; }
     .tag-suggestion { padding: 13px 12px; font-size: 15px; }
 
-    /* The action row is a real footer; give it full-width thumb targets and
-       cancel the negative margins that cancelled the desktop pane padding. */
-    .editor-actions { margin: 0; padding: 12px; flex-wrap: wrap; gap: 8px; }
+    /* The action row is a real footer. It has to reach the actual bottom of
+       the screen — `.knowledge-main`'s 12px padding was holding it a little
+       short of it, and the side padding inset it from both edges, so it read
+       as a floating strip rather than a footer. Same move as the detail
+       view's peek-through fix: take the padding off the scroll container for
+       this view only, and let the parts inside carry their own.
+       env() keeps the buttons clear of the iPhone home indicator. */
+    body[data-kb-view="editor"] .knowledge-main { padding: 0; }
+    .editor-actions {
+        margin: 0;
+        padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+        flex-wrap: wrap;
+        gap: 8px;
+    }
     .editor-actions .btn { flex: 1 1 auto; min-height: 44px; }
+
+    /* ---- full-screen text editing (Ed's ask) ----
+       Writing an article through a 200px window under six property fields is
+       the worst part of the editor on a phone. A button above the field lifts
+       the content area out to `position: fixed; inset: 0`.
+
+       Deliberately NOT TinyMCE's own `mceFullScreen`: the plugin is loaded,
+       but its only exit is the View menu or a toolbar button that isn't in
+       this init's toolbar, so a phone user could get stuck in it. Ours
+       carries its own Close bar, which is always visible, and the device back
+       button exits too. The `.tox-tinymce { flex: 1; height: auto }` trick is
+       the same one the desktop pop-out already relies on, so the iframe is
+       known to follow its container here. */
+    .kb-fs-open {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        margin-bottom: 8px;
+        padding: 10px 14px;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 8px;
+        background: var(--surface-2, #f5f5f5);
+        color: var(--text, #333);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .kb-fs-bar { display: none; }
+
+    body.kb-editor-full .editor-content {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        margin: 0;
+        padding: 0;
+        background: var(--surface, #fff);
+        display: flex;
+        flex-direction: column;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    body.kb-editor-full .kb-fs-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-shrink: 0;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border, #ddd);
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+    }
+    /* A long article title must not push Close off the bar. */
+    .kb-fs-title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    body.kb-editor-full .kb-fs-open { display: none; }
+    body.kb-editor-full .editor-content > .form-group {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        margin: 0;
+    }
+    body.kb-editor-full .editor-content .tox-tinymce {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto !important;      /* beat TinyMCE's inline pixel height */
+        border: none;
+        border-radius: 0;
+    }
+
+    /* ---- reclaiming the editor's own chrome ----
+       Measured on a 360px screen: the menubar wrapped to FOUR rows and an
+       upsell badge sat beside it, together taking ~130px of a 720px screen
+       before a word could be typed.
+
+       The upsell is not a feature, so it goes. The menubar scrolls sideways
+       instead of wrapping — the same move as the settings tab strip — which
+       reclaims the height while keeping every menu reachable; hiding it would
+       have been the easy option and would have taken Table and Format with it.
+
+       ⚠️ These are TinyMCE's own internal class names, so an upgrade could
+       rename them. Both rules are purely cosmetic: if they stop matching, the
+       editor simply looks the way it does today.
+
+       ⚠️ `!important` is not laziness here: TinyMCE injects its skin
+       stylesheet into <head> at RUNTIME, so it always lands after mobile.css
+       and wins every specificity tie on source order alone. Nothing short of
+       !important reaches it. Measured: without it the menubar still wrapped —
+       the first improvement was the promotion badge going, not the nowrap. */
+    .tox-promotion { display: none !important; }
+    .tox .tox-menubar {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+    .tox .tox-menubar::-webkit-scrollbar { display: none; }
+    .tox .tox-menubar .tox-mbtn { flex: 0 0 auto; }
 
     /* --------------------------------------------------------------------
        17e — The tags / actions sheet (LAYER 7 chrome, as 16g).

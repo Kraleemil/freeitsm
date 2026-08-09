@@ -591,6 +591,74 @@
         }
         wireMetaToggle();          // an article opened straight from a ?article= URL
 
+        /* ---- full-screen text editing ----
+           An "expand" control above the editor, and a Close bar inside it.
+           Both labels reuse existing translated keys, so no new strings:
+           `knowledge.editor.popout_title` already reads "Toggle full-screen
+           view" in all 24 locales (it labels the desktop pop-out button,
+           which is hidden on mobile), and the sheets' Close does the rest.
+           Built after the editor exists, and idempotently — the editor view
+           is not re-rendered, but syncKnowledgeBar can run again on resize. */
+        function wireFullScreenEditor() {
+            if (!mq.matches) return;
+            var content = document.querySelector('.editor-content');
+            if (!content || content.dataset.kbFs) return;
+            content.dataset.kbFs = '1';
+
+            var label = tr('knowledge.editor.popout_title', 'Full screen');
+            var closeLabel = tr('knowledge.modal.close', tr('common.close', 'Close'));
+
+            var openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.className = 'kb-fs-open';
+            openBtn.textContent = '⤢  ' + label;
+
+            /* The bar shows the ARTICLE's title rather than repeating the
+               button's label — once you are in full screen, "Toggle
+               full-screen view" tells you nothing you don't know, whereas
+               what you are editing is genuinely useful. Read live from the
+               Title field, so it is right for a new article too, and it
+               needs no string of its own. */
+            var barTitle = document.createElement('span');
+            barTitle.className = 'kb-fs-title';
+            var closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'ms-close';
+            closeBtn.textContent = closeLabel;
+            var bar = document.createElement('div');
+            bar.className = 'kb-fs-bar';
+            bar.appendChild(barTitle);
+            bar.appendChild(closeBtn);
+
+            content.insertBefore(bar, content.firstChild);
+            content.insertBefore(openBtn, bar);
+
+            function setFull(on) {
+                if (on) {
+                    var titleField = document.getElementById('articleTitle');
+                    var t = titleField && titleField.value.trim();
+                    barTitle.textContent = t || label;
+                }
+                document.body.classList.toggle('kb-editor-full', on);
+                openBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+                /* TinyMCE lays the iframe out to a pixel height it worked out
+                   when the container was small. Nudge it after the class flip
+                   so it re-measures against the new box — without this the
+                   editor is full-screen but the typing area is still 200px. */
+                var ed = window.tinymce && window.tinymce.get('articleBody');
+                if (ed) { setTimeout(function () { try { ed.execCommand('mceAutoResize'); } catch (e) {} window.dispatchEvent(new Event('resize')); }, 30); }
+            }
+            openBtn.addEventListener('click', function () {
+                setFull(true);
+                history.pushState({ kbFull: true }, '');
+            });
+            closeBtn.addEventListener('click', function () {
+                if (history.state && history.state.kbFull) history.back();
+                else setFull(false);
+            });
+            window.addEventListener('popstate', function () { setFull(false); });
+        }
+
         // ---- mirror the current view onto <body> for CSS ----
         function readView() {
             var d = document.getElementById('articleDetailView');
@@ -611,6 +679,9 @@
                 var r = _showView.apply(this, arguments);
                 setKbView(view || readView());
                 stripEditorPopout();
+                wireFullScreenEditor();
+                // Leaving the editor must not strand the page in the overlay.
+                if (view !== 'editor') document.body.classList.remove('kb-editor-full');
                 return r;
             };
         }
@@ -641,11 +712,13 @@
             var vb = document.querySelector('.mobile-views-btn');
             if (vb) vb.style.display = on ? '' : 'none';
             syncBackLabel();
-            if (on) { sidebarIntoPlace(); wireMetaToggle(); }
+            if (on) { sidebarIntoPlace(); wireMetaToggle(); wireFullScreenEditor(); }
             else {
-                // Leaving mobile: the meta block must not stay half-collapsed.
+                // Leaving mobile: neither the meta block nor the full-screen
+                // editor may be left in a mobile-only state on a desktop page.
                 var head = document.querySelector('.article-content-header');
                 if (head) head.classList.remove('kb-meta-open');
+                document.body.classList.remove('kb-editor-full');
                 document.body.classList.remove('mobile-views-open');
                 hideSheet();
                 sidebarBackToPage();
