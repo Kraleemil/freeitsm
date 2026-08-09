@@ -119,6 +119,9 @@ system/uploads/branding/*
 !system/uploads/branding/.htaccess
 recordings/*
 !recordings/.htaccess
+war-room/attachments/*
+!war-room/attachments/.htaccess
+!war-room/attachments/web.config
 
 # ============================================
 # NODE MODULES (if you use npm/Node.js)

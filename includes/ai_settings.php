@@ -75,6 +75,16 @@ function aiSettingsRegistry(): array
             'default_provider'=> 'anthropic',
             'default_model'   => 'claude-sonnet-4-6',
         ],
+        // The war room situation report: reading an incident's chat and drafting
+        // the update a service delivery manager sends to the business. Sonnet
+        // rather than Haiku because the job is judgement, not summarising — it has
+        // to tell a fact from a guess, and promoting somebody's speculation to a
+        // cause would go out to the whole company under a manager's name.
+        'warroom_ai' => [
+            'label'           => 'War Room AI',
+            'default_provider'=> 'anthropic',
+            'default_model'   => 'claude-sonnet-4-6',
+        ],
         // Deferred: 'rfp_ai' (RFP Builder) — needs real OpenRouter SSE streaming first.
     ];
 }

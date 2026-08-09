@@ -1,28 +1,42 @@
 <?php
 /**
- * War room — the fallback chat analysts use when Teams/Slack is unavailable.
+ * War room — the chat analysts fall back to when Teams/Slack is unavailable.
  *
  * WHY THIS EXISTS. When the internet drops, the on-premise service desk is the
  * last thing still running on the LAN — and it already knows every analyst, who
  * is in which team, and what is currently on fire. So it is the natural place
- * for people to gather. This is deliberately RUDIMENTARY: nobody is giving up
- * Teams for it, and the whole point is that it works when Teams cannot.
+ * for people to gather.
  *
- * THE ONE DESIGN RULE: a channel is not stored anywhere — A CHANNEL IS A TEAM.
- * The list is rendered from `teams` filtered by the analyst's `analyst_teams`
- * rows, so there is no channel lifecycle, no membership to manage, nothing to
- * orphan when a team is renamed, and no admin screen to build. You manage
- * channels by managing teams, which is where an admin would look anyway. Let
- * people create free-form channels and you inherit all of that overnight.
+ * 🔑 IT BEING A FALLBACK IS NOT A LICENCE TO MAKE IT THIN. The first cut had
+ * team channels and nothing else, on the theory that a break-glass tool should
+ * stay minimal. That was the wrong instinct: a tool nobody enjoys using in calm
+ * conditions is not the one they reach for at 3am, and an outage is the worst
+ * possible moment to discover you cannot start a side conversation or find what
+ * somebody said forty minutes ago. So: real channels, direct messages, search
+ * and attachments.
  *
- * NO EXTERNAL DEPENDENCIES, ON PURPOSE. No CDN asset, no cert, no token, no
- * scheduled job. A tool for the day the internet is down must not have a
- * dependency that can expire or fail to resolve while it is down — which is
- * also why retention is applied on write rather than by cron.
+ * WHAT WE KEPT FROM THE FIRST CUT, because these were right:
  *
- * Service layer: the UI page and the API endpoints both come through here, so
- * the access rule exists once. See [[Service-Layer-Architecture]].
+ *   NO EXTERNAL DEPENDENCIES. No CDN asset, no cert, no token, no scheduled job.
+ *   A tool for the day the internet is down must not have a dependency that can
+ *   expire or fail to resolve while it is down — which is why retention is
+ *   applied on write rather than by cron, and why the channels an analyst needs
+ *   are created on demand rather than by an administrator setting them up in
+ *   advance. The one part that DOES need the internet — the AI situation report
+ *   — is strictly additive: it is a panel, and the chat neither calls it nor
+ *   waits for it. When the provider is unreachable the report says so and the
+ *   room carries on.
+ *
+ *   TEAM CHANNELS ARE STILL DERIVED. A team channel is keyed to its team and
+ *   CASCADEs with it, so it cannot be renamed into a lie or orphaned. Custom
+ *   channels and DMs are rows, and they do carry a lifecycle — that is the cost
+ *   of the feature, paid deliberately rather than avoided.
+ *
+ * Service layer: the UI page and every API endpoint come through here, so the
+ * access rule exists once. See [[Service-Layer-Architecture]].
  */
+
+require_once __DIR__ . '/uploads.php';
 
 /** How long since a poll before we stop calling someone "here". */
 const WARROOM_PRESENCE_WINDOW_SECONDS = 90;
@@ -30,75 +44,407 @@ const WARROOM_PRESENCE_WINDOW_SECONDS = 90;
 /** Hard cap on one message, so a paste of a log file can't wedge the page. */
 const WARROOM_MAX_BODY = 4000;
 
-/**
- * The channels this analyst can see: the all-hands room, then their teams.
- *
- * `team_id === null` is the all-hands war room. It always exists, is always
- * first, and cannot be removed — in an actual outage you want one obvious place
- * for everyone, not six team rooms and an argument about which to use.
- *
- * @return array<int,array{team_id:?int,name:string}>
- */
-function warRoomChannels(PDO $conn, int $analystId): array {
-    $out = [[
-        'team_id' => null,
-        'name'    => function_exists('t') ? t('war-room.channel.all_hands') : 'War room',
-    ]];
+/** Attachments per message. Enough for a screenshot set, not a file share. */
+const WARROOM_MAX_ATTACHMENTS = 5;
 
-    $stmt = $conn->prepare(
-        "SELECT t.id, t.name
-           FROM teams t
-           JOIN analyst_teams at ON at.team_id = t.id
-          WHERE at.analyst_id = :aid
-            AND (t.is_active IS NULL OR t.is_active = 1)
-          ORDER BY COALESCE(t.display_order, 0), t.name"
-    );
-    $stmt->execute([':aid' => $analystId]);
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $out[] = ['team_id' => (int) $row['id'], 'name' => $row['name']];
+/** Where attachment bytes live. Never served from here — see warRoomAttachmentPath. */
+define('WARROOM_ATTACH_DIR', __DIR__ . '/../war-room/attachments');
+
+/** The four kinds of channel. Stored as a string so db_verify stays simple. */
+const WARROOM_KIND_ALL    = 'all';      // the one all-hands room
+const WARROOM_KIND_TEAM   = 'team';     // one per team, derived, CASCADEs with it
+const WARROOM_KIND_CUSTOM = 'custom';   // somebody made it
+const WARROOM_KIND_DM     = 'dm';       // a pair of analysts
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CHANNELS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Make sure the channels this analyst is entitled to actually exist as rows.
+ *
+ * Called at list time rather than by an installer or a cron, so a team created
+ * ten minutes ago has a channel the first time anybody looks — nothing to set
+ * up in advance and nothing to run afterwards. Both inserts are idempotent:
+ * the all-hands row is guarded by its unique kind, and team rows by the unique
+ * on team_id, so concurrent pollers race harmlessly.
+ */
+function warRoomEnsureChannels(PDO $conn, int $analystId): void
+{
+    try {
+        // The all-hands room. INSERT … SELECT WHERE NOT EXISTS rather than
+        // INSERT IGNORE, because IGNORE would also swallow a real error.
+        $conn->exec(
+            "INSERT INTO warroom_channels (kind, name, created_datetime)
+             SELECT '" . WARROOM_KIND_ALL . "', NULL, UTC_TIMESTAMP() FROM DUAL
+              WHERE NOT EXISTS (SELECT 1 FROM warroom_channels WHERE kind = '" . WARROOM_KIND_ALL . "')"
+        );
+
+        // One channel per team this analyst belongs to.
+        $stmt = $conn->prepare(
+            "INSERT INTO warroom_channels (kind, team_id, created_datetime)
+             SELECT '" . WARROOM_KIND_TEAM . "', t.id, UTC_TIMESTAMP()
+               FROM teams t
+               JOIN analyst_teams at ON at.team_id = t.id
+              WHERE at.analyst_id = :aid
+                AND (t.is_active IS NULL OR t.is_active = 1)
+                AND NOT EXISTS (
+                      SELECT 1 FROM warroom_channels c
+                       WHERE c.kind = '" . WARROOM_KIND_TEAM . "' AND c.team_id = t.id)"
+        );
+        $stmt->execute([':aid' => $analystId]);
+    } catch (Throwable $e) {
+        // A channel we could not create just does not appear. Never let this
+        // stop the page loading — the all-hands room is what matters.
+    }
+}
+
+/**
+ * Every channel this analyst can see, in display order, with unread counts.
+ *
+ * Order is deliberate and not alphabetical: all-hands, then teams, then custom
+ * channels, then DMs. In an outage the room everyone shares should be the first
+ * thing under the cursor, not the thing you scroll past your DMs to reach.
+ *
+ * @return array<int,array{id:int,kind:string,name:string,topic:?string,
+ *                         is_private:bool,archived:bool,unread:int,members:?int}>
+ */
+function warRoomChannelList(PDO $conn, int $analystId, bool $includeArchived = false): array
+{
+    warRoomEnsureChannels($conn, $analystId);
+
+    $archClause = $includeArchived ? '' : ' AND c.archived_datetime IS NULL';
+
+    // One query for all four kinds. The visibility rule per kind is expressed in
+    // the WHERE, so a channel the analyst may not see is never fetched and then
+    // filtered — the same reason search scopes inside the query rather than after.
+    $sql = "
+        SELECT c.id, c.kind, c.name, c.topic, c.is_private, c.archived_datetime,
+               t.name AS team_name,
+               (SELECT GROUP_CONCAT(a2.full_name ORDER BY a2.full_name SEPARATOR ', ')
+                  FROM warroom_channel_members m2
+                  JOIN analysts a2 ON a2.id = m2.analyst_id
+                 WHERE m2.channel_id = c.id AND m2.analyst_id <> :me3) AS other_members,
+               (SELECT COUNT(*) FROM warroom_channel_members m3 WHERE m3.channel_id = c.id) AS member_count,
+               COALESCE(r.last_read_message_id, 0) AS last_read,
+               (SELECT COUNT(*) FROM warroom_messages wm
+                 WHERE wm.channel_id = c.id
+                   AND wm.id > COALESCE(r.last_read_message_id, 0)
+                   AND wm.analyst_id <> :me4) AS unread
+          FROM warroom_channels c
+          LEFT JOIN teams t ON t.id = c.team_id
+          LEFT JOIN warroom_reads r ON r.channel_id = c.id AND r.analyst_id = :me1
+         WHERE (
+                   c.kind = '" . WARROOM_KIND_ALL . "'
+                OR (c.kind = '" . WARROOM_KIND_TEAM . "' AND EXISTS (
+                      SELECT 1 FROM analyst_teams at
+                       WHERE at.team_id = c.team_id AND at.analyst_id = :me2))
+                OR (c.kind = '" . WARROOM_KIND_CUSTOM . "' AND c.is_private = 0)
+                OR (c.kind IN ('" . WARROOM_KIND_CUSTOM . "','" . WARROOM_KIND_DM . "') AND EXISTS (
+                      SELECT 1 FROM warroom_channel_members m
+                       WHERE m.channel_id = c.id AND m.analyst_id = :me5))
+               )
+               $archClause
+         ORDER BY FIELD(c.kind, '" . WARROOM_KIND_ALL . "', '" . WARROOM_KIND_TEAM . "', '"
+                              . WARROOM_KIND_CUSTOM . "', '" . WARROOM_KIND_DM . "'),
+                  COALESCE(t.display_order, 0), COALESCE(t.name, c.name), c.id";
+
+    $stmt = $conn->prepare($sql);
+    foreach (['me1', 'me2', 'me3', 'me4', 'me5'] as $p) {
+        $stmt->bindValue(':' . $p, $analystId, PDO::PARAM_INT);
+    }
+    $stmt->execute();
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'id'         => (int) $r['id'],
+            'kind'       => $r['kind'],
+            'name'       => warRoomChannelName($r),
+            'topic'      => $r['topic'] !== '' ? $r['topic'] : null,
+            'is_private' => (bool) $r['is_private'],
+            'archived'   => $r['archived_datetime'] !== null,
+            'unread'     => (int) $r['unread'],
+            'members'    => $r['member_count'] !== null ? (int) $r['member_count'] : null,
+        ];
     }
     return $out;
 }
 
 /**
- * May this analyst read/write this channel?
+ * The label for a channel row.
+ *
+ * A team channel shows the team's CURRENT name and a DM the other person's, both
+ * read live rather than copied at creation — so renaming a team or an analyst
+ * renames the channel, and there is no stored name that can quietly become wrong.
+ */
+function warRoomChannelName(array $row): string
+{
+    switch ($row['kind']) {
+        case WARROOM_KIND_ALL:
+            return function_exists('t') ? t('war-room.channel.all_hands') : 'War room';
+        case WARROOM_KIND_TEAM:
+            return (string) ($row['team_name'] ?? '');
+        case WARROOM_KIND_DM:
+            // Everyone in the DM except the reader. Falls back rather than showing
+            // an empty label if the other account has since been deleted.
+            $others = trim((string) ($row['other_members'] ?? ''));
+            if ($others !== '') return $others;
+            return function_exists('t') ? t('war-room.former_analyst') : 'Former analyst';
+        default:
+            return (string) ($row['name'] ?? '');
+    }
+}
+
+/** One channel row, or null. Raw — callers must still check access. */
+function warRoomChannel(PDO $conn, int $channelId): ?array
+{
+    $stmt = $conn->prepare(
+        "SELECT c.*, t.name AS team_name,
+                (SELECT GROUP_CONCAT(a2.full_name ORDER BY a2.full_name SEPARATOR ', ')
+                   FROM warroom_channel_members m2
+                   JOIN analysts a2 ON a2.id = m2.analyst_id
+                  WHERE m2.channel_id = c.id) AS other_members
+           FROM warroom_channels c
+           LEFT JOIN teams t ON t.id = c.team_id
+          WHERE c.id = :id LIMIT 1"
+    );
+    $stmt->execute([':id' => $channelId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row === false ? null : $row;
+}
+
+/**
+ * May this analyst read this channel?
  *
  * ⚠️ Enforced HERE, server-side, on every read and every write — never by only
- * rendering a shorter channel list. A team channel is visible to its members;
- * the all-hands room to every analyst. Anything unexpected fails CLOSED.
+ * rendering a shorter channel list. Anything unexpected fails CLOSED.
  */
-function warRoomCanAccessChannel(PDO $conn, int $analystId, ?int $teamId): bool {
-    if ($teamId === null) return true;          // all-hands: every analyst
+function warRoomCanAccessChannel(PDO $conn, int $analystId, int $channelId): bool
+{
     try {
-        $stmt = $conn->prepare(
-            "SELECT 1 FROM analyst_teams WHERE analyst_id = :aid AND team_id = :tid LIMIT 1"
-        );
-        $stmt->execute([':aid' => $analystId, ':tid' => $teamId]);
-        return (bool) $stmt->fetchColumn();
+        $ch = warRoomChannel($conn, $channelId);
+        if ($ch === null) return false;
+
+        switch ($ch['kind']) {
+            case WARROOM_KIND_ALL:
+                return true;                                   // every analyst
+            case WARROOM_KIND_TEAM:
+                $s = $conn->prepare("SELECT 1 FROM analyst_teams WHERE analyst_id = :a AND team_id = :t LIMIT 1");
+                $s->execute([':a' => $analystId, ':t' => (int) $ch['team_id']]);
+                return (bool) $s->fetchColumn();
+            case WARROOM_KIND_CUSTOM:
+                if (!$ch['is_private']) return true;           // open to all analysts
+                return warRoomIsMember($conn, $analystId, $channelId);
+            case WARROOM_KIND_DM:
+                return warRoomIsMember($conn, $analystId, $channelId);
+        }
+        return false;
     } catch (Throwable $e) {
-        return false;                            // fail closed
+        return false;                                          // fail closed
+    }
+}
+
+function warRoomIsMember(PDO $conn, int $analystId, int $channelId): bool
+{
+    $s = $conn->prepare("SELECT 1 FROM warroom_channel_members WHERE channel_id = :c AND analyst_id = :a LIMIT 1");
+    $s->execute([':c' => $channelId, ':a' => $analystId]);
+    return (bool) $s->fetchColumn();
+}
+
+/**
+ * May this analyst POST here? Read access, minus archived.
+ *
+ * Archiving deliberately leaves a channel readable: the point of archiving an
+ * incident channel is to stop it collecting new chatter, not to hide what was
+ * said during the incident.
+ */
+function warRoomCanPostChannel(PDO $conn, int $analystId, int $channelId): bool
+{
+    if (!warRoomCanAccessChannel($conn, $analystId, $channelId)) return false;
+    $ch = warRoomChannel($conn, $channelId);
+    return $ch !== null && $ch['archived_datetime'] === null;
+}
+
+/**
+ * Create a custom channel. Any analyst may — during an incident, needing an
+ * administrator to make you a room is exactly the wrong dependency.
+ *
+ * @param int[] $memberIds ignored unless $isPrivate; the creator is always added
+ * @return int the new channel id
+ * @throws InvalidArgumentException with a message safe to show a user
+ */
+function warRoomCreateChannel(PDO $conn, int $analystId, string $name, string $topic = '', bool $isPrivate = false, array $memberIds = []): int
+{
+    $name = trim(preg_replace('/\s+/u', ' ', $name));
+    if ($name === '')             throw new InvalidArgumentException('name_required');
+    if (mb_strlen($name) > 120)   $name = mb_substr($name, 0, 120);
+    $topic = mb_substr(trim($topic), 0, 255);
+
+    // Names are not unique — two people naming a channel "Exchange" during the
+    // same incident is a nuisance, not a corruption, and blocking the second one
+    // mid-incident is worse than allowing it.
+    $stmt = $conn->prepare(
+        "INSERT INTO warroom_channels (kind, name, topic, is_private, created_by, created_datetime)
+         VALUES ('" . WARROOM_KIND_CUSTOM . "', :n, :t, :p, :by, UTC_TIMESTAMP())"
+    );
+    $stmt->bindValue(':n', $name);
+    $stmt->bindValue(':t', $topic === '' ? null : $topic);
+    $stmt->bindValue(':p', $isPrivate ? 1 : 0, PDO::PARAM_INT);
+    $stmt->bindValue(':by', $analystId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    // ⚠️ Read the id BEFORE anything else touches the connection — see warRoomSend.
+    $id = (int) $conn->lastInsertId();
+    if ($id <= 0) throw new RuntimeException('insert_failed');
+
+    // The creator is a member even of a public channel, so "my channels" and the
+    // members count mean the same thing whichever kind it is.
+    $ids = array_unique(array_merge([$analystId], $isPrivate ? array_map('intval', $memberIds) : []));
+    warRoomAddMembers($conn, $id, $ids);
+    return $id;
+}
+
+/** Add analysts to a channel. Idempotent — re-inviting somebody is not an error. */
+function warRoomAddMembers(PDO $conn, int $channelId, array $analystIds): void
+{
+    $stmt = $conn->prepare(
+        "INSERT INTO warroom_channel_members (channel_id, analyst_id, created_datetime)
+         SELECT :c, a.id, UTC_TIMESTAMP() FROM analysts a
+          WHERE a.id = :a AND (a.is_active IS NULL OR a.is_active = 1)
+            AND NOT EXISTS (SELECT 1 FROM warroom_channel_members m
+                             WHERE m.channel_id = :c2 AND m.analyst_id = :a2)"
+    );
+    foreach ($analystIds as $aid) {
+        $aid = (int) $aid;
+        if ($aid <= 0) continue;
+        $stmt->execute([':c' => $channelId, ':a' => $aid, ':c2' => $channelId, ':a2' => $aid]);
     }
 }
 
 /**
- * Messages in a channel, oldest first.
+ * Archive or restore a custom channel. Team and all-hands channels cannot be
+ * archived — they are derived, so the way to remove one is to remove the team.
+ */
+function warRoomSetArchived(PDO $conn, int $channelId, bool $archived): bool
+{
+    $stmt = $conn->prepare(
+        "UPDATE warroom_channels
+            SET archived_datetime = " . ($archived ? 'UTC_TIMESTAMP()' : 'NULL') . "
+          WHERE id = :id AND kind IN ('" . WARROOM_KIND_CUSTOM . "','" . WARROOM_KIND_DM . "')"
+    );
+    $stmt->execute([':id' => $channelId]);
+    return $stmt->rowCount() > 0;
+}
+
+/** Rename / re-topic a custom channel. Team and DM names are derived, never stored. */
+function warRoomUpdateChannel(PDO $conn, int $channelId, string $name, string $topic): bool
+{
+    $name = trim(preg_replace('/\s+/u', ' ', $name));
+    if ($name === '') return false;
+    $stmt = $conn->prepare(
+        "UPDATE warroom_channels SET name = :n, topic = :t
+          WHERE id = :id AND kind = '" . WARROOM_KIND_CUSTOM . "'"
+    );
+    $stmt->execute([
+        ':n'  => mb_substr($name, 0, 120),
+        ':t'  => ($topic = mb_substr(trim($topic), 0, 255)) === '' ? null : $topic,
+        ':id' => $channelId,
+    ]);
+    return $stmt->rowCount() >= 0;
+}
+
+/**
+ * Find or create the DM between two analysts.
+ *
+ * 🔑 The pair is normalised into `dm_key` ("<lower>:<higher>") and that column is
+ * UNIQUE. Without it, two people opening a DM with each other at the same moment
+ * get two conversations and each sees half of it — which is precisely the failure
+ * you would hit during an incident, when both are trying to reach the other.
+ */
+function warRoomOpenDm(PDO $conn, int $analystId, int $otherId): int
+{
+    if ($otherId <= 0 || $otherId === $analystId) throw new InvalidArgumentException('bad_recipient');
+
+    $s = $conn->prepare("SELECT 1 FROM analysts WHERE id = :id AND (is_active IS NULL OR is_active = 1) LIMIT 1");
+    $s->execute([':id' => $otherId]);
+    if (!$s->fetchColumn()) throw new InvalidArgumentException('bad_recipient');
+
+    $key = min($analystId, $otherId) . ':' . max($analystId, $otherId);
+
+    $find = $conn->prepare("SELECT id FROM warroom_channels WHERE dm_key = :k LIMIT 1");
+    $find->execute([':k' => $key]);
+    $existing = (int) $find->fetchColumn();
+    if ($existing > 0) return $existing;
+
+    try {
+        $ins = $conn->prepare(
+            "INSERT INTO warroom_channels (kind, dm_key, is_private, created_by, created_datetime)
+             VALUES ('" . WARROOM_KIND_DM . "', :k, 1, :by, UTC_TIMESTAMP())"
+        );
+        $ins->execute([':k' => $key, ':by' => $analystId]);
+        $id = (int) $conn->lastInsertId();
+    } catch (PDOException $e) {
+        // Lost the race against the other person opening the same DM: theirs is
+        // now the one that exists, so use it.
+        $find->execute([':k' => $key]);
+        $id = (int) $find->fetchColumn();
+    }
+    if ($id <= 0) throw new RuntimeException('insert_failed');
+
+    warRoomAddMembers($conn, $id, [$analystId, $otherId]);
+    return $id;
+}
+
+/**
+ * Analysts this person could start a DM with. Active accounts only — offering to
+ * message somebody who left is a dead end you only discover after typing.
+ */
+function warRoomDirectory(PDO $conn, int $analystId): array
+{
+    $stmt = $conn->prepare(
+        "SELECT a.id, a.full_name,
+                (SELECT 1 FROM warroom_presence p
+                  WHERE p.analyst_id = a.id
+                    AND p.last_seen >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL :win SECOND)) AS here
+           FROM analysts a
+          WHERE a.id <> :me AND (a.is_active IS NULL OR a.is_active = 1)
+          ORDER BY a.full_name"
+    );
+    $stmt->bindValue(':win', WARROOM_PRESENCE_WINDOW_SECONDS, PDO::PARAM_INT);
+    $stmt->bindValue(':me', $analystId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = ['id' => (int) $r['id'], 'name' => $r['full_name'], 'here' => (bool) $r['here']];
+    }
+    return $out;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MESSAGES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Messages in a channel, oldest first, each with its attachments.
  *
  * $sinceId drives the poll: the page asks for everything newer than the last id
  * it holds, so a quiet channel costs one indexed lookup that returns nothing.
  * On the first load $sinceId is 0 and we return the tail rather than the lot.
  *
- * A NULL analyst_id is a deleted account. It is rendered as "Former analyst"
- * rather than blank or "Unknown", so the reader can tell WHICH case it is.
+ * A NULL analyst_id is a deleted account, rendered as "Former analyst" rather
+ * than blank or "Unknown" so the reader can tell WHICH case it is.
  */
-function warRoomMessages(PDO $conn, ?int $teamId, int $sinceId = 0, int $limit = 200): array {
+function warRoomMessages(PDO $conn, int $channelId, int $sinceId = 0, int $limit = 200): array
+{
     $limit = max(1, min(500, $limit));
-    $teamClause = $teamId === null ? 'm.team_id IS NULL' : 'm.team_id = :tid';
 
     if ($sinceId > 0) {
         $sql = "SELECT m.id, m.body, m.created_datetime, m.analyst_id, a.full_name
                   FROM warroom_messages m
                   LEFT JOIN analysts a ON a.id = m.analyst_id
-                 WHERE $teamClause AND m.id > :since
+                 WHERE m.channel_id = :cid AND m.id > :since
                  ORDER BY m.id ASC
                  LIMIT $limit";
     } else {
@@ -107,43 +453,69 @@ function warRoomMessages(PDO $conn, ?int $teamId, int $sinceId = 0, int $limit =
                     SELECT m.id, m.body, m.created_datetime, m.analyst_id, a.full_name
                       FROM warroom_messages m
                       LEFT JOIN analysts a ON a.id = m.analyst_id
-                     WHERE $teamClause
+                     WHERE m.channel_id = :cid
                      ORDER BY m.id DESC
                      LIMIT $limit
                 ) AS recent ORDER BY id ASC";
     }
 
     $stmt = $conn->prepare($sql);
-    if ($teamId !== null) $stmt->bindValue(':tid', $teamId, PDO::PARAM_INT);
-    if ($sinceId > 0)     $stmt->bindValue(':since', $sinceId, PDO::PARAM_INT);
+    $stmt->bindValue(':cid', $channelId, PDO::PARAM_INT);
+    if ($sinceId > 0) $stmt->bindValue(':since', $sinceId, PDO::PARAM_INT);
     $stmt->execute();
 
     $rows = [];
+    $ids  = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-        $rows[] = [
-            'id'        => (int) $r['id'],
-            'body'      => $r['body'],
-            'author'    => $r['full_name'] !== null
+        $id    = (int) $r['id'];
+        $ids[] = $id;
+        $rows[$id] = [
+            'id'          => $id,
+            'body'        => $r['body'],
+            'author'      => $r['full_name'] !== null
                 ? $r['full_name']
                 : (function_exists('t') ? t('war-room.former_analyst') : 'Former analyst'),
-            'analyst_id' => $r['analyst_id'] !== null ? (int) $r['analyst_id'] : null,
-            'created'   => $r['created_datetime'],
+            'analyst_id'  => $r['analyst_id'] !== null ? (int) $r['analyst_id'] : null,
+            'created'     => $r['created_datetime'],
+            'attachments' => [],
         ];
     }
-    return $rows;
+    if ($ids) {
+        // One query for the whole page's attachments rather than one per message.
+        $in = implode(',', array_map('intval', $ids));
+        $at = $conn->query(
+            "SELECT id, message_id, original_name, size_bytes
+               FROM warroom_attachments WHERE message_id IN ($in) ORDER BY id"
+        );
+        foreach ($at->fetchAll(PDO::FETCH_ASSOC) as $a) {
+            $mid = (int) $a['message_id'];
+            if (!isset($rows[$mid])) continue;
+            $rows[$mid]['attachments'][] = [
+                'id'     => (int) $a['id'],
+                'name'   => $a['original_name'],
+                'size'   => (int) $a['size_bytes'],
+                // Whether the browser may render it is OUR decision, taken from
+                // the extension against our own map — never from anything the
+                // uploader supplied. See includes/uploads.php (security F5).
+                'inline' => attachmentServeRules((string) $a['original_name'])['inline'],
+            ];
+        }
+    }
+    return array_values($rows);
 }
 
 /** Post a message. Returns the new id, or 0 if the body was empty. */
-function warRoomSend(PDO $conn, int $analystId, ?int $teamId, string $body): int {
+function warRoomSend(PDO $conn, int $analystId, int $channelId, string $body): int
+{
     $body = trim($body);
     if ($body === '') return 0;
     if (mb_strlen($body) > WARROOM_MAX_BODY) $body = mb_substr($body, 0, WARROOM_MAX_BODY);
 
     $stmt = $conn->prepare(
-        "INSERT INTO warroom_messages (team_id, analyst_id, body, created_datetime)
-         VALUES (:tid, :aid, :body, UTC_TIMESTAMP())"
+        "INSERT INTO warroom_messages (channel_id, analyst_id, body, created_datetime)
+         VALUES (:cid, :aid, :body, UTC_TIMESTAMP())"
     );
-    $stmt->bindValue(':tid', $teamId, $teamId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+    $stmt->bindValue(':cid', $channelId, PDO::PARAM_INT);
     $stmt->bindValue(':aid', $analystId, PDO::PARAM_INT);
     $stmt->bindValue(':body', $body);
     $stmt->execute();
@@ -159,6 +531,196 @@ function warRoomSend(PDO $conn, int $analystId, ?int $teamId, string $body): int
     return $id;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ATTACHMENTS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Store one uploaded file against a message.
+ *
+ * 🔒 Storage goes through uploadStoreFile() — the ONE home for the rules — so
+ * this inherits all three defences: an extension AND mime whitelist, a random
+ * stored filename drawn from our own list rather than the caller's string, and
+ * an .htaccess that disables execution in the directory. Nothing here reimplements
+ * any of that, and nothing here calls move_uploaded_file().
+ *
+ * ⚠️ NOTE WHAT IS *NOT* STORED: there is no content_type column. The type an
+ * attachment is served as is derived from its extension against our own map at
+ * serve time (security F5). Keeping the uploader's claim in the database would
+ * only create something for a future endpoint to trust by mistake, so the
+ * temptation is removed rather than documented.
+ */
+function warRoomStoreAttachment(PDO $conn, int $messageId, array $file): array
+{
+    $stored = uploadStoreFile($file, WARROOM_ATTACH_DIR);
+
+    $stmt = $conn->prepare(
+        "INSERT INTO warroom_attachments (message_id, stored_name, original_name, size_bytes, created_datetime)
+         VALUES (:m, :s, :o, :z, UTC_TIMESTAMP())"
+    );
+    $stmt->execute([
+        ':m' => $messageId,
+        ':s' => $stored['stored_name'],
+        ':o' => $stored['original_name'],
+        ':z' => (int) $stored['size'],
+    ]);
+    $id = (int) $conn->lastInsertId();
+
+    return [
+        'id'     => $id,
+        'name'   => $stored['original_name'],
+        'size'   => (int) $stored['size'],
+        'inline' => attachmentServeRules($stored['original_name'])['inline'],
+    ];
+}
+
+/**
+ * The row for an attachment the analyst is allowed to fetch, or null.
+ *
+ * The channel check is done HERE rather than in the endpoint, so there is one
+ * answer to "may I read this file" and it is the same answer as "may I read the
+ * conversation it is in". Guessing an attachment id from another channel returns
+ * nothing rather than a file.
+ */
+function warRoomAttachmentFor(PDO $conn, int $analystId, int $attachmentId): ?array
+{
+    $stmt = $conn->prepare(
+        "SELECT at.id, at.stored_name, at.original_name, at.size_bytes, m.channel_id
+           FROM warroom_attachments at
+           JOIN warroom_messages m ON m.id = at.message_id
+          WHERE at.id = :id LIMIT 1"
+    );
+    $stmt->execute([':id' => $attachmentId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($row === false) return null;
+    if (!warRoomCanAccessChannel($conn, $analystId, (int) $row['channel_id'])) return null;
+
+    $row['path'] = rtrim(WARROOM_ATTACH_DIR, '/\\') . DIRECTORY_SEPARATOR . $row['stored_name'];
+    return $row;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SEARCH
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Search the conversations this analyst can see.
+ *
+ * 🔑 DELIBERATELY `LIKE`, NOT THE FULL-TEXT CORPUS, for two reasons that both
+ * bite exactly the strings people type into a war room.
+ *
+ *   1. MySQL's full-text index has a MINIMUM TOKEN SIZE — three characters by
+ *      default — and anything shorter is not ranked low, it is never recorded at
+ *      all. `P1`, `AD`, `DB`, `VM`, `DC`, `HQ` and any single octet of an IP
+ *      address are all below it. The search returns nothing, with no error.
+ *   2. Full text tokenises on non-word characters, so `10.0.0.5`, `SRV-01` and a
+ *      UNC path are split into pieces and cannot be matched as one string
+ *      without boolean-mode quoting the user has no reason to know about.
+ *
+ * A substring scan has neither problem. Chat volumes are small — retention bounds
+ * the table, and it holds one row per message rather than per document — so the
+ * scan is the right trade here even though it would be the wrong one for tickets.
+ * ⚠️ If war room volumes ever stop being small, the fix is an index, NOT moving to
+ * full text: that would silently lose case 1 again.
+ *
+ * Scoping is inside the query, not applied to the results afterwards: filtering
+ * afterwards silently starves the result set when the matches are in channels you
+ * cannot see.
+ */
+function warRoomSearch(PDO $conn, int $analystId, string $query, ?int $channelId = null, int $limit = 60): array
+{
+    $terms = preg_split('/\s+/u', trim($query), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (!$terms) return [];
+    $terms = array_slice($terms, 0, 6);
+
+    $where  = [];
+    $params = [];
+    foreach ($terms as $i => $term) {
+        // Escape the LIKE wildcards themselves, or a search for "50%" matches
+        // everything and reads as the feature being broken.
+        $esc = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term);
+        $where[] = "m.body LIKE :t$i ESCAPE '\\\\'";
+        $params[":t$i"] = '%' . $esc . '%';
+    }
+    $termSql = implode(' AND ', $where);          // all terms must appear
+
+    $chanSql = '';
+    if ($channelId !== null) {
+        $chanSql = ' AND m.channel_id = :cid';
+        $params[':cid'] = $channelId;
+    }
+
+    $limit = max(1, min(200, $limit));
+    $sql = "
+        SELECT m.id, m.channel_id, m.body, m.created_datetime, a.full_name,
+               c.kind, c.name, c.topic, t.name AS team_name,
+               (SELECT GROUP_CONCAT(a2.full_name ORDER BY a2.full_name SEPARATOR ', ')
+                  FROM warroom_channel_members m2
+                  JOIN analysts a2 ON a2.id = m2.analyst_id
+                 WHERE m2.channel_id = c.id AND m2.analyst_id <> :me3) AS other_members
+          FROM warroom_messages m
+          JOIN warroom_channels c ON c.id = m.channel_id
+          LEFT JOIN teams t   ON t.id = c.team_id
+          LEFT JOIN analysts a ON a.id = m.analyst_id
+         WHERE $termSql $chanSql
+           AND (
+                   c.kind = '" . WARROOM_KIND_ALL . "'
+                OR (c.kind = '" . WARROOM_KIND_TEAM . "' AND EXISTS (
+                      SELECT 1 FROM analyst_teams at
+                       WHERE at.team_id = c.team_id AND at.analyst_id = :me1))
+                OR (c.kind = '" . WARROOM_KIND_CUSTOM . "' AND c.is_private = 0)
+                OR (c.kind IN ('" . WARROOM_KIND_CUSTOM . "','" . WARROOM_KIND_DM . "') AND EXISTS (
+                      SELECT 1 FROM warroom_channel_members mm
+                       WHERE mm.channel_id = c.id AND mm.analyst_id = :me2))
+               )
+         ORDER BY m.id DESC
+         LIMIT $limit";
+
+    $stmt = $conn->prepare($sql);
+    foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v, is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    }
+    foreach (['me1', 'me2', 'me3'] as $p) $stmt->bindValue(':' . $p, $analystId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'id'         => (int) $r['id'],
+            'channel_id' => (int) $r['channel_id'],
+            'channel'    => warRoomChannelName($r),
+            'author'     => $r['full_name'] ?? (function_exists('t') ? t('war-room.former_analyst') : 'Former analyst'),
+            'created'    => $r['created_datetime'],
+            'snippet'    => warRoomSnippet((string) $r['body'], $terms),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * A window of the message around the first term that matched, so a result is
+ * readable without opening it. Plain text — the page inserts it with textContent
+ * and highlights client-side, so nothing here can emit markup.
+ */
+function warRoomSnippet(string $body, array $terms, int $len = 200): string
+{
+    $body = preg_replace('/\s+/u', ' ', trim($body));
+    if (mb_strlen($body) <= $len) return $body;
+
+    $pos = 0;
+    foreach ($terms as $term) {
+        $p = mb_stripos($body, $term);
+        if ($p !== false) { $pos = $p; break; }
+    }
+    $start = max(0, $pos - 60);
+    $out   = mb_substr($body, $start, $len);
+    return ($start > 0 ? '…' : '') . $out . (($start + $len) < mb_strlen($body) ? '…' : '');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PRESENCE AND UNREAD
+   ══════════════════════════════════════════════════════════════════════════ */
+
 /**
  * Record that this analyst is here, and return who else is.
  *
@@ -166,26 +728,30 @@ function warRoomSend(PDO $conn, int $analystId, ?int $teamId, string $body): int
  * and there is no separate heartbeat to keep alive. The UPSERT onto the UNIQUE
  * analyst_id is what stops the table growing — one row per person, forever.
  */
-function warRoomTouchPresence(PDO $conn, int $analystId, ?int $teamId): void {
+function warRoomTouchPresence(PDO $conn, int $analystId, int $channelId): void
+{
     $stmt = $conn->prepare(
-        "INSERT INTO warroom_presence (analyst_id, team_id, last_seen)
-         VALUES (:aid, :tid, UTC_TIMESTAMP())
-         ON DUPLICATE KEY UPDATE team_id = VALUES(team_id), last_seen = VALUES(last_seen)"
+        "INSERT INTO warroom_presence (analyst_id, channel_id, last_seen)
+         VALUES (:aid, :cid, UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE channel_id = VALUES(channel_id), last_seen = VALUES(last_seen)"
     );
     $stmt->bindValue(':aid', $analystId, PDO::PARAM_INT);
-    $stmt->bindValue(':tid', $teamId, $teamId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+    $stmt->bindValue(':cid', $channelId, PDO::PARAM_INT);
     $stmt->execute();
 }
 
 /**
- * Who has polled recently. Names only — this answers "is anyone reading this?",
- * which is most of what you want to know when your usual chat is down.
+ * Who has polled recently, and whether they are in THIS channel or elsewhere in
+ * the war room. "Here" versus "around" is a genuinely useful distinction during an
+ * incident — it is the difference between nobody is reading this and everybody is
+ * in the other room.
  *
- * @return array<int,string>
+ * @return array{here:string[],elsewhere:string[]}
  */
-function warRoomPresent(PDO $conn, int $excludeAnalystId = 0): array {
+function warRoomPresent(PDO $conn, int $excludeAnalystId, int $channelId): array
+{
     $stmt = $conn->prepare(
-        "SELECT a.full_name
+        "SELECT a.full_name, p.channel_id
            FROM warroom_presence p
            JOIN analysts a ON a.id = p.analyst_id
           WHERE p.last_seen >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL :win SECOND)
@@ -195,11 +761,39 @@ function warRoomPresent(PDO $conn, int $excludeAnalystId = 0): array {
     $stmt->bindValue(':win', WARROOM_PRESENCE_WINDOW_SECONDS, PDO::PARAM_INT);
     $stmt->bindValue(':me', $excludeAnalystId, PDO::PARAM_INT);
     $stmt->execute();
-    return array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'full_name');
+
+    $here = $elsewhere = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        if ((int) $r['channel_id'] === $channelId) $here[] = $r['full_name'];
+        else                                       $elsewhere[] = $r['full_name'];
+    }
+    return ['here' => $here, 'elsewhere' => $elsewhere];
 }
 
+/**
+ * Remember how far this analyst has read, so the channel list can show what is
+ * new. Only ever moves forward: an out-of-order poll must not un-read a channel.
+ */
+function warRoomMarkRead(PDO $conn, int $analystId, int $channelId, int $messageId): void
+{
+    if ($messageId <= 0) return;
+    $stmt = $conn->prepare(
+        "INSERT INTO warroom_reads (analyst_id, channel_id, last_read_message_id, updated_datetime)
+         VALUES (:a, :c, :m, UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE
+            last_read_message_id = GREATEST(last_read_message_id, VALUES(last_read_message_id)),
+            updated_datetime     = VALUES(updated_datetime)"
+    );
+    $stmt->execute([':a' => $analystId, ':c' => $channelId, ':m' => $messageId]);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RETENTION
+   ══════════════════════════════════════════════════════════════════════════ */
+
 /** Retention in days from settings. 0 (the default) means keep forever. */
-function warRoomRetentionDays(PDO $conn): int {
+function warRoomRetentionDays(PDO $conn): int
+{
     try {
         $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'warroom_retention_days' LIMIT 1");
         $stmt->execute();
@@ -213,15 +807,41 @@ function warRoomRetentionDays(PDO $conn): int {
 /**
  * Apply the retention setting.
  *
- * Called from warRoomSend rather than from a cron job, deliberately: an
- * emergency tool must not depend on somebody having configured a scheduled
- * task. The LIMIT keeps any single send cheap — a long-overdue prune just takes
- * several sends to work through instead of stalling one of them.
+ * Called from warRoomSend rather than from a cron job, deliberately: an emergency
+ * tool must not depend on somebody having configured a scheduled task. The LIMIT
+ * keeps any single send cheap — a long-overdue prune takes several sends to work
+ * through instead of stalling one of them.
+ *
+ * ⚠️ ATTACHMENT FILES MUST GO WITH THE ROWS. The FK deletes the attachment record
+ * when its message goes, but nothing deletes the bytes on disk, and a database
+ * that says the file is gone while the file is still there is the worse half of
+ * the two. So the paths are read BEFORE the delete and unlinked after it.
  */
-function warRoomPrune(PDO $conn): void {
+function warRoomPrune(PDO $conn): void
+{
+    // ⚠️ RUNS EVEN WHEN RETENTION IS OFF, and must. Retention is not the only way
+    // a message disappears: deleting a TEAM cascades its channel, its messages and
+    // their attachment rows — and nothing in that chain touches the filesystem. So
+    // "keep forever" would mean the rows go and the bytes stay, forever, with no
+    // record that they exist. Found by clearing the test data and noticing two
+    // files left in the folder afterwards.
+    warRoomSweepOrphanFiles($conn);
+
     $days = warRoomRetentionDays($conn);
     if ($days <= 0) return;                       // keep forever
+
     try {
+        $doomed = $conn->prepare(
+            "SELECT at.stored_name
+               FROM warroom_attachments at
+               JOIN warroom_messages m ON m.id = at.message_id
+              WHERE m.created_datetime < DATE_SUB(UTC_TIMESTAMP(), INTERVAL :d DAY)
+              LIMIT 2000"
+        );
+        $doomed->bindValue(':d', $days, PDO::PARAM_INT);
+        $doomed->execute();
+        $files = array_column($doomed->fetchAll(PDO::FETCH_ASSOC), 'stored_name');
+
         $stmt = $conn->prepare(
             "DELETE FROM warroom_messages
               WHERE created_datetime < DATE_SUB(UTC_TIMESTAMP(), INTERVAL :d DAY)
@@ -229,7 +849,173 @@ function warRoomPrune(PDO $conn): void {
         );
         $stmt->bindValue(':d', $days, PDO::PARAM_INT);
         $stmt->execute();
+
+        // Only unlink files whose row really did go. A file still referenced by a
+        // surviving message (the LIMIT above may not have reached it yet) stays.
+        foreach ($files as $name) {
+            $still = $conn->prepare("SELECT 1 FROM warroom_attachments WHERE stored_name = :s LIMIT 1");
+            $still->execute([':s' => $name]);
+            if ($still->fetchColumn()) continue;
+            $path = rtrim(WARROOM_ATTACH_DIR, '/\\') . DIRECTORY_SEPARATOR . $name;
+            if (is_file($path)) @unlink($path);
+        }
     } catch (Throwable $e) {
         // Retention is housekeeping — never let it break posting a message.
     }
+}
+
+/**
+ * Delete attachment files with no row left pointing at them.
+ *
+ * Rate-limited to once an hour by a timestamp in system_settings, because this
+ * is the only thing in the module that lists a directory and it hangs off the
+ * send path. An hour is generous: an orphan is wasted disk, not a live problem.
+ *
+ * Still no cron. A file that outlives its row by up to an hour is fine; a module
+ * that needs a scheduled task set up before it cleans up after itself is not.
+ */
+function warRoomSweepOrphanFiles(PDO $conn): void
+{
+    try {
+        $now  = time();
+        $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'warroom_last_sweep' LIMIT 1");
+        $stmt->execute();
+        $last = (int) $stmt->fetchColumn();
+        if ($now - $last < 3600) return;
+
+        $conn->prepare(
+            "INSERT INTO system_settings (setting_key, setting_value) VALUES ('warroom_last_sweep', :v)
+             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+        )->execute([':v' => (string) $now]);
+
+        $dir = rtrim(WARROOM_ATTACH_DIR, '/\\');
+        if (!is_dir($dir)) return;
+
+        $known = [];
+        foreach ($conn->query("SELECT stored_name FROM warroom_attachments") as $r) {
+            $known[$r['stored_name']] = true;
+        }
+
+        foreach ((array) scandir($dir) as $name) {
+            if ($name === '.' || $name === '..') continue;
+            // The directory's own guards are not uploads and must never be swept.
+            if ($name === '.htaccess' || $name === 'web.config') continue;
+            if (isset($known[$name])) continue;
+            $path = $dir . DIRECTORY_SEPARATOR . $name;
+            // Give an in-flight upload a minute's grace: the file lands before its
+            // row is written, and deleting it in that window would lose it.
+            if (is_file($path) && ($now - (int) filemtime($path)) > 60) @unlink($path);
+        }
+    } catch (Throwable $e) {
+        // Housekeeping. Never let it break posting a message.
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SITUATION REPORT (the AI summary)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The transcript to summarise: everything said in channels this analyst can see
+ * since a given moment.
+ *
+ * Scoped by the same rule as everything else, so a service delivery manager's
+ * summary can never quote a conversation they are not entitled to read — which
+ * would be a novel way to leak a DM.
+ *
+ * @param string $sinceUtc 'Y-m-d H:i:s' in UTC
+ * @return array{lines:string[],messages:int,channels:int}
+ */
+function warRoomTranscriptSince(PDO $conn, int $analystId, string $sinceUtc, ?int $channelId = null, int $maxMessages = 400): array
+{
+    $params = [':since' => $sinceUtc];
+    $chanSql = '';
+    if ($channelId !== null) {
+        $chanSql = ' AND m.channel_id = :cid';
+        $params[':cid'] = $channelId;
+    }
+    $maxMessages = max(1, min(1000, $maxMessages));
+
+    $sql = "
+        SELECT m.channel_id, m.body, m.created_datetime, a.full_name,
+               c.kind, c.name, t.name AS team_name,
+               (SELECT GROUP_CONCAT(a2.full_name ORDER BY a2.full_name SEPARATOR ', ')
+                  FROM warroom_channel_members m2
+                  JOIN analysts a2 ON a2.id = m2.analyst_id
+                 WHERE m2.channel_id = c.id AND m2.analyst_id <> :me3) AS other_members
+          FROM warroom_messages m
+          JOIN warroom_channels c ON c.id = m.channel_id
+          LEFT JOIN teams t    ON t.id = c.team_id
+          LEFT JOIN analysts a ON a.id = m.analyst_id
+         WHERE m.created_datetime >= :since $chanSql
+           AND (
+                   c.kind = '" . WARROOM_KIND_ALL . "'
+                OR (c.kind = '" . WARROOM_KIND_TEAM . "' AND EXISTS (
+                      SELECT 1 FROM analyst_teams at
+                       WHERE at.team_id = c.team_id AND at.analyst_id = :me1))
+                OR (c.kind = '" . WARROOM_KIND_CUSTOM . "' AND c.is_private = 0)
+                OR (c.kind IN ('" . WARROOM_KIND_CUSTOM . "','" . WARROOM_KIND_DM . "') AND EXISTS (
+                      SELECT 1 FROM warroom_channel_members mm
+                       WHERE mm.channel_id = c.id AND mm.analyst_id = :me2))
+               )
+         ORDER BY m.id ASC
+         LIMIT $maxMessages";
+
+    $stmt = $conn->prepare($sql);
+    foreach ($params as $k => $v) $stmt->bindValue($k, $v);
+    foreach (['me1', 'me2', 'me3'] as $p) $stmt->bindValue(':' . $p, $analystId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $lines    = [];
+    $channels = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $chan = warRoomChannelName($r);
+        $channels[$chan] = true;
+        $who  = $r['full_name'] ?? 'Former analyst';
+        $when = substr((string) $r['created_datetime'], 11, 5) . ' UTC';
+        $lines[] = "[$when] #$chan — $who: " . preg_replace('/\s+/u', ' ', (string) $r['body']);
+    }
+
+    return ['lines' => $lines, 'messages' => count($lines), 'channels' => count($channels)];
+}
+
+/**
+ * The prompt for the situation report.
+ *
+ * 🔑 Written for ONE reader: the service delivery manager who has to send the
+ * next update to the business in ten minutes and cannot read four hundred
+ * messages first. That is why it asks for what changed, what is still unknown and
+ * what the business would want told — and why it is told to say when the chat
+ * does not support a conclusion. A summary that invents a cause reads exactly like
+ * one that found a cause, and it goes out to the whole company under somebody's
+ * name.
+ */
+function warRoomSitrepPrompt(array $lines, string $sinceLabel): string
+{
+    $transcript = implode("\n", $lines);
+
+    return <<<PROMPT
+You are helping a service delivery manager write an update to the business during
+an IT incident. Below is the chat between analysts in the war room since {$sinceLabel}.
+
+Write a briefing with these headings, using only what the transcript supports:
+
+**Where things stand** — two or three sentences a non-technical executive can read.
+**What changed since {$sinceLabel}** — bullets, newest development first.
+**Who is doing what** — bullets naming the analyst, only where the chat says so.
+**Still unknown** — the open questions, including anything being guessed at.
+**Suggested wording for the business** — one short paragraph they could send as-is.
+
+Rules:
+- Use ONLY the transcript. If it does not say something, do not supply it.
+- Where analysts are speculating, say they are speculating. Do not promote a
+  guess to a cause, and do not offer an ETA the chat has not given.
+- If the conversation is too thin to brief on, say exactly that in one line under
+  "Where things stand" and leave the other sections empty rather than padding them.
+- Plain British English. No preamble, no sign-off, no restating these rules.
+
+TRANSCRIPT
+----------
+{$transcript}
+PROMPT;
 }

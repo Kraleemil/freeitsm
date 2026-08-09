@@ -2,10 +2,11 @@
 /**
  * War room — settings manifest. See includes/capabilities.php.
  *
- * One tab, one decision. USING the war room is deliberately plain module
- * access: during an outage you do not want a permission sitting between an
- * analyst and the only chat that still works. The only thing worth gating is
- * how long the messages are kept, which is a data-retention decision.
+ * USING the war room is deliberately plain module access — during an outage you
+ * do not want a permission sitting between an analyst and the only chat that
+ * still works, and that includes creating a channel or opening a DM. What IS
+ * gated is the pair of decisions an administrator owns: how long messages are
+ * kept, and which AI provider gets shown the transcript.
  */
 require_once __DIR__ . '/../../includes/capabilities.php';
 
@@ -27,6 +28,16 @@ return [
             // setting and the capability that guards it cannot disagree — and
             // the generic settings writer refuses any key nobody owns.
             'setting_keys' => ['warroom_retention_days'],
+        ],
+        [
+            'id'        => 'ai',
+            'cap'       => Cap::WAR_ROOM_MANAGE,
+            'label_key' => 'war-room.settings.ai_heading',
+            'grant'     => 'Configure the war room situation report',
+            'setting_keys' => [
+                'warroom_ai_provider', 'warroom_ai_model',
+                'warroom_ai_api_key', 'warroom_ai_verify_ssl',
+            ],
         ],
     ],
 ];

@@ -992,7 +992,7 @@ $translationNamespaces = ['common', 'asset-management'];
              <style> block so its @media rules win on ties — the ordering rule
              from the wiki's Mobile-Friendly-Techniques. Every rule inside it is
              gated at 768px, so the desktop layout is untouched. */ ?>
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=41">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=42">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>

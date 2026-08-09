@@ -2679,8 +2679,19 @@
         overflow-y: visible;
     }
     /* The "Channels" heading is redundant once they are a row of chips under a
-       bar that already says War room. */
-    .wr-sidebar-heading { display: none; }
+       bar that already says War room. The per-section headings go too: in a
+       single scrolling row they would appear as unreadable inline fragments
+       between the chips rather than as headings above groups. Order still
+       carries the grouping — all-hands, teams, channels, DMs. */
+    .wr-sidebar-heading,
+    .wr-group { display: none; }
+
+    /* New channel / New message stay, but as a compact pair above the chips —
+       being unable to start a conversation is a real loss on a phone, which is
+       where somebody is most likely to be when they need one. */
+    .wr-sidebar-actions { gap: 8px; margin-bottom: 8px; }
+    .wr-side-btn { min-height: 36px; font-size: 13px; }
+
     .wr-channels {
         flex-direction: row;
         gap: 6px;
@@ -2717,8 +2728,21 @@
        incident it is a paragraph between you and the messages. */
     .wr-intro { display: none; }
 
+    /* The channel name and its tools have to share one narrow row. The name
+       truncates and the buttons shrink to labels rather than wrapping onto a
+       second row, which would cost another 40px of the conversation. */
+    .wr-topbar { align-items: center; gap: 8px; margin-bottom: 8px; }
+    .wr-title { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wr-topic { display: none; }
+    .wr-tools { gap: 4px; }
+    .wr-tool { min-height: 34px; padding: 6px 10px; font-size: 12px; }
+
     .wr-messages { padding: 8px 10px; }
     .wr-msg-body { font-size: 15px; }
+    /* A screenshot at desktop width would be the widest thing on the page, and
+       anything wider than the screen is what makes iOS reflow to desktop. */
+    .wr-thumb img { max-width: 100%; max-height: 200px; }
+    .wr-file { max-width: 100%; }
 
     .wr-composer { gap: 8px; margin-top: 8px; }
     /* ⚠️ 16px is required, not cosmetic: under it iOS zooms on focus, the page
@@ -2729,4 +2753,32 @@
         height: 44px;
     }
     .wr-composer .btn { height: 44px; padding: 0 16px; }
+    .wr-attach { width: 44px; height: 44px; }
+
+    /* Search and the situation report become full-screen sheets rather than a
+       380px column beside a 360px screen. Fixed rather than in-flow: as a flex
+       child of a column container the panel would otherwise push the whole
+       conversation off the top. */
+    .wr-panel {
+        position: fixed;
+        inset: 0;
+        z-index: 1100;
+        width: auto;
+        border-left: none;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .wr-panel-close { min-width: 44px; min-height: 44px; font-size: 26px; }
+    /* Same 16px rule as the composer, for the same reason. */
+    .wr-search-input,
+    .wr-input,
+    .wr-sitrep-form select { font-size: 16px !important; min-height: 44px; }
+    .wr-result { padding: 12px 10px; }
+
+    .wr-modal { padding: 0; align-items: stretch; }
+    .wr-modal-card { max-width: none; max-height: none; border-radius: 0; }
+    .wr-modal-body { padding: 14px; }
+    .wr-modal-actions { flex-direction: column; }
+    .wr-modal-actions .btn { width: 100%; min-height: 44px; }
+    .wr-member { min-height: 44px; }
+    .wr-members { max-height: none; }
 }

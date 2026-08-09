@@ -2925,32 +2925,94 @@ return [
     ],
 
     // War room — the fallback chat analysts use when Teams/Slack is unavailable.
-    // ONE table, deliberately: a "channel" is not stored anywhere, it IS a team.
-    // The channel list is rendered from `teams` filtered by the analyst's rows in
-    // `analyst_teams`, so there is no channel lifecycle, no membership to manage
-    // and nothing to orphan when a team changes. team_id NULL is the all-hands
-    // war room that everyone can see.
     //
+    // Every conversation is a row here, of one of four KINDS, so that messages
+    // need exactly one foreign key instead of a nullable column per kind:
+    //   all    — the one all-hands room. Always exists, always first.
+    //   team   — one per team. team_id is UNIQUE and CASCADEs, so a team channel
+    //            cannot be orphaned, duplicated, or renamed into a lie: its name
+    //            is READ FROM `teams` at display time and never stored here.
+    //   custom — somebody made it. This kind, and only this kind, has a lifecycle.
+    //   dm     — a pair of analysts. `dm_key` is "<lower id>:<higher id>" and is
+    //            UNIQUE, which is what stops two people opening a DM with each
+    //            other simultaneously and getting one conversation each.
+    //
+    // created_by is NULLABLE (FK SET NULL): a channel must outlive the person who
+    // opened it, or deleting a leaver would take the incident room with them.
+    'warroom_channels' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'kind'              => "VARCHAR(10) NOT NULL DEFAULT 'custom'",
+        'team_id'           => 'INT NULL',
+        'dm_key'            => 'VARCHAR(41) NULL',
+        'name'              => 'VARCHAR(120) NULL',
+        'topic'             => 'VARCHAR(255) NULL',
+        'is_private'        => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'created_by'        => 'INT NULL',
+        'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'archived_datetime' => 'DATETIME NULL',
+    ],
+
+    // Membership, for private custom channels and for DMs. Public custom channels
+    // also carry rows for whoever joined, so a member count means the same thing
+    // whichever kind it is. Team membership is NOT duplicated here — that lives in
+    // `analyst_teams` and is read from there, so the two can never disagree.
+    'warroom_channel_members' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'channel_id'       => 'INT NOT NULL',
+        'analyst_id'       => 'INT NOT NULL',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     // analyst_id is NULLABLE on purpose (FK is ON DELETE SET NULL, see
     // db_verify.php): deleting an analyst must not erase the conversation that
     // happened during an incident. Those rows render as "Former analyst".
+    // channel_id is nullable ONLY so the column can be added to an installation
+    // created before channels existed; db_verify backfills it immediately.
     'warroom_messages' => [
         'id'               => 'INT NOT NULL AUTO_INCREMENT',
-        'team_id'          => 'INT NULL',
+        'channel_id'       => 'INT NULL',
         'analyst_id'       => 'INT NULL',
         'body'             => 'TEXT NOT NULL',
         'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // ⚠️ THERE IS NO content_type COLUMN, AND THAT IS THE POINT. The type an
+    // attachment is served as is derived from its extension against our own map
+    // at serve time (attachmentServeRules, security finding F5). Storing what the
+    // uploader claimed would create something for a future endpoint to trust by
+    // mistake, so the temptation is removed rather than merely documented.
+    // stored_name is the random name uploads.php generated; original_name is for
+    // display and for the download filename only, and never touches the path.
+    'warroom_attachments' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'message_id'       => 'INT NOT NULL',
+        'stored_name'      => 'VARCHAR(100) NOT NULL',
+        'original_name'    => 'VARCHAR(255) NOT NULL',
+        'size_bytes'       => 'INT NOT NULL DEFAULT 0',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // How far each analyst has read in each channel, so the list can show what is
+    // new. One row per analyst per channel, upserted, and the id only ever moves
+    // forward — an out-of-order poll must not un-read a channel.
+    'warroom_reads' => [
+        'id'                   => 'INT NOT NULL AUTO_INCREMENT',
+        'analyst_id'           => 'INT NOT NULL',
+        'channel_id'           => 'INT NOT NULL',
+        'last_read_message_id' => 'INT NOT NULL DEFAULT 0',
+        'updated_datetime'     => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
     // Who is currently in the war room. One row per analyst, upserted by the
     // same poll that fetches messages — so presence costs no extra request and
     // the table can never grow beyond the number of analysts. Shape deliberately
     // mirrors `ticket_presence` (surrogate id + UNIQUE on the natural key), which
-    // is the pattern collision detection already established.
+    // is the pattern collision detection already established. channel_id records
+    // WHERE they are, which is how the sidebar separates "here" from "around".
     'warroom_presence' => [
         'id'         => 'INT NOT NULL AUTO_INCREMENT',
         'analyst_id' => 'INT NOT NULL',
-        'team_id'    => 'INT NULL',
+        'channel_id' => 'INT NULL',
         'last_seen'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 ];

@@ -83,7 +83,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | [Forms](https://github.com/edmozley/freeitsm/wiki/Forms) | Dynamic form builder with AI assist, section headings, conditional questions, versioning and submissions reporting |
 | [Contracts](https://github.com/edmozley/freeitsm/wiki/Contracts) | Supplier and contract lifecycle, plus an AI-powered RFP Builder |
 | [Service Status](https://github.com/edmozley/freeitsm/wiki/Service-Status) | Service health dashboard driven by incident tracking |
-| [War Room](https://github.com/edmozley/freeitsm/wiki/War-Room) | Fallback chat on your own server for when Teams, Slack or the internet are down |
+| [War Room](https://github.com/edmozley/freeitsm/wiki/War-Room) | Chat on your own server for when Teams, Slack or the internet are down — channels, direct messages, search, attachments, and an AI situation report that drafts the update to the business |
 | [LMS](https://github.com/edmozley/freeitsm/wiki/LMS) | Author courses in-app (with AI) or upload SCORM; assign, take and track them |
 | [Process Mapper](https://github.com/edmozley/freeitsm/wiki/Process-Mapper) | Flowchart builder with swimlanes, custom step types and Mermaid export |
 | [System](https://github.com/edmozley/freeitsm/wiki/System) | Administration — analysts, teams, roles, encryption, database verify, demo data |

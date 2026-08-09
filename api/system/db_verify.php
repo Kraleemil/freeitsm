@@ -682,32 +682,157 @@ try {
             try { $conn->exec("ALTER TABLE webchat_messages ADD CONSTRAINT fk_webchat_messages_conversation FOREIGN KEY (conversation_id) REFERENCES webchat_conversations (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
     }
-    // War room messages → their team (the "channel") and their author.
+    // ── War room ──────────────────────────────────────────────────────────────
+    //
+    // Channels. team_id and dm_key are each UNIQUE over a NULLABLE column, which
+    // MySQL lets repeat NULLs — so "one channel per team" and "one DM per pair"
+    // are enforced without constraining the other kinds. The DM one matters more
+    // than it looks: without it, two people opening a DM with each other at the
+    // same moment end up with one conversation each.
+    if ($tableExists('warroom_channels')) {
+        if ($tableExists('teams') && !$idxExists('warroom_channels', 'uq_warroom_channels_team')) {
+            try { $conn->exec("ALTER TABLE warroom_channels ADD UNIQUE KEY uq_warroom_channels_team (team_id)"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('warroom_channels', 'uq_warroom_channels_dm')) {
+            try { $conn->exec("ALTER TABLE warroom_channels ADD UNIQUE KEY uq_warroom_channels_dm (dm_key)"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('warroom_channels', 'ix_warroom_channels_kind')) {
+            try { $conn->exec("ALTER TABLE warroom_channels ADD KEY ix_warroom_channels_kind (kind, archived_datetime)"); } catch (Exception $e) {}
+        }
+        // CASCADE: a team channel goes with its team, which is what keeps a team
+        // channel from being orphaned or renamed into a lie.
+        if ($tableExists('teams') && !$fkExists('warroom_channels', 'fk_warroom_channels_team')) {
+            try { $conn->exec("ALTER TABLE warroom_channels ADD CONSTRAINT fk_warroom_channels_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+        // SET NULL: a channel must outlive whoever opened it.
+        if ($tableExists('analysts') && !$fkExists('warroom_channels', 'fk_warroom_channels_creator')) {
+            try { $conn->exec("ALTER TABLE warroom_channels ADD CONSTRAINT fk_warroom_channels_creator FOREIGN KEY (created_by) REFERENCES analysts (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+        // The all-hands room. Seeded here as well as in freeitsm.sql so an
+        // installation grown by Database Verification gets one too.
+        try {
+            $conn->exec(
+                "INSERT INTO warroom_channels (kind, created_datetime)
+                 SELECT 'all', UTC_TIMESTAMP() FROM DUAL
+                  WHERE NOT EXISTS (SELECT 1 FROM warroom_channels WHERE kind = 'all')"
+            );
+        } catch (Exception $e) {}
+    }
+    if ($tableExists('warroom_channel_members') && $tableExists('warroom_channels')) {
+        if (!$idxExists('warroom_channel_members', 'uq_warroom_member')) {
+            try { $conn->exec("ALTER TABLE warroom_channel_members ADD UNIQUE KEY uq_warroom_member (channel_id, analyst_id)"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('warroom_channel_members', 'ix_warroom_member_analyst')) {
+            try { $conn->exec("ALTER TABLE warroom_channel_members ADD KEY ix_warroom_member_analyst (analyst_id)"); } catch (Exception $e) {}
+        }
+        if (!$fkExists('warroom_channel_members', 'fk_warroom_member_channel')) {
+            try { $conn->exec("ALTER TABLE warroom_channel_members ADD CONSTRAINT fk_warroom_member_channel FOREIGN KEY (channel_id) REFERENCES warroom_channels (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+        if ($tableExists('analysts') && !$fkExists('warroom_channel_members', 'fk_warroom_member_analyst')) {
+            try { $conn->exec("ALTER TABLE warroom_channel_members ADD CONSTRAINT fk_warroom_member_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+    }
+    // War room messages → their channel and their author.
     //
     // The two rules are deliberately different, and the difference is the point:
-    //   team_id   CASCADE  — delete a team and its channel goes with it, which is
-    //                        what "a channel IS a team" means.
+    //   channel_id CASCADE  — delete a channel and its conversation goes with it.
     //   analyst_id SET NULL — delete an analyst and the conversation SURVIVES.
     //                        These messages are the record of what was said during
     //                        an incident; losing half of it because somebody left
     //                        the company would be the wrong trade. Orphaned rows
     //                        render as "Former analyst".
     if ($tableExists('warroom_messages')) {
-        if (!$idxExists('warroom_messages', 'ix_warroom_messages_team')) {
-            // (team_id, id) — every read is "this channel, newer than id N".
-            try { $conn->exec("ALTER TABLE warroom_messages ADD KEY ix_warroom_messages_team (team_id, id)"); } catch (Exception $e) {}
+        // ONE-TIME MIGRATION. The first cut of the war room hung messages directly
+        // off team_id, because a channel was a team and nothing else. Channels are
+        // rows now, so every existing message needs pointing at one — and it must
+        // happen BEFORE the FK below, or the constraint fails on rows with a NULL
+        // channel_id and the whole table silently keeps the old shape.
+        if ($colExists('warroom_messages', 'team_id') && $colExists('warroom_messages', 'channel_id')
+            && $tableExists('warroom_channels')) {
+            try {
+                // Make sure a channel exists for every team that has messages,
+                // then point the messages at it. All-hands (team_id IS NULL) goes
+                // to the seeded 'all' row.
+                $conn->exec(
+                    "INSERT INTO warroom_channels (kind, team_id, created_datetime)
+                     SELECT DISTINCT 'team', m.team_id, UTC_TIMESTAMP()
+                       FROM warroom_messages m
+                      WHERE m.team_id IS NOT NULL
+                        AND NOT EXISTS (SELECT 1 FROM warroom_channels c
+                                         WHERE c.kind = 'team' AND c.team_id = m.team_id)"
+                );
+                $moved = (int) $conn->exec(
+                    "UPDATE warroom_messages m
+                       JOIN warroom_channels c
+                         ON (m.team_id IS NULL AND c.kind = 'all')
+                         OR (m.team_id IS NOT NULL AND c.kind = 'team' AND c.team_id = m.team_id)
+                        SET m.channel_id = c.id
+                      WHERE m.channel_id IS NULL"
+                );
+                if ($moved > 0) {
+                    $results[] = ['table' => 'warroom_messages', 'status' => 'migrated', 'details' => ["Moved $moved war room message(s) onto the new channel records"]];
+                }
+                // Only once every row has a home. A leftover NULL means a team was
+                // deleted between the two statements; leaving the column in place
+                // is safer than dropping it with data still hanging off it.
+                $orphans = (int) $conn->query("SELECT COUNT(*) FROM warroom_messages WHERE channel_id IS NULL")->fetchColumn();
+                if ($orphans === 0) {
+                    try { $conn->exec("ALTER TABLE warroom_messages DROP FOREIGN KEY fk_warroom_messages_team"); } catch (Exception $e) {}
+                    try { $conn->exec("ALTER TABLE warroom_messages DROP INDEX ix_warroom_messages_team"); } catch (Exception $e) {}
+                    try { $conn->exec("ALTER TABLE warroom_messages DROP COLUMN team_id"); } catch (Exception $e) {}
+                }
+            } catch (Exception $e) {}
         }
-        if ($tableExists('teams') && !$fkExists('warroom_messages', 'fk_warroom_messages_team')) {
-            try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        if (!$idxExists('warroom_messages', 'ix_warroom_messages_channel')) {
+            // (channel_id, id) — every read is "this channel, newer than id N".
+            try { $conn->exec("ALTER TABLE warroom_messages ADD KEY ix_warroom_messages_channel (channel_id, id)"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('warroom_messages', 'ix_warroom_messages_created')) {
+            // Retention deletes by age across every channel at once.
+            try { $conn->exec("ALTER TABLE warroom_messages ADD KEY ix_warroom_messages_created (created_datetime)"); } catch (Exception $e) {}
+        }
+        if ($tableExists('warroom_channels') && !$fkExists('warroom_messages', 'fk_warroom_messages_channel')) {
+            try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_channel FOREIGN KEY (channel_id) REFERENCES warroom_channels (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
         if ($tableExists('analysts') && !$fkExists('warroom_messages', 'fk_warroom_messages_analyst')) {
             try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+    }
+    if ($tableExists('warroom_attachments') && $tableExists('warroom_messages')) {
+        if (!$idxExists('warroom_attachments', 'ix_warroom_attachments_message')) {
+            try { $conn->exec("ALTER TABLE warroom_attachments ADD KEY ix_warroom_attachments_message (message_id)"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('warroom_attachments', 'ix_warroom_attachments_stored')) {
+            // Retention looks a file up by its stored name before unlinking it.
+            try { $conn->exec("ALTER TABLE warroom_attachments ADD KEY ix_warroom_attachments_stored (stored_name)"); } catch (Exception $e) {}
+        }
+        if (!$fkExists('warroom_attachments', 'fk_warroom_attachments_message')) {
+            try { $conn->exec("ALTER TABLE warroom_attachments ADD CONSTRAINT fk_warroom_attachments_message FOREIGN KEY (message_id) REFERENCES warroom_messages (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+    }
+    if ($tableExists('warroom_reads') && $tableExists('warroom_channels')) {
+        if (!$idxExists('warroom_reads', 'uq_warroom_read')) {
+            // UNIQUE is what makes marking-as-read an upsert rather than a row per poll.
+            try { $conn->exec("ALTER TABLE warroom_reads ADD UNIQUE KEY uq_warroom_read (analyst_id, channel_id)"); } catch (Exception $e) {}
+        }
+        if ($tableExists('analysts') && !$fkExists('warroom_reads', 'fk_warroom_reads_analyst')) {
+            try { $conn->exec("ALTER TABLE warroom_reads ADD CONSTRAINT fk_warroom_reads_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+        if (!$fkExists('warroom_reads', 'fk_warroom_reads_channel')) {
+            try { $conn->exec("ALTER TABLE warroom_reads ADD CONSTRAINT fk_warroom_reads_channel FOREIGN KEY (channel_id) REFERENCES warroom_channels (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
     }
     // War room presence. UNIQUE on analyst_id is what makes the heartbeat an
     // upsert — without it a long-running poll would add a row per request.
     // Presence is ephemeral, so both parents CASCADE/SET NULL freely.
     if ($tableExists('warroom_presence')) {
+        // Same one-time move as messages: presence used to record which TEAM you
+        // were in, and now records which CHANNEL. Presence is ephemeral, so there
+        // is nothing worth migrating — the column is replaced, not backfilled.
+        if ($colExists('warroom_presence', 'team_id') && $colExists('warroom_presence', 'channel_id')) {
+            try { $conn->exec("ALTER TABLE warroom_presence DROP FOREIGN KEY fk_warroom_presence_team"); } catch (Exception $e) {}
+            try { $conn->exec("ALTER TABLE warroom_presence DROP COLUMN team_id"); } catch (Exception $e) {}
+        }
         if (!$idxExists('warroom_presence', 'uq_warroom_presence')) {
             try { $conn->exec("ALTER TABLE warroom_presence ADD UNIQUE KEY uq_warroom_presence (analyst_id)"); } catch (Exception $e) {}
         }
@@ -717,8 +842,8 @@ try {
         if ($tableExists('analysts') && !$fkExists('warroom_presence', 'fk_warroom_presence_analyst')) {
             try { $conn->exec("ALTER TABLE warroom_presence ADD CONSTRAINT fk_warroom_presence_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
-        if ($tableExists('teams') && !$fkExists('warroom_presence', 'fk_warroom_presence_team')) {
-            try { $conn->exec("ALTER TABLE warroom_presence ADD CONSTRAINT fk_warroom_presence_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        if ($tableExists('warroom_channels') && !$fkExists('warroom_presence', 'fk_warroom_presence_channel')) {
+            try { $conn->exec("ALTER TABLE warroom_presence ADD CONSTRAINT fk_warroom_presence_channel FOREIGN KEY (channel_id) REFERENCES warroom_channels (id) ON DELETE SET NULL"); } catch (Exception $e) {}
         }
     }
 

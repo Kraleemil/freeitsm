@@ -4282,36 +4282,122 @@ WHERE NOT EXISTS (SELECT 1 FROM `cmdb_relationship_types` WHERE verb = 'managed 
 -- ----------------------------------------------------------
 -- War room — fallback chat for when Teams/Slack is unavailable
 -- ----------------------------------------------------------
--- ONE table, deliberately. A "channel" is not stored anywhere: a channel IS a
--- team. The channel list is rendered from `teams`, filtered by the analyst's
--- rows in `analyst_teams`, so there is no channel lifecycle, no membership to
--- manage, nothing to orphan when a team is renamed or removed, and no admin UI
--- to build — you manage channels by managing teams. `team_id` NULL is the
--- all-hands war room, which always exists and everyone can see.
+-- Every conversation is a row in `warroom_channels`, of one of four KINDS, so
+-- that a message needs exactly one foreign key rather than a nullable column per
+-- kind. The kinds differ in where their identity comes from:
 --
--- The two delete rules differ on purpose:
---   team_id    CASCADE   delete a team and its channel goes with it, which is
---                        what "a channel is a team" has to mean.
+--   all    the one all-hands room. Always exists, always listed first: in a real
+--          outage you want one obvious place for everybody, not six team rooms
+--          and an argument about which to use.
+--   team   one per team. `team_id` is UNIQUE and CASCADEs, and the channel's NAME
+--          IS NOT STORED — it is read from `teams` at display time. So a team
+--          channel cannot be duplicated, cannot be orphaned, and cannot be
+--          renamed into something the team is no longer called.
+--   custom somebody made it. This kind, and only this kind, has a lifecycle
+--          (create, rename, archive) — the cost of the feature, paid knowingly.
+--   dm     a pair of analysts. `dm_key` is "<lower id>:<higher id>" and UNIQUE.
+--          Without that constraint two people opening a DM with each other at the
+--          same moment get one conversation each and neither sees the other's —
+--          exactly the failure you would hit mid-incident, when both are trying.
+--
+-- Retention is a setting (`warroom_retention_days`, 0 = keep forever) applied
+-- opportunistically on send, so it needs no cron — a tool for the day the
+-- internet is down should not depend on scheduled jobs having been set up.
+CREATE TABLE IF NOT EXISTS `warroom_channels` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `kind`              VARCHAR(10) NOT NULL DEFAULT 'custom',
+    `team_id`           INT NULL,
+    `dm_key`            VARCHAR(41) NULL,
+    `name`              VARCHAR(120) NULL,
+    `topic`             VARCHAR(255) NULL,
+    `is_private`        TINYINT(1) NOT NULL DEFAULT 0,
+    `created_by`        INT NULL,
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `archived_datetime` DATETIME NULL,
+    PRIMARY KEY (`id`),
+    -- One channel per team, and one DM per pair. Both are UNIQUE over a NULLABLE
+    -- column, which MySQL allows to repeat NULLs — so the other kinds are unaffected.
+    UNIQUE KEY `uq_warroom_channels_team` (`team_id`),
+    UNIQUE KEY `uq_warroom_channels_dm` (`dm_key`),
+    KEY `ix_warroom_channels_kind` (`kind`, `archived_datetime`),
+    CONSTRAINT `fk_warroom_channels_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE,
+    -- SET NULL: a channel must outlive whoever opened it, or deleting a leaver
+    -- would take the incident room with them.
+    CONSTRAINT `fk_warroom_channels_creator` FOREIGN KEY (`created_by`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Membership, for private custom channels and for DMs. Team membership is NOT
+-- duplicated here — it lives in `analyst_teams` and is read from there, so the
+-- two can never disagree about who is in a team.
+CREATE TABLE IF NOT EXISTS `warroom_channel_members` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `channel_id`       INT NOT NULL,
+    `analyst_id`       INT NOT NULL,
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_warroom_member` (`channel_id`, `analyst_id`),
+    KEY `ix_warroom_member_analyst` (`analyst_id`),
+    CONSTRAINT `fk_warroom_member_channel` FOREIGN KEY (`channel_id`) REFERENCES `warroom_channels` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_warroom_member_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The two delete rules on a message differ on purpose:
+--   channel_id CASCADE   delete a channel and its conversation goes with it.
 --   analyst_id SET NULL  delete an analyst and the conversation SURVIVES. This
 --                        is the record of what was said during an incident;
 --                        losing half of it because somebody left the company
 --                        would be the wrong trade. Those rows show as
 --                        "Former analyst".
---
--- Retention is a setting (`warroom_retention_days`, 0 = keep forever) applied
--- opportunistically on send, so it needs no cron — a tool for the day the
--- internet is down should not depend on scheduled jobs having been set up.
 CREATE TABLE IF NOT EXISTS `warroom_messages` (
     `id`               INT NOT NULL AUTO_INCREMENT,
-    `team_id`          INT NULL,
+    `channel_id`       INT NULL,
     `analyst_id`       INT NULL,
     `body`             TEXT NOT NULL,
     `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    -- (team_id, id): every read is "this channel, newer than id N".
-    KEY `ix_warroom_messages_team` (`team_id`, `id`),
-    CONSTRAINT `fk_warroom_messages_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE,
+    -- (channel_id, id): every read is "this channel, newer than id N".
+    KEY `ix_warroom_messages_channel` (`channel_id`, `id`),
+    -- Retention deletes by age across every channel at once.
+    KEY `ix_warroom_messages_created` (`created_datetime`),
+    CONSTRAINT `fk_warroom_messages_channel` FOREIGN KEY (`channel_id`) REFERENCES `warroom_channels` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_warroom_messages_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ⚠️ THERE IS NO `content_type` COLUMN, AND THAT IS THE POINT. What an attachment
+-- is served as is worked out from its extension against our own map at serve time
+-- (`attachmentServeRules`, security finding F5 — an attachment that declares its
+-- own type can declare `image/svg+xml` and run script in the reader's session).
+-- Storing the uploader's claim would only leave something for a future endpoint to
+-- trust by mistake, so the temptation is removed rather than merely documented.
+--
+-- `stored_name` is the random name includes/uploads.php generated; `original_name`
+-- is for display and the download filename only, and never touches the path.
+CREATE TABLE IF NOT EXISTS `warroom_attachments` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `message_id`       INT NOT NULL,
+    `stored_name`      VARCHAR(100) NOT NULL,
+    `original_name`    VARCHAR(255) NOT NULL,
+    `size_bytes`       INT NOT NULL DEFAULT 0,
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_warroom_attachments_message` (`message_id`),
+    KEY `ix_warroom_attachments_stored` (`stored_name`),
+    CONSTRAINT `fk_warroom_attachments_message` FOREIGN KEY (`message_id`) REFERENCES `warroom_messages` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- How far each analyst has read in each channel, so the list can show what is new.
+-- Upserted, and the id only ever moves forward (GREATEST) — an out-of-order poll
+-- must not un-read a channel.
+CREATE TABLE IF NOT EXISTS `warroom_reads` (
+    `id`                   INT NOT NULL AUTO_INCREMENT,
+    `analyst_id`           INT NOT NULL,
+    `channel_id`           INT NOT NULL,
+    `last_read_message_id` INT NOT NULL DEFAULT 0,
+    `updated_datetime`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_warroom_read` (`analyst_id`, `channel_id`),
+    CONSTRAINT `fk_warroom_reads_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_warroom_reads_channel` FOREIGN KEY (`channel_id`) REFERENCES `warroom_channels` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Who is currently in the war room. Knowing whether anyone is actually reading
@@ -4325,14 +4411,21 @@ CREATE TABLE IF NOT EXISTS `warroom_messages` (
 CREATE TABLE IF NOT EXISTS `warroom_presence` (
     `id`         INT NOT NULL AUTO_INCREMENT,
     `analyst_id` INT NOT NULL,
-    `team_id`    INT NULL,
+    `channel_id` INT NULL,
     `last_seen`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_warroom_presence` (`analyst_id`),
     KEY `ix_warroom_presence_last_seen` (`last_seen`),
     CONSTRAINT `fk_warroom_presence_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_warroom_presence_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_warroom_presence_channel` FOREIGN KEY (`channel_id`) REFERENCES `warroom_channels` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The all-hands room. Seeded rather than created on demand so a fresh install has
+-- somewhere to talk before anybody has a team; warRoomEnsureChannels() creates it
+-- too, for installations that predate this line.
+INSERT INTO `warroom_channels` (`kind`, `created_datetime`)
+SELECT 'all', UTC_TIMESTAMP() FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM `warroom_channels` WHERE `kind` = 'all');
 
 SET FOREIGN_KEY_CHECKS = 1;
 

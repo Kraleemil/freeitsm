@@ -1,16 +1,21 @@
 <?php
 /**
- * War room settings — one decision: how long messages are kept.
+ * War room settings — the two decisions an administrator owns.
  *
  * Retention is applied on WRITE (see warRoomPrune), not by a scheduled job, so
- * there is nothing to configure beyond this dropdown and nothing that can be
- * left un-set-up on the day it matters.
+ * there is nothing to configure beyond the dropdown and nothing that can be left
+ * un-set-up on the day it matters.
+ *
+ * The situation report is the one part of the module that needs the internet, so
+ * the page says that in as many words. Leaving it unconfigured is a perfectly
+ * good answer and the chat is unaffected either way.
  */
 session_start();
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/i18n.php';
 require_once '../../includes/theme.php';
+require_once '../../includes/ai_settings_panel.php';
 require_once '../../includes/warroom.php';
 
 if (!isset($_SESSION['analyst_id'])) {
@@ -69,7 +74,7 @@ $choices = [0, 7, 30, 90, 180, 365];
         .wr-set-actions { margin-top: 18px; }
     </style>
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
-    <link rel="stylesheet" href="../../assets/css/mobile.css?v=41">
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=42">
     <script src="../../assets/js/i18n.js?v=2"></script>
 </head>
 <body data-mobile-page="settings">
@@ -103,8 +108,25 @@ $choices = [0, 7, 30, 90, 180, 365];
             </form>
         </div>
         <?php endif; ?>
+
+        <?php if (settingsTabVisible($visibleTabs, 'ai')): ?>
+        <div class="tab-content<?php echo $activeTabId === 'ai' ? ' active' : ''; ?>" id="ai-tab" data-capability="<?php echo Cap::WAR_ROOM_MANAGE; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('war-room.settings.ai_heading')); ?></h2>
+            </div>
+            <p style="color: var(--text-muted, #666); margin-bottom: 8px;"><?php echo htmlspecialchars(t('war-room.settings.ai_intro')); ?></p>
+            <!-- Said plainly on the page rather than only in the code: the room
+                 works without this, and during a real outage it may well not be
+                 reachable. Better that an administrator reads that here than
+                 discovers it mid-incident. -->
+            <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo htmlspecialchars(t('war-room.settings.ai_caveat')); ?></p>
+
+            <?php renderAiSettingsPanel('warroom_ai'); ?>
+        </div>
+        <?php endif; ?>
     </div>
 
+    <script src="../../assets/js/ai-settings.js"></script>
     <script src="../../assets/js/mobile.js?v=22"></script>
     <script>
         // Saved through the generic settings writer. That endpoint refuses any
