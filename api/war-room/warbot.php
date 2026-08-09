@@ -85,7 +85,9 @@ try {
     foreach (warRoomMessages($conn, $channelId, 0, 12) as $m) {
         if ((int) $m['id'] === $messageId) continue;
         if (!empty($m['deleted'])) continue;
-        $recent[] = ['author' => $m['author'], 'body' => $m['body']];
+        // is_bot has to travel with the line: warbotAnswer() labels and trims
+        // Warbot's own replies differently, and drops its old status notices.
+        $recent[] = ['author' => $m['author'], 'body' => $m['body'], 'is_bot' => !empty($m['is_bot'])];
     }
 
     $answer = warbotAnswer($conn, $askerId, $channelId, $question, $recent);
