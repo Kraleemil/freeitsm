@@ -31,7 +31,7 @@ $translationNamespaces = ['common', 'forms'];
     <!-- Shared with the builder preview and the portal: field types + conditional
          visibility. Mirrors includes/form_logic.php, which decides on submit. -->
     <script src="../assets/js/form-logic.js?v=2"></script>
-    <link rel="stylesheet" href="../assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css">
     <style>
         /* Module accent (teal). */

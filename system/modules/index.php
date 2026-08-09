@@ -25,7 +25,7 @@ $translationNamespaces = ['common', 'system'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service Desk - <?php echo htmlspecialchars(t('system.modules.title')); ?></title>
-    <link rel="stylesheet" href="../../assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css">
     <style>
         /* System module accent (blue-grey). --on-accent is pinned too: in dark the

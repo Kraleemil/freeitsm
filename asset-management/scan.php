@@ -109,7 +109,7 @@ $title = $asset ? ($asset['asset_tag'] ?: $asset['hostname'] ?: 'Asset') : 'Asse
              off a battered label in a dim store room. */ ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($title); ?> · FreeITSM</title>
-    <link rel="stylesheet" href="../assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <?php echo Tz::scriptTag(); ?>
     <style>
         /* Self-contained: this page shares no layout with the desktop module,

@@ -31,7 +31,7 @@ $translationNamespaces = ['common', 'forms'];
     <!-- For FormLogic.formatDateValue() — date answers are naive local values and must
          NOT go through Tz, which would shift them into the reader's timezone. -->
     <script src="../assets/js/form-logic.js?v=2"></script>
-    <link rel="stylesheet" href="../assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css">
     <style>
         /* Module accent (teal). */

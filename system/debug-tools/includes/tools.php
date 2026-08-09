@@ -188,6 +188,30 @@ function getDebugTools() {
             'duration' => '~1 second',
             'persists' => 'Writes ONE probe row and deletes it again (removed in a finally block, and the tool reports if any was left behind). It has to write rather than use a rolled-back transaction, because MySQL does not let a search see rows that have not been committed. The row uses a reserved type that nothing else writes. Nothing else is modified.',
         ],
+        [
+            'id'       => 'D008',
+            'slug'     => 'd008',
+            'file'     => 'D008_war_room.php',
+            'title'    => 'War room health',
+            'category' => 'Database',
+            'icon'     => 'database',
+            'desc'     => 'Confirm the war room will work before the day you need it — channels, delete rules, attachments and Warbot\'s lookups.',
+            'keywords' => 'war room warroom warbot chat fallback outage teams slack channels dm direct message mentions attachments retention on call incident d008',
+            'when'     => 'Run this on a quiet day. The war room is a BREAK-GLASS feature, and that changes what a health check is for: every other module tells you it is broken the moment you try to use it, but this one gets opened for the first time during an incident — when the usual chat is already down and nobody has any appetite for discovering that the attachments folder is unwritable or that the all-hands channel was never created. It checks the things that fail silently and ends in a plain-English verdict.',
+            'checks'   => [
+                'All seven war room tables exist, their engine, and how much is in each',
+                'The foreign key delete rules that differ ON PURPOSE — above all that deleting an ANALYST leaves the conversation intact. A wrong rule here does nothing at all until somebody is deleted, at which point the record of an incident quietly goes with them and nobody finds out until the review',
+                'Channels: the all-hands room exists and is not duplicated; how many team, custom and direct-message channels there are; and whether any pair of analysts has ended up with two DM threads, which would mean each is seeing half the conversation',
+                'The attachments folder — exists, is writable, and carries both the Apache and the IIS protection file — plus files on disk with no database row, and rows whose file has gone missing',
+                'The retention setting, and whether pruning is keeping up with it',
+                'Warbot: which tools are registered, and a LIVE run of one of them. A tool whose query names a column that does not exist returns no rows rather than an error, so knowing it is registered proves nothing',
+                'Whether an AI provider is configured — which is optional, and reported as neither good nor bad: without one Warbot still answers its slash commands, and those need no internet',
+                'An end-to-end test: post a message, read it back, record presence — all inside a transaction that is then rolled back',
+                'How many of the interface languages have a war room translation yet',
+            ],
+            'duration' => '~1 second',
+            'persists' => 'Nothing. The end-to-end test runs inside a transaction and is rolled back, so nothing ever appears in somebody\'s open war room, and the tool checks afterwards that the probe really did disappear. (D007 cannot do this because a full-text search cannot see uncommitted rows; nothing here has that problem.) Everything else is read-only.',
+        ],
     ];
 }
 

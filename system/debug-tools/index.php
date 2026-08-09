@@ -33,7 +33,7 @@ $debugTools = getDebugTools();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service Desk - <?php echo htmlspecialchars(t('system.debug.heading')); ?></title>
-    <link rel="stylesheet" href="<?php echo $path_prefix; ?>assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="<?php echo $path_prefix; ?>assets/css/theme.css?v=23">
     <link rel="stylesheet" href="<?php echo $path_prefix; ?>assets/css/inbox.css">
     <style>
         body {

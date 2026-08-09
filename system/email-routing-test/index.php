@@ -27,7 +27,7 @@ $translationNamespaces = ['common', 'system'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service Desk - <?php echo htmlspecialchars(t('system.routing_test.title')); ?></title>
-    <link rel="stylesheet" href="../../assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css">
     <style>
         /* inbox.css gives body height:100vh + overflow:hidden but no flex

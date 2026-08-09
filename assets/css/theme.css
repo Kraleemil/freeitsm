@@ -104,6 +104,12 @@
     --con-accent:      #f59e0b;  --con-accent-hover: #d97706;
     --con-accent-soft: #fef3c7;  --con-on-accent:    #ffffff;
 
+    /* War room module (amber) accents. Declared here rather than left to the
+       inline fallbacks the module was using: a var() fallback works, but it is
+       the same value in both palettes, so dark mode never adapted the accent. */
+    --war-room-accent:      #ea580c;  --war-room-accent-hover: #c2410c;
+    --war-room-accent-soft: #ffedd5;  --war-room-on-accent:    #ffffff;
+
     /* Service Status module (emerald) accents — chrome only; the up/down/
        degraded STATE colours are data. Emerald is the registered brand. */
     --ss-accent:       #10b981;  --ss-accent-hover:  #059669;
@@ -230,6 +236,10 @@
     --con-accent-soft: #3a2e12;  --con-on-accent:    #ffffff;
 
     /* Service Status module (emerald) — accent nudged lighter to read on dark */
+    /* War room, dark: lifted so the amber reads against a dark surface. */
+    --war-room-accent:      #fb923c;  --war-room-accent-hover: #fdba74;
+    --war-room-accent-soft: #3a1d0b;  --war-room-on-accent:    #1a1a1a;
+
     --ss-accent:       #34d399;  --ss-accent-hover:  #6ee7b7;
     --ss-accent-soft:  #0f2e24;  --ss-on-accent:     #ffffff;
 

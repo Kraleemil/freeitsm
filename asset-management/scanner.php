@@ -46,7 +46,7 @@ $ready = assetLabelsSchemaReady($conn);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scan assets · FreeITSM</title>
-    <link rel="stylesheet" href="../assets/css/theme.css?v=22">
+    <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <style>
         /* Self-contained: shares no layout with the desktop module. Every
            colour is a theme token so it follows light/dark like everything else. */
