@@ -247,4 +247,7 @@ return [
     ['search_documents', 'idx_search_docs_tenant', 'key', '(`tenant_id`)'],
     ['search_documents', 'ft_search_docs', 'fulltext', '(`title`,`body`)'],
     ['search_documents', 'ft_search_docs_title', 'fulltext', '(`title`)'],
+    ['warroom_messages', 'ix_warroom_messages_team', 'key', '(`team_id`,`id`)'],
+    ['warroom_presence', 'uq_warroom_presence', 'unique', '(`analyst_id`)'],
+    ['warroom_presence', 'ix_warroom_presence_last_seen', 'key', '(`last_seen`)'],
 ];

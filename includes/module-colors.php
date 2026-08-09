@@ -21,6 +21,7 @@ $defaultModuleColors = [
     'forms'          => ['#00897b', '#00695c'],
     'contracts'      => ['#f59e0b', '#d97706'],
     'service-status' => ['#10b981', '#059669'],
+    'war-room'       => ['#ea580c', '#c2410c'],
     'wiki'           => ['#c62828', '#b71c1c'],
     'lms'            => ['#2563eb', '#1d4ed8'],
     'process-mapper' => ['#6366f1', '#4f46e5'],

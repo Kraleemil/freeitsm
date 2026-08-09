@@ -682,6 +682,46 @@ try {
             try { $conn->exec("ALTER TABLE webchat_messages ADD CONSTRAINT fk_webchat_messages_conversation FOREIGN KEY (conversation_id) REFERENCES webchat_conversations (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
     }
+    // War room messages → their team (the "channel") and their author.
+    //
+    // The two rules are deliberately different, and the difference is the point:
+    //   team_id   CASCADE  — delete a team and its channel goes with it, which is
+    //                        what "a channel IS a team" means.
+    //   analyst_id SET NULL — delete an analyst and the conversation SURVIVES.
+    //                        These messages are the record of what was said during
+    //                        an incident; losing half of it because somebody left
+    //                        the company would be the wrong trade. Orphaned rows
+    //                        render as "Former analyst".
+    if ($tableExists('warroom_messages')) {
+        if (!$idxExists('warroom_messages', 'ix_warroom_messages_team')) {
+            // (team_id, id) — every read is "this channel, newer than id N".
+            try { $conn->exec("ALTER TABLE warroom_messages ADD KEY ix_warroom_messages_team (team_id, id)"); } catch (Exception $e) {}
+        }
+        if ($tableExists('teams') && !$fkExists('warroom_messages', 'fk_warroom_messages_team')) {
+            try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+        if ($tableExists('analysts') && !$fkExists('warroom_messages', 'fk_warroom_messages_analyst')) {
+            try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+    }
+    // War room presence. UNIQUE on analyst_id is what makes the heartbeat an
+    // upsert — without it a long-running poll would add a row per request.
+    // Presence is ephemeral, so both parents CASCADE/SET NULL freely.
+    if ($tableExists('warroom_presence')) {
+        if (!$idxExists('warroom_presence', 'uq_warroom_presence')) {
+            try { $conn->exec("ALTER TABLE warroom_presence ADD UNIQUE KEY uq_warroom_presence (analyst_id)"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('warroom_presence', 'ix_warroom_presence_last_seen')) {
+            try { $conn->exec("ALTER TABLE warroom_presence ADD KEY ix_warroom_presence_last_seen (last_seen)"); } catch (Exception $e) {}
+        }
+        if ($tableExists('analysts') && !$fkExists('warroom_presence', 'fk_warroom_presence_analyst')) {
+            try { $conn->exec("ALTER TABLE warroom_presence ADD CONSTRAINT fk_warroom_presence_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+        if ($tableExists('teams') && !$fkExists('warroom_presence', 'fk_warroom_presence_team')) {
+            try { $conn->exec("ALTER TABLE warroom_presence ADD CONSTRAINT fk_warroom_presence_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+    }
+
     // Web chat widget → its optional business-hours calendar (SET NULL if the calendar goes).
     if ($tableExists('webchat_widgets') && $tableExists('sla_calendars') && $colExists('webchat_widgets', 'business_calendar_id')) {
         if (!$fkExists('webchat_widgets', 'fk_webchat_widget_calendar')) {

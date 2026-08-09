@@ -133,6 +133,12 @@ final class Cap
     const SERVICE_STATUS_STATUSES = 'service_status.statuses';
     const SERVICE_STATUS_IMPACTS  = 'service_status.impacts';
 
+    // ---- War room ----------------------------------------------------------
+    // Using the war room is plain module access — in an outage you do not want
+    // a permission between an analyst and the only working chat. This gates the
+    // one administrative decision: how long messages are kept.
+    const WAR_ROOM_MANAGE = 'war_room.manage';                  // umbrella
+
     // ---- Calendar ----------------------------------------------------------
     const CALENDAR_MANAGE     = 'calendar.manage';      // umbrella
     const CALENDAR_CATEGORIES = 'calendar.categories';

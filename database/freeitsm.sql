@@ -4279,6 +4279,61 @@ INSERT INTO `cmdb_relationship_types` (`verb`, `inverse_verb`, `description`, `i
 SELECT * FROM (SELECT 'managed by'  AS verb, 'manages'           AS inverse_verb, 'A is administered by B'           AS description, 'none' AS impact_direction, 30 AS display_order) AS t
 WHERE NOT EXISTS (SELECT 1 FROM `cmdb_relationship_types` WHERE verb = 'managed by');
 
+-- ----------------------------------------------------------
+-- War room — fallback chat for when Teams/Slack is unavailable
+-- ----------------------------------------------------------
+-- ONE table, deliberately. A "channel" is not stored anywhere: a channel IS a
+-- team. The channel list is rendered from `teams`, filtered by the analyst's
+-- rows in `analyst_teams`, so there is no channel lifecycle, no membership to
+-- manage, nothing to orphan when a team is renamed or removed, and no admin UI
+-- to build — you manage channels by managing teams. `team_id` NULL is the
+-- all-hands war room, which always exists and everyone can see.
+--
+-- The two delete rules differ on purpose:
+--   team_id    CASCADE   delete a team and its channel goes with it, which is
+--                        what "a channel is a team" has to mean.
+--   analyst_id SET NULL  delete an analyst and the conversation SURVIVES. This
+--                        is the record of what was said during an incident;
+--                        losing half of it because somebody left the company
+--                        would be the wrong trade. Those rows show as
+--                        "Former analyst".
+--
+-- Retention is a setting (`warroom_retention_days`, 0 = keep forever) applied
+-- opportunistically on send, so it needs no cron — a tool for the day the
+-- internet is down should not depend on scheduled jobs having been set up.
+CREATE TABLE IF NOT EXISTS `warroom_messages` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `team_id`          INT NULL,
+    `analyst_id`       INT NULL,
+    `body`             TEXT NOT NULL,
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    -- (team_id, id): every read is "this channel, newer than id N".
+    KEY `ix_warroom_messages_team` (`team_id`, `id`),
+    CONSTRAINT `fk_warroom_messages_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_warroom_messages_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Who is currently in the war room. Knowing whether anyone is actually reading
+-- is most of the value when your usual chat is down, so this is not a frill.
+--
+-- One row per analyst, upserted by the same poll that fetches messages: presence
+-- costs no extra request, and the table cannot grow beyond the analyst count.
+-- Shape mirrors `ticket_presence` (surrogate id + UNIQUE on the natural key) —
+-- the pattern collision detection already established. Unlike messages, presence
+-- is ephemeral, so an analyst delete CASCADEs it away.
+CREATE TABLE IF NOT EXISTS `warroom_presence` (
+    `id`         INT NOT NULL AUTO_INCREMENT,
+    `analyst_id` INT NOT NULL,
+    `team_id`    INT NULL,
+    `last_seen`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_warroom_presence` (`analyst_id`),
+    KEY `ix_warroom_presence_last_seen` (`last_seen`),
+    CONSTRAINT `fk_warroom_presence_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_warroom_presence_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ----------------------------------------------------------

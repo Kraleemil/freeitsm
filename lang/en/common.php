@@ -118,6 +118,7 @@ return [
         'forms'          => ['name' => 'Forms',       'description' => 'Design custom forms and view submissions'],
         'contracts'      => ['name' => 'Contracts',   'description' => 'Manage suppliers, contacts and contracts'],
         'service-status' => ['name' => 'Status',      'description' => 'Monitor service health and track incidents'],
+        'war-room'       => ['name' => 'War room',    'description' => 'Fallback chat for when Teams or Slack is unavailable'],
         'wiki'           => ['name' => 'Wiki',        'description' => 'Browse auto-generated codebase documentation'],
         'lms'            => ['name' => 'LMS',         'description' => 'Learning Management System with SCORM course player'],
         'process-mapper' => ['name' => 'Processes',   'description' => 'Visual flowchart and process mapping tool'],

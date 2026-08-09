@@ -92,6 +92,9 @@ $DB_VERIFY_MODULE_PREFIXES = [
     'status_'          => 'service-status',
     'service_'         => 'service-status',
     // --- RFP builder (internal-only; no module colour of its own) ---
+    // --- War room (fallback chat) ---
+    'warroom_'         => 'war-room',
+    // --- RFP builder (internal-only; no module colour of its own) ---
     'rfp'              => 'rfp',
 ];
 
@@ -105,6 +108,7 @@ function dbVerifyModuleLabels(): array {
         'problems'       => 'Problems',
         'calendar'       => 'Calendar',
         'service-status' => 'Service status',
+        'war-room'       => 'War room',
         'software'       => 'Software',
         'forms'          => 'Forms',
         'contracts'      => 'Contracts',

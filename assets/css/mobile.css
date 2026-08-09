@@ -2643,4 +2643,90 @@
     .affected-row select { min-width: 0; font-size: 16px; min-height: 44px; }
     .affected-row .remove-svc { flex: 0 0 auto; min-width: 40px; min-height: 40px; }
     .add-svc-btn { width: 100%; min-height: 42px; }
+
+    /* ====================================================================
+       LAYER 19 — WAR ROOM module (#1008)
+
+       Mobile-friendly from day one rather than as a later round, because a
+       fallback chat is a thing you reach for on a phone almost by definition:
+       your laptop is at your desk and you are in the comms room.
+
+       There is no pane stack and no sub-bar. A chat is one surface: channels
+       across the top, the feed in the middle, the composer pinned at the
+       bottom — the shape every phone chat app already uses, so there is
+       nothing to learn on the day it matters.
+       -------------------------------------------------------------------- */
+    .wr-container {
+        flex-direction: column;
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    /* The 240px channel column becomes a horizontal strip. It scrolls sideways
+       rather than wrapping: an analyst in six teams would otherwise get three
+       rows of chips pushing the conversation off the screen. */
+    .wr-sidebar {
+        width: auto;
+        flex-shrink: 0;
+        padding: 8px 10px;
+        border-right: none;
+        border-bottom: 1px solid var(--border, #e0e0e0);
+        overflow-y: visible;
+    }
+    /* The "Channels" heading is redundant once they are a row of chips under a
+       bar that already says War room. */
+    .wr-sidebar-heading { display: none; }
+    .wr-channels {
+        flex-direction: row;
+        gap: 6px;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+    }
+    .wr-channels::-webkit-scrollbar { display: none; }
+    .wr-channel {
+        flex: 0 0 auto;
+        width: auto;
+        min-height: 38px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--surface-2, #f5f5f5);
+        white-space: nowrap;
+    }
+
+    /* Presence stays where it is in the DOM (the sidebar) and simply becomes a
+       compact line under the channel chips. Relocating it with JS was the
+       alternative and is not worth a branch for one line of text — but it does
+       mean the rule has to be tight, because in a single column it sits
+       between the chips and the conversation. */
+    .wr-presence {
+        margin-top: 6px;
+        padding: 5px 2px 0;
+        border-top: 1px solid var(--border-soft, #f0f0f0);
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .wr-main { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+    /* The intro explains the module to a first-time reader; on a phone mid-
+       incident it is a paragraph between you and the messages. */
+    .wr-intro { display: none; }
+
+    .wr-messages { padding: 8px 10px; }
+    .wr-msg-body { font-size: 15px; }
+
+    .wr-composer { gap: 8px; margin-top: 8px; }
+    /* ⚠️ 16px is required, not cosmetic: under it iOS zooms on focus, the page
+       goes wider than the screen and Safari reflows to a desktop layout —
+       which would switch this whole layer off mid-conversation. */
+    .wr-composer textarea {
+        font-size: 16px;
+        height: 44px;
+    }
+    .wr-composer .btn { height: 44px; padding: 0 16px; }
 }

@@ -19,7 +19,7 @@
 
 ---
 
-FreeITSM is a complete web-based ITSM platform: **21 integrated modules** covering tickets, assets, knowledge, changes, problems, tasks, a CMDB, workflows, an LMS and more — plus a **self-service portal** for your end users. It runs on a plain PHP + MySQL stack (WAMP, XAMPP, LAMP, or Docker), so your data stays on your server.
+FreeITSM is a complete web-based ITSM platform: **22 integrated modules** covering tickets, assets, knowledge, changes, problems, tasks, a CMDB, workflows, an LMS and more — plus a **self-service portal** for your end users. It runs on a plain PHP + MySQL stack (WAMP, XAMPP, LAMP, or Docker), so your data stays on your server.
 
 **Why teams pick it:**
 
@@ -83,6 +83,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | [Forms](https://github.com/edmozley/freeitsm/wiki/Forms) | Dynamic form builder with AI assist, section headings, conditional questions, versioning and submissions reporting |
 | [Contracts](https://github.com/edmozley/freeitsm/wiki/Contracts) | Supplier and contract lifecycle, plus an AI-powered RFP Builder |
 | [Service Status](https://github.com/edmozley/freeitsm/wiki/Service-Status) | Service health dashboard driven by incident tracking |
+| [War Room](https://github.com/edmozley/freeitsm/wiki/War-Room) | Fallback chat on your own server for when Teams, Slack or the internet are down |
 | [LMS](https://github.com/edmozley/freeitsm/wiki/LMS) | Author courses in-app (with AI) or upload SCORM; assign, take and track them |
 | [Process Mapper](https://github.com/edmozley/freeitsm/wiki/Process-Mapper) | Flowchart builder with swimlanes, custom step types and Mermaid export |
 | [System](https://github.com/edmozley/freeitsm/wiki/System) | Administration — analysts, teams, roles, encryption, database verify, demo data |
@@ -97,7 +98,7 @@ A **System Wiki** module also auto-documents the codebase from within the app, a
 - **[Multi-tenancy](https://github.com/edmozley/freeitsm/wiki/Multi-Tenancy)** — host multiple client companies in one install (built for MSPs), each walled off from the others. Invisible until you add a second company.
 - **[Webhooks](https://github.com/edmozley/freeitsm/wiki/Webhooks)** — push any event to Slack, Teams, Discord or any endpoint, with HMAC signing, retries and a delivery dashboard.
 - **Command palette** — press **⌘K / Ctrl-K** anywhere to jump to any module, search across tickets, changes, problems, knowledge, contracts, assets and CMDB items by name or reference, or run a quick action, all from the keyboard. Results respect your module access and active company.
-- **Internationalisation** — [24 languages](https://github.com/edmozley/freeitsm/wiki/Internationalisation) with per-analyst locale, plus [per-analyst timezones](https://github.com/edmozley/freeitsm/wiki/Timezones-and-Time-Handling), [theming and dark mode](https://github.com/edmozley/freeitsm/wiki/Theming-and-Dark-Mode), and a [mobile-friendly](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly) core flow — the [ticket inbox](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Tickets), [Assets](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Assets), the [Calendar](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Calendar), the [Knowledge Base](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Knowledge) and [Service Status](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Service-Status) are built to work properly on a phone, without changing anything on the desktop.
+- **Internationalisation** — [24 languages](https://github.com/edmozley/freeitsm/wiki/Internationalisation) with per-analyst locale, plus [per-analyst timezones](https://github.com/edmozley/freeitsm/wiki/Timezones-and-Time-Handling), [theming and dark mode](https://github.com/edmozley/freeitsm/wiki/Theming-and-Dark-Mode), and a [mobile-friendly](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly) core flow — the [ticket inbox](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Tickets), [Assets](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Assets), the [Calendar](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Calendar), the [Knowledge Base](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Knowledge), [Service Status](https://github.com/edmozley/freeitsm/wiki/Mobile-Friendly-Service-Status) and the War Room are built to work properly on a phone, without changing anything on the desktop.
 
 ## Documentation
 

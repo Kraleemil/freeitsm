@@ -2923,4 +2923,34 @@ return [
         'source_datetime'  => 'DATETIME NULL',
         'indexed_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
     ],
+
+    // War room — the fallback chat analysts use when Teams/Slack is unavailable.
+    // ONE table, deliberately: a "channel" is not stored anywhere, it IS a team.
+    // The channel list is rendered from `teams` filtered by the analyst's rows in
+    // `analyst_teams`, so there is no channel lifecycle, no membership to manage
+    // and nothing to orphan when a team changes. team_id NULL is the all-hands
+    // war room that everyone can see.
+    //
+    // analyst_id is NULLABLE on purpose (FK is ON DELETE SET NULL, see
+    // db_verify.php): deleting an analyst must not erase the conversation that
+    // happened during an incident. Those rows render as "Former analyst".
+    'warroom_messages' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'team_id'          => 'INT NULL',
+        'analyst_id'       => 'INT NULL',
+        'body'             => 'TEXT NOT NULL',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // Who is currently in the war room. One row per analyst, upserted by the
+    // same poll that fetches messages — so presence costs no extra request and
+    // the table can never grow beyond the number of analysts. Shape deliberately
+    // mirrors `ticket_presence` (surrogate id + UNIQUE on the natural key), which
+    // is the pattern collision detection already established.
+    'warroom_presence' => [
+        'id'         => 'INT NOT NULL AUTO_INCREMENT',
+        'analyst_id' => 'INT NOT NULL',
+        'team_id'    => 'INT NULL',
+        'last_seen'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
 ];
