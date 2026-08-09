@@ -144,6 +144,16 @@ return [
         'none'      => 'Nobody has mentioned you',
         'hint'      => 'Type @ and start typing a name. Pick it from the list, or keep typing — a first name on its own works too.',
         'desktop'   => 'Show a desktop notification when I am mentioned',
+
+        // How the picker writes a name into the box. A personal typing preference,
+        // so it is per-analyst rather than an administrator's decision.
+        'style_label' => 'When I pick a name, insert',
+        'style_short' => 'First name, unless two people share it',
+        'style_full'  => 'Always the full name',
+        'style_strip' => 'Full name; backspace removes the surname first',
+        // Said once, next to the setting, because it is the bit that is not
+        // obvious and the bit that was annoying before.
+        'style_hint'  => 'Backspace at the end of a name removes the whole mention in one press.',
         'desktop_blocked' => 'Your browser has blocked notifications for this site. You will need to allow them in the browser\'s own settings.',
     ],
 

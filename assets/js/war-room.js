@@ -39,6 +39,24 @@
     var myNames = allNames.filter(function (p) { return p.id === me; })
                           .reduce(function (acc, p) { return acc.concat([p.full, p.first]); }, []);
 
+    var mentionStyle = window.WR_MENTION_STYLE || 'short';
+
+    // How many people answer to each first name. This is the whole basis of the
+    // 'short' style: in a war room a first name is nearly always unique, so the
+    // surname is friction you are carrying for a collision that does not exist.
+    var firstNameCounts = {};
+    allNames.forEach(function (p) {
+        firstNameCounts[p.first] = (firstNameCounts[p.first] || 0) + 1;
+    });
+
+    /** What the picker actually types into the box for this person. */
+    function insertedForm(person) {
+        var full  = String(person.name || '');
+        var first = full.split(/\s+/)[0] || full;
+        if (mentionStyle === 'short' && firstNameCounts[first.toLowerCase()] === 1) return first;
+        return full;                         // 'full', 'strip', or an ambiguous first name
+    }
+
     var lastId    = 0;
     var timer     = null;
     var offline   = false;
@@ -470,11 +488,49 @@
         var p = acMatches[i];
         if (!p) return;
         var v = els.wrBody.value, pos = els.wrBody.selectionStart;
-        var insert = '@' + (p.all ? 'everyone' : p.name) + ' ';
+        // The list shows the full name so you know who you picked; what gets typed
+        // is whatever the chosen style calls for.
+        var insert = '@' + (p.all ? 'everyone' : insertedForm(p)) + ' ';
         els.wrBody.value = v.slice(0, acStart) + insert + v.slice(pos);
         var caret = acStart + insert.length;
         els.wrBody.setSelectionRange(caret, caret);
         acHide();
+    }
+
+    /**
+     * The mention immediately before the caret, if there is one.
+     *
+     * Used to make backspace behave the way every other chat tool behaves. Slack,
+     * Discord and Teams all make a mention ATOMIC — one press removes the whole
+     * thing — but they do it by putting a pill object in a contenteditable box.
+     * We keep a plain textarea on purpose (a pill would mean storing `@[39]` in
+     * the message, which then leaks into search results and into the transcript
+     * the AI summarises), so the atomicity is done here in the key handler
+     * instead. Same feel, none of the cost.
+     *
+     * @return {{start:number, end:number, hasSurname:boolean}|null}
+     */
+    function mentionBeforeCaret() {
+        var v = els.wrBody.value, pos = els.wrBody.selectionStart;
+        if (pos !== els.wrBody.selectionEnd) return null;      // a selection: leave it alone
+
+        // The picker leaves a trailing space, so the caret is usually just past it.
+        var end = pos;
+        if (end > 0 && v.charAt(end - 1) === ' ') end--;
+        if (end <= 0) return null;
+
+        var upto = v.slice(0, end);
+        var at = upto.lastIndexOf('@');
+        if (at < 0) return null;
+        if (at > 0 && !/\s/.test(upto.charAt(at - 1))) return null;   // an email address
+
+        var typed = upto.slice(at + 1);
+        if (!/^[\p{L}][\p{L}'’-]*(\s[\p{L}][\p{L}'’-]*)?$/u.test(typed)) return null;
+
+        var isName = /^everyone$/i.test(typed) || nameKnown(typed);
+        if (!isName) return null;
+
+        return { start: at, end: pos, hasSurname: /\s/.test(typed) };
     }
 
     els.wrBody.addEventListener('input', acRender);
@@ -497,8 +553,51 @@
             if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); acAccept(acIndex); return; }
             if (e.key === 'Escape') { e.preventDefault(); acHide(); return; }
         }
+
+        // Backspace at the end of a mention. Without this you delete a name one
+        // letter at a time, which was the thing that felt clunky — and which no
+        // other chat tool makes you do.
+        if (e.key === 'Backspace') {
+            var m = mentionBeforeCaret();
+            if (m) {
+                var v = els.wrBody.value;
+
+                // 'strip' keeps the two-stage behaviour on purpose: the first press
+                // drops the surname and leaves the short form, the second clears it.
+                if (mentionStyle === 'strip' && m.hasSurname) {
+                    var name  = v.slice(m.start + 1, m.end).trim();
+                    var short = '@' + name.split(/\s+/)[0] + ' ';
+                    e.preventDefault();
+                    els.wrBody.value = v.slice(0, m.start) + short + v.slice(m.end);
+                    var c1 = m.start + short.length;
+                    els.wrBody.setSelectionRange(c1, c1);
+                    return;
+                }
+
+                e.preventDefault();
+                els.wrBody.value = v.slice(0, m.start) + v.slice(m.end);
+                els.wrBody.setSelectionRange(m.start, m.start);
+                return;
+            }
+        }
+
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
+
+    /* ── mention style preference ─────────────────────────────────────────────── */
+
+    var styleSel = document.getElementById('wrMentionStyle');
+    if (styleSel) {
+        styleSel.addEventListener('change', function () {
+            mentionStyle = styleSel.value;
+            fetch(window.WR_PREF_URL, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'warroom_mention_style', value: mentionStyle })
+            });
+        });
+    }
 
     /* ── edit and delete ─────────────────────────────────────────────────────── */
 

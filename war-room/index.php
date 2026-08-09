@@ -50,10 +50,24 @@ if (isset($_GET['channel'])) {
 $myName    = $_SESSION['analyst_name'] ?? '';
 $canManage = analystHasCapability($conn, $analystId, Cap::WAR_ROOM_MANAGE);
 
-// Desktop notifications are per-analyst and off unless asked for.
-$dp = $conn->prepare("SELECT preference_value FROM user_preferences WHERE analyst_id = :a AND preference_key = 'warroom_desktop_alerts' LIMIT 1");
+// Per-analyst preferences. Both are personal habits rather than administrator
+// decisions: whether a popup is welcome, and how you like to type a name.
+$prefs = [];
+$dp = $conn->prepare(
+    "SELECT preference_key, preference_value FROM user_preferences
+      WHERE analyst_id = :a AND preference_key IN ('warroom_desktop_alerts','warroom_mention_style')"
+);
 $dp->execute([':a' => $analystId]);
-$desktopAlerts = ((string) $dp->fetchColumn()) === '1';
+foreach ($dp->fetchAll(PDO::FETCH_ASSOC) as $r) $prefs[$r['preference_key']] = (string) $r['preference_value'];
+
+$desktopAlerts = ($prefs['warroom_desktop_alerts'] ?? '') === '1';
+
+// 'short' is the default because a war room has a handful of analysts, not a
+// five-thousand-person workspace: a first name is nearly always unique here, so
+// carrying a surname you do not need is pure friction. Slack needs full names
+// because at its scale it has twelve Sarahs; we do not.
+$mentionStyle = $prefs['warroom_mention_style'] ?? 'short';
+if (!in_array($mentionStyle, ['short', 'full', 'strip'], true)) $mentionStyle = 'short';
 
 /** Group the flat list into the sidebar's sections. */
 $grouped = ['team' => [], 'custom' => [], 'dm' => []];
@@ -72,7 +86,7 @@ foreach ($channels as $ch) {
     <title>Service Desk - <?php echo htmlspecialchars(t('war-room.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
-    <link rel="stylesheet" href="../assets/css/war-room.css?v=3">
+    <link rel="stylesheet" href="../assets/css/war-room.css?v=4">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=43">
     <style>
         /* Pin the shared accent to the module's amber so buttons and focus
@@ -125,6 +139,18 @@ foreach ($channels as $ch) {
                 <input type="checkbox" id="wrDesktopAlerts"<?php echo $desktopAlerts ? ' checked' : ''; ?>>
                 <span><?php echo htmlspecialchars(t('war-room.mention.desktop')); ?></span>
             </label>
+
+            <div class="wr-pref">
+                <label class="wr-pref-label" for="wrMentionStyle"><?php echo htmlspecialchars(t('war-room.mention.style_label')); ?></label>
+                <select id="wrMentionStyle">
+                    <?php foreach (['short', 'full', 'strip'] as $opt): ?>
+                        <option value="<?php echo $opt; ?>"<?php echo $mentionStyle === $opt ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars(t('war-room.mention.style_' . $opt)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="wr-pref-hint"><?php echo htmlspecialchars(t('war-room.mention.style_hint')); ?></div>
+            </div>
         </aside>
 
         <main class="wr-main">
@@ -193,8 +219,9 @@ foreach ($channels as $ch) {
         window.WR_MY_NAME   = <?php echo json_encode($myName, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
         window.WR_CAN_MANAGE = <?php echo $canManage ? 'true' : 'false'; ?>;
         window.WR_PREF_URL  = '<?php echo BASE_URL; ?>api/system/set_user_preference.php';
+        window.WR_MENTION_STYLE = <?php echo json_encode($mentionStyle); ?>;
     </script>
-    <script src="../assets/js/war-room.js?v=5"></script>
+    <script src="../assets/js/war-room.js?v=6"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
 </body>
 </html>

@@ -341,6 +341,20 @@
 }
 .wr-desktop-opt input { margin-top: 2px; flex-shrink: 0; }
 
+.wr-pref { margin-top: 12px; }
+.wr-pref-label { display: block; margin-bottom: 4px; font-size: 12px; color: var(--text-muted, #666); }
+.wr-pref select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    background: var(--surface, #fff);
+    color: var(--text, #333);
+    font: inherit;
+    font-size: 12px;
+}
+.wr-pref-hint { margin-top: 5px; font-size: 11px; line-height: 1.4; color: var(--text-dim, #999); }
+
 /* ---- composer ---- */
 /* `align-items: stretch` (the default) is what actually keeps the box and the
    button the same height — matching two fixed heights by hand drifts the moment
