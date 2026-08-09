@@ -52,6 +52,8 @@ $translationNamespaces = ['common', 'service-status'];
         .help-dot.maintenance  { background: var(--accent); }
         .help-dot.major-outage { background: var(--danger-accent, #ef4444); }
     </style>
+    <!-- Mobile: LAYER 16h — the guide body is already responsive; this adds the app shell. -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=37">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -367,5 +369,6 @@ $translationNamespaces = ['common', 'service-status'];
             });
         });
     </script>
+    <script src="../assets/js/mobile.js?v=19"></script>
 </body>
 </html>

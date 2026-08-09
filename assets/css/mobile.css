@@ -1211,6 +1211,35 @@
         overscroll-behavior-x: contain;
         white-space: nowrap;
     }
+    /* …and the ones that aren't in a `.settings-section-body` at all. Half the
+       settings pages put a bare `<table>` straight inside the `.tab-content`
+       (Assets' asset-types / asset-statuses / suppliers, all three of
+       service-status'), so the rule above never matched them. They looked
+       fine to the overflow check for the same reason the Calendar's did —
+       `.container` carries `overflow-y: auto`, and a non-visible value on one
+       axis computes the other to `auto`, so the page silently became the
+       scroller. Found while bringing service-status along (#1003); it fixes
+       the shipped Assets settings page in the same stroke.
+
+       A scroller and not a card feed on purpose: these are 6- and 7-column
+       CONFIG tables whose columns include unlabelled booleans (Resolved?
+       Default?). Reading order can carry three or four self-describing
+       values; it cannot carry seven, so these keep their header row.
+
+       ⚠️ `:not(.lookup-table)` is not decoration. This selector is (0,2,2)
+       and 16i's card-feed rules are (0,2,1), so on the Calendar's categories
+       table — which is both — this one WINS. It happens to be harmless today
+       because the conflicting declarations land on different elements (that
+       was measured, not assumed), but relying on that is a trap for whoever
+       edits either rule next. The exclusion states the intent instead: a
+       `.lookup-table` is a card feed, everything else scrolls. */
+    body[data-mobile-page="settings"] .tab-content > table:not(.lookup-table) {
+        display: block;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        white-space: nowrap;
+        max-width: 100%;
+    }
 
     /* --------------------------------------------------------------------
        15f — The Servers view.
@@ -2310,4 +2339,116 @@
     }
     .ka-tabs::-webkit-scrollbar { display: none; }
     .ka-tab { flex: 0 0 auto; white-space: nowrap; min-height: 42px; }
+
+    /* ====================================================================
+       LAYER 18 — SERVICE STATUS module (#1003)
+
+       The fifth module, and the smallest: one board page, a settings page
+       and a help page. It is also the first that arrived half-responsive —
+       the service board is a `repeat(auto-fill, minmax(200px, 1fr))` grid,
+       so it reflows on its own. The work is the page frame, making that grid
+       useful at 360px rather than merely legal, and the incident table.
+
+       The settings page needed nothing of its own: it is `.container` +
+       renderSettingsTabBar (15e), and its three tables are covered by the
+       `.tab-content > table` rule added up in 15e. Help inherits 16h.
+       -------------------------------------------------------------------- */
+
+    /* --------------------------------------------------------------------
+       18a — Page shell. `.status-layout` is already the scroller; what it
+       can't keep is `height: calc(100vh - 48px)`, which is wrong the moment
+       the app header wraps to two lines.
+       -------------------------------------------------------------------- */
+    .status-layout {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 12px;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    .section-title { font-size: 16px; margin-bottom: 12px; gap: 10px; }
+    .new-btn { min-height: 40px; padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+
+    /* --------------------------------------------------------------------
+       18b — The service board.
+
+       A 200px minimum gives exactly ONE column at 360px, so a board of a
+       dozen services becomes a dozen full-width cards you scroll through —
+       which loses the thing a board is for: seeing the whole estate's health
+       at a glance. Dropping the floor to 150px gets two up (2×150 + 10 gap =
+       310, inside the 336 available) and roughly halves the scroll.
+       -------------------------------------------------------------------- */
+    .service-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        margin-bottom: 24px;
+    }
+    .service-card { padding: 12px 10px; }
+    .service-card:hover { box-shadow: none; }      /* a hover lift sticks after a tap */
+    .service-card .service-name { font-size: 13px; }
+    /* The description reserves `min-height: 16px` so desktop cards line up.
+       Two-up on a phone that reserved gap is dead space in every card, and
+       the name plus the status badge is the point. */
+    .service-card .service-desc { font-size: 11px; min-height: 0; margin-bottom: 8px; }
+    .impact-badge { font-size: 11px; padding: 4px 10px; }
+
+    /* --------------------------------------------------------------------
+       18c — Incidents: four columns become a card feed.
+
+       Columns are known (title / status / affected / updated) and each is
+       self-describing — a title, a coloured status badge, coloured service
+       tags, a date — so reading order carries the meaning and no labels are
+       needed. Contrast the settings tables above, which keep their header
+       row precisely because their columns do NOT self-describe.
+
+       ⚠️ `display: block` needs `!important`: the page's own JS sets
+       `table.style.display = 'table'` inline every time it renders rows, and
+       an inline style beats an ordinary rule.
+       -------------------------------------------------------------------- */
+    .incident-table,
+    .incident-table tbody,
+    .incident-table tr,
+    .incident-table td { display: block !important; }
+    .incident-table thead { display: none !important; }
+    .incident-table {
+        border: none;
+        background: none;
+        box-shadow: none;
+    }
+    .incident-table tr {
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+    }
+    .incident-table td { border-bottom: none; padding: 0; }
+    .incident-table td + td { margin-top: 7px; }
+    /* Keyed on the renderer's own classes, never on cell position. */
+    .incident-title { font-size: 15px; font-weight: 600; display: inline-block; }
+    .incident-services-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .incident-date { font-size: 12px; color: var(--text-dim, #888); }
+    /* Desktop greys a resolved incident with a row class; keep that reading. */
+    .incident-table tr.resolved { opacity: 0.72; }
+
+    /* --------------------------------------------------------------------
+       18d — The incident modal. LAYER 3 makes it a full-screen sheet and the
+       #999 rule sizes its fields; this is the page's own bespoke chrome.
+       -------------------------------------------------------------------- */
+    #incidentModal .modal-content { padding: 0 !important; }
+    #incidentModal .modal-header { padding: 14px 16px; margin-bottom: 0; }
+    #incidentModal form { padding: 16px; }
+    #incidentModal .modal-actions { flex-wrap: wrap; gap: 8px; }
+    #incidentModal .modal-actions .btn { flex: 1 1 auto; min-height: 44px; }
+    /* Delete is `margin-right: auto` on desktop; give it its own row. */
+    #incidentModal .modal-actions .btn-danger { flex: 1 1 100%; margin-right: 0 !important; order: 2; }
+    /* Each affected service is a select plus a remove button; the select has
+       to be allowed to shrink or the pair overflows. */
+    .affected-row { gap: 8px; }
+    .affected-row select { min-width: 0; font-size: 16px; min-height: 44px; }
+    .affected-row .remove-svc { flex: 0 0 auto; min-width: 40px; min-height: 40px; }
+    .add-svc-btn { width: 100%; min-height: 42px; }
 }

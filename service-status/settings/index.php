@@ -79,8 +79,10 @@ $translationNamespaces = ['common', 'service-status'];
         /* Pale-red delete-hover wash → dark red in dark mode so it doesn't glow. */
         [data-theme-mode="dark"] .tab-content .action-btn.delete:hover { background: #3a1a1a; }
     </style>
+    <!-- Mobile: LAYER 15e (container + tab bar + the .tab-content > table scroller). -->
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=37">
 </head>
-<body>
+<body data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
 
     <div class="container">
@@ -537,5 +539,6 @@ $translationNamespaces = ['common', 'service-status'];
             if (e.target === this) closeLookupModal();
         });
     </script>
+    <script src="../../assets/js/mobile.js?v=19"></script>
 </body>
 </html>
