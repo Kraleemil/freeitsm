@@ -54,11 +54,22 @@ try {
         warRoomMarkRead($conn, $analystId, $channelId, (int) end($messages)['id']);
     }
 
+    // Mention counts are merged onto the channel list rather than sent separately:
+    // being NAMED is a different event from having missed something, and the
+    // sidebar has to be able to show one without hiding the other.
+    $mentions = warRoomMentionCounts($conn, $analystId);
+    $channels = warRoomChannelList($conn, $analystId);
+    foreach ($channels as &$c) {
+        $c['mentions'] = $mentions[$c['id']] ?? 0;
+    }
+    unset($c);
+
     echo json_encode([
         'success'  => true,
         'messages' => $messages,
         'present'  => warRoomPresent($conn, $analystId, $channelId),
-        'channels' => warRoomChannelList($conn, $analystId),
+        'channels' => $channels,
+        'me'       => $analystId,
     ]);
 } catch (Throwable $e) {
     http_response_code(500);

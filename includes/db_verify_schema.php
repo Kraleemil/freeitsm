@@ -2968,12 +2968,21 @@ return [
     // happened during an incident. Those rows render as "Former analyst".
     // channel_id is nullable ONLY so the column can be added to an installation
     // created before channels existed; db_verify backfills it immediately.
+    //
+    // edited/deleted are RECORDED, not hidden. This table is the record of what was
+    // said during an incident, so a message that changed after the fact says so, and
+    // a deleted one leaves a tombstone rather than a silent gap. The body and any
+    // attachments really are destroyed on delete — the point is that somebody can
+    // see a message was removed, not that its contents linger.
     'warroom_messages' => [
         'id'               => 'INT NOT NULL AUTO_INCREMENT',
         'channel_id'       => 'INT NULL',
         'analyst_id'       => 'INT NULL',
         'body'             => 'TEXT NOT NULL',
         'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'edited_datetime'  => 'DATETIME NULL',
+        'deleted_datetime' => 'DATETIME NULL',
+        'deleted_by'       => 'INT NULL',
     ],
 
     // ⚠️ THERE IS NO content_type COLUMN, AND THAT IS THE POINT. The type an
@@ -2989,6 +2998,22 @@ return [
         'stored_name'      => 'VARCHAR(100) NOT NULL',
         'original_name'    => 'VARCHAR(255) NOT NULL',
         'size_bytes'       => 'INT NOT NULL DEFAULT 0',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // Who was named in a message. One row PER RECIPIENT — `@everyone` is expanded
+    // at send time rather than stored as a flag, which keeps every query that asks
+    // "what has my name on it" a simple equality instead of a union. It also makes
+    // the record point-in-time correct: you notified the people who were entitled
+    // to that channel then, not whoever is entitled to it now.
+    //
+    // ⚠️ There is NO read column. A mention counts as unread when its message is
+    // newer than your `warroom_reads` marker for that channel — reusing the state
+    // that already exists rather than adding a second one that can disagree with it.
+    'warroom_mentions' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'message_id'       => 'INT NOT NULL',
+        'analyst_id'       => 'INT NOT NULL',
         'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 

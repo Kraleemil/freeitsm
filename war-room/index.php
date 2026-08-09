@@ -20,6 +20,7 @@ require_once '../includes/functions.php';
 require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
 require_once '../includes/timezone.php';
+require_once '../includes/rbac.php';
 require_once '../includes/warroom.php';
 requireModuleAccess('war-room');
 I18n::initFromSession();
@@ -34,8 +35,25 @@ $analystId = (int) $_SESSION['analyst_id'];
 $channels  = warRoomChannelList($conn, $analystId);
 $directory = warRoomDirectory($conn, $analystId);
 
-// The all-hands room is always first, and is where an analyst lands.
+// The all-hands room is always first, and is where an analyst lands — unless the
+// notifications panel sent them here to read a specific mention, in which case
+// land them on that channel. Validated against the list they can actually see, so
+// a hand-edited ?channel= cannot open anything.
 $activeId = $channels ? (int) $channels[0]['id'] : 0;
+if (isset($_GET['channel'])) {
+    $wanted = (int) $_GET['channel'];
+    foreach ($channels as $ch) {
+        if ((int) $ch['id'] === $wanted) { $activeId = $wanted; break; }
+    }
+}
+
+$myName    = $_SESSION['analyst_name'] ?? '';
+$canManage = analystHasCapability($conn, $analystId, Cap::WAR_ROOM_MANAGE);
+
+// Desktop notifications are per-analyst and off unless asked for.
+$dp = $conn->prepare("SELECT preference_value FROM user_preferences WHERE analyst_id = :a AND preference_key = 'warroom_desktop_alerts' LIMIT 1");
+$dp->execute([':a' => $analystId]);
+$desktopAlerts = ((string) $dp->fetchColumn()) === '1';
 
 /** Group the flat list into the sidebar's sections. */
 $grouped = ['team' => [], 'custom' => [], 'dm' => []];
@@ -54,8 +72,8 @@ foreach ($channels as $ch) {
     <title>Service Desk - <?php echo htmlspecialchars(t('war-room.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
-    <link rel="stylesheet" href="../assets/css/war-room.css?v=2">
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=42">
+    <link rel="stylesheet" href="../assets/css/war-room.css?v=3">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=43">
     <style>
         /* Pin the shared accent to the module's amber so buttons and focus
            rings are on-brand, the same way every other module does it. */
@@ -100,6 +118,13 @@ foreach ($channels as $ch) {
                  conversation: it belongs with "where am I and who is around"
                  rather than competing with the message you are typing. -->
             <div class="wr-presence" id="wrPresence"></div>
+
+            <!-- Per-analyst, not per-install: whether a popup is welcome or
+                 infuriating is a personal answer, not an administrator's. -->
+            <label class="wr-desktop-opt">
+                <input type="checkbox" id="wrDesktopAlerts"<?php echo $desktopAlerts ? ' checked' : ''; ?>>
+                <span><?php echo htmlspecialchars(t('war-room.mention.desktop')); ?></span>
+            </label>
         </aside>
 
         <main class="wr-main">
@@ -165,8 +190,11 @@ foreach ($channels as $ch) {
         window.WR_ME      = <?php echo (int) $analystId; ?>;
         window.WR_MAX_FILES = <?php echo WARROOM_MAX_ATTACHMENTS; ?>;
         window.WR_DIRECTORY = <?php echo json_encode($directory, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
+        window.WR_MY_NAME   = <?php echo json_encode($myName, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
+        window.WR_CAN_MANAGE = <?php echo $canManage ? 'true' : 'false'; ?>;
+        window.WR_PREF_URL  = '<?php echo BASE_URL; ?>api/system/set_user_preference.php';
     </script>
-    <script src="../assets/js/war-room.js?v=2"></script>
+    <script src="../assets/js/war-room.js?v=5"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
 </body>
 </html>

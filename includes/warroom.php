@@ -440,19 +440,36 @@ function warRoomMessages(PDO $conn, int $channelId, int $sinceId = 0, int $limit
 {
     $limit = max(1, min(500, $limit));
 
+    // ⚠️ `m.id > :since` cannot see an EDIT or a DELETE — both change a message the
+    // caller already holds, so its id is below the watermark and it never comes
+    // back. The extra clause re-sends anything changed since the caller last
+    // polled; the page replaces the row it already has by id. Without this an
+    // edited message stays as it was on everyone else's screen, which in an
+    // incident is the one kind of stale that actually misleads.
+    $changedClause = $sinceId > 0
+        ? "OR ((m.edited_datetime IS NOT NULL OR m.deleted_datetime IS NOT NULL)
+               AND GREATEST(COALESCE(m.edited_datetime, '1970-01-01'),
+                            COALESCE(m.deleted_datetime, '1970-01-01')) >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 SECOND))"
+        : '';
+
+    $cols = "m.id, m.body, m.created_datetime, m.analyst_id, a.full_name,
+             m.edited_datetime, m.deleted_datetime, d.full_name AS deleted_by_name";
+    $joins = "LEFT JOIN analysts a ON a.id = m.analyst_id
+              LEFT JOIN analysts d ON d.id = m.deleted_by";
+
     if ($sinceId > 0) {
-        $sql = "SELECT m.id, m.body, m.created_datetime, m.analyst_id, a.full_name
+        $sql = "SELECT $cols
                   FROM warroom_messages m
-                  LEFT JOIN analysts a ON a.id = m.analyst_id
-                 WHERE m.channel_id = :cid AND m.id > :since
+                  $joins
+                 WHERE m.channel_id = :cid AND (m.id > :since $changedClause)
                  ORDER BY m.id ASC
                  LIMIT $limit";
     } else {
         // First load: the most recent $limit, flipped back into reading order.
         $sql = "SELECT * FROM (
-                    SELECT m.id, m.body, m.created_datetime, m.analyst_id, a.full_name
+                    SELECT $cols
                       FROM warroom_messages m
-                      LEFT JOIN analysts a ON a.id = m.analyst_id
+                      $joins
                      WHERE m.channel_id = :cid
                      ORDER BY m.id DESC
                      LIMIT $limit
@@ -471,12 +488,15 @@ function warRoomMessages(PDO $conn, int $channelId, int $sinceId = 0, int $limit
         $ids[] = $id;
         $rows[$id] = [
             'id'          => $id,
-            'body'        => $r['body'],
+            'body'        => $r['deleted_datetime'] !== null ? '' : $r['body'],
             'author'      => $r['full_name'] !== null
                 ? $r['full_name']
                 : (function_exists('t') ? t('war-room.former_analyst') : 'Former analyst'),
             'analyst_id'  => $r['analyst_id'] !== null ? (int) $r['analyst_id'] : null,
             'created'     => $r['created_datetime'],
+            'edited'      => $r['edited_datetime'] !== null,
+            'deleted'     => $r['deleted_datetime'] !== null,
+            'deleted_by'  => $r['deleted_by_name'],
             'attachments' => [],
         ];
     }
@@ -504,6 +524,84 @@ function warRoomMessages(PDO $conn, int $channelId, int $sinceId = 0, int $limit
     return array_values($rows);
 }
 
+/**
+ * Edit a message. The AUTHOR only — nobody else may put words in your mouth, not
+ * even an administrator, who can delete but not rewrite.
+ *
+ * The edit is stamped rather than silent: this is the record of an incident, and a
+ * message that changed after the fact has to say so. Mentions are re-resolved,
+ * because an edit can add or remove a name.
+ */
+function warRoomEditMessage(PDO $conn, int $analystId, int $messageId, string $body): bool
+{
+    $body = trim($body);
+    if ($body === '') return false;
+    if (mb_strlen($body) > WARROOM_MAX_BODY) $body = mb_substr($body, 0, WARROOM_MAX_BODY);
+
+    $row = warRoomMessageRow($conn, $messageId);
+    if ($row === null || $row['deleted_datetime'] !== null) return false;
+    if ((int) $row['analyst_id'] !== $analystId) return false;
+    if (!warRoomCanPostChannel($conn, $analystId, (int) $row['channel_id'])) return false;
+
+    $stmt = $conn->prepare(
+        "UPDATE warroom_messages SET body = :b, edited_datetime = UTC_TIMESTAMP()
+          WHERE id = :id AND deleted_datetime IS NULL"
+    );
+    $stmt->execute([':b' => $body, ':id' => $messageId]);
+
+    // Re-resolve from the NEW text. A name removed by the edit should stop being a
+    // mention; one added should start being one.
+    $conn->prepare("DELETE FROM warroom_mentions WHERE message_id = :m")->execute([':m' => $messageId]);
+    warRoomStoreMentions($conn, $messageId, warRoomResolveMentions($conn, (int) $row['channel_id'], $analystId, $body));
+    return true;
+}
+
+/**
+ * Delete a message: the author, or somebody with war_room.manage.
+ *
+ * 🔑 THE CONTENT GOES, THE ROW STAYS. The body is overwritten and the attachments
+ * are destroyed on disk — so a mistakenly pasted password really is gone — but a
+ * tombstone remains saying who removed it and when. A silent gap in an incident
+ * transcript is worse than a visible one: the reader cannot tell whether something
+ * was removed or never said, and that is exactly the question a post-incident
+ * review asks.
+ */
+function warRoomDeleteMessage(PDO $conn, int $analystId, int $messageId, bool $mayManage = false): bool
+{
+    $row = warRoomMessageRow($conn, $messageId);
+    if ($row === null || $row['deleted_datetime'] !== null) return false;
+    if (!$mayManage && (int) $row['analyst_id'] !== $analystId) return false;
+    if (!warRoomCanAccessChannel($conn, $analystId, (int) $row['channel_id'])) return false;
+
+    // Files first: once the rows are gone the paths are unrecoverable, and the
+    // hourly sweep would only tidy them up later.
+    $at = $conn->prepare("SELECT stored_name FROM warroom_attachments WHERE message_id = :m");
+    $at->execute([':m' => $messageId]);
+    foreach ($at->fetchAll(PDO::FETCH_ASSOC) as $a) {
+        $path = rtrim(WARROOM_ATTACH_DIR, '/\\') . DIRECTORY_SEPARATOR . $a['stored_name'];
+        if (is_file($path)) @unlink($path);
+    }
+    $conn->prepare("DELETE FROM warroom_attachments WHERE message_id = :m")->execute([':m' => $messageId]);
+    $conn->prepare("DELETE FROM warroom_mentions WHERE message_id = :m")->execute([':m' => $messageId]);
+
+    $stmt = $conn->prepare(
+        "UPDATE warroom_messages
+            SET body = '', deleted_datetime = UTC_TIMESTAMP(), deleted_by = :by
+          WHERE id = :id"
+    );
+    $stmt->execute([':by' => $analystId, ':id' => $messageId]);
+    return true;
+}
+
+/** One message row, raw. Callers do their own access checks. */
+function warRoomMessageRow(PDO $conn, int $messageId): ?array
+{
+    $stmt = $conn->prepare("SELECT * FROM warroom_messages WHERE id = :id LIMIT 1");
+    $stmt->execute([':id' => $messageId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row === false ? null : $row;
+}
+
 /** Post a message. Returns the new id, or 0 if the body was empty. */
 function warRoomSend(PDO $conn, int $analystId, int $channelId, string $body): int
 {
@@ -527,8 +625,228 @@ function warRoomSend(PDO $conn, int $analystId, int $channelId, string $body): i
     // rather than by reading the code, which looked perfectly reasonable.
     $id = (int) $conn->lastInsertId();
 
+    warRoomStoreMentions($conn, $id, warRoomResolveMentions($conn, $channelId, $analystId, $body));
     warRoomPrune($conn);
     return $id;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MENTIONS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Work out who a message names, and record it.
+ *
+ * 🔑 RESOLVED FROM THE TEXT, SERVER-SIDE — the client sends no list of ids. That
+ * is forced by how the composer is meant to work: you type `@`, pick a name, and
+ * may then BACKSPACE down to just the first name. Anything the client resolved at
+ * pick time is wrong the moment the text is edited, and a mention typed by hand
+ * without ever touching the autocomplete would not resolve at all. The text is the
+ * only thing that survives both, so the text is what we read.
+ *
+ * The body is stored EXACTLY AS TYPED. No `@[39]` tokens: the raw message has to
+ * stay readable in search results and in the transcript the AI summarises, and a
+ * stored token would leak into both.
+ *
+ * Matching is longest-first, so "@Sarah Williams" wins over "@Sarah". Where a bare
+ * first name is genuinely ambiguous — two Sarahs — EVERY match is notified. During
+ * an incident two people looking is a far better failure than nobody looking.
+ *
+ * ⚠️ Recipients are filtered to analysts who can actually READ the channel. Naming
+ * somebody who cannot see a private channel would otherwise put its name and a
+ * snippet of it into their notifications panel.
+ *
+ * @return int[] the analyst ids notified
+ */
+function warRoomResolveMentions(PDO $conn, int $channelId, int $authorId, string $body): array
+{
+    if (strpos($body, '@') === false) return [];
+
+    $entitled = warRoomChannelAudience($conn, $channelId);
+    if (!$entitled) return [];
+
+    $hit = [];
+
+    // `@everyone` — the amplifier an outage actually needs. There is no etiquette
+    // problem to design around here the way a general chat tool has: this module
+    // only exists during incidents.
+    if (preg_match('/@everyone\b/iu', $body)) {
+        $hit = array_keys($entitled);
+    }
+
+    // Candidate needles: full names first, then first names, longest first, so the
+    // longest thing that matches at a given position wins.
+    $needles = [];
+    foreach ($entitled as $id => $name) {
+        $needles[] = [mb_strtolower($name), $id];
+        $first = mb_strtolower(preg_split('/\s+/u', trim($name))[0] ?? '');
+        if ($first !== '' && $first !== mb_strtolower($name)) $needles[] = [$first, $id];
+    }
+    usort($needles, function ($a, $b) { return mb_strlen($b[0]) <=> mb_strlen($a[0]); });
+
+    $lower = mb_strtolower($body);
+    $len   = mb_strlen($lower);
+    for ($i = 0; $i < $len; $i++) {
+        if (mb_substr($lower, $i, 1) !== '@') continue;
+        foreach ($needles as [$needle, $id]) {
+            if (mb_substr($lower, $i + 1, mb_strlen($needle)) !== $needle) continue;
+            // Must end at a word boundary, or "@Sam" would match inside "@Samantha"
+            // and quietly notify the wrong person.
+            $after = mb_substr($lower, $i + 1 + mb_strlen($needle), 1);
+            if ($after !== '' && preg_match('/[\p{L}\p{N}]/u', $after)) continue;
+            $hit[] = $id;
+            break;                                  // longest match wins; stop here
+        }
+    }
+
+    // You are never notified of your own message, even via @everyone.
+    $hit = array_values(array_diff(array_unique(array_map('intval', $hit)), [$authorId]));
+    return $hit;
+}
+
+/**
+ * Every analyst who can read this channel, as id => full name.
+ *
+ * This is warRoomCanAccessChannel turned inside out, and the two must agree — a
+ * name that resolves here but fails there would post a mention nobody can open.
+ */
+function warRoomChannelAudience(PDO $conn, int $channelId): array
+{
+    $ch = warRoomChannel($conn, $channelId);
+    if ($ch === null) return [];
+
+    switch ($ch['kind']) {
+        case WARROOM_KIND_ALL:
+            // Every analyst who can reach the module at all. Module access is not
+            // resolvable in SQL here, so this is every active analyst; the panel
+            // query re-checks channel access before showing anything.
+            $sql = "SELECT id, full_name FROM analysts WHERE (is_active IS NULL OR is_active = 1)";
+            $stmt = $conn->query($sql);
+            break;
+        case WARROOM_KIND_TEAM:
+            $stmt = $conn->prepare(
+                "SELECT a.id, a.full_name FROM analysts a
+                   JOIN analyst_teams at ON at.analyst_id = a.id
+                  WHERE at.team_id = :t AND (a.is_active IS NULL OR a.is_active = 1)"
+            );
+            $stmt->execute([':t' => (int) $ch['team_id']]);
+            break;
+        case WARROOM_KIND_CUSTOM:
+            if (!$ch['is_private']) {
+                $stmt = $conn->query("SELECT id, full_name FROM analysts WHERE (is_active IS NULL OR is_active = 1)");
+                break;
+            }
+            // falls through to the member list
+        default:
+            $stmt = $conn->prepare(
+                "SELECT a.id, a.full_name FROM analysts a
+                   JOIN warroom_channel_members m ON m.analyst_id = a.id
+                  WHERE m.channel_id = :c AND (a.is_active IS NULL OR a.is_active = 1)"
+            );
+            $stmt->execute([':c' => $channelId]);
+    }
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) $out[(int) $r['id']] = $r['full_name'];
+    return $out;
+}
+
+/** Record the mentions for a message. Idempotent via the UNIQUE on (message, analyst). */
+function warRoomStoreMentions(PDO $conn, int $messageId, array $analystIds): void
+{
+    if (!$analystIds) return;
+    $stmt = $conn->prepare(
+        "INSERT IGNORE INTO warroom_mentions (message_id, analyst_id, created_datetime)
+         VALUES (:m, :a, UTC_TIMESTAMP())"
+    );
+    foreach ($analystIds as $id) $stmt->execute([':m' => $messageId, ':a' => (int) $id]);
+}
+
+/**
+ * The notifications panel: messages naming this analyst that they have not read.
+ *
+ * "Unread" is derived from `warroom_reads`, not from a column here — so opening
+ * the channel clears the mention, which is what a reader expects and what stops
+ * the panel and the channel badge ever disagreeing.
+ *
+ * ⚠️ Channel access is re-checked in SQL, not assumed from the mention row. A
+ * mention written before somebody was removed from a private channel must stop
+ * being visible to them, not linger in their panel with a snippet attached.
+ */
+function warRoomMyMentions(PDO $conn, int $analystId, int $limit = 20): array
+{
+    $limit = max(1, min(50, $limit));
+    $sql = "
+        SELECT m.id, m.channel_id, m.body, m.created_datetime, a.full_name,
+               c.kind, c.name, t.name AS team_name,
+               (SELECT GROUP_CONCAT(a2.full_name ORDER BY a2.full_name SEPARATOR ', ')
+                  FROM warroom_channel_members m2
+                  JOIN analysts a2 ON a2.id = m2.analyst_id
+                 WHERE m2.channel_id = c.id AND m2.analyst_id <> :me4) AS other_members
+          FROM warroom_mentions wm
+          JOIN warroom_messages m ON m.id = wm.message_id
+          JOIN warroom_channels c ON c.id = m.channel_id
+          LEFT JOIN teams t     ON t.id = c.team_id
+          LEFT JOIN analysts a  ON a.id = m.analyst_id
+          LEFT JOIN warroom_reads r ON r.channel_id = m.channel_id AND r.analyst_id = :me5
+         WHERE wm.analyst_id = :me1
+           AND m.id > COALESCE(r.last_read_message_id, 0)
+           AND (
+                   c.kind = '" . WARROOM_KIND_ALL . "'
+                OR (c.kind = '" . WARROOM_KIND_TEAM . "' AND EXISTS (
+                      SELECT 1 FROM analyst_teams at
+                       WHERE at.team_id = c.team_id AND at.analyst_id = :me2))
+                OR (c.kind = '" . WARROOM_KIND_CUSTOM . "' AND c.is_private = 0)
+                OR (c.kind IN ('" . WARROOM_KIND_CUSTOM . "','" . WARROOM_KIND_DM . "') AND EXISTS (
+                      SELECT 1 FROM warroom_channel_members mm
+                       WHERE mm.channel_id = c.id AND mm.analyst_id = :me3))
+               )
+         ORDER BY m.id DESC
+         LIMIT $limit";
+
+    $stmt = $conn->prepare($sql);
+    foreach (['me1', 'me2', 'me3', 'me4', 'me5'] as $p) $stmt->bindValue(':' . $p, $analystId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'id'         => (int) $r['id'],
+            'channel_id' => (int) $r['channel_id'],
+            'channel'    => warRoomChannelName($r),
+            'author'     => $r['full_name'] ?? (function_exists('t') ? t('war-room.former_analyst') : 'Former analyst'),
+            'created'    => $r['created_datetime'],
+            'snippet'    => warRoomSnippet((string) $r['body'], [], 160),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Unread mentions per channel, so the channel list can mark a mention differently
+ * from ordinary unread. Being named is a different event from having missed
+ * something, and one badge for both would hide the one that needs you.
+ *
+ * @return array<int,int> channel_id => count
+ */
+function warRoomMentionCounts(PDO $conn, int $analystId): array
+{
+    $stmt = $conn->prepare(
+        "SELECT m.channel_id, COUNT(*) AS n
+           FROM warroom_mentions wm
+           JOIN warroom_messages m ON m.id = wm.message_id
+           LEFT JOIN warroom_reads r ON r.channel_id = m.channel_id AND r.analyst_id = :me2
+          WHERE wm.analyst_id = :me1
+            AND m.id > COALESCE(r.last_read_message_id, 0)
+          GROUP BY m.channel_id"
+    );
+    $stmt->bindValue(':me1', $analystId, PDO::PARAM_INT);
+    $stmt->bindValue(':me2', $analystId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) $out[(int) $r['channel_id']] = (int) $r['n'];
+    return $out;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

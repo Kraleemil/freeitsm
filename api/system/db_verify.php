@@ -797,6 +797,29 @@ try {
         if ($tableExists('analysts') && !$fkExists('warroom_messages', 'fk_warroom_messages_analyst')) {
             try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE SET NULL"); } catch (Exception $e) {}
         }
+        // Who deleted a message. SET NULL, like the author: the tombstone must
+        // outlive the person, or deleting a leaver would turn "deleted by Sarah"
+        // back into an unexplained gap.
+        if ($tableExists('analysts') && $colExists('warroom_messages', 'deleted_by')
+            && !$fkExists('warroom_messages', 'fk_warroom_messages_deleter')) {
+            try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_deleter FOREIGN KEY (deleted_by) REFERENCES analysts (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+    }
+    if ($tableExists('warroom_mentions') && $tableExists('warroom_messages')) {
+        if (!$idxExists('warroom_mentions', 'uq_warroom_mention')) {
+            // One row per (message, person), however many times their name appears.
+            try { $conn->exec("ALTER TABLE warroom_mentions ADD UNIQUE KEY uq_warroom_mention (message_id, analyst_id)"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('warroom_mentions', 'ix_warroom_mentions_analyst')) {
+            // The notifications panel asks "mine, newest first".
+            try { $conn->exec("ALTER TABLE warroom_mentions ADD KEY ix_warroom_mentions_analyst (analyst_id, id)"); } catch (Exception $e) {}
+        }
+        if (!$fkExists('warroom_mentions', 'fk_warroom_mentions_message')) {
+            try { $conn->exec("ALTER TABLE warroom_mentions ADD CONSTRAINT fk_warroom_mentions_message FOREIGN KEY (message_id) REFERENCES warroom_messages (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+        if ($tableExists('analysts') && !$fkExists('warroom_mentions', 'fk_warroom_mentions_analyst')) {
+            try { $conn->exec("ALTER TABLE warroom_mentions ADD CONSTRAINT fk_warroom_mentions_analyst FOREIGN KEY (analyst_id) REFERENCES analysts (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
     }
     if ($tableExists('warroom_attachments') && $tableExists('warroom_messages')) {
         if (!$idxExists('warroom_attachments', 'ix_warroom_attachments_message')) {

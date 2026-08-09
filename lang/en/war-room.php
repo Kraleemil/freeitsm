@@ -137,6 +137,31 @@ return [
         'failed'         => 'Could not write the report',
     ],
 
+    // Mentions. Named after what they do to the reader, not after the @ symbol.
+    'mention' => [
+        'everyone'  => 'everyone',
+        'heading'   => 'Mentions',
+        'none'      => 'Nobody has mentioned you',
+        'hint'      => 'Type @ and start typing a name. Pick it from the list, or keep typing — a first name on its own works too.',
+        'desktop'   => 'Show a desktop notification when I am mentioned',
+        'desktop_blocked' => 'Your browser has blocked notifications for this site. You will need to allow them in the browser\'s own settings.',
+    ],
+
+    'message' => [
+        'edit'           => 'Edit',
+        'delete'         => 'Delete',
+        'edited'         => 'edited',
+        'edit_heading'   => 'Edit message',
+        'edit_hint'      => 'The message will be marked as edited, because this is the record of what was said during an incident.',
+        'delete_heading' => 'Delete message',
+        'delete_confirm' => 'Delete this message?',
+        // Said out loud: this is not what most chat tools do, and somebody
+        // deleting a pasted password deserves to know exactly what remains.
+        'delete_hint'    => 'The text and any attached files are destroyed. A line saying you deleted a message stays in its place, so the conversation does not have an unexplained gap.',
+        'deleted_by'     => 'Message deleted by {name}',
+        'failed'         => 'Could not change that message',
+    ],
+
     'error' => [
         'load' => 'Could not load messages',
         'send' => 'Could not send that message',

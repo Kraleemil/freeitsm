@@ -4348,19 +4348,29 @@ CREATE TABLE IF NOT EXISTS `warroom_channel_members` (
 --                        losing half of it because somebody left the company
 --                        would be the wrong trade. Those rows show as
 --                        "Former analyst".
+--
+-- `edited_datetime` / `deleted_datetime` are RECORDED, not hidden. This table is
+-- the record of what was said during an incident, so a message that changed after
+-- the fact says so, and a deleted one leaves a tombstone rather than a silent gap.
+-- The body and any attachments really are destroyed on delete — the point is that
+-- somebody can see a message was removed, not that its contents survive.
 CREATE TABLE IF NOT EXISTS `warroom_messages` (
     `id`               INT NOT NULL AUTO_INCREMENT,
     `channel_id`       INT NULL,
     `analyst_id`       INT NULL,
     `body`             TEXT NOT NULL,
     `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `edited_datetime`  DATETIME NULL,
+    `deleted_datetime` DATETIME NULL,
+    `deleted_by`       INT NULL,
     PRIMARY KEY (`id`),
     -- (channel_id, id): every read is "this channel, newer than id N".
     KEY `ix_warroom_messages_channel` (`channel_id`, `id`),
     -- Retention deletes by age across every channel at once.
     KEY `ix_warroom_messages_created` (`created_datetime`),
     CONSTRAINT `fk_warroom_messages_channel` FOREIGN KEY (`channel_id`) REFERENCES `warroom_channels` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_warroom_messages_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_warroom_messages_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_warroom_messages_deleter` FOREIGN KEY (`deleted_by`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ⚠️ THERE IS NO `content_type` COLUMN, AND THAT IS THE POINT. What an attachment
@@ -4383,6 +4393,29 @@ CREATE TABLE IF NOT EXISTS `warroom_attachments` (
     KEY `ix_warroom_attachments_message` (`message_id`),
     KEY `ix_warroom_attachments_stored` (`stored_name`),
     CONSTRAINT `fk_warroom_attachments_message` FOREIGN KEY (`message_id`) REFERENCES `warroom_messages` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Who was named in a message. One row PER RECIPIENT — `@everyone` is expanded at
+-- send time rather than stored as a flag, which keeps "what has my name on it" a
+-- simple equality, and makes the record point-in-time correct: you notified the
+-- people entitled to that channel then, not whoever is entitled to it now.
+--
+-- ⚠️ There is no read column. A mention is unread when its message is newer than
+-- your `warroom_reads` marker for that channel — reusing state that already exists
+-- rather than adding a second copy that can disagree with it.
+CREATE TABLE IF NOT EXISTS `warroom_mentions` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `message_id`       INT NOT NULL,
+    `analyst_id`       INT NOT NULL,
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    -- The same person cannot be named twice by one message, however many times
+    -- their name appears in it.
+    UNIQUE KEY `uq_warroom_mention` (`message_id`, `analyst_id`),
+    -- (analyst_id, id): the notifications panel asks "mine, newest first".
+    KEY `ix_warroom_mentions_analyst` (`analyst_id`, `id`),
+    CONSTRAINT `fk_warroom_mentions_message` FOREIGN KEY (`message_id`) REFERENCES `warroom_messages` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_warroom_mentions_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- How far each analyst has read in each channel, so the list can show what is new.

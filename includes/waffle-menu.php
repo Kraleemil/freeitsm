@@ -574,6 +574,217 @@ function renderWaffleMenuJS() {
     <?php
 }
 
+/**
+ * War room notifications — the bell in the header, on EVERY page.
+ *
+ * 🔑 WHY THIS IS NOT IN THE WAR ROOM MODULE. A mention is only worth anything if
+ * it reaches somebody who is not looking at the war room; a badge that only shows
+ * on the page you are already reading is decoration. This is one shared function
+ * rather than 166 edits because every module header already calls into here.
+ *
+ * ⚠️ COST BUDGET, because this now runs app-wide. One request per analyst per 60
+ * seconds, one indexed lookup, nothing rendered at all when the count is zero, no
+ * request while the tab is hidden, and NO request on the war room page itself —
+ * that page already polls every 3 seconds and would otherwise ask twice. During an
+ * incident every page is loaded and the server is at its busiest, which is the
+ * same reasoning that ruled out SSE for the chat.
+ *
+ * Degrades to nothing: an analyst without the module gets an empty answer rather
+ * than a 403, and any failure renders no bell rather than breaking the page it is
+ * embedded in.
+ */
+function renderWarRoomAlerts($path_prefix) {
+    if (!isset($_SESSION['analyst_id'])) return;
+
+    // Desktop notifications are OFF unless this analyst turned them on. A per-user
+    // preference rather than an install-wide switch, because whether a popup is
+    // welcome or infuriating is a personal answer, not an administrator's.
+    $__wraDesktop = false;
+    try {
+        if (!function_exists('connectToDatabase')) require_once __DIR__ . '/functions.php';
+        $__s = connectToDatabase()->prepare(
+            "SELECT preference_value FROM user_preferences
+              WHERE analyst_id = :a AND preference_key = 'warroom_desktop_alerts' LIMIT 1"
+        );
+        $__s->execute([':a' => (int) $_SESSION['analyst_id']]);
+        $__wraDesktop = ((string) $__s->fetchColumn()) === '1';
+    } catch (Throwable $e) {
+        $__wraDesktop = false;              // fail quiet, never noisy
+    }
+    ?>
+    <script>window.WRA_DESKTOP = <?php echo $__wraDesktop ? 'true' : 'false'; ?>;</script>
+    <style>
+        .wra-wrap { position: relative; margin-right: 6px; }
+        .wra-btn {
+            display: none;              /* shown by JS only when something is waiting */
+            align-items: center;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.75);
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            position: relative;
+        }
+        .wra-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+        .wra-count {
+            position: absolute;
+            top: -1px; right: -2px;
+            min-width: 16px;
+            padding: 0 4px;
+            border-radius: 8px;
+            background: #ea580c;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 16px;
+            text-align: center;
+        }
+        .wra-panel {
+            display: none;
+            position: absolute;
+            top: 34px; right: 0;
+            width: 340px;
+            max-height: 60vh;
+            overflow-y: auto;
+            background: var(--surface, #fff);
+            color: var(--text, #333);
+            border: 1px solid var(--border, #e0e0e0);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+            z-index: 2000;
+            text-align: left;
+        }
+        .wra-panel.open { display: block; }
+        .wra-head {
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border, #eee);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-muted, #666);
+        }
+        .wra-item {
+            display: block;
+            width: 100%;
+            padding: 10px 14px;
+            border: none;
+            border-bottom: 1px solid var(--border-soft, #f2f2f2);
+            background: none;
+            color: inherit;
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+        .wra-item:hover { background: var(--surface-hover, #f6f6f6); }
+        .wra-item-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+        .wra-item-chan { font-size: 12px; font-weight: 600; color: #ea580c; }
+        .wra-item-meta { font-size: 11px; color: var(--text-dim, #999); }
+        .wra-item-body { font-size: 13px; line-height: 1.4; color: var(--text-muted, #555); overflow-wrap: anywhere; }
+        @media (max-width: 768px) {
+            /* A 340px dropdown on a 360px screen would sit against both edges and
+               overflow — and anything wider than the screen makes iOS reflow the
+               whole page to desktop. Pin it to the viewport instead. */
+            .wra-panel { position: fixed; top: 48px; right: 4px; left: 4px; width: auto; max-height: 70vh; }
+            .wra-btn { padding: 8px; }
+        }
+    </style>
+
+    <div class="wra-wrap">
+        <button class="wra-btn" id="wraBtn" type="button" aria-label="War room notifications">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <span class="wra-count" id="wraCount">0</span>
+        </button>
+        <div class="wra-panel" id="wraPanel">
+            <div class="wra-head" id="wraHead">War room</div>
+            <div id="wraList"></div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+        var base  = <?php echo json_encode(($path_prefix ?: './') . 'api/war-room/'); ?>;
+        var room  = <?php echo json_encode(($path_prefix ?: './') . 'war-room/'); ?>;
+        // The war room polls for itself; asking again from the header would double
+        // the traffic on the one page that least needs it.
+        var onWarRoom = /\/war-room\//.test(window.location.pathname);
+        var btn   = document.getElementById('wraBtn');
+        var panel = document.getElementById('wraPanel');
+        var list  = document.getElementById('wraList');
+        var count = document.getElementById('wraCount');
+        if (!btn || onWarRoom) return;
+
+        var seen = parseInt(sessionStorage.getItem('wraSeenId') || '0', 10);
+
+        function el(tag, cls, text) {
+            var n = document.createElement(tag);
+            if (cls) n.className = cls;
+            // 🔒 textContent, never innerHTML — this renders other people's chat
+            // messages into the header of every page in the application.
+            if (text !== undefined) n.textContent = String(text);
+            return n;
+        }
+
+        function draw(d) {
+            btn.style.display = d.count > 0 ? 'flex' : 'none';
+            count.textContent = d.count > 99 ? '99+' : d.count;
+            if (!d.count) { panel.classList.remove('open'); return; }
+
+            list.textContent = '';
+            d.mentions.forEach(function (m) {
+                var item = el('button', 'wra-item');
+                item.type = 'button';
+                var top = el('div', 'wra-item-top');
+                top.appendChild(el('span', 'wra-item-chan', m.channel));
+                top.appendChild(el('span', 'wra-item-meta', m.author));
+                item.appendChild(top);
+                item.appendChild(el('div', 'wra-item-body', m.snippet));
+                item.addEventListener('click', function () {
+                    window.location.href = room + '?channel=' + encodeURIComponent(m.channel_id);
+                });
+                list.appendChild(item);
+            });
+
+            // Desktop notification, if this analyst asked for one. Only for genuinely
+            // new mentions — re-notifying on every poll for the same message would
+            // train people to dismiss it, which is how a fallback tool stops working.
+            var newest = d.mentions.length ? d.mentions[0].id : 0;
+            if (newest > seen) {
+                if (window.WRA_DESKTOP && 'Notification' in window && Notification.permission === 'granted') {
+                    try {
+                        new Notification(d.mentions[0].channel, { body: d.mentions[0].author + ': ' + d.mentions[0].snippet, tag: 'freeitsm-warroom' });
+                    } catch (e) { /* a browser that refuses is not an error worth showing */ }
+                }
+                seen = newest;
+                sessionStorage.setItem('wraSeenId', String(seen));
+            }
+        }
+
+        function check() {
+            if (document.hidden) return;
+            fetch(base + 'alerts.php', { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); })
+                .then(draw)
+                .catch(function () { /* never break the host page */ });
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            panel.classList.toggle('open');
+        });
+        document.addEventListener('click', function () { panel.classList.remove('open'); });
+        panel.addEventListener('click', function (e) { e.stopPropagation(); });
+
+        check();
+        setInterval(check, 60000);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+    })();
+    </script>
+    <?php
+}
+
 function renderHeaderRight($analyst_name, $path_prefix) {
     // Extract initials from analyst name
     $parts = explode(' ', trim($analyst_name));
@@ -974,6 +1185,7 @@ function renderHeaderRight($analyst_name, $path_prefix) {
 
     <div class="header-right">
         <?php echo $__tenantSwitcherHtml; ?>
+        <?php renderWarRoomAlerts($path_prefix); ?>
         <button class="mail-check-btn" id="mailCheckBtn" onclick="triggerMailCheck()" title="<?php echo htmlspecialchars(t('common.account.mail_check')); ?>" style="display:none;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
         </button>

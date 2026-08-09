@@ -256,6 +256,8 @@ return [
     ['warroom_messages', 'ix_warroom_messages_created', 'key', '(`created_datetime`)'],
     ['warroom_attachments', 'ix_warroom_attachments_message', 'key', '(`message_id`)'],
     ['warroom_attachments', 'ix_warroom_attachments_stored', 'key', '(`stored_name`)'],
+    ['warroom_mentions', 'uq_warroom_mention', 'unique', '(`message_id`,`analyst_id`)'],
+    ['warroom_mentions', 'ix_warroom_mentions_analyst', 'key', '(`analyst_id`,`id`)'],
     ['warroom_reads', 'uq_warroom_read', 'unique', '(`analyst_id`,`channel_id`)'],
     ['warroom_presence', 'uq_warroom_presence', 'unique', '(`analyst_id`)'],
     ['warroom_presence', 'ix_warroom_presence_last_seen', 'key', '(`last_seen`)'],

@@ -169,6 +169,108 @@
     overflow-wrap: anywhere;
 }
 
+/* ---- mentions ---- */
+/* A name in a message. Tinted rather than boxed, so a sentence with three names
+   in it still reads as a sentence. */
+.wr-at {
+    padding: 0 2px;
+    border-radius: 3px;
+    background: var(--accent-soft, rgba(234, 88, 12, 0.12));
+    color: var(--accent, #ea580c);
+    font-weight: 600;
+}
+/* Your own name is the one you need to spot while scrolling past forty lines. */
+.wr-at-me {
+    background: var(--accent, #ea580c);
+    color: var(--on-accent, #fff);
+}
+
+/* A mention badge is deliberately NOT the same as an unread badge: being named is
+   a different event from having missed something, and one badge for both hides
+   the one that needs you. */
+.wr-mention-badge {
+    flex-shrink: 0;
+    min-width: 20px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    background: var(--danger-accent, #c62828);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+}
+
+/* The @ picker. Anchored above the composer, because a dropdown below it would
+   be off the bottom of the window. */
+.wr-ac {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    min-width: 220px;
+    max-height: 210px;
+    overflow-y: auto;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #ddd);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+    z-index: 30;
+}
+.wr-ac[hidden] { display: none; }
+.wr-ac-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    color: var(--text, #333);
+    font: inherit;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+.wr-ac-item.active,
+.wr-ac-item:hover { background: var(--surface-hover, #f2f2f2); }
+
+/* ---- edit / delete ---- */
+/* The composer is the positioning context for the @ picker above. */
+.wr-composer { position: relative; }
+
+.wr-msg { position: relative; }
+.wr-msg-flag { font-size: 11px; font-style: italic; color: var(--text-dim, #999); }
+
+/* Actions appear on hover on a pointer device, and are always visible on touch —
+   there is no hover on a phone, and a control you cannot reach is not a control. */
+.wr-msg-acts {
+    position: absolute;
+    top: 4px; right: 0;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.12s;
+}
+.wr-msg:hover .wr-msg-acts,
+.wr-msg:focus-within .wr-msg-acts { opacity: 1; }
+@media (hover: none) { .wr-msg-acts { opacity: 1; } }
+
+.wr-msg-act {
+    padding: 2px 8px;
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 4px;
+    background: var(--surface, #fff);
+    color: var(--text-muted, #666);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+.wr-msg-act:hover { border-color: var(--accent, #ea580c); color: var(--accent, #ea580c); }
+
+/* The tombstone. Muted and italic so it reads as an absence rather than as
+   something somebody said. */
+.wr-tombstone { color: var(--text-dim, #999); font-style: italic; }
+.wr-edit-area { resize: vertical; min-height: 110px; font-family: inherit; }
+
 /* ---- attachments on a message ---- */
 .wr-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 
@@ -224,6 +326,20 @@
 .wr-presence-name { color: var(--text, #333); }
 /* Someone in the war room but in another channel: present, but not reading this. */
 .wr-presence-name.wr-away { color: var(--text-dim, #999); }
+
+.wr-desktop-opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-soft, #f0f0f0);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-muted, #666);
+    cursor: pointer;
+}
+.wr-desktop-opt input { margin-top: 2px; flex-shrink: 0; }
 
 /* ---- composer ---- */
 /* `align-items: stretch` (the default) is what actually keeps the box and the

@@ -25,6 +25,19 @@
     var activeId  = window.WR_ACTIVE || 0;
     var maxFiles  = window.WR_MAX_FILES || 5;
     var directory = window.WR_DIRECTORY || [];
+    var me        = window.WR_ME || 0;
+    var myName    = window.WR_MY_NAME || '';
+    var canManage = !!window.WR_CAN_MANAGE;
+
+    // Name lookups for highlighting. Built once: the directory does not change
+    // while the page is open, and rebuilding it per message would be per-message
+    // work for a per-session fact.
+    var allNames = directory.concat([{ id: me, name: myName }]).map(function (p) {
+        var full = String(p.name || '').toLowerCase().trim();
+        return { id: p.id, full: full, first: full.split(/\s+/)[0] || '' };
+    });
+    var myNames = allNames.filter(function (p) { return p.id === me; })
+                          .reduce(function (acc, p) { return acc.concat([p.full, p.first]); }, []);
 
     var lastId    = 0;
     var timer     = null;
@@ -94,9 +107,18 @@
         btn.setAttribute('data-kind', c.kind);
         btn.appendChild(el('span', 'wr-channel-name', c.name + (c.archived ? ' (' + t('war-room.channel.archived') + ')' : '')));
         if (c.is_private && c.kind === 'custom') btn.appendChild(el('span', 'wr-lock', '•'));
-        // The unread count is suppressed for the channel you are looking at:
-        // it would tick up and then vanish on every poll, which reads as a bug.
-        if (c.unread > 0 && c.id !== activeId) btn.appendChild(el('span', 'wr-unread', c.unread > 99 ? '99+' : c.unread));
+        // Both counts are suppressed for the channel you are looking at: they
+        // would tick up and vanish on every poll, which reads as a bug.
+        if (c.id !== activeId) {
+            // A mention badge REPLACES the unread badge rather than sitting beside
+            // it. Two numbers on one row is a puzzle; the mention is strictly the
+            // more urgent of the two, so it is the one that shows.
+            if (c.mentions > 0) {
+                btn.appendChild(el('span', 'wr-mention-badge', '@' + (c.mentions > 9 ? '9+' : c.mentions)));
+            } else if (c.unread > 0) {
+                btn.appendChild(el('span', 'wr-unread', c.unread > 99 ? '99+' : c.unread));
+            }
+        }
         els.wrChannels.appendChild(btn);
     }
 
@@ -142,14 +164,44 @@
     /* ── messages ──────────────────────────────────────────────────────────── */
 
     function renderMessage(m) {
-        var row = el('div', 'wr-msg');
+        var row = el('div', 'wr-msg' + (m.deleted ? ' wr-msg-deleted' : ''));
+        row.setAttribute('data-msg-id', m.id);
+
         var head = el('div', 'wr-msg-head');
         head.appendChild(el('span', 'wr-msg-author', m.author));
         head.appendChild(el('span', 'wr-msg-time', localTime(m.created)));
+        // Both are stated, never silent: this is the record of an incident, and a
+        // reader has to be able to tell a message that changed from one that did not.
+        if (m.edited && !m.deleted) head.appendChild(el('span', 'wr-msg-flag', t('war-room.message.edited')));
         row.appendChild(head);
 
-        var body = el('div', 'wr-msg-body', m.body);   // textContent — see the header
+        if (m.deleted) {
+            row.appendChild(el('div', 'wr-msg-body wr-tombstone',
+                t('war-room.message.deleted_by', { name: m.deleted_by || t('war-room.former_analyst') })));
+            return row;
+        }
+
+        var body = el('div', 'wr-msg-body');
+        renderBodyWithMentions(body, m.body);
         row.appendChild(body);
+
+        // Edit and delete belong to the author; delete also to war_room.manage.
+        // Rendered per message rather than in a menu, because a message you can act
+        // on and one you cannot should not look identical.
+        if (m.analyst_id === me || canManage) {
+            var acts = el('div', 'wr-msg-acts');
+            if (m.analyst_id === me) {
+                var ed = el('button', 'wr-msg-act', t('war-room.message.edit'));
+                ed.type = 'button';
+                ed.addEventListener('click', function () { openEdit(m); });
+                acts.appendChild(ed);
+            }
+            var del = el('button', 'wr-msg-act', t('war-room.message.delete'));
+            del.type = 'button';
+            del.addEventListener('click', function () { openDelete(m); });
+            acts.appendChild(del);
+            row.appendChild(acts);
+        }
 
         if (m.attachments && m.attachments.length) {
             var wrap = el('div', 'wr-attachments');
@@ -178,6 +230,61 @@
         return row;
     }
 
+    /**
+     * Write a message body into `node`, marking the @names inside it.
+     *
+     * 🔒 STILL NO innerHTML. The body is split into runs and each run appended as
+     * its own text node or <span> — so a message containing markup is as inert here
+     * as it is anywhere else in this file. Highlighting text is not a good enough
+     * reason to start building HTML from user input.
+     *
+     * This is presentation only. Who was actually notified was decided server-side
+     * when the message was sent, and the two can differ: a name typed for somebody
+     * who cannot see the channel is highlighted here but was never notified.
+     */
+    function renderBodyWithMentions(node, text) {
+        // ⚠️ TWO WORDS FIRST, THEN ONE. The capture has to allow a surname, but a
+        // greedy two-word match turns "@James hello abc" into the name "James
+        // hello", which matches nobody and highlights nothing. Falling back to the
+        // first word mirrors what the server does when it decides who to notify —
+        // and the two must agree, or a message shows no highlight while somebody
+        // is being notified by it.
+        var re = /@(everyone|[\p{L}][\p{L}'’-]*(?:\s+[\p{L}][\p{L}'’-]*)?)/giu;
+        var last = 0, match;
+        while ((match = re.exec(text)) !== null) {
+            if (match.index > last) node.appendChild(document.createTextNode(text.slice(last, match.index)));
+
+            var name = match[1];
+            var label = match[0];
+            if (!/^everyone$/i.test(name) && !nameKnown(name)) {
+                var firstWord = name.split(/\s+/)[0];
+                if (nameKnown(firstWord)) { name = firstWord; label = '@' + firstWord; }
+            }
+
+            if (/^everyone$/i.test(name) || nameKnown(name)) {
+                node.appendChild(el('span', mentionsMe(name) ? 'wr-at wr-at-me' : 'wr-at', label));
+            } else {
+                node.appendChild(document.createTextNode(label));
+            }
+            // Continue from the end of what we actually marked, which after the
+            // fallback is shorter than the regex consumed.
+            last = match.index + label.length;
+            re.lastIndex = last;
+        }
+        if (last < text.length) node.appendChild(document.createTextNode(text.slice(last)));
+    }
+
+    function nameKnown(name) {
+        var n = name.toLowerCase().trim();
+        return allNames.some(function (p) {
+            return p.full === n || p.first === n;
+        });
+    }
+    function mentionsMe(name) {
+        var n = name.toLowerCase().trim();
+        return myNames.indexOf(n) >= 0;
+    }
+
     /** Only used to decide thumbnail vs link; the server decides what is served. */
     function guessKind(name) {
         var ext = String(name).split('.').pop().toLowerCase();
@@ -191,11 +298,30 @@
         // BEFORE appending, or the answer is always no and the view jumps away
         // from whatever they had scrolled back to read.
         var atBottom = (els.wrMessages.scrollHeight - els.wrMessages.scrollTop - els.wrMessages.clientHeight) < 80;
+        var added = false;
+
         list.forEach(function (m) {
-            els.wrMessages.appendChild(renderMessage(m));
+            var node = renderMessage(m);
+            // ⚠️ UPSERT BY ID, NEVER BLIND APPEND. The poll deliberately re-sends
+            // a message that was edited or deleted in the last 30 seconds, because
+            // its id is below the since_id watermark and it would otherwise never
+            // come back. Appending that made the same tombstone pile up once every
+            // three seconds — a wall of "Message deleted by …" that Ed watched
+            // happen. Replacing in place makes re-delivery idempotent, which is
+            // what a poll that can repeat itself requires.
+            var existing = els.wrMessages.querySelector('[data-msg-id="' + m.id + '"]');
+            if (existing) {
+                existing.parentNode.replaceChild(node, existing);
+            } else {
+                els.wrMessages.appendChild(node);
+                added = true;
+            }
             if (m.id > lastId) lastId = m.id;
         });
-        if (atBottom) els.wrMessages.scrollTop = els.wrMessages.scrollHeight;
+
+        // Only scroll for genuinely NEW messages. Following an edit to the bottom
+        // would yank the reader away from whatever they had scrolled back to.
+        if (atBottom && added) els.wrMessages.scrollTop = els.wrMessages.scrollHeight;
     }
 
     /* ── presence ──────────────────────────────────────────────────────────── */
@@ -283,11 +409,164 @@
         send();
     });
 
+    /* ── @ autocomplete ────────────────────────────────────────────────────────
+       Type @, start typing, and pick a name — or ignore the list and keep typing.
+       Accepting inserts the FULL name; you can then backspace back to just the
+       first name and it still resolves, because the server matches on first names
+       too. That is the whole reason mentions are resolved from the text rather
+       than from a list of ids this picker hands over: the moment you edit the
+       text, any id captured here would be wrong. */
+
+    var acIndex = -1, acMatches = [], acStart = -1;
+    var acBox = el('div', 'wr-ac');
+    acBox.hidden = true;
+    els.wrComposer.appendChild(acBox);
+
+    /** The @word being typed at the caret, or null. */
+    function acContext() {
+        var v = els.wrBody.value, pos = els.wrBody.selectionStart;
+        var upto = v.slice(0, pos);
+        var at = upto.lastIndexOf('@');
+        if (at < 0) return null;
+        // Only immediately after whitespace or at the very start: an email address
+        // must not open the picker.
+        if (at > 0 && !/\s/.test(upto.charAt(at - 1))) return null;
+        var typed = upto.slice(at + 1);
+        // One space is allowed, so "@Sarah Wil" still matches a full name.
+        if (!/^[\p{L}'’-]*(\s[\p{L}'’-]*)?$/u.test(typed)) return null;
+        return { at: at, typed: typed };
+    }
+
+    function acRender() {
+        var ctx = acContext();
+        if (!ctx) { acHide(); return; }
+        var q = ctx.typed.toLowerCase();
+        acStart = ctx.at;
+        acMatches = directory.filter(function (p) {
+            return !q || p.name.toLowerCase().indexOf(q) === 0
+                || p.name.toLowerCase().split(/\s+/).some(function (w) { return w.indexOf(q) === 0; });
+        }).slice(0, 6);
+        // @everyone is offered alongside people, because in an outage it is the one
+        // you most often want and hunting for it in a menu is the wrong cost.
+        if (!q || 'everyone'.indexOf(q) === 0) acMatches.unshift({ id: 0, name: 'everyone', all: true });
+
+        if (!acMatches.length) { acHide(); return; }
+        acIndex = 0;
+        clear(acBox);
+        acMatches.forEach(function (p, i) {
+            var opt = el('button', 'wr-ac-item' + (i === 0 ? ' active' : ''));
+            opt.type = 'button';
+            opt.appendChild(el('span', null, p.all ? '@everyone' : p.name));
+            if (p.here) opt.appendChild(el('span', 'wr-here-dot', '•'));
+            opt.addEventListener('mousedown', function (e) { e.preventDefault(); acAccept(i); });
+            acBox.appendChild(opt);
+        });
+        acBox.hidden = false;
+    }
+
+    function acHide() { acBox.hidden = true; acMatches = []; acIndex = -1; }
+
+    function acAccept(i) {
+        var p = acMatches[i];
+        if (!p) return;
+        var v = els.wrBody.value, pos = els.wrBody.selectionStart;
+        var insert = '@' + (p.all ? 'everyone' : p.name) + ' ';
+        els.wrBody.value = v.slice(0, acStart) + insert + v.slice(pos);
+        var caret = acStart + insert.length;
+        els.wrBody.setSelectionRange(caret, caret);
+        acHide();
+    }
+
+    els.wrBody.addEventListener('input', acRender);
+    els.wrBody.addEventListener('blur', function () { setTimeout(acHide, 120); });
+
     // Enter sends, Shift+Enter starts a new line — the convention every chat tool
     // uses, so muscle memory works on the day somebody first opens this.
     els.wrBody.addEventListener('keydown', function (e) {
+        if (!acBox.hidden && acMatches.length) {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                acIndex = (acIndex + (e.key === 'ArrowDown' ? 1 : -1) + acMatches.length) % acMatches.length;
+                Array.prototype.forEach.call(acBox.children, function (c, i) {
+                    c.classList.toggle('active', i === acIndex);
+                });
+                return;
+            }
+            // Enter and Tab accept the highlighted name. Enter must NOT send while
+            // the picker is open, or picking a name posts a half-written message.
+            if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); acAccept(acIndex); return; }
+            if (e.key === 'Escape') { e.preventDefault(); acHide(); return; }
+        }
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
+
+    /* ── edit and delete ─────────────────────────────────────────────────────── */
+
+    function openEdit(m) {
+        var body = openModal(t('war-room.message.edit_heading'));
+        var ta = document.createElement('textarea');
+        ta.className = 'wr-input wr-edit-area';
+        ta.rows = 5;
+        ta.value = m.body;
+        body.appendChild(ta);
+        body.appendChild(el('div', 'wr-hint', t('war-room.message.edit_hint')));
+
+        var actions = el('div', 'wr-modal-actions');
+        var save = el('button', 'btn btn-primary', t('war-room.manage.save'));
+        save.type = 'button';
+        save.addEventListener('click', function () {
+            messageAction('edit', { id: m.id, body: ta.value });
+        });
+        actions.appendChild(save);
+        var cancel = el('button', 'btn', t('war-room.create.cancel'));
+        cancel.type = 'button';
+        cancel.addEventListener('click', closeModal);
+        actions.appendChild(cancel);
+        body.appendChild(actions);
+        ta.focus();
+    }
+
+    function openDelete(m) {
+        var body = openModal(t('war-room.message.delete_heading'));
+        body.appendChild(el('p', 'wr-muted', t('war-room.message.delete_confirm')));
+        // Said out loud, because it is not what most chat tools do and somebody
+        // deleting a pasted password deserves to know what will remain.
+        body.appendChild(el('div', 'wr-hint', t('war-room.message.delete_hint')));
+
+        var actions = el('div', 'wr-modal-actions');
+        var go = el('button', 'btn btn-primary', t('war-room.message.delete'));
+        go.type = 'button';
+        go.addEventListener('click', function () { messageAction('delete', { id: m.id }); });
+        actions.appendChild(go);
+        var cancel = el('button', 'btn', t('war-room.create.cancel'));
+        cancel.type = 'button';
+        cancel.addEventListener('click', closeModal);
+        actions.appendChild(cancel);
+        body.appendChild(actions);
+    }
+
+    function messageAction(action, payload) {
+        payload.action = action;
+        fetch(api + 'message.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d || !d.success) throw new Error('failed');
+                closeModal();
+                // An edit or a delete changes a message the page already holds, so
+                // reload the channel rather than appending: the poll's since_id
+                // watermark is past it.
+                lastId = 0;
+                clear(els.wrMessages);
+                els.wrMessages.appendChild(els.wrEmpty);
+                poll();
+            })
+            .catch(function () { alert(t('war-room.message.failed')); });
+    }
 
     function send() {
         var body = els.wrBody.value;
@@ -651,6 +930,41 @@
         actions.appendChild(cancel);
         body.appendChild(actions);
     });
+
+    /* ── desktop notifications (per-analyst, off by default) ─────────────────── */
+
+    var alertsBox = document.getElementById('wrDesktopAlerts');
+    if (alertsBox) {
+        alertsBox.addEventListener('change', function () {
+            var on = alertsBox.checked;
+            var save = function (value) {
+                fetch(window.WR_PREF_URL, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: 'warroom_desktop_alerts', value: value ? '1' : '0' })
+                });
+            };
+            if (!on) { save(false); return; }
+
+            // Permission is asked for HERE, on a deliberate click, not on page
+            // load: a browser refuses a prompt that was not user-initiated, and
+            // an unprompted permission popup is what teaches people to click Block.
+            if (!('Notification' in window)) { alertsBox.checked = false; return; }
+            if (Notification.permission === 'granted') { save(true); return; }
+            if (Notification.permission === 'denied') {
+                alertsBox.checked = false;
+                alert(t('war-room.mention.desktop_blocked'));
+                return;
+            }
+            Notification.requestPermission().then(function (p) {
+                var ok = (p === 'granted');
+                alertsBox.checked = ok;
+                save(ok);
+                if (!ok) alert(t('war-room.mention.desktop_blocked'));
+            });
+        });
+    }
 
     /* ── go ────────────────────────────────────────────────────────────────── */
 
