@@ -1175,11 +1175,12 @@
         height: auto;
         flex: 1 1 auto;
         min-height: 0;
-        /* Tighter at the top than the sides (#1004): the tab strip is the
-           first thing under the app bar, and 14px of gap between a coloured
-           bar and a row of tabs reads as a seam rather than as breathing
-           room. The sides keep their 14px. */
-        padding: 4px 14px 14px;
+        /* Tighter at the top than the sides: the tab strip is the first thing
+           under the app bar, and the desktop 14px reads as a seam rather than
+           breathing room. 4px (#1004) turned out to be a shade too tight on a
+           device — 8px is Ed's "ever so slightly more" (#1006). The sides keep
+           their 14px. */
+        padding: 8px 14px 14px;
         /* LAYER 2 makes <body> a flex column, and a flex item's automatic
            minimum size is its CONTENT width — so a wide tab strip inside this
            container stretched the container itself to 776px at a 360px
@@ -1233,6 +1234,15 @@
     body[data-mobile-page="settings"] [style*="grid-column"] {
         grid-column: auto !important;
     }
+
+    /* ---- the tab card's own padding (#1006) ----
+       `.tab-content` in inbox.css is a card with `padding: 30px`. On a 360px
+       screen that is 60px of the width — a sixth of it — spent on inset
+       before any content, and it applies to every settings screen in the
+       product because the class is shared. 14px matches the container's own
+       side padding, so the card's contents line up with everything outside
+       it rather than stepping in twice. */
+    body[data-mobile-page="settings"] .tab-content { padding: 14px; }
 
     body[data-mobile-page="settings"] .settings-section { margin-bottom: 14px; }
     body[data-mobile-page="settings"] .settings-section-header { padding: 14px; }
@@ -1780,6 +1790,39 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
+    }
+
+    /* ---- add/edit dialogs: heading aligned with the fields (#1006) ----
+       Settings modals come in two shapes. The canonical one is
+       `.modal-content > .modal-header + .modal-body`, where LAYER 3 gives the
+       header and the body a matching 16px and everything lines up. The other
+       — service-status, assets — has no `.modal-body` at all: the form is a
+       direct child, and the page pads `.modal-content` itself. The header
+       then sits at the content's padding PLUS LAYER 3's own 16px, so "Add
+       service" was indented further than the fields beneath it.
+
+       Normalise instead of special-casing: the content box carries no
+       padding, and the header and the form/body each supply the same inset.
+       `:has()` guards it — a modal with neither a form nor a `.modal-body` to
+       pad keeps its own padding rather than going flush to the edge. */
+    body[data-mobile-page="settings"] .modal-content:has(> form, > .modal-body) {
+        padding: 0 !important;
+    }
+    body[data-mobile-page="settings"] .modal-content > form,
+    body[data-mobile-page="settings"] .modal-content > .modal-body {
+        padding: 16px;
+    }
+    /* The header's inset is stated here rather than left to LAYER 3's plain
+       `.modal-header`, because that rule does not always win: inbox.css:2549
+       carries `.modal-content:has(> .modal-body) > .modal-header` at 24px,
+       which is (0,3,0) and beats it. Only the modals that HAVE a `.modal-body`
+       matched it, so three settings dialogs lined up and the Calendar's sat
+       8px further in — the kind of near-miss that looks like a one-page quirk
+       until you find the selector. Stating both insets in one place is what
+       makes "normalise" actually normalise. */
+    body[data-mobile-page="settings"] .modal-content > .modal-header {
+        padding-left: 16px;
+        padding-right: 16px;
     }
 
     /* A colour swatch is a tap target on this page (it opens the picker in the

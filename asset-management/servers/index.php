@@ -548,7 +548,7 @@ $translationNamespaces = ['common', 'asset-management'];
     </style>
     <?php /* Mobile-friendly opt-in (#937). AFTER this page's own <style> so its
              @media rules win on ties. Every rule inside is gated at 768px. */ ?>
-    <link rel="stylesheet" href="../../assets/css/mobile.css?v=39">
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=40">
 </head>
 <body>
     <?php include '../includes/header.php'; ?>

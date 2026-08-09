@@ -269,7 +269,7 @@ $translationNamespaces = ['common', 'service-status'];
         [data-theme-mode="dark"] .affected-row .remove-svc:hover { background: #3a1a1a; }
     </style>
     <!-- Mobile: LAYER 18 — board grid two-up, incidents as a card feed. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=39">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=40">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
