@@ -43,6 +43,17 @@ return [
     ],
 
     'detail' => [
+        'linked_incidents'        => 'Verknüpfte Störungen',
+        'link_incident'           => 'Störung verknüpfen',
+        'open_incident'           => 'Störung öffnen',
+        'unlink'                  => 'Verknüpfung aufheben',
+        'no_incidents'            => 'Noch keine Störungen verknüpft.',
+        'no_linkable'             => 'Keine Störungen zum Verknüpfen verfügbar.',
+        'loading'                 => 'Wird geladen…',
+        'link_search_placeholder' => 'Störungen nach Nummer oder Betreff suchen…',
+        'linked_incident'         => 'verknüpfte Störung',
+        'unlinked_incident'       => 'Verknüpfung zur Störung aufgehoben',
+        'unlink_incident_confirm' => 'Verknüpfung zu dieser Störung entfernen? Die Störung selbst wird nicht gelöscht.',
         'back'      => 'Zurück',
         'share'     => 'Teilen',
         'copy_link' => 'Link kopieren',
@@ -324,6 +335,9 @@ return [
     ],
 
     'settings' => [
+        'left_panel_intro'       => 'Legen Sie fest, wie sich die linke Leiste in der Änderungsliste verhält. Diese Einstellung wird in Ihrem Konto gespeichert.',
+        'left_panel_always_desc' => 'Die linke Leiste dauerhaft geöffnet lassen.',
+        'left_panel_hover_desc'  => 'Die linke Leiste zu einem schmalen Streifen zusammenklappen, der sich beim Überfahren ausklappt — so bleibt mehr Platz für die Liste.',
         'tab_fields'      => 'Formularfelder',
         'tab_statuses'    => 'Status',
         'tab_priorities'  => 'Prioritäten',
@@ -396,6 +410,11 @@ return [
     ],
 
     'toast' => [
+        'incident_linked'        => 'Störung verknüpft',
+        'incident_unlinked'      => 'Verknüpfung zur Störung aufgehoben',
+        'link_failed'            => 'Störung konnte nicht verknüpft werden',
+        'unlink_failed'          => 'Verknüpfung konnte nicht aufgehoben werden',
+        'load_incidents_failed'  => 'Störungen konnten nicht geladen werden',
         'change_saved'    => 'Change erfolgreich gespeichert',
         'change_deleted'  => 'Change gelöscht',
         'error_loading'   => 'Fehler beim Laden des Changes',
@@ -530,5 +549,25 @@ return [
         'tip_attachments_desc' => 'Laden Sie Screenshots, Konfigurationssicherungen oder Genehmigungs-E-Mails zusammen mit dem Change hoch.',
         'tip_audit'     => 'Prüfprotokoll',
         'tip_audit_desc' => 'Jede Feldänderung wird automatisch nachverfolgt. Sehen Sie in der Aktivitäts-Chronik, wer was und wann geändert hat.',
+    ],
+
+    // Rechtsklick-Menü in der Änderungsliste.
+    'context' => [
+        'set_status'     => 'Status setzen',
+        'set_priority'   => 'Priorität setzen',
+        'set_type'       => 'Typ setzen',
+        'set_impact'     => 'Auswirkung setzen',
+        'move_company'   => 'In Unternehmen verschieben',
+        'no_statuses'    => 'Keine Status konfiguriert',
+        'no_priorities'  => 'Keine Prioritäten konfiguriert',
+        'no_types'       => 'Keine Typen konfiguriert',
+        'no_impacts'     => 'Keine Auswirkungen konfiguriert',
+        'no_companies'   => 'Keine Unternehmen verfügbar',
+        'status_set'     => 'Status aktualisiert',
+        'priority_set'   => 'Priorität aktualisiert',
+        'type_set'       => 'Typ aktualisiert',
+        'impact_set'     => 'Auswirkung aktualisiert',
+        'update_error'   => 'Änderung konnte nicht aktualisiert werden',
+        'move_error'     => 'Änderung konnte nicht verschoben werden',
     ],
 ];

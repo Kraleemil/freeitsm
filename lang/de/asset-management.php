@@ -35,6 +35,9 @@ return [
 
     // Inline-editable asset fields (info grid + table columns)
     'field' => [
+        'asset_tag'      => 'Inventarnummer',
+        'asset_tag_ph'   => 'z. B. LT0001',
+        'assigned_user'  => 'Zugewiesener Benutzer',
         'type'             => 'Typ',
         'status'           => 'Status',
         'location'         => 'Standort',
@@ -63,6 +66,11 @@ return [
 
     // Split-pane left list
     'list' => [
+        'n_selected'      => '{count} ausgewählt',
+        'clear_selection' => 'Aufheben',
+        'print_labels'    => 'Etiketten drucken',
+        'assign_tags'     => 'Inventarnummern zuweisen',
+        'scan'            => 'Scannen',
         'search_placeholder' => 'Nach Hostname suchen...',
         'no_assets'          => 'Keine Assets gefunden',
         'count'              => '{count} Assets',
@@ -70,6 +78,8 @@ return [
 
     // Asset detail panel (right pane)
     'detail' => [
+        'print_label'  => 'Etikett drucken',
+        'tab_keyinfo'  => 'Eckdaten',
         'select_prompt'     => 'Wählen Sie ein Asset, um Details und zugewiesene Benutzer anzuzeigen',
         'service_tag'       => 'Service-Tag',
         'view_history'      => 'Verlauf anzeigen',
@@ -360,6 +370,11 @@ return [
 
     // Settings (seven tabs)
     'settings' => [
+        'asset_types_intro'      => 'Die Kategorien, in die Sie Assets einsortieren &mdash; Notebook, Desktop, Server, Monitor, Telefon und so weiter. Jedes Asset erhält einen Typ, der bestimmt, wie die Liste gruppiert und gefiltert wird.',
+        'asset_statuses_intro'   => 'Die Lebenszyklus-Zustände eines Assets &mdash; etwa Im Einsatz, Auf Lager, In Reparatur oder Ausgemustert. Jedes Asset hat genau einen Status, sodass Sie auf einen Blick sehen, wo es in seinem Leben steht.',
+        'left_panel_intro'       => 'Legen Sie fest, wie sich die linke Leiste (die Asset-Liste) verhält. Diese Einstellung wird in Ihrem Konto gespeichert.',
+        'left_panel_always_desc' => 'Die Asset-Liste dauerhaft geöffnet lassen.',
+        'left_panel_hover_desc'  => 'Die Asset-Liste zu einem schmalen Streifen zusammenklappen, der sich beim Überfahren ausklappt — so bleibt mehr Platz für die Asset-Details.',
         'title'                => 'Asset-Einstellungen',
 
         'tab_asset_types'      => 'Asset-Typen',

@@ -84,10 +84,17 @@ return [
         'cmdb'           => ['name' => 'CMDB',         'description' => 'Konfigurations-Management-Datenbank'],
         'network-mapper' => ['name' => 'Netzwerk',     'description' => 'Netzwerkdiagramme entwerfen und dokumentieren'],
         'system'         => ['name' => 'System',       'description' => 'Systemadministration und Konfiguration'],
+        // ⚠️ „Problems“ hat zusätzlich einen Kurznamen für die Waffel-Kachel —
+        // „Problemmanagement“ passt dort nicht in eine Zeile.
+        'problems'       => ['name' => 'Problemmanagement', 'name_short' => 'Probleme', 'description' => 'Die Ursache hinter wiederkehrenden Störungen verfolgen'],
+        'war-room'       => ['name' => 'Lagezentrum',  'description' => 'Ausweich-Chat für den Fall, dass Teams oder Slack nicht verfügbar sind'],
+        'workflow'       => ['name' => 'Workflows',    'description' => 'Modulübergreifende Automatisierung — Auslöser, Bedingungen, Aktionen'],
     ],
 
     // Account / user menu in the shared header
     'account' => [
+        'preferences' => 'Einstellungen',
+        'appearance'  => 'Darstellung',
         'mail_check'      => 'Auf neue E-Mails prüfen',
         'change_password' => 'Passwort ändern',
         'mfa'             => 'Multi-Faktor-Auth.',
@@ -114,6 +121,9 @@ return [
 
     // Calendar primitives — months, weekdays, navigation.
     'calendar' => [
+        'view_month' => 'Monat',
+        'view_week'  => 'Woche',
+        'view_day'   => 'Tag',
         'previous' => 'Zurück',
         'next'     => 'Weiter',
         'today'    => 'Heute',
@@ -142,5 +152,34 @@ return [
             'saturday'  => 'Samstag',
             'sunday'    => 'Sonntag',
         ],
+    ],
+
+    // Gemeinsames Bedienfeld für den KI-Anbieter (renderAiSettingsPanel).
+    // ⚠️ Anbieternamen und Produktbezeichnungen bleiben unverändert.
+    'ai' => [
+        'provider'            => 'Anbieter',
+        'provider_anthropic'  => 'Anthropic (Claude)',
+        'provider_openai'     => 'OpenAI (GPT)',
+        'provider_openrouter' => 'OpenRouter (ein Schlüssel, viele Modelle)',
+        'openrouter_note'     => 'Mit OpenRouter erreichen Sie über einen einzigen Schlüssel Hunderte von Modellen. Beachten Sie, dass die Anfragen dabei über die Server von OpenRouter laufen.',
+        'model'               => 'Modell',
+        'model_placeholder'   => 'Modell eingeben oder auswählen…',
+        'model_set'           => 'Modell',
+        'loading_models'      => 'Modellliste wird geladen…',
+        'no_models'           => 'Keine passenden Modelle — Sie können jede Modell-ID eingeben',
+        'openrouter_pricing'  => 'Preise je 1 Mio. Token (Eingang / Ausgang).',
+        'models_stale'        => 'zwischengespeichert',
+        'api_key'             => 'API-Schlüssel',
+        'api_key_help'        => 'Wird verschlüsselt gespeichert. Leer lassen, um den gespeicherten Schlüssel beizubehalten.',
+        'api_key_set'         => 'Ein Schlüssel ist gespeichert. Leer lassen, um ihn beizubehalten.',
+        'verify_ssl'          => 'SSL-Zertifikat überprüfen',
+        'verify_ssl_help'     => 'Im Produktivbetrieb eingeschaltet lassen. Nur abschalten, wenn Ihr Server das Zertifikat des Anbieters nicht prüfen kann.',
+        'save'                => 'Speichern',
+        'test'                => 'Testen',
+        'testing'             => 'Wird getestet…',
+        'test_ok'             => 'Verbindung in Ordnung',
+        'test_failed'         => 'Test fehlgeschlagen',
+        'saved'               => 'Gespeichert',
+        'save_failed'         => 'Speichern fehlgeschlagen',
     ],
 ];

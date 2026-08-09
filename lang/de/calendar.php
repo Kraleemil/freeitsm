@@ -59,6 +59,9 @@ return [
     ],
 
     'settings' => [
+        'left_panel_intro'       => 'Legen Sie fest, wie sich die linke Leiste im Kalender verhält. Diese Einstellung wird in Ihrem Konto gespeichert.',
+        'left_panel_always_desc' => 'Die linke Leiste dauerhaft geöffnet lassen.',
+        'left_panel_hover_desc'  => 'Die linke Leiste zu einem schmalen Streifen zusammenklappen, der sich beim Überfahren ausklappt — so bleibt mehr Platz für den Kalender.',
         'title'           => 'Kalendereinstellungen',
         'tab_categories'  => 'Kategorien',
         'heading'         => 'Terminkategorien',
@@ -180,5 +183,26 @@ return [
         'tips_contracts_desc'    => 'Erfassen Sie Vertragsverlängerungsdaten als ganztägige Termine. Fügen Sie den Lieferantennamen und den Vertragswert in der Beschreibung hinzu, damit die Informationen bei Verhandlungen griffbereit sind.',
         'tips_filters_title'     => 'Kategoriefilter nutzen',
         'tips_filters_desc'      => 'Wenn der Kalender voll wird, deaktivieren Sie Kategorien, die Sie nicht benötigen. Blenden Sie zum Beispiel Besprechungen aus, wenn Sie nur an anstehenden Wartungsfenstern interessiert sind.',
+    ],
+
+    // „Zum Handy hinzufügen“ — Kalenderabonnement per QR-Code.
+    'subscribe' => [
+        'heading'        => 'Zum Handy hinzufügen',
+        'intro'          => 'Fügen Sie den Teamkalender Ihrem Handy hinzu — er aktualisiert sich von selbst.',
+        'button'         => 'Abonnieren',
+        'modal_title'    => 'Zum Handy hinzufügen',
+        'modal_intro'    => 'Scannen Sie den QR-Code mit der Kamera Ihres Handys und wählen Sie dann „Abonnieren“. Der Kalender hält sich selbst aktuell.',
+        'address_label'  => 'Serveradresse',
+        'address_hint'   => 'Ihr Handy erreicht „localhost“ nicht — tragen Sie hier die Netzwerk-IP-Adresse Ihres Rechners ein (z. B. 192.168.1.50), damit das Handy sich verbinden kann. QR-Code und Link aktualisieren sich beim Tippen.',
+        'url_label'      => 'Abonnement-Link',
+        'copy'           => 'Kopieren',
+        'copied'         => 'Kopiert',
+        'ios_label'      => 'iPhone',
+        'ios_hint'       => 'Scannen Sie den QR-Code (oder tippen Sie den kopierten Link an) und wählen Sie „Abonnieren“.',
+        'android_label'  => 'Android',
+        'android_hint'   => 'Öffnen Sie Google Kalender im Browser → Weitere Kalender → Per URL, und fügen Sie den Link ein.',
+        'reset'          => 'Link zurücksetzen',
+        'reset_confirm'  => 'Ihren Kalender-Link zurücksetzen? Der aktuelle Link funktioniert dann auf allen bereits abonnierten Geräten nicht mehr.',
+        'close'          => 'Schließen',
     ],
 ];

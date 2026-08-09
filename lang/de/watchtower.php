@@ -19,6 +19,7 @@ return [
 
     // Per-module card names shown in the card header (links to each module).
     'cards' => [
+        'workflows' => 'Workflows',
         'morning_checks' => 'Morgenchecks',
         'tickets'        => 'Tickets',
         'changes'        => 'Änderungen',
@@ -223,5 +224,13 @@ return [
         's6_tip5_desc'  => 'Projizieren Sie Watchtower während Stand-ups oder betrieblichen Review-Besprechungen auf einen Bildschirm. Die farbcodierten Punkte erleichtern es, zu besprechen, welche Bereiche Aufmerksamkeit erfordern, und die Verantwortung für gelbe oder rote Einträge zuzuweisen.',
         's6_tip6_title' => 'Grün bedeutet alles in Ordnung',
         's6_tip6_desc'  => 'Wenn jeder Punkt auf dem Dashboard grün ist, ist Ihr IT-Betrieb in gutem Zustand. Keine dringenden Tickets, keine fehlgeschlagenen Checks, keine ablaufenden Verträge und alle Dienste betriebsbereit. Das ist das Ziel.',
+    ],
+
+    'workflows' => [
+        'all_clear'      => 'Keine fehlgeschlagenen Workflows',
+        'failed'         => '<span class="wt-attention-bold">{count}</span> Workflow-Lauf/-Läufe in den letzten 24 Std. fehlgeschlagen',
+        'aborted'        => '<span class="wt-attention-bold">{count}</span> Lauf/Läufe in den letzten 24 Std. durch den Schleifenschutz abgebrochen',
+        'dead_webhooks'  => '<span class="wt-attention-bold">{count}</span> Webhook(s) haben die Zustellung aufgegeben — die Nachricht kam nie an',
+        'failures'       => '{count} Fehlschlag/Fehlschläge',
     ],
 ];

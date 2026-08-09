@@ -69,6 +69,16 @@ return [
     ],
 
     'editor' => [
+        'field_audience'           => 'Wer das sehen darf',
+        'audience_internal'        => 'Nur Analysten',
+        'audience_customer'        => 'Analysten und angemeldete Kunden',
+        'audience_public'          => 'Alle, auch der Website-Chat',
+        'audience_hint_internal'   => 'Nur Ihr eigenes Team. Wird Kunden und dem Website-Chat nie angezeigt.',
+        'audience_hint_customer'   => 'Erscheint im Hilfebereich des Self-Service-Portals, sodass jede dort angemeldete Person ihn lesen kann. Der Website-Chat verwendet ihn nie, denn ein Chat-Besucher ist ein anonymer Fremder.',
+        'audience_hint_public'     => 'Der Website-Chat kann Besuchern aus diesem Artikel antworten. Markieren Sie nur das als öffentlich, was Sie einem Fremden bedenkenlos zeigen würden.',
+        'field_company'            => 'Unternehmen',
+        'company_shared'           => 'Mit allen Unternehmen geteilt',
+        'company_hint'             => 'Lassen Sie es bei „geteilt“ für alles Allgemeine. Wählen Sie ein Unternehmen, und nur dieses sieht den Artikel.',
         'new_title'        => 'Neuer Artikel',
         'edit_title'       => 'Artikel bearbeiten',
         'popout_title'     => 'Vollbildansicht umschalten',
@@ -190,6 +200,7 @@ return [
     ],
 
     'settings' => [
+        'ai_chat_heading' => 'Assistenzmodell (Chat)',
         'tab_email'      => 'E-Mail',
         'tab_ai'         => 'KI',
         'tab_embeddings' => 'Embeddings',
@@ -294,6 +305,8 @@ return [
     ],
 
     'help' => [
+        'writing_step_visibility'   => '<strong>Legen Sie fest, wer ihn sehen darf</strong> &mdash; über <em>Wer das sehen darf</em> bestimmen Sie das Publikum. <strong>Nur Analysten</strong> (die Vorgabe) hält ihn in Ihrem Team. <strong>Alle, auch der Website-Chat</strong> erlaubt dem Chat-Widget, Besuchern daraus zu antworten &mdash; wählen Sie das nur für Inhalte, die Sie einem Fremden bedenkenlos zeigen würden. Wenn Sie mehrere Unternehmen betreuen, können Sie dem Artikel zusätzlich ein <em>Unternehmen</em> zuweisen oder ihn mit allen geteilt lassen.',
+        'writing_visibility_callout'=> '<strong>Warum Ihr Chat-Widget möglicherweise nicht antwortet:</strong> Jeder Artikel beginnt als <em>Nur Analysten</em> — auch die, die vor dieser Einstellung geschrieben wurden. Der Website-Chat kann ausschließlich Artikel verwenden, die als <em>Alle, auch der Website-Chat</em> gekennzeichnet sind. Markieren Sie also einige Ihrer kundentauglichen Artikel als öffentlich, dann beginnt er, sie zu nutzen. Diese Vorgabe ist Absicht &mdash; nichts, was Sie für den internen Gebrauch geschrieben haben, wird ohne Ihr Zutun öffentlich gezeigt.',
         'guide'          => 'Leitfaden',
         'nav_overview'   => 'Überblick',
         'nav_writing'    => 'Artikel verfassen',
@@ -390,5 +403,19 @@ return [
         'tip5_desc'    => 'Verwenden Sie beim Bearbeiten eines Tickets die Schaltfläche "KI fragen", um kontextbezogene Vorschläge zu erhalten. Die KI liest die Ticketdetails und durchsucht Ihre Wissensdatenbank nach relevanten Lösungen.',
         'tip6_title'   => 'Papierkorb',
         'tip6_desc'    => 'Archivierte Artikel gehen in den Papierkorb, nicht ins Nichts. Wenn Sie versehentlich etwas archivieren, können Sie es mit einem Klick wiederherstellen. Schauen Sie regelmäßig in den Papierkorb und räumen Sie Artikel auf, die wirklich nicht mehr benötigt werden.',
+    ],
+
+    // Sammelaktion: Sichtbarkeit mehrerer Artikel auf einmal ändern.
+    'bulk' => [
+        'select_title' => 'Diesen Artikel auswählen',
+        'selected'     => '{count} Artikel ausgewählt',
+        'selected_one' => '1 Artikel ausgewählt',
+        'set_to'       => 'Festlegen, wer sie sehen darf:',
+        'apply'        => 'Anwenden',
+        'applying'     => 'Wird angewendet...',
+        'select_all'   => 'Alle auswählen',
+        'done'         => '{count} Artikel aktualisiert',
+        'partial'      => '{updated} aktualisiert; {failed} konnten nicht geändert werden (sie gehören möglicherweise zu einem Unternehmen, auf das Sie keinen Zugriff haben)',
+        'failed'       => 'Die ausgewählten Artikel konnten nicht aktualisiert werden',
     ],
 ];
