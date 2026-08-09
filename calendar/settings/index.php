@@ -182,10 +182,16 @@ $translationNamespaces = ['common', 'calendar'];
     </style>
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
+    <!-- Mobile: LAYER 15e handles the page frame (container, tab strip, fields)
+         for any settings page built on .container + renderSettingsTabBar, which
+         is why <body> below carries the marker attribute. LAYER 16i adds what
+         15e doesn't reach — the .lookup-table, which sits straight inside a
+         .tab-content and becomes a card feed rather than a sideways scroll. -->
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=33">
     <script src="../../assets/js/tz.js?v=1"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
 </head>
-<body>
+<body data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
 
     <div class="container">
@@ -517,5 +523,6 @@ $translationNamespaces = ['common', 'calendar'];
             return div.innerHTML;
         }
     </script>
+    <script src="../../assets/js/mobile.js?v=16"></script>
 </body>
 </html>

@@ -31,6 +31,9 @@ $translationNamespaces = ['common', 'calendar'];
            (modal .btn-primary, input focus rings, confirm dialog) are on-brand. */
         body { --accent: var(--cal-accent, #ef6c00); --accent-hover: var(--cal-accent-hover, #e65100); }
     </style>
+    <!-- Mobile-friendly overrides (LAYER 16). Linked LAST of the stylesheets so
+         its @media rules win ties against the module CSS and the block above. -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=33">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
@@ -298,5 +301,7 @@ $translationNamespaces = ['common', 'calendar'];
         });
     })();
     </script>
+    <!-- Loaded last so it can wrap the calendar's own globals. -->
+    <script src="../assets/js/mobile.js?v=16"></script>
 </body>
 </html>

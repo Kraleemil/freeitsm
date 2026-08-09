@@ -85,6 +85,18 @@
     // ------------------------------------------------------------------
     if (document.querySelector('.assets-container')) { initAssetsMobile(); return; }
 
+    // ------------------------------------------------------------------
+    // CALENDAR (#998) — the third module.
+    //
+    // No pane stack at all: a calendar is one surface. The mobile job is to
+    // get the sidebar off the screen (into a sheet), and to turn a tapped day
+    // into an agenda, because LAYER 16b renders month events as dots with no
+    // text. Guarded on #calendarGrid, not just .calendar-container, because
+    // the module's other pages (table / settings) share the header but have
+    // no grid to drive.
+    // ------------------------------------------------------------------
+    if (document.getElementById('calendarGrid')) { initCalendarMobile(); return; }
+
     // Flat pages (Assets' table view, dashboard, settings, servers — #937) have
     // no pane stack: the shell above is the whole of their JS. The servers page
     // is the reason this test isn't just `!mc` — it DOES carry .main-container
@@ -156,6 +168,271 @@
         syncAssetsBar();
         if (mq.addEventListener) { mq.addEventListener('change', syncAssetsBar); }
         else if (mq.addListener) { mq.addListener(syncAssetsBar); }
+    }
+
+    /* ==================================================================
+       CALENDAR (#998)
+
+       Paired with mobile.css LAYER 16. Same wrap-don't-edit contract as the
+       other two modules: itsm_calendar.js is never touched. It is a classic
+       script, so its top-level `let`/`const` (currentView, events, MONTHS)
+       are readable here as bare identifiers, and its `function` declarations
+       (openEventModal, getEventsForDate, …) are window properties we can wrap.
+
+       Three pieces:
+         1. a sub-bar carrying the two actions the hidden sidebar owned;
+         2. an OPTIONS sheet holding the relocated sidebar itself;
+         3. an AGENDA sheet — the other half of the dots decision. A month
+            cell shows coloured dots and no text, so tapping the day has to
+            answer "what are they?". It replaces the desktop behaviour of
+            tapping a day (which opens a blank New-event form) — that action
+            moves to a button inside the agenda, pre-filled with the day.
+       ================================================================== */
+    function initCalendarMobile() {
+        var container = document.querySelector('.calendar-container');
+        if (!container) return;
+
+        /* Prefer the module's own translations; fall back only if a key is
+           missing (i18n's lookup echoes the key back when it can't resolve). */
+        function tr(key, fallback) {
+            if (typeof window.t !== 'function') return fallback;
+            var v = window.t(key);
+            return (!v || v === key) ? fallback : v;
+        }
+
+        // ---- sub-bar: the two actions the hidden sidebar used to carry ----
+        var bar = document.createElement('div');
+        bar.className = 'mobile-subbar';
+        bar.style.display = 'none';          // @media CSS can't hide injected chrome
+        var optLabel = tr('calendar.sidebar.categories', 'Categories');
+        var newLabel = tr('calendar.sidebar.new_event', 'New event');
+        bar.innerHTML =
+            '<button type="button" class="msb-calopts">⚙ <span></span></button>' +
+            '<button type="button" class="msb-new">+ <span></span></button>';
+        bar.querySelector('.msb-calopts span').textContent = optLabel;
+        bar.querySelector('.msb-new span').textContent = newLabel;
+        bar.querySelector('.msb-calopts').setAttribute('aria-label', optLabel);
+        bar.querySelector('.msb-new').setAttribute('aria-label', newLabel);
+        container.parentNode.insertBefore(bar, container);
+
+        // ---- sheet chrome (LAYER 7's .mobile-sheet, built twice) ----
+        function buildSheet(cls, title) {
+            var s = document.createElement('div');
+            s.className = 'mobile-sheet mobile-sheet-' + cls;
+            s.style.display = 'none';        // as above — inline, not @media
+            s.innerHTML =
+                '<div class="ms-head"><span class="ms-title"></span>' +
+                '<button type="button" class="ms-close"></button></div>' +
+                '<div class="ms-body"></div>';
+            s.querySelector('.ms-title').textContent = title;
+            s.querySelector('.ms-close').textContent = tr('calendar.subscribe.close', 'Close');
+            s.querySelector('.ms-close').addEventListener('click', closeSheet);
+            document.body.appendChild(s);
+            return s;
+        }
+        var optsSheet = buildSheet('calopts', optLabel);
+        var daySheet  = buildSheet('calday', '');
+
+        /* Opening a sheet pushes a history entry so the DEVICE BACK BUTTON
+           closes it, the same move that makes the ticket pane stack feel
+           native rather than like a resized website. */
+        function openSheet(el) {
+            el.style.display = 'flex';
+            history.pushState({ calSheet: true }, '');
+        }
+        function hideSheets() {
+            optsSheet.style.display = 'none';
+            daySheet.style.display = 'none';
+        }
+        function closeSheet() {
+            if (history.state && history.state.calSheet) history.back();
+            else hideSheets();
+        }
+        window.addEventListener('popstate', function () { hideSheets(); });
+
+        // ---- 1. options sheet = the real sidebar, moved ----
+        /* Relocated rather than rebuilt so `#categoryFilterList` keeps its id
+           and renderCategoryFilters() still finds it, and so the subscribe
+           block keeps its own wiring. Moved lazily on first open and moved
+           BACK when the viewport leaves mobile, so resizing a desktop browser
+           through the breakpoint can't strand the sidebar inside a hidden
+           sheet (16a hides it in the container). */
+        function sidebarIntoSheet() {
+            var sb = container.querySelector('.calendar-sidebar');
+            if (!sb) return;                                  // already moved
+            // The sidebar's own New-event button duplicates the sub-bar's.
+            var dup = sb.querySelector('.sidebar-section .btn-full[onclick*="openEventModal"]');
+            if (dup && dup.parentNode) dup.parentNode.classList.add('mc-dup');
+            optsSheet.querySelector('.ms-body').appendChild(sb);
+        }
+        function sidebarBackToPage() {
+            var sb = optsSheet.querySelector('.calendar-sidebar');
+            if (sb) container.insertBefore(sb, container.firstChild);
+        }
+        bar.querySelector('.msb-calopts').addEventListener('click', function () {
+            sidebarIntoSheet();
+            openSheet(optsSheet);
+        });
+
+        // ---- 2. New event: straight through to the module's own modal ----
+        bar.querySelector('.msb-new').addEventListener('click', function () {
+            if (typeof _openEventModal === 'function') _openEventModal();
+        });
+
+        // ---- 3. agenda sheet for a tapped day ----
+        var agendaDate = null;
+
+        function localDateLabel(dateStr) {
+            var d = new Date(dateStr + 'T00:00:00');
+            if (isNaN(d.getTime())) return dateStr;
+            /* toLocaleDateString against the page's own lang gives a properly
+               localised date in all 24 locales — better than the module's
+               hardcoded English DAYS/MONTHS arrays, and it needs no new keys. */
+            try {
+                return d.toLocaleDateString(document.documentElement.lang || undefined,
+                    { weekday: 'short', day: 'numeric', month: 'long' });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function renderAgenda() {
+            if (!agendaDate) return;
+            var body = daySheet.querySelector('.ms-body');
+            body.innerHTML = '';
+            daySheet.querySelector('.ms-title').textContent = localDateLabel(agendaDate);
+
+            var list = (typeof window.getEventsForDate === 'function')
+                ? window.getEventsForDate(agendaDate) : [];
+
+            list.forEach(function (ev) {
+                var row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'mc-ag-item';
+
+                var dot = document.createElement('span');
+                dot.className = 'mc-ag-dot';
+                dot.style.backgroundColor = ev.category_color || '#ef6c00';
+                row.appendChild(dot);
+
+                var main = document.createElement('div');
+                main.className = 'mc-ag-main';
+                /* textContent throughout — no escapeHtml/innerHTML round trip. */
+                var title = document.createElement('div');
+                title.className = 'mc-ag-title';
+                title.textContent = ev.title || '';
+                main.appendChild(title);
+
+                if (typeof window.formatEventTime === 'function') {
+                    var time = document.createElement('div');
+                    time.className = 'mc-ag-time';
+                    // The module's own formatter, so the agenda reads exactly
+                    // like the rest of the calendar (one formatter, not two).
+                    time.textContent = window.formatEventTime(ev);
+                    main.appendChild(time);
+                }
+                if (ev.location) {
+                    var loc = document.createElement('div');
+                    loc.className = 'mc-ag-loc';
+                    loc.textContent = ev.location;
+                    main.appendChild(loc);
+                }
+                if (ev.category_name) {
+                    var cat = document.createElement('div');
+                    cat.className = 'mc-ag-cat';
+                    cat.textContent = ev.category_name;
+                    main.appendChild(cat);
+                }
+                row.appendChild(main);
+
+                // Tapping a row opens the module's edit modal ON TOP of the
+                // sheet (.modal is z-index 2000 vs the sheet's 1500), so
+                // closing it drops you back into the agenda you came from.
+                row.addEventListener('click', function () {
+                    if (typeof _openEventModal === 'function') _openEventModal(ev.id);
+                });
+                body.appendChild(row);
+            });
+
+            /* No "no events" line: it would be a new string, and an EN-only
+               key falls back silently in the other 23 locales. On an empty day
+               the date heading plus this button say it well enough. */
+            var add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'mc-ag-new';
+            add.textContent = '+ ' + newLabel;
+            add.addEventListener('click', function () {
+                if (typeof _openEventModal === 'function') _openEventModal(null, agendaDate);
+            });
+            body.appendChild(add);
+        }
+
+        function openDaySheet(dateStr) {
+            agendaDate = dateStr;
+            renderAgenda();
+            openSheet(daySheet);
+        }
+
+        // ---- wrap the module's globals (never edit itsm_calendar.js) ----
+        var _openEventModal = window.openEventModal;
+        if (typeof _openEventModal === 'function') {
+            window.openEventModal = function (eventId, dateStr, hour) {
+                /* Only the month grid's day-cell click is redirected: it is the
+                   one call that means "I tapped a day", and on mobile that has
+                   to answer the dots rather than open a blank form. Every other
+                   caller passes an id (edit), an hour (a week/day time slot) or
+                   nothing at all (New event) and goes straight through. */
+                if (mq.matches && !eventId && dateStr &&
+                    (hour === null || hour === undefined) &&
+                    typeof currentView !== 'undefined' && currentView === 'month') {
+                    openDaySheet(dateStr);
+                    return;
+                }
+                return _openEventModal.apply(this, arguments);
+            };
+        }
+
+        /* Week and day views are 24 rows of 60px and open at the top, so a
+           phone lands on 12 AM — three screens above anything that happens in
+           a working day. On a desktop pane you at least see through to ~10 AM;
+           at 360px you see 12 AM to 6 AM and nothing else. Scroll to 7 AM after
+           a render. Mobile only: the desktop start position is untouched. */
+        function scrollToWorkingHours() {
+            if (!mq.matches) return;
+            var body = document.querySelector('.week-body, .day-body');
+            if (body && body.scrollTop === 0) body.scrollTop = 7 * 60;
+        }
+
+        // Saving, deleting or filtering re-renders the calendar and reloads
+        // `events`; if the agenda is open behind the modal it would still be
+        // showing the old list, so refresh it off the same promise.
+        if (typeof window.renderCalendar === 'function') {
+            var _renderCalendar = window.renderCalendar;
+            window.renderCalendar = function () {
+                var r = _renderCalendar.apply(this, arguments);
+                var after = function () {
+                    if (mq.matches && daySheet.style.display === 'flex') renderAgenda();
+                    scrollToWorkingHours();
+                };
+                if (r && typeof r.then === 'function') r.then(after); else after();
+                return r;
+            };
+        }
+
+        function syncCalendarBar() {
+            var on = mq.matches;
+            bar.style.display = on ? 'flex' : 'none';
+            var vb = document.querySelector('.mobile-views-btn');
+            if (vb) vb.style.display = on ? '' : 'none';
+            if (!on) {
+                document.body.classList.remove('mobile-views-open');
+                hideSheets();
+                sidebarBackToPage();
+            }
+        }
+        syncCalendarBar();
+        if (mq.addEventListener) { mq.addEventListener('change', syncCalendarBar); }
+        else if (mq.addListener) { mq.addListener(syncCalendarBar); }
     }
 
     // ---- pane state, mirrored on <body> so CSS ancestor selectors can react ----
