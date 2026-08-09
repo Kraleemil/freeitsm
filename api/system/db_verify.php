@@ -791,6 +791,11 @@ try {
             // Retention deletes by age across every channel at once.
             try { $conn->exec("ALTER TABLE warroom_messages ADD KEY ix_warroom_messages_created (created_datetime)"); } catch (Exception $e) {}
         }
+        if ($colExists('warroom_messages', 'reply_to_id') && !$idxExists('warroom_messages', 'ix_warroom_messages_reply')) {
+            // Warbot's reply points at the message it answers; the lookup is also
+            // what stops a retried trigger posting the same answer twice.
+            try { $conn->exec("ALTER TABLE warroom_messages ADD KEY ix_warroom_messages_reply (reply_to_id)"); } catch (Exception $e) {}
+        }
         if ($tableExists('warroom_channels') && !$fkExists('warroom_messages', 'fk_warroom_messages_channel')) {
             try { $conn->exec("ALTER TABLE warroom_messages ADD CONSTRAINT fk_warroom_messages_channel FOREIGN KEY (channel_id) REFERENCES warroom_channels (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }

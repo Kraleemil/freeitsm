@@ -44,6 +44,16 @@ const WARROOM_PRESENCE_WINDOW_SECONDS = 90;
 /** Hard cap on one message, so a paste of a log file can't wedge the page. */
 const WARROOM_MAX_BODY = 4000;
 
+/**
+ * What Warbot is called on screen.
+ *
+ * Declared HERE rather than in warbot/warbot.php on purpose: the message reader
+ * below needs it to label a bot message, and warroom.php must not depend on the
+ * bot — the chat has to work with Warbot switched off entirely. warbot.php
+ * requires this file, so it inherits the constant rather than owning it.
+ */
+const WARBOT_NAME = 'Warbot';
+
 /** Attachments per message. Enough for a screenshot set, not a file share. */
 const WARROOM_MAX_ATTACHMENTS = 5;
 
@@ -453,7 +463,8 @@ function warRoomMessages(PDO $conn, int $channelId, int $sinceId = 0, int $limit
         : '';
 
     $cols = "m.id, m.body, m.created_datetime, m.analyst_id, a.full_name,
-             m.edited_datetime, m.deleted_datetime, d.full_name AS deleted_by_name";
+             m.edited_datetime, m.deleted_datetime, d.full_name AS deleted_by_name,
+             m.is_bot, m.reply_to_id";
     $joins = "LEFT JOIN analysts a ON a.id = m.analyst_id
               LEFT JOIN analysts d ON d.id = m.deleted_by";
 
@@ -489,9 +500,17 @@ function warRoomMessages(PDO $conn, int $channelId, int $sinceId = 0, int $limit
         $rows[$id] = [
             'id'          => $id,
             'body'        => $r['deleted_datetime'] !== null ? '' : $r['body'],
-            'author'      => $r['full_name'] !== null
-                ? $r['full_name']
-                : (function_exists('t') ? t('war-room.former_analyst') : 'Former analyst'),
+            // ⚠️ analyst_id NULL means TWO different things, and telling them
+            // apart is what is_bot is for: a deleted account, or Warbot, which
+            // never had one. Without the flag every Warbot message would render
+            // as "Former analyst".
+            'author'      => !empty($r['is_bot'])
+                ? WARBOT_NAME
+                : ($r['full_name'] !== null
+                    ? $r['full_name']
+                    : (function_exists('t') ? t('war-room.former_analyst') : 'Former analyst')),
+            'is_bot'      => !empty($r['is_bot']),
+            'reply_to'    => $r['reply_to_id'] !== null ? (int) $r['reply_to_id'] : null,
             'analyst_id'  => $r['analyst_id'] !== null ? (int) $r['analyst_id'] : null,
             'created'     => $r['created_datetime'],
             'edited'      => $r['edited_datetime'] !== null,

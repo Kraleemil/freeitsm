@@ -254,6 +254,7 @@ return [
     ['warroom_channel_members', 'ix_warroom_member_analyst', 'key', '(`analyst_id`)'],
     ['warroom_messages', 'ix_warroom_messages_channel', 'key', '(`channel_id`,`id`)'],
     ['warroom_messages', 'ix_warroom_messages_created', 'key', '(`created_datetime`)'],
+    ['warroom_messages', 'ix_warroom_messages_reply', 'key', '(`reply_to_id`)'],
     ['warroom_attachments', 'ix_warroom_attachments_message', 'key', '(`message_id`)'],
     ['warroom_attachments', 'ix_warroom_attachments_stored', 'key', '(`stored_name`)'],
     ['warroom_mentions', 'uq_warroom_mention', 'unique', '(`message_id`,`analyst_id`)'],

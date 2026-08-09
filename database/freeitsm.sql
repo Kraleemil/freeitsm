@@ -4360,6 +4360,8 @@ CREATE TABLE IF NOT EXISTS `warroom_messages` (
     `analyst_id`       INT NULL,
     `body`             TEXT NOT NULL,
     `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_bot`           TINYINT(1) NOT NULL DEFAULT 0,
+    `reply_to_id`      INT NULL,
     `edited_datetime`  DATETIME NULL,
     `deleted_datetime` DATETIME NULL,
     `deleted_by`       INT NULL,
@@ -4368,6 +4370,9 @@ CREATE TABLE IF NOT EXISTS `warroom_messages` (
     KEY `ix_warroom_messages_channel` (`channel_id`, `id`),
     -- Retention deletes by age across every channel at once.
     KEY `ix_warroom_messages_created` (`created_datetime`),
+    -- Warbot's reply points at the message it answers, which is also how a
+    -- duplicate answer is prevented when the trigger is retried.
+    KEY `ix_warroom_messages_reply` (`reply_to_id`),
     CONSTRAINT `fk_warroom_messages_channel` FOREIGN KEY (`channel_id`) REFERENCES `warroom_channels` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_warroom_messages_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_warroom_messages_deleter` FOREIGN KEY (`deleted_by`) REFERENCES `analysts` (`id`) ON DELETE SET NULL

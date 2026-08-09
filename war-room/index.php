@@ -86,7 +86,7 @@ foreach ($channels as $ch) {
     <title>Service Desk - <?php echo htmlspecialchars(t('war-room.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=22">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
-    <link rel="stylesheet" href="../assets/css/war-room.css?v=4">
+    <link rel="stylesheet" href="../assets/css/war-room.css?v=5">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=43">
     <style>
         /* Pin the shared accent to the module's amber so buttons and focus
@@ -221,7 +221,7 @@ foreach ($channels as $ch) {
         window.WR_PREF_URL  = '<?php echo BASE_URL; ?>api/system/set_user_preference.php';
         window.WR_MENTION_STYLE = <?php echo json_encode($mentionStyle); ?>;
     </script>
-    <script src="../assets/js/war-room.js?v=6"></script>
+    <script src="../assets/js/war-room.js?v=7"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
 </body>
 </html>

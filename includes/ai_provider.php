@@ -149,6 +149,202 @@ function aiProviderCallOpenAICompatible(string $base, string $model, string $api
 }
 
 /**
+ * ─── Tool calling ────────────────────────────────────────────────────────────
+ *
+ * A conversation where the model may ask us to run something and then answer
+ * using the result. Everything above is single-turn; this is the loop.
+ *
+ * Deliberately ADDITIVE — aiProviderChat() and its two callees are untouched, so
+ * the eight existing AI features cannot be affected by anything here.
+ *
+ * The two wire formats differ more than they look:
+ *
+ *   Anthropic  tools:[{name,description,input_schema}]; the reply carries
+ *              content blocks of type tool_use; the result goes back as a USER
+ *              message containing tool_result blocks, and the assistant's own
+ *              turn must be echoed back verbatim first.
+ *   OpenAI     tools:[{type:'function',function:{...,parameters}}]; the reply
+ *              carries message.tool_calls with arguments as a JSON STRING; each
+ *              result goes back as its own message with role:'tool'.
+ *
+ * $runTool receives (string $name, array $args) and returns a string — whatever
+ * the model should see. It must NEVER throw: a tool that fails should say so in
+ * words, because "the CMDB lookup failed" is a useful thing for the model to
+ * tell the reader, and an exception here would lose the whole conversation.
+ *
+ * @param array    $tools    [['name'=>…,'description'=>…,'schema'=>[JSON Schema]], …]
+ * @param callable $runTool  fn(string $name, array $args): string
+ * @return array ['content','calls'=>[['name','args','result'],…],'tokens_in','tokens_out','provider','model','duration_ms']
+ */
+function aiProviderChatTools(array $cfg, array $opts, array $tools, callable $runTool): array
+{
+    $provider = $cfg['provider'] ?? 'anthropic';
+    $model    = trim((string)($cfg['model'] ?? ''));
+    $apiKey   = (string)($cfg['api_key'] ?? '');
+    $verify   = !empty($cfg['verify_ssl']);
+
+    if (!in_array($provider, AI_PROVIDER_VALID, true)) throw new RuntimeException('Unknown AI provider: ' . $provider);
+    if ($apiKey === '') throw new RuntimeException('No API key configured.');
+    if ($model  === '') throw new RuntimeException('No model configured.');
+
+    // A hard ceiling on round trips. A model that keeps asking for tools would
+    // otherwise loop until the request times out — during an incident, on the
+    // box everyone is relying on.
+    $maxRounds  = max(1, min(6, (int)($opts['max_rounds'] ?? 4)));
+    $maxTokens  = $opts['max_tokens']  ?? 1024;
+    $temperature = $opts['temperature'] ?? 0.0;
+
+    $start = microtime(true);
+    $calls = [];
+    $tokIn = 0;
+    $tokOut = 0;
+
+    if ($provider === 'anthropic') {
+        $messages = [['role' => 'user', 'content' => (string)($opts['user'] ?? '')]];
+        $wire = array_map(function ($t) {
+            return ['name' => $t['name'], 'description' => $t['description'], 'input_schema' => $t['schema']];
+        }, $tools);
+
+        for ($round = 0; $round < $maxRounds; $round++) {
+            $body = json_encode([
+                'model'       => $model,
+                'max_tokens'  => $maxTokens,
+                'temperature' => $temperature,
+                'system'      => (string)($opts['system'] ?? ''),
+                'tools'       => $wire,
+                'messages'    => $messages,
+            ]);
+            $resp = aiProviderHttpPost(AI_ANTHROPIC_URL, [
+                'x-api-key: ' . $apiKey,
+                'anthropic-version: 2023-06-01',
+                'content-type: application/json',
+            ], $body, $verify);
+            $data = $resp['data'];
+
+            $tokIn  += (int)($data['usage']['input_tokens']  ?? 0);
+            $tokOut += (int)($data['usage']['output_tokens'] ?? 0);
+
+            $text = '';
+            $toolUses = [];
+            foreach (($data['content'] ?? []) as $block) {
+                if (($block['type'] ?? '') === 'text')     $text .= $block['text'];
+                if (($block['type'] ?? '') === 'tool_use') $toolUses[] = $block;
+            }
+
+            if (!$toolUses) {
+                return aiToolsResult(trim($text), $calls, $tokIn, $tokOut, $provider, $model, $start);
+            }
+
+            // The assistant's turn goes back exactly as received, or the API
+            // rejects the tool_result that follows it.
+            //
+            // ⚠️ EXCEPT FOR ONE THING, AND IT IS A PHP TRAP RATHER THAN AN API ONE.
+            // A tool that takes no arguments arrives as "input": {}. json_decode
+            // with assoc=true turns that into an EMPTY PHP ARRAY, and re-encoding
+            // an empty array produces [] — a JSON array. Anthropic then rejects
+            // the echoed turn with:
+            //   messages.N.content.M.tool_use.input: Input should be an object
+            // The failure is intermittent in the worst way: it only happens once
+            // the model reaches for a parameterless tool, so it looks like a flaky
+            // provider rather than a bug. Cast every tool_use input back to an
+            // object before sending it home.
+            $echo = $data['content'];
+            foreach ($echo as $i => $block) {
+                if (($block['type'] ?? '') === 'tool_use') {
+                    $echo[$i]['input'] = (object) ($block['input'] ?? []);
+                }
+            }
+            $messages[] = ['role' => 'assistant', 'content' => $echo];
+
+            $results = [];
+            foreach ($toolUses as $u) {
+                $out = (string) $runTool((string)$u['name'], (array)($u['input'] ?? []));
+                $calls[] = ['name' => $u['name'], 'args' => $u['input'] ?? [], 'result' => $out];
+                $results[] = ['type' => 'tool_result', 'tool_use_id' => $u['id'], 'content' => $out];
+            }
+            $messages[] = ['role' => 'user', 'content' => $results];
+        }
+
+        // Out of rounds. Return what we have rather than nothing.
+        return aiToolsResult('', $calls, $tokIn, $tokOut, $provider, $model, $start);
+    }
+
+    // ── OpenAI-compatible (openai, openrouter) ──
+    $base = $provider === 'openrouter'
+        ? ($cfg['base_url'] ?? AI_OPENROUTER_BASE)
+        : ($cfg['base_url'] ?? AI_OPENAI_BASE);
+    $extraHeaders = [];
+    if ($provider === 'openrouter') {
+        $extraHeaders[] = 'HTTP-Referer: ' . ($opts['referer'] ?? 'https://freeitsm.co.uk');
+        $extraHeaders[] = 'X-Title: ' . ($opts['title'] ?? 'FreeITSM');
+    }
+
+    $messages = [
+        ['role' => 'system', 'content' => (string)($opts['system'] ?? '')],
+        ['role' => 'user',   'content' => (string)($opts['user']   ?? '')],
+    ];
+    $wire = array_map(function ($t) {
+        return ['type' => 'function', 'function' => [
+            'name' => $t['name'], 'description' => $t['description'], 'parameters' => $t['schema'],
+        ]];
+    }, $tools);
+
+    for ($round = 0; $round < $maxRounds; $round++) {
+        $body = json_encode([
+            'model'       => $model,
+            'max_tokens'  => $maxTokens,
+            'temperature' => $temperature,
+            'tools'       => $wire,
+            'messages'    => $messages,
+        ]);
+        $resp = aiProviderHttpPost(rtrim($base, '/') . '/chat/completions', array_merge([
+            'Authorization: Bearer ' . $apiKey,
+            'content-type: application/json',
+        ], $extraHeaders), $body, $verify);
+        $data = $resp['data'];
+
+        $tokIn  += (int)($data['usage']['prompt_tokens']     ?? 0);
+        $tokOut += (int)($data['usage']['completion_tokens'] ?? 0);
+
+        $msg   = $data['choices'][0]['message'] ?? [];
+        $tcs   = $msg['tool_calls'] ?? [];
+
+        if (!$tcs) {
+            return aiToolsResult(trim((string)($msg['content'] ?? '')), $calls, $tokIn, $tokOut, $provider, $model, $start);
+        }
+
+        $messages[] = $msg;
+        foreach ($tcs as $tc) {
+            $name = (string)($tc['function']['name'] ?? '');
+            // ⚠️ arguments arrive as a JSON STRING here, not an object — decoding
+            // it is not optional, and a model occasionally sends '' for a tool
+            // that takes none.
+            $args = json_decode((string)($tc['function']['arguments'] ?? '{}'), true);
+            if (!is_array($args)) $args = [];
+            $out = (string) $runTool($name, $args);
+            $calls[] = ['name' => $name, 'args' => $args, 'result' => $out];
+            $messages[] = ['role' => 'tool', 'tool_call_id' => $tc['id'] ?? '', 'content' => $out];
+        }
+    }
+
+    return aiToolsResult('', $calls, $tokIn, $tokOut, $provider, $model, $start);
+}
+
+/** Shared return shape for aiProviderChatTools. */
+function aiToolsResult(string $content, array $calls, int $tokIn, int $tokOut, string $provider, string $model, float $start): array
+{
+    return [
+        'content'     => $content,
+        'calls'       => $calls,
+        'tokens_in'   => $tokIn,
+        'tokens_out'  => $tokOut,
+        'provider'    => $provider,
+        'model'       => $model,
+        'duration_ms' => (int)((microtime(true) - $start) * 1000),
+    ];
+}
+
+/**
  * POST with retry/backoff on 429 / 5xx / network errors. Ported from
  * rfpAiHttpPostWithRetry so this file stands alone.
  */

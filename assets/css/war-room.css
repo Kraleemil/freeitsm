@@ -233,6 +233,33 @@
 .wr-ac-item.active,
 .wr-ac-item:hover { background: var(--surface-hover, #f2f2f2); }
 
+/* ---- Warbot ----
+   Tinted and edged so a machine's answer is visually distinct from a person's
+   at a glance, without shouting. The label does the actual work; the tint just
+   groups the block. */
+.wr-msg-bot {
+    margin: 6px 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--accent, #ea580c);
+    border-radius: 0 6px 6px 0;
+    background: var(--surface-hover, #fafafa);
+}
+.wr-msg-bot .wr-msg-body {
+    white-space: pre-wrap;      /* the tools return lists; keep their lines */
+    overflow-wrap: anywhere;
+}
+.wr-bot-tag {
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--accent, #ea580c);
+    color: var(--on-accent, #fff);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.wr-bot-thinking { opacity: 0.75; }
+
 /* ---- edit / delete ---- */
 /* The composer is the positioning context for the @ picker above. */
 .wr-composer { position: relative; }

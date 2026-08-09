@@ -2980,6 +2980,8 @@ return [
         'analyst_id'       => 'INT NULL',
         'body'             => 'TEXT NOT NULL',
         'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_bot'           => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'reply_to_id'      => 'INT NULL',
         'edited_datetime'  => 'DATETIME NULL',
         'deleted_datetime' => 'DATETIME NULL',
         'deleted_by'       => 'INT NULL',

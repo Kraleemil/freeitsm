@@ -182,11 +182,15 @@
     /* ── messages ──────────────────────────────────────────────────────────── */
 
     function renderMessage(m) {
-        var row = el('div', 'wr-msg' + (m.deleted ? ' wr-msg-deleted' : ''));
+        var row = el('div', 'wr-msg' + (m.deleted ? ' wr-msg-deleted' : '') + (m.is_bot ? ' wr-msg-bot' : ''));
         row.setAttribute('data-msg-id', m.id);
 
         var head = el('div', 'wr-msg-head');
         head.appendChild(el('span', 'wr-msg-author', m.author));
+        // Labelled, always. Somebody arriving mid-incident must not mistake a
+        // machine's answer for a colleague's — especially when the answer is
+        // about to be repeated to the business.
+        if (m.is_bot) head.appendChild(el('span', 'wr-bot-tag', t('war-room.warbot.tag')));
         head.appendChild(el('span', 'wr-msg-time', localTime(m.created)));
         // Both are stated, never silent: this is the record of an incident, and a
         // reader has to be able to tell a message that changed from one that did not.
@@ -202,6 +206,10 @@
         var body = el('div', 'wr-msg-body');
         renderBodyWithMentions(body, m.body);
         row.appendChild(body);
+
+        // Nobody owns Warbot's messages, so nobody gets the edit/delete controls
+        // on one except somebody who can moderate the room.
+        if (m.is_bot && !canManage) return row;
 
         // Edit and delete belong to the author; delete also to war_room.manage.
         // Rendered per message rather than in a menu, because a message you can act
@@ -294,6 +302,7 @@
 
     function nameKnown(name) {
         var n = name.toLowerCase().trim();
+        if (n === 'warbot') return true;          // highlighted like any other name
         return allNames.some(function (p) {
             return p.full === n || p.first === n;
         });
@@ -467,6 +476,9 @@
         // @everyone is offered alongside people, because in an outage it is the one
         // you most often want and hunting for it in a menu is the wrong cost.
         if (!q || 'everyone'.indexOf(q) === 0) acMatches.unshift({ id: 0, name: 'everyone', all: true });
+        // Warbot sits at the top: it is the name most often typed and the one
+        // people will not think to look for.
+        if (!q || 'warbot'.indexOf(q) === 0) acMatches.unshift({ id: -1, name: 'Warbot', bot: true });
 
         if (!acMatches.length) { acHide(); return; }
         acIndex = 0;
@@ -475,6 +487,7 @@
             var opt = el('button', 'wr-ac-item' + (i === 0 ? ' active' : ''));
             opt.type = 'button';
             opt.appendChild(el('span', null, p.all ? '@everyone' : p.name));
+            if (p.bot)  opt.appendChild(el('span', 'wr-bot-tag', t('war-room.warbot.tag')));
             if (p.here) opt.appendChild(el('span', 'wr-here-dot', '•'));
             opt.addEventListener('mousedown', function (e) { e.preventDefault(); acAccept(i); });
             acBox.appendChild(opt);
@@ -705,9 +718,52 @@
                     }));
                 }
                 poll();
+                // Warbot is asked for AFTER the send returns, not inside it: an
+                // answer can take several model round trips, and no message in the
+                // room should wait for one. The endpoint re-checks everything and
+                // refuses to answer the same message twice, so triggering it from
+                // here is safe even though anyone could.
+                if (addressesWarbot(body) && d.id) askWarbot(d.id);
             })
             .catch(function () { alert(t('war-room.error.send')); })
             .then(done, done);
+    }
+
+    /* ── Warbot ────────────────────────────────────────────────────────────── */
+
+    // Kept in step with warbotIsAddressed() and warbotCommands() on the server.
+    // If they ever disagree the server wins: it re-checks before answering, so
+    // the worst a mismatch here causes is a wasted request or a missed trigger.
+    var WARBOT_COMMANDS = /^\s*\/(p1|open|status|changes|oncall|asset|impact|kb|help)\b/i;
+    function addressesWarbot(text) {
+        return /@warbot\b/i.test(text) || WARBOT_COMMANDS.test(text);
+    }
+
+    function askWarbot(messageId) {
+        // A "thinking" line, removed by the next poll when the real answer lands.
+        // Without it the room looks like Warbot ignored you for several seconds,
+        // which during an incident is exactly when people give up on a tool.
+        var pending = el('div', 'wr-msg wr-msg-bot wr-bot-thinking');
+        var head = el('div', 'wr-msg-head');
+        head.appendChild(el('span', 'wr-msg-author', 'Warbot'));
+        head.appendChild(el('span', 'wr-bot-tag', t('war-room.warbot.tag')));
+        pending.appendChild(head);
+        pending.appendChild(el('div', 'wr-msg-body wr-muted', t('war-room.warbot.thinking')));
+        els.wrMessages.appendChild(pending);
+        els.wrMessages.scrollTop = els.wrMessages.scrollHeight;
+
+        fetch(api + 'warbot.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message_id: messageId })
+        })
+            .then(function (r) { return r.json(); })
+            .catch(function () { /* the poll will show whatever did or did not land */ })
+            .then(function () {
+                if (pending.parentNode) pending.parentNode.removeChild(pending);
+                poll();
+            });
     }
 
     /* ── panels (search, situation report) ─────────────────────────────────── */

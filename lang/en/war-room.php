@@ -157,6 +157,15 @@ return [
         'desktop_blocked' => 'Your browser has blocked notifications for this site. You will need to allow them in the browser\'s own settings.',
     ],
 
+    // Warbot. Always labelled, never disguised as a colleague — somebody arriving
+    // mid-incident must not mistake a machine's answer for a person's, especially
+    // when that answer is about to be repeated to the business.
+    'warbot' => [
+        'tag'      => 'bot',
+        'thinking' => 'Looking that up…',
+        'intro'    => 'Ask @Warbot a question, or use a command like /p1 or /status.',
+    ],
+
     'message' => [
         'edit'           => 'Edit',
         'delete'         => 'Delete',
