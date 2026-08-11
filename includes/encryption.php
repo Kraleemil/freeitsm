@@ -301,4 +301,58 @@ function decryptMailboxRow($row) {
     }
     return $row;
 }
+
+/**
+ * Read system_settings values with any encryption already undone.
+ *
+ * ⚠️ WHY THIS EXISTS. Inverting the secret rule (isEncryptedSettingKey() above) was
+ * the right call — it stopped new secrets shipping in plaintext because nobody
+ * remembered to register them — but it silently widened WHAT IS CIPHERTEXT ON DISK,
+ * and every place still doing a bare `SELECT setting_value` kept handing that
+ * ciphertext to whatever it fed. Two features broke that way and neither threw an
+ * error: the webhook cron URL printed `?token=ENC%3A…` for an admin to copy, and the
+ * knowledge base authenticated to SMTP with the literal string `ENC:…`. Both were
+ * found by Erlend Volden on his re-review, not by us, and the reason we missed them
+ * is that the test asserted the value in the DATABASE was ciphertext — which is
+ * exactly what a broken read path also looks like. Assert round-trips, not storage.
+ *
+ * So: anything that reads a setting in order to USE it goes through here. decryptValue()
+ * passes plaintext straight through, so this is safe on a row that has not been migrated
+ * yet, on a value the rule does not cover, and on a re-run.
+ *
+ * ⚠️ NOT for the settings UI. A screen that shows a secret to an administrator wants
+ * maskSecret() on top of this; a screen that merely says "configured" should not
+ * decrypt at all.
+ *
+ * @param string[] $keys
+ * @return array<string,string> key => plaintext value, missing keys absent
+ */
+function settingsGetDecrypted(PDO $conn, array $keys): array
+{
+    if (!$keys) return [];
+    $in    = implode(',', array_fill(0, count($keys), '?'));
+    $stmt  = $conn->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ($in)");
+    $stmt->execute(array_values($keys));
+
+    $out = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        try {
+            $out[$row['setting_key']] = decryptValue($row['setting_value']);
+        } catch (Exception $e) {
+            // A value that will not decrypt (key rotated, row corrupted) must not take
+            // the whole page down — but it must not be passed off as the plaintext
+            // either, or we are back to handing "ENC:…" to an SMTP server.
+            error_log('settings: could not decrypt ' . $row['setting_key'] . ': ' . $e->getMessage());
+            $out[$row['setting_key']] = '';
+        }
+    }
+    return $out;
+}
+
+/** One setting, decrypted. See settingsGetDecrypted(). */
+function settingGetDecrypted(PDO $conn, string $key, string $default = ''): string
+{
+    $values = settingsGetDecrypted($conn, [$key]);
+    return (string)($values[$key] ?? $default);
+}
 ?>

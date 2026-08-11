@@ -36,13 +36,17 @@ No auth needed — filesystem permissions gate who can run it.
 curl "http://your-host/freeitsm-app/cron/webhook_deliveries.php?token=<TOKEN>"
 ```
 
-The token is auto-generated on first install (or by Database Verification) and stored in `system_settings` under `webhook_cron_token`:
+The token is auto-generated on first install (or by Database Verification) and stored in `system_settings` under `webhook_cron_token`. Read it with:
 
-```sql
-SELECT setting_value FROM system_settings WHERE setting_key = 'webhook_cron_token';
+```
+php scripts/cron_token.php webhook
 ```
 
-Rotate it anytime by `UPDATE`-ing that row. Use the HTTP form when you can't run PHP from the shell (some shared hosting, or remote cron services like cron-job.org / EasyCron).
+> **Don't read the row directly.** `webhook_cron_token` is encrypted at rest, so a plain
+> `SELECT setting_value` returns `ENC:…` and that value will be rejected with a `403`.
+> **System → Webhooks** also shows the complete URL, token included, ready to copy.
+
+To rotate it, delete the row and run **Database Verification** to seed a fresh one. Use the HTTP form when you can't run PHP from the shell (some shared hosting, or remote cron services like cron-job.org / EasyCron).
 
 **Security on the HTTP form:** a 128-bit shared-secret token compared with `hash_equals()`, plus the min-interval guard. CLI invocations skip the token (there's no untrusted caller).
 

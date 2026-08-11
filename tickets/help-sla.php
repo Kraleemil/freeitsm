@@ -247,7 +247,7 @@ $translationNamespaces = ['common', 'tickets'];
                 <h4><?php echo t('tickets.help_sla.cron.http_heading'); ?></h4>
                 <div class="help-code">curl http://your-host/freeitsm-app/cron/sla_breach_check.php?token=&lt;TOKEN&gt;</div>
                 <p><?php echo t('tickets.help_sla.cron.http_note'); ?></p>
-                <div class="help-code">SELECT setting_value FROM system_settings WHERE setting_key = 'sla_cron_token';</div>
+                <div class="help-code">php scripts/cron_token.php sla</div>
 
                 <h4><?php echo t('tickets.help_sla.cron.win_heading'); ?></h4>
                 <p><?php echo t('tickets.help_sla.cron.win_intro'); ?></p>

@@ -25,6 +25,7 @@ require_once '../../includes/timezone.php';
 I18n::initFromSession();
 Tz::init();
 require_once '../../includes/functions.php';
+require_once '../../includes/encryption.php';   // settingsGetDecrypted() for the cron token
 require_once '../../includes/theme.php';
 
 $current_page = 'webhooks';
@@ -34,15 +35,16 @@ $translationNamespaces = ['common', 'system'];
 $conn = connectToDatabase();
 
 // --- Load the delivery-cron settings -------------------------------------
-$settings = [];
-foreach ($conn->query(
-    "SELECT setting_key, setting_value FROM system_settings
-     WHERE setting_key IN ('webhook_cron_token','webhook_cron_last_run',
-                           'webhook_cron_min_interval_seconds','webhook_delivery_retention_days',
-                           'webhook_payload_retention_days')"
-) as $r) {
-    $settings[$r['setting_key']] = $r['setting_value'];
-}
+// ⚠️ Through settingsGetDecrypted(), not a bare SELECT. webhook_cron_token ends in
+// _token, so isEncryptedSettingKey() covers it and Database Verify has encrypted it in
+// place — a raw read put "ENC:…" into the copy-paste cron URL below, and the worker then
+// answered 403 to an admin following our own instructions. The cron workers themselves
+// were always fine; it was only this screen, which is why nothing logged an error.
+$settings = settingsGetDecrypted($conn, [
+    'webhook_cron_token', 'webhook_cron_last_run',
+    'webhook_cron_min_interval_seconds', 'webhook_delivery_retention_days',
+    'webhook_payload_retention_days',
+]);
 $cronToken     = $settings['webhook_cron_token'] ?? '';
 $retentionDays = (int)($settings['webhook_delivery_retention_days'] ?? 30);
 

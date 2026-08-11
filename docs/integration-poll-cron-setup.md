@@ -55,7 +55,7 @@ No token is needed — there is no untrusted caller on the command line.
 curl "https://your-install/cron/integration_poll.php?token=YOUR_TOKEN"
 ```
 
-The token is `integration_cron_token` in `system_settings`, generated per install by **Database Verification**. Without a matching token the endpoint returns `403`. Keep it out of anywhere public — anyone holding it can trigger polls.
+The token is `integration_cron_token` in `system_settings`, generated per install by **Database Verification** and encrypted at rest — read it with `php scripts/cron_token.php integration` rather than querying the row, which returns `ENC:…`. Without a matching token the endpoint returns `403`. Keep it out of anywhere public — anyone holding it can trigger polls.
 
 ---
 

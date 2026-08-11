@@ -1862,7 +1862,7 @@ return [
             'cli_heading' => 'A. CLI (recommended on a server you control)',
             'cli_note'    => 'No authentication required &mdash; filesystem permissions already gate who can run it.',
             'http_heading'=> 'B. HTTP (for shared hosting or remote schedulers)',
-            'http_note'   => 'The token is auto-generated on first install and stored in <code>system_settings</code> under the key <code>sla_cron_token</code> (32 hex characters, ~128 bits of entropy). Find yours with:',
+            'http_note'   => 'The token is auto-generated on first install and stored in <code>system_settings</code> under the key <code>sla_cron_token</code> (32 hex characters, ~128 bits of entropy). It is encrypted at rest, so reading the row directly gives you <code>ENC:…</code> rather than the token. Find yours with:',
             'win_heading' => 'Windows Task Scheduler',
             'win_intro'   => 'Open Task Scheduler (<code>taskschd.msc</code>) and create a new task with these settings:',
             'tbl_field'   => 'Field',

@@ -64,7 +64,7 @@ Do the same for `cron/sla_breach_check.php` at **every 5 minutes** if you want t
 https://your-host/freeitsm-app/cron/workflow_scheduled.php?token=<workflow_cron_token>
 ```
 
-The token is seeded by **Database Verification** into `system_settings.workflow_cron_token`. CLI invocation needs no token — there's no untrusted caller.
+The token is seeded by **Database Verification** into `system_settings.workflow_cron_token`, encrypted at rest. Read it with `php scripts/cron_token.php workflow` — a plain `SELECT` on the row returns `ENC:…`, not the token. CLI invocation needs no token at all — there's no untrusted caller.
 
 A minimum interval (`workflow_cron_min_interval_seconds`, default **300**) is enforced for both CLI and HTTP, so double-scheduling or a runaway loop can't hammer it.
 
