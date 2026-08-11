@@ -45,10 +45,27 @@ try {
     $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // ⚠️ Decrypt on the way out. knowledge_email_smtp_password ends in _password, so
+    // isEncryptedSettingKey() covers it and Database Verify has encrypted it in place —
+    // and this loop used to hand the raw column straight to sendSmtpEmail(), which then
+    // authenticated to the mail server with the literal string "ENC:…". Sharing an
+    // article stopped working, with an SMTP auth failure rather than anything that
+    // pointed at encryption. The rule decides, so a future secret under this prefix is
+    // handled without anyone remembering to come back here. decryptValue() passes
+    // plaintext through, so an un-migrated row still works.
     $settings = [];
     foreach ($rows as $row) {
-        $key = str_replace('knowledge_email_', '', $row['setting_key']);
-        $settings[$key] = $row['setting_value'];
+        $key   = str_replace('knowledge_email_', '', $row['setting_key']);
+        $value = $row['setting_value'];
+        if (isEncryptedSettingKey($row['setting_key'])) {
+            try {
+                $value = decryptValue($value);
+            } catch (Exception $e) {
+                error_log('knowledge email: could not decrypt ' . $row['setting_key'] . ': ' . $e->getMessage());
+                $value = '';
+            }
+        }
+        $settings[$key] = $value;
     }
 
     $emailMethod = $settings['method'] ?? 'disabled';

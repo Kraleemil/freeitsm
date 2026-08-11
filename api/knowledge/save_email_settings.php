@@ -66,9 +66,17 @@ try {
         }
     }
 
-    // Only update password if provided (not empty)
-    if (!empty($settings['smtp_password'])) {
-        $settingsToSave['knowledge_email_smtp_password'] = $settings['smtp_password'];
+    // Only update password if provided (not empty) — encrypted at rest, like the two
+    // AI keys below. ⚠️ This used to store it raw while its neighbours were wrapped, so
+    // saving the form put plaintext back into a column Database Verify had encrypted;
+    // the next verify re-encrypted it and sending broke again until someone re-saved.
+    // A setting that is encrypted on one path and not the other oscillates rather than
+    // failing, which is why it survived review.
+    // isMaskedNoChangeValue(), not !empty(): get_email_settings.php now returns the
+    // password masked, so a save that did not touch the field posts back "****abcd" —
+    // and !empty() would happily store the mask as the new password.
+    if (!isMaskedNoChangeValue($settings['smtp_password'] ?? null)) {
+        $settingsToSave['knowledge_email_smtp_password'] = encryptValue($settings['smtp_password']);
     }
 
     // AI API key (saved separately, not prefixed with knowledge_email_) - encrypted at rest
