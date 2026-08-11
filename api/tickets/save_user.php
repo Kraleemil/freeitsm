@@ -77,10 +77,40 @@ try {
         }
     }
 
+    // Where this save will ACTUALLY file the person. For a new person that is not
+    // necessarily what the request said: with no tenant_id in the body at all we fall
+    // back to resolveTenantForNewUser(), which maps the email domain to a company —
+    // and that resolved value is the one the check below has to test.
+    //
+    // ⚠️ This used to read `if ($tenantSent && …)`, which meant the guard was skipped
+    // entirely whenever tenant_id was simply left out. On the create path that was a
+    // privilege escalation, not a gap: POST {"email":"x@companyB.com","password":"…"}
+    // from an analyst scoped to company A created a portal account owned by B, with a
+    // password of the attacker's choosing, that they could then sign in as. Reported by
+    // Erlend Volden against the first round of these fixes — the same bug the F9 edit
+    // check closed, one branch over.
+    //
+    // Editing with no tenant_id means "leave the company alone", so there is no
+    // destination to check; creating with none means "work it out", so there is.
+    $destinationTenantId = $tenantSent
+        ? $tenantId
+        : ($id ? null : resolveTenantForNewUser($conn, $email));
+
     // You can only file someone into a company you yourself can reach. This binds
     // every analyst including all-access ones: reaching both companies is not a
     // licence to move people between them by hand-crafting a request.
-    if ($tenantSent && $tenantId !== null && !analystCanAccessTenant($conn, (int)$_SESSION['analyst_id'], $tenantId)) {
+    //
+    // ⚠️ The isMultiTenant() short-circuit is load-bearing, and matches what
+    // analystCanAccessTicket()/analystCanAccessUser() do on their first line. On a
+    // single-company install an ordinary analyst has no rows in analyst_tenant_access,
+    // so getAccessibleTenantIds() returns [] and analystCanAccessTenant() says no to
+    // everything — without this line, creating any requester at all would be refused
+    // on every single-tenant install. Every other caller of that function is an
+    // inherently multi-company action ("move to company", "set active company"), which
+    // is why none of them needed it and this one does.
+    if (isMultiTenant($conn)
+        && $destinationTenantId !== null
+        && !analystCanAccessTenant($conn, (int)$_SESSION['analyst_id'], $destinationTenantId)) {
         echo json_encode(['success' => false, 'error' => 'You do not have access to that company']);
         exit;
     }
@@ -120,11 +150,11 @@ try {
         echo json_encode(['success' => true, 'id' => $id, 'message' => 'User updated']);
     } else {
         $hash = $password !== '' ? password_hash($password, PASSWORD_BCRYPT) : null;
-        // Not told a company → pre-fill from the address so a new install doesn't
-        // start with every requester blank. Freemail stays blank by design.
-        $newTenantId = $tenantSent ? $tenantId : resolveTenantForNewUser($conn, $email);
+        // Not told a company → pre-filled from the address so a new install doesn't
+        // start with every requester blank. Freemail stays blank by design. Resolved
+        // once, above, so the value written here is the same one that was authorised.
         $stmt = $conn->prepare("INSERT INTO users (email, display_name, preferred_name, password_hash, tenant_id, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())");
-        $stmt->execute([$emailOrNull, $displayName ?: null, $preferredName ?: null, $hash, $newTenantId]);
+        $stmt->execute([$emailOrNull, $displayName ?: null, $preferredName ?: null, $hash, $destinationTenantId]);
         echo json_encode(['success' => true, 'id' => (int)$conn->lastInsertId(), 'message' => 'User created']);
     }
 
