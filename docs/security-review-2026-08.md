@@ -252,16 +252,41 @@ also re-issued explicitly at sign-in — but only when the server's own configur
 did not already produce the right attributes, so a correctly configured install emits
 one `Set-Cookie` rather than two.
 
-**CSRF is minimum-viable and labelled as such.** `SameSite=Lax` stated explicitly is
-the real fix — Chrome already defaults to it, and saying so extends the same
-protection to Firefox and Safari. On top of that, `includes/request_guard.php` refuses
-any state-changing request declaring `text/plain`, the one Content-Type with no
-legitimate use here (our own front end sends `application/json` at all 149 fetch
-sites). `urlencoded` and `multipart` are **not** refused, because ordinary forms and
-uploads need them.
+**CSRF: `request_guard.php` stops the proof-of-concept, not the class.** This wording is
+deliberately weaker than the first draft's, which claimed more than the code delivers —
+the correction is Erlend's and it is right.
 
-A token layer across all 369 endpoints that read `php://input` remains outstanding,
-and is deliberate follow-up rather than something to bolt on inside a security fix.
+`SameSite=Lax` stated explicitly is the real fix here. Chrome already defaults to it, and
+saying so extends the same protection to Firefox and Safari. `includes/request_guard.php`
+then refuses any state-changing request declaring `text/plain`, which closes the exact
+`<form enctype="text/plain">` attack in the report.
+
+What it does **not** do is stop cross-site request forgery generally. `urlencoded` and
+`multipart` are CORS-safelisted too, so three lines of JavaScript resend the identical
+JSON body under a different label, no preflight, and an endpoint that only ever calls
+`json_decode(file_get_contents('php://input'))` parses it happily:
+
+```js
+fetch('https://desk.example/api/cmdb/delete_object.php', {
+  method: 'POST', mode: 'no-cors', credentials: 'include',
+  headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+  body: '{"id":42}'
+});
+```
+
+Those two types are not refused because ordinary HTML forms and file uploads need them.
+So the guard's only unique coverage is the JavaScript-free form variant — real enough to
+keep, far short of a defence. Two related corrections to the first draft: the front end
+does **not** send `application/json` at all fetch sites (`calendar/index.php` sends
+urlencoded and six sites send `FormData`, which is itself why those types cannot be
+refused), and `auth/login.php` is still a tokenless form POST, so login-CSRF is open.
+
+And SameSite is same-**site**, not same-origin: for a desk on `desk.corp.example`, an XSS
+anywhere under `corp.example` gives unmitigated CSRF against every endpoint.
+
+**A token layer across all 369 endpoints that read `php://input` therefore remains
+outstanding and is the actual fix.** It stays on the list rather than being considered
+handled — which is the whole reason for restating this section.
 
 ### F8 — Default credentials and lockout
 
@@ -439,9 +464,99 @@ redirecting to `auth/force_password_change.php`, which `auth/.htaccess` delibera
 
 ---
 
+## Round two — the re-review, 2026-08-11
+
+Erlend Volden reviewed the branch above and returned nine items: four functional
+regressions this branch had itself caused, and five security points. **All nine were
+verified against the code before anything was changed, and all nine held** — including
+his own three corrections to us, which were also right.
+
+Two of them were regressions of a shape worth naming, because the test suite was
+actively hiding them. Inverting the secret rule (F3) widened what is ciphertext on disk,
+and every place still doing a bare `SELECT setting_value` carried on handing that
+ciphertext to whatever it fed. Neither threw an error. And the suite's assertion —
+"every secret in the database is ciphertext" — passed happily throughout, because a read
+path that never decrypts looks *identical* to a correct one from the storage side.
+**Storage is half a round-trip; assert the whole one.**
+
+| | What was wrong | Fix |
+| --- | --- | --- |
+| **R1** | `system/webhooks/index.php` read the cron token raw, so the copy-paste URL contained `?token=ENC%3A…` and the worker answered 403 | New `settingsGetDecrypted()` accessor. Four cron setup docs corrected, plus a new `scripts/cron_token.php` |
+| **R2** | `knowledge_email_smtp_password` encrypted at rest, read raw, written raw — article sharing authenticated to SMTP with the literal string `ENC:…` | Decrypt on read, encrypt on write, masked in the settings screen |
+| **R3** | The attachment allow-list quarantined 9 of the 19 types our own `messagingExtForMime()` produces — WhatsApp voice notes, video, HEIC photos, contact cards | Audio/video/mail types added; **which types are accepted is now a setting** |
+| **R4** | `api/self-service/change_password.php` opened with `read_and_close`, so the session rotation was a silent no-op | Plain `session_start()` |
+| **S1** | The destination check was gated on `$tenantSent`; omitting `tenant_id` skipped it, and the create path then resolved a company from the email domain | Authorise the **resolved** destination |
+| **S3** | `tenancyTablesReady()` still had the bare catch F9 removed everywhere else — and it is the master switch every guard depends on | Only a missing table degrades |
+| **S5** | `database/freeitsm.sql` seeded `admin` without `must_change_password`, and Docker mounts it as an initdb script, so `db_verify`'s seed never ran | Flag set in the SQL seed **and** a catch-up migration |
+| **S7** | The quarantine migration's `rename()` had no destination check; two colliding names destroyed a file and pointed both rows at the survivor | Find a free name; denylist widened |
+| **S9** | `oidc_callback.php` set `analyst_id` without consulting `must_change_password` | SSO honours the flag |
+
+### Where we did not simply do what was suggested
+
+- **S1** — the suggested fix (apply the check to the resolved id) is exactly right, but
+  applying it *alone* would have broken every single-company install. An ordinary analyst
+  there has no rows in `analyst_tenant_access`, so `getAccessibleTenantIds()` returns `[]`
+  and `analystCanAccessTenant()` refuses everything — creating any requester at all would
+  have started failing. The check is therefore behind `isMultiTenant()`, matching what
+  `analystCanAccessTicket()` and `analystCanAccessUser()` already do on their first line.
+  This is also why the original `$tenantSent` gate existed: it was the wrong guard, but it
+  was not thoughtless.
+- **S3** was filed "soon after" and was pulled forward to block the merge. Shipping a
+  commit titled *"stop the tenant guards failing open"* while the switch that gates all of
+  them still failed open would have left the finding looking fixed when it was not.
+- **R3** became a **setting** rather than a wider constant. Both were reasonable; the
+  right list is genuinely local — an email-only desk may not want to store video, while a
+  WhatsApp desk needs audio or the module does not work. It can only ever *narrow*: the
+  value is intersected with the catalogue in `includes/uploads.php`, so an unknown
+  extension is ignored rather than trusted and no text box can make `.php` acceptable.
+- **S8** — the `TRUST_PROXY_HTTPS` documentation gap is fixed (it now appears in
+  `config.php`, `docker/config.php` and `docker-compose.yml`), along with comma-list
+  tolerance for `X-Forwarded-Proto`. The `SameSite=Strict` overwrite was a real bug in
+  F7's own code and is fixed — the check is now "at least as strong as", not "equal to".
+  The `cookie_lifetime` point is not addressed.
+- **S6** — the two bugs in the new code are fixed (the `unset()` that ran before the
+  logging call read what it removed, so every abandoned-MFA row logged `unknown`). Moving
+  the OTP counter out of the session and into the database is **not** done: it is a real
+  finding, correctly reasoned, and it is a design change rather than a correction.
+- **S2** — the four sibling endpoints (`delete_user.php`, the v1 `PATCH /users/{id}` twin,
+  `escalate_ticket`'s preview branch, `test_channel.php`) are **not** fixed here. None is a
+  regression and the branch does not touch any of them; folding an unrelated four-endpoint
+  sweep into a branch under review would make it harder to review, not safer. They are
+  listed under *Outstanding* and are the next piece of work.
+- **S9's remaining items** — `ticket_merge.php` writing its own `.html`, the unauthenticated
+  PHP-version disclosure in `setup/`, SVG branding uploads, the IIS `<handlers>` behaviour,
+  and `get_attachment.php`'s missing `realpath()` containment — are all accepted and all
+  outstanding.
+
+### The test suite
+
+The criticism was fair: it was largely `strpos()` over source text, which is why it
+certified R4 as passing while the call did nothing. It now carries a *Round two* section
+that asserts behaviour — secrets round-tripped through the accessor rather than merely
+being ciphertext at rest, and `uploadStoreBytes()` fed real Ogg/Opus, MP4, 3GP, HEIC,
+vCard, iCalendar and RFC822 bytes with assertions on the returned `stored_name`, against
+negative controls (`shell.php`, `shell.phtml`, `evil.svg`, `page.html`, `.htaccess`,
+and a traversal-plus-null-byte name) that must still land on `.bin`. The check that a
+file "rotates the session id" now also asserts the file keeps the session open, so the
+exact shape of R4 cannot pass again.
+
+131 checks pass, 0 fail.
+
+---
+
 ## Outstanding
 
 **In the application**
+
+- **The four sibling endpoints from S2** — `api/tickets/delete_user.php` (no tenancy
+  check at all), `api/v1/resources/users.php`, `api/integrations/escalate_ticket.php`
+  (`preview=1` returns before the service is called), `api/messaging/test_channel.php`
+  and `slack_diagnose.php`. Not regressions; the next piece of work.
+- **S6** — the MFA attempt counter is session-scoped, and a correct password step resets
+  the account and IP counters, so an attacker holding a valid password can loop for
+  unlimited guesses at ~25% more requests. Needs a per-account or per-IP counter in the
+  database.
+- **S3's cousins** and **S9's remaining items**, listed above.
 
 - CSRF tokens across the 369 endpoints that read `php://input`. F7 shipped the
   minimum viable defence; this is the real one.

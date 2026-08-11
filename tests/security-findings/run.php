@@ -340,6 +340,19 @@ $identityPoints = [
 foreach ($identityPoints as $p) {
     $src = code("$APP/$p");
     check("$p rotates the session id", strpos($src, 'sessionPromoteToAuthenticated()') !== false);
+
+    // ⚠️ …and that the call can actually DO anything. Searching for the call string is
+    // not the same as checking it works: api/self-service/change_password.php opened
+    // with session_start(['read_and_close' => true]), which leaves session_status() at
+    // PHP_SESSION_NONE, so sessionPromoteToAuthenticated() hit its early return and the
+    // session was never rotated — silently, with this test passing throughout. Erlend
+    // Volden caught it by running the code rather than reading it. A file that rotates
+    // the session must therefore hold the session OPEN.
+    if (strpos($src, 'sessionPromoteToAuthenticated()') !== false) {
+        check("$p keeps the session open, so the rotation is not a no-op",
+              strpos($src, 'read_and_close') === false,
+              "session_start(['read_and_close' => true]) makes the rotation silently do nothing");
+    }
 }
 
 // The ini settings ship three times, once per server flavour, and must agree.
@@ -475,6 +488,166 @@ if ($conn === null) {
     check("an unknown article id is denied", !analystCanAccessArticle($conn, 1, $ghost));
 }
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── Round two ────────────────────────────────────────────────────────────────
+heading('R   The re-review findings (Erlend Volden, 2026-08-11)');
+// ⚠️ THE LESSON THAT PRODUCED THIS SECTION. The original suite asserted that every
+// secret in the database was ciphertext — and it passed happily while two features
+// were broken, because a read path that never decrypts looks identical to a correct
+// one from the storage side. Storage is half a round-trip. Assert the whole one.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// R1/R2 — a secret must survive being written AND read back.
+if ($conn === null) {
+    skipped("secrets survive a full encrypt/decrypt round-trip", 'no database connection');
+} else {
+    $roundTripKeys = ['sla_cron_token', 'webhook_cron_token', 'workflow_cron_token',
+                      'integration_cron_token', 'csat_token_secret'];
+    $raw = [];
+    $in  = implode(',', array_fill(0, count($roundTripKeys), '?'));
+    $st  = $conn->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ($in)");
+    $st->execute($roundTripKeys);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) $raw[$row['setting_key']] = $row['setting_value'];
+
+    $plain = settingsGetDecrypted($conn, $roundTripKeys);
+    foreach ($roundTripKeys as $k) {
+        if (!isset($raw[$k])) { skipped("$k round-trips", 'not seeded on this install'); continue; }
+        $atRest  = strpos((string)$raw[$k], ENCRYPTION_PREFIX) === 0;
+        $usable  = ($plain[$k] ?? '') !== '' && strpos((string)$plain[$k], ENCRYPTION_PREFIX) !== 0;
+        check("$k is ciphertext at rest AND plaintext through the accessor",
+              $atRest && $usable,
+              !$atRest ? 'stored in the clear' : 'decrypt returned nothing usable');
+    }
+}
+
+// R1 — the screen that hands the token to a human must not print ciphertext.
+$wh = code("$APP/system/webhooks/index.php");
+check("System → Webhooks decrypts the cron token before printing the URL",
+      strpos($wh, 'settingsGetDecrypted(') !== false,
+      'a raw SELECT here puts ?token=ENC%3A… on screen');
+
+// R2 — both halves, and they must agree with each other.
+$ksend = code("$APP/api/knowledge/send_share_email.php");
+$ksave = code("$APP/api/knowledge/save_email_settings.php");
+check("knowledge email READS the SMTP password through a decrypt",
+      strpos($ksend, 'isEncryptedSettingKey(') !== false && strpos($ksend, 'decryptValue(') !== false);
+check("knowledge email WRITES the SMTP password encrypted",
+      preg_match('/knowledge_email_smtp_password.{0,40}encryptValue\(/s', $ksave) === 1,
+      'storing it raw makes the value oscillate: encrypted by Verify, plaintext by Save');
+
+// R3 — feed the real function the real shapes. This is the check Erlend actually ran.
+$probeDir = sys_get_temp_dir() . '/fitsm-sec-r3';
+$ftyp = fn(string $brand) => pack('N', 32) . 'ftyp' . $brand . pack('N', 512) . $brand . 'mp41' . str_repeat("\0", 8);
+$oggOpus = 'OggS' . chr(0) . chr(2) . str_repeat("\0", 8) . pack('V', 0x12345678) . pack('V', 0) . pack('V', 0)
+         . chr(1) . chr(19) . 'OpusHead' . chr(1) . chr(1) . pack('v', 312) . pack('V', 48000) . pack('v', 0) . chr(0);
+
+// POSITIVE: the media the messaging channel was built to carry must now store under
+// its own extension. Every one of these was quarantined as .bin before this change.
+$mustStore = [
+    'voice.ogg'  => $oggOpus,
+    'clip.mp4'   => $ftyp('isom'),
+    'clip.3gp'   => $ftyp('3gp4'),
+    'photo.heic' => $ftyp('heic'),
+    'card.vcf'   => "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n",
+    'invite.ics' => "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+    'mail.eml'   => "From: a@b.com\r\nTo: c@d.com\r\nSubject: T\r\n\r\nBody\r\n",
+];
+foreach ($mustStore as $name => $bytes) {
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $r   = uploadStoreBytes($bytes, $name, $probeDir, ATTACHMENT_POLICY_STORE);
+    check("$name is accepted and stored as .$ext",
+          $r['stored'] && substr((string)$r['stored_name'], -strlen($ext) - 1) === '.' . $ext,
+          (string)($r['reason'] ?? 'stored as ' . $r['stored_name']));
+}
+
+// NEGATIVE CONTROL: widening the catalogue must not have widened it to anything
+// executable. If these ever pass, the whole allow-list has stopped meaning anything.
+$mustQuarantine = [
+    'shell.php'   => "<?php system(\$_GET['c']); ?>",
+    'shell.phtml' => "<?php echo 1; ?>",
+    'evil.svg'    => '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    'page.html'   => '<html><body><script>alert(1)</script></body></html>',
+    '.htaccess'   => "AddType application/x-httpd-php .bin\n",
+];
+foreach ($mustQuarantine as $name => $bytes) {
+    $r = uploadStoreBytes($bytes, $name, $probeDir, ATTACHMENT_POLICY_STORE);
+    check("$name is still quarantined to ." . ATTACHMENT_QUARANTINE_EXT,
+          substr((string)$r['stored_name'], -4) === '.' . ATTACHMENT_QUARANTINE_EXT,
+          'stored as ' . (string)$r['stored_name']);
+}
+// A name is never the sender's, whatever they call it.
+$r = uploadStoreBytes('hello', "..\\..\\..\\evil.php\x00.txt", $probeDir, ATTACHMENT_POLICY_STORE);
+check("a traversal-and-null-byte name still yields a 32-hex name of ours",
+      preg_match('/^[0-9a-f]{32}\.[a-z0-9]+$/', (string)$r['stored_name']) === 1,
+      'stored as ' . (string)$r['stored_name']);
+foreach (glob($probeDir . '/*') as $f) @unlink($f);
+@rmdir($probeDir);
+
+// R3 — the setting may narrow the catalogue but must never widen it.
+if ($conn === null) {
+    skipped("attachment_allowed_extensions can only narrow", 'no database connection');
+} else {
+    $effective = attachmentAllowedTypes($conn);
+    check("the effective attachment list is a subset of the catalogue",
+          !array_diff_key($effective, UPLOAD_TYPES_ATTACHMENT),
+          'the setting has introduced an extension with no mime list');
+    check("nothing executable is reachable through the setting",
+          !array_intersect(array_keys($effective), ['php', 'phtml', 'phar', 'exe', 'svg', 'html', 'htaccess']));
+}
+
+// S1 — the create path authorises the company it will ACTUALLY use.
+$su2 = code("$APP/api/tickets/save_user.php");
+check("save_user.php authorises the RESOLVED destination company, not just a sent one",
+      strpos($su2, '$destinationTenantId') !== false
+      && preg_match('/analystCanAccessTenant\([^;]*\$destinationTenantId/', $su2) === 1,
+      'gating the check on $tenantSent lets an omitted tenant_id skip it entirely');
+check("save_user.php still short-circuits on single-company installs",
+      preg_match('/isMultiTenant\(\$conn\)\s*\n?\s*&&\s*\$destinationTenantId/', $su2) === 1,
+      'without this an ordinary analyst cannot create a requester at all');
+
+// S3 — the master switch must not be turned off by a transient error.
+$ten = code("$APP/includes/tenancy.php");
+check("tenancyTablesReady() forgives only a missing table",
+      preg_match('/function tenancyTablesReady.*?dbErrorIsMissingTable\(/s', $ten) === 1,
+      'a bare catch here disables every guard for the whole request');
+check("tenantCount() does not report a single company when it cannot count",
+      preg_match('/function tenantCount.*?catch \(PDOException/s', $ten) === 1);
+check("tenancyColumnExists() forgives only a missing table",
+      preg_match('/function tenancyColumnExists.*?dbErrorIsMissingTable\(/s', $ten) === 1);
+
+// S5 — the Docker path seeds the flag, because db_verify's seed never runs there.
+$sql = code("$APP/database/freeitsm.sql");
+check("the SQL admin seed sets must_change_password",
+      preg_match('/INSERT INTO `analysts`[^;]*must_change_password/s', $sql) === 1,
+      'docker-compose mounts this as an initdb script, so THIS is the seed that runs');
+if ($conn === null) {
+    skipped("the default admin cannot keep the published password", 'no database connection');
+} else {
+    try {
+        $a = $conn->query("SELECT password_hash, must_change_password FROM analysts WHERE username = 'admin'")
+                  ->fetch(PDO::FETCH_ASSOC);
+        if (!$a) {
+            skipped("the default admin cannot keep the published password", 'no admin account on this install');
+        } elseif (!password_verify('freeitsm', (string)$a['password_hash'])) {
+            check("the default admin password has been changed", true);
+        } else {
+            check("admin still on the published password is forced to change it",
+                  (int)$a['must_change_password'] === 1,
+                  'run Database Verification — the catch-up migration sets this');
+        }
+    } catch (PDOException $e) {
+        skipped("the default admin cannot keep the published password", 'must_change_password column not migrated yet');
+    }
+}
+
+// S9 — SSO is not a way around the gate.
+$oidc = code("$APP/api/auth/oidc_callback.php");
+check("oidc_callback.php honours must_change_password",
+      strpos($oidc, "must_change_password") !== false
+      && strpos($oidc, "password_expired") !== false,
+      'SSO would otherwise be the one sign-in path that skips the gate');
 
 echo "\n" . str_repeat('─', 60) . "\n";
 echo "  {$pass} passed, {$fail} failed" . ($skip ? ", {$skip} skipped" : '') . "\n";
