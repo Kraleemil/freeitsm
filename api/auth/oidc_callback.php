@@ -169,6 +169,20 @@ try {
     $_SESSION['sso_id_token']     = $tokens['id_token'];
     unset($_SESSION['oidc_portal']);
 
+    // ⚠️ Honour must_change_password here too, or SSO is the one door around the gate.
+    // It reads oddly at first — the analyst just proved themselves at the IdP, so why
+    // ask for a password? Because the flag is not about this sign-in: it is set on an
+    // account whose LOCAL password is the published default, and that password still
+    // works at auth/login.php no matter how they arrived this time. Signing in another
+    // way does not make admin/freeitsm any less valid.
+    //
+    // Only the explicit flag, never the expiry POLICY: an SSO account may have no local
+    // password to expire, and login.php makes the same distinction for LDAP via its
+    // $skipPasswordExpiry. See the comment above loginRequiresPasswordChange().
+    if (!empty($analyst['must_change_password'])) {
+        $_SESSION['password_expired'] = true;
+    }
+
     header('Location: ' . BASE_URL);
     exit;
 
