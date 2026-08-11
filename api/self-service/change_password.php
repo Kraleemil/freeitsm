@@ -3,7 +3,19 @@
  * API: Change password for self-service user
  * POST - Verifies current password and updates to new one
  */
-session_start(['read_and_close' => true]);
+// ⚠️ A PLAIN session_start(), deliberately — NOT ['read_and_close' => true].
+// This endpoint rotates the session id at the end (see below), and read_and_close
+// closes the session immediately: session_status() drops back to PHP_SESSION_NONE,
+// so sessionPromoteToAuthenticated() hits its `!== PHP_SESSION_ACTIVE` early return
+// and does nothing at all. Silently — that branch has no log line, and
+// session_regenerate_id() would have returned false anyway. The whole point of
+// rotating here is that a portal user changing their password to evict a session
+// thief actually evicts them; with the session closed it evicted nobody.
+// api/myaccount/change_password.php, the analyst twin, always did this correctly.
+// Reported by Erlend Volden, who proved the premise in a container rather than
+// reading it — and the shipped test passed throughout, because it searched the
+// source for the call rather than checking the session id changed.
+session_start();
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 
