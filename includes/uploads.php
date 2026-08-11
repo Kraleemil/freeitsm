@@ -24,13 +24,19 @@
  */
 
 /** Extension => the mime types that extension is allowed to actually be. */
+// ⚠️ application/CDFV2 appears on doc/xls/ppt deliberately. Modern libmagic reports
+// that for any OLE2 compound file it cannot classify further, so a genuine .doc or .xls
+// can arrive claiming it — gate 2 then refused a perfectly ordinary Word document and
+// the sender saw "its contents do not match its doc extension". CDFV2 is the container,
+// not a type: it is equally the shape of .msi and .msg, which is why it is listed only
+// against extensions that are already on the allow-list rather than accepted globally.
 const UPLOAD_TYPES_DOCUMENT = [
     'pdf'  => ['application/pdf'],
-    'doc'  => ['application/msword'],
+    'doc'  => ['application/msword', 'application/CDFV2', 'application/CDFV2-corrupt'],
     'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
-    'xls'  => ['application/vnd.ms-excel'],
+    'xls'  => ['application/vnd.ms-excel', 'application/CDFV2', 'application/CDFV2-corrupt'],
     'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip'],
-    'ppt'  => ['application/vnd.ms-powerpoint'],
+    'ppt'  => ['application/vnd.ms-powerpoint', 'application/CDFV2', 'application/CDFV2-corrupt'],
     'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip'],
     'txt'  => ['text/plain'],
     'csv'  => ['text/plain', 'text/csv', 'application/csv'],
@@ -49,14 +55,71 @@ const UPLOAD_TYPES_IMAGE = [
     'gif'  => ['image/gif'],
     'webp' => ['image/webp'],
     'bmp'  => ['image/bmp', 'image/x-ms-bmp'],
+    // Phone photos. An iPhone sends image/heic by default, so without these a
+    // customer photographing a broken screen gets their evidence quarantined.
+    'heic' => ['image/heic', 'image/heif'],
+    'heif' => ['image/heif', 'image/heic'],
     // ⚠️ SVG is deliberately ABSENT. It is XML, it can carry <script>, and a
     // browser will run it if the file is ever served inline. Branding allows it
     // because an administrator uploads the logo; nowhere a customer can reach
     // should take one.
 ];
 
-/** The everyday set: what somebody attaches to a change, a ticket or a form. */
-const UPLOAD_TYPES_ATTACHMENT = UPLOAD_TYPES_DOCUMENT + UPLOAD_TYPES_IMAGE;
+/**
+ * Voice notes and video, which is most of what arrives through WhatsApp, Slack and
+ * web chat. None of these are script-bearing, and every one of them is already
+ * promised as inline-servable by ATTACHMENT_SERVE_TYPES below.
+ */
+const UPLOAD_TYPES_AUDIO = [
+    'mp3'  => ['audio/mpeg', 'audio/mp3'],
+    'wav'  => ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave'],
+    'ogg'  => ['audio/ogg', 'application/ogg'],
+    'm4a'  => ['audio/mp4', 'audio/x-m4a', 'audio/m4a'],
+    'aac'  => ['audio/aac', 'audio/x-aac', 'audio/x-hx-aac-adts'],
+    'amr'  => ['audio/amr', 'audio/3gpp'],
+];
+
+const UPLOAD_TYPES_VIDEO = [
+    'mp4'  => ['video/mp4', 'application/mp4'],
+    'webm' => ['video/webm', 'audio/webm'],
+    '3gp'  => ['video/3gpp', 'audio/3gpp'],
+    'mov'  => ['video/quicktime'],
+];
+
+/**
+ * The things ordinary corporate mail staples to a message. Nobody chooses to send
+ * these — Outlook adds them — so refusing them puts an amber "not accepted" box on a
+ * large share of perfectly normal tickets, which reads to an operator as a fault.
+ *
+ * ⚠️ octet-stream is accepted for these deliberately. They are container formats that
+ * finfo often cannot name, and none of them is executable by any web server: the
+ * protection is that the stored filename is ours (gate 3), not that the list is short.
+ */
+const UPLOAD_TYPES_MAIL = [
+    'eml'  => ['message/rfc822', 'text/plain', 'application/octet-stream'],
+    'ics'  => ['text/calendar', 'text/plain', 'application/octet-stream'],
+    'vcf'  => ['text/vcard', 'text/x-vcard', 'text/directory', 'text/plain'],
+    'dat'  => ['application/vnd.ms-tnef', 'application/ms-tnef', 'application/octet-stream'],
+    'mso'  => ['application/vnd.ms-office', 'application/octet-stream'],
+    'p7s'  => ['application/pkcs7-signature', 'application/x-pkcs7-signature', 'application/octet-stream'],
+];
+
+/**
+ * Every extension an attachment is ALLOWED to be, before an administrator narrows it.
+ *
+ * ⚠️ This is the ceiling, not the setting. attachment_allowed_extensions can only ever
+ * pick a subset of these keys — an admin cannot add .php by editing a text box, because
+ * anything absent here has no mime list to be validated against and is simply unknown.
+ * Widen the product's idea of "safe" by editing this file, in review; narrow an
+ * install's by changing the setting.
+ *
+ * It used to be DOCUMENT + IMAGE only, which quietly governed the messaging media path
+ * too — nine of the nineteen extensions our own messagingExtForMime() can produce were
+ * rejected, so WhatsApp voice notes, video, iPhone photos and shared contacts were all
+ * quarantined by the module built to receive them. Found by Erlend Volden.
+ */
+const UPLOAD_TYPES_ATTACHMENT = UPLOAD_TYPES_DOCUMENT + UPLOAD_TYPES_IMAGE
+                              + UPLOAD_TYPES_AUDIO + UPLOAD_TYPES_VIDEO + UPLOAD_TYPES_MAIL;
 
 const UPLOAD_MAX_BYTES = 10485760;   // 10 MB, matching the issue-tracker cap
 
@@ -512,6 +575,47 @@ function attachmentRejectPolicy(PDO $conn): string
         $v = '';   // table not migrated yet — fall through to the default
     }
     return $cached = ($v === ATTACHMENT_POLICY_DROP ? ATTACHMENT_POLICY_DROP : ATTACHMENT_POLICY_STORE);
+}
+
+/**
+ * Which attachment types this install actually accepts.
+ *
+ * A setting rather than a constant because the right answer is genuinely local: an
+ * install that only ever receives email may not want to store video, while one running
+ * the WhatsApp channel needs audio or the module does not work. Unset means the whole
+ * catalogue, which is what makes a fresh install behave the way the modules expect.
+ *
+ * ⚠️ It can only ever NARROW. The stored value is intersected with
+ * UPLOAD_TYPES_ATTACHMENT, so an unknown extension in the setting is ignored rather
+ * than trusted — there is no way to talk this function into accepting .php, and an
+ * administrator who empties the box gets the default back rather than an install that
+ * refuses everything (which would look identical to the product being broken).
+ *
+ * @return array ext => [mime, …], ready to pass as $allowed
+ */
+function attachmentAllowedTypes(PDO $conn): array
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+
+    try {
+        $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'attachment_allowed_extensions'");
+        $stmt->execute();
+        $raw = (string)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        $raw = '';   // table not migrated yet — fall through to the catalogue
+    }
+
+    $wanted = array_filter(array_map(
+        fn($e) => strtolower(trim($e, " \t\n\r.")),
+        preg_split('/[\s,;]+/', $raw) ?: []
+    ));
+    if (!$wanted) {
+        return $cached = UPLOAD_TYPES_ATTACHMENT;
+    }
+
+    $types = array_intersect_key(UPLOAD_TYPES_ATTACHMENT, array_flip($wanted));
+    return $cached = ($types ?: UPLOAD_TYPES_ATTACHMENT);
 }
 
 /**

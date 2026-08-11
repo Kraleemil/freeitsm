@@ -391,7 +391,7 @@ function saveChannelMediaAttachment(PDO $conn, int $emailId, string $filename, s
     // report listed three ingest paths for this; this is a fourth with the same
     // shape. uploadStoreBytes() checks the extension AND the bytes, and picks the
     // name on disk itself.
-    $stored = uploadStoreBytes($data, $filename, $emailDir, attachmentRejectPolicy($conn));
+    $stored = uploadStoreBytes($data, $filename, $emailDir, attachmentRejectPolicy($conn), attachmentAllowedTypes($conn));
 
     if (!$stored['stored']) {
         return ['stored' => false, 'reason' => $stored['reason']];   // caller notes it on the ticket

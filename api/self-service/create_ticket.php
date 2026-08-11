@@ -173,7 +173,7 @@ try {
 
         foreach ($inputAttachments as $att) {
             $fileData = base64_decode($att['content'] ?? '');
-            $stored = uploadStoreBytes($fileData, (string)($att['name'] ?? 'file'), $emailDir, $policy);
+            $stored = uploadStoreBytes($fileData, (string)($att['name'] ?? 'file'), $emailDir, $policy, attachmentAllowedTypes($conn));
 
             if (!$stored['stored']) {
                 $rejected[] = ['name' => $stored['original_name'], 'reason' => $stored['reason']];

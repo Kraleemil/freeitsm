@@ -102,6 +102,9 @@ function settingKeyOwners(): array
         // What happens to an inbound attachment whose type we do not accept —
         // keep it inert, or do not keep it. See includes/uploads.php.
         'attachment_rejected_behaviour' => ['module' => 'system', 'cap' => null, 'tab' => 'security'],
+        // Which attachment types this install accepts. Narrows the catalogue in
+        // includes/uploads.php; it can never widen past it.
+        'attachment_allowed_extensions' => ['module' => 'system', 'cap' => null, 'tab' => 'security'],
 
         // --- System: SSO area ---
         'sso_enabled'              => ['module' => 'system', 'cap' => null, 'tab' => 'sso'],

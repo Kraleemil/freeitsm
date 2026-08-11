@@ -535,6 +535,10 @@ return [
         'rejected_behaviour_hint'   => 'Applies to email, the portal, and chat channels.',
         'rejected_store'            => 'Keep it, download only',
         'rejected_drop'             => 'Do not keep it',
+        'allowed_extensions'        => 'Accepted file types',
+        'allowed_extensions_hint'   => 'Leave empty to accept everything FreeITSM considers safe, including new types added by future updates. To accept less, list only the extensions you want, separated by commas.',
+        'allowed_extensions_ph'     => 'e.g. pdf, docx, xlsx, png, jpg',
+        'allowed_extensions_note'   => 'You can only narrow this list. An extension FreeITSM does not already consider safe is ignored, so nothing typed here can make a program or a script acceptable.',
         'rejected_note'             => 'Either way the ticket says what happened and why, so nobody has to wonder where their file went.',
 
         'unit_days'     => 'days',

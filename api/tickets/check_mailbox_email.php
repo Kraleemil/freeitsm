@@ -870,7 +870,8 @@ function saveAttachment($conn, $dbEmailId, $attachment) {
         $fileData,
         $filename,
         $emailDir,
-        attachmentRejectPolicy($conn)
+        attachmentRejectPolicy($conn),
+        attachmentAllowedTypes($conn)
     );
 
     if (!$stored['stored']) {

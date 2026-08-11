@@ -259,7 +259,11 @@ $translationNamespaces = ['common', 'system'];
                         <strong><?php echo htmlspecialchars(t('system.security.min_threshold')); ?></strong>
                         <?php echo htmlspecialchars(t('system.security.min_threshold_hint')); ?>
                     </div>
-                    <input type="number" class="setting-input" id="minIpAttempts" min="1" max="10" value="0">
+<?php /* min="0", not min="1": 0 is what the login code reads as "off", and it is what
+     this box shows when the setting is genuinely absent. With min="1" the browser
+     refused to submit the form in exactly that state — the one case an administrator
+     most needs to be able to save from. Spotted by Erlend Volden. */ ?>
+                    <input type="number" class="setting-input" id="minIpAttempts" min="0" max="10" value="0">
                     <span class="setting-unit"><?php echo htmlspecialchars(t('system.security.unit_attempts')); ?></span>
                 </div>
                 <div class="info-note">
@@ -280,6 +284,17 @@ $translationNamespaces = ['common', 'system'];
                         <option value="store"><?php echo htmlspecialchars(t('system.security.rejected_store')); ?></option>
                         <option value="drop"><?php echo htmlspecialchars(t('system.security.rejected_drop')); ?></option>
                     </select>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <strong><?php echo htmlspecialchars(t('system.security.allowed_extensions')); ?></strong>
+                        <?php echo htmlspecialchars(t('system.security.allowed_extensions_hint')); ?>
+                    </div>
+                    <input type="text" class="setting-input" id="attachmentAllowedExtensions"
+                           placeholder="<?php echo htmlspecialchars(t('system.security.allowed_extensions_ph')); ?>">
+                </div>
+                <div class="info-note">
+                    <?php echo htmlspecialchars(t('system.security.allowed_extensions_note')); ?>
                 </div>
                 <div class="info-note">
                     <?php echo htmlspecialchars(t('system.security.rejected_note')); ?>
@@ -328,6 +343,9 @@ $translationNamespaces = ['common', 'system'];
                 // greater than zero.
                 document.getElementById('lockoutDuration').value    = shown(s.lockout_duration_minutes, '30');
                 document.getElementById('attachmentRejectedBehaviour').value = s.attachment_rejected_behaviour || 'store';
+                // Empty is a real, meaningful value here ("everything we consider safe"),
+                // so it must NOT fall back to a placeholder list the way the numbers above do.
+                document.getElementById('attachmentAllowedExtensions').value = s.attachment_allowed_extensions || '';
             }
         } catch (e) {
             console.error('Failed to load settings', e);
@@ -347,7 +365,8 @@ $translationNamespaces = ['common', 'system'];
             lockout_duration_minutes: document.getElementById('lockoutDuration').value,
             max_ip_attempts: document.getElementById('maxIpAttempts').value,
             min_ip_attempts: document.getElementById('minIpAttempts').value,
-            attachment_rejected_behaviour: document.getElementById('attachmentRejectedBehaviour').value
+            attachment_rejected_behaviour: document.getElementById('attachmentRejectedBehaviour').value,
+            attachment_allowed_extensions: document.getElementById('attachmentAllowedExtensions').value.trim()
         };
 
         try {
