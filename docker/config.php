@@ -22,6 +22,20 @@ require_once($db_config_path);
 // Timezone
 date_default_timezone_set('UTC');
 
+// Behind a reverse proxy that terminates HTTPS?
+// ⚠️ The single most likely thing to need setting on this image. Almost nobody exposes
+// the container directly — TLS normally ends at nginx, Traefik, Caddy or Cloudflare and
+// plain HTTP is spoken to the container. PHP then sees an HTTP request, so the session
+// cookie ships WITHOUT its `Secure` flag unless this is on. Set TRUST_PROXY_HTTPS=1 in
+// the environment (docker-compose.yml) once such a proxy is the only route in.
+//
+// Off unless asked for, deliberately: X-Forwarded-Proto is a header any client can send,
+// so trusting it by default would let a visitor mark their own cookie Secure over plain
+// HTTP and lock themselves out of an install that has no TLS at all.
+if (getenv('TRUST_PROXY_HTTPS')) {
+    define('TRUST_PROXY_HTTPS', true);
+}
+
 // SSL Certificate Verification
 // Single global switch for outbound HTTPS certificate verification — see
 // includes/ssl.php and workflow/help-ssl.php. Leave ON in production. In the

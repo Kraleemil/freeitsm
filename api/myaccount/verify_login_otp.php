@@ -66,6 +66,13 @@ try {
         $_SESSION['mfa_attempts'] = ($_SESSION['mfa_attempts'] ?? 0) + 1;
 
         if ($_SESSION['mfa_attempts'] >= 5) {
+            // ⚠️ Read the username BEFORE the unset() below, not after. The logging call
+            // used to sit under the unset and read a key it had just removed, so every
+            // abandoned-challenge row in login_attempts recorded "unknown" — the audit
+            // trail for repeated MFA failures named nobody, which is the one thing it
+            // exists to do. Caught by Erlend Volden reviewing the F8 changes.
+            $abandonedUsername = (string)($_SESSION['mfa_pending_username'] ?? 'unknown');
+
             // Abandon the challenge entirely. Back to the password.
             unset(
                 $_SESSION['mfa_pending_analyst_id'],
@@ -76,7 +83,7 @@ try {
                 $_SESSION['mfa_attempts']
             );
             if (function_exists('logLoginAttempt')) {
-                logLoginAttempt($conn, (int)$analystId, (string)($_SESSION['mfa_pending_username'] ?? 'unknown'), false);
+                logLoginAttempt($conn, (int)$analystId, $abandonedUsername, false);
             }
             error_log('MFA challenge abandoned after 5 failed codes for analyst ' . (int)$analystId
                       . ' from ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));

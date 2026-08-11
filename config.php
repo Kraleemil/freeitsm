@@ -20,6 +20,18 @@ require_once($db_config_path);
 // which Docker uses; the setting here takes precedence when both are present.
 // define('ENCRYPTION_KEY_PATH', '/your/path/encryption_keys/freeitsm.key');
 
+// Behind a reverse proxy that terminates HTTPS?
+// Uncomment this if TLS ends at nginx, Traefik, Caddy, a load balancer or Cloudflare
+// and plain HTTP is used between there and PHP. Without it FreeITSM sees an HTTP
+// request, so the session cookie does NOT get its `Secure` flag and can be sent over
+// a plain connection.
+//
+// It is off by default, and must stay that way: X-Forwarded-Proto is a header any
+// client can invent, so believing it unconditionally would let a visitor flag their
+// own cookie Secure over plain HTTP and lock themselves out. Turn it on only when a
+// proxy you control is the only way in.
+// define('TRUST_PROXY_HTTPS', true);
+
 // Timezone
 // Fallback timezone for bare date() calls. Datetimes are stored in UTC and
 // converted per-user (Settings > Preferences); SLA uses its own calendar zone.

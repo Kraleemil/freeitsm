@@ -12,6 +12,12 @@ services:
       - DB_USERNAME=freeitsm
       - DB_PASSWORD=freeitsm
       - ENCRYPTION_KEY_PATH=/var/www/encryption_keys/freeitsm.key
+      # Uncomment when a reverse proxy (nginx, Traefik, Caddy, Cloudflare) terminates
+      # HTTPS in front of this container. Without it PHP sees plain HTTP and the session
+      # cookie is issued without its Secure flag. Leave it off if nothing fronts the
+      # container — X-Forwarded-Proto is client-settable, so it must never be trusted
+      # by default.
+      # - TRUST_PROXY_HTTPS=1
     volumes:
       - attachments:/var/www/html/tickets/attachments
       - cm-attachments:/var/www/html/change-management/attachments

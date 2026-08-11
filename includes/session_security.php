@@ -63,9 +63,17 @@ function requestIsHttps(): bool
     if ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) {
         return true;
     }
-    if (defined('TRUST_PROXY_HTTPS') && TRUST_PROXY_HTTPS
-        && strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') {
-        return true;
+    // ⚠️ Take the FIRST comma-separated token. Chained proxies append rather than
+    // replace, so a perfectly ordinary nginx-behind-Cloudflare setup sends
+    // "X-Forwarded-Proto: https, http" — and an exact === 'https' comparison reads that
+    // as not-HTTPS, so the cookie never gets its Secure flag even though the operator
+    // did configure TRUST_PROXY_HTTPS. The first hop is the one that faced the client.
+    if (defined('TRUST_PROXY_HTTPS') && TRUST_PROXY_HTTPS) {
+        $fwd = (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '');
+        $first = strtolower(trim(explode(',', $fwd)[0]));
+        if ($first === 'https') {
+            return true;
+        }
     }
     return false;
 }
@@ -131,7 +139,19 @@ function sessionPromoteToAuthenticated(): void
 function sessionCookieParamsAreHardened(): bool
 {
     $p = session_get_cookie_params();
-    return !empty($p['httponly'])
-        && strcasecmp((string)($p['samesite'] ?? ''), 'Lax') === 0
-        && (bool)($p['secure'] ?? false) === requestIsHttps();
+
+    // ⚠️ "At least as strong as", NOT "equal to". This used to demand samesite === 'Lax'
+    // exactly, so an administrator who had deliberately configured the stricter
+    // SameSite=Strict failed the test — and the caller then "fixed" it by overwriting
+    // their Strict cookie with a Lax one. A hardening check that quietly weakens a
+    // harder-than-required configuration is worse than no check. Same reasoning for
+    // Secure: having it on when we only require it off is not a failure.
+    // Reported by Erlend Volden.
+    $samesite = strtolower((string)($p['samesite'] ?? ''));
+    $sameSiteOk = ($samesite === 'lax' || $samesite === 'strict');
+
+    $secure   = (bool)($p['secure'] ?? false);
+    $secureOk = requestIsHttps() ? $secure : true;
+
+    return !empty($p['httponly']) && $sameSiteOk && $secureOk;
 }
