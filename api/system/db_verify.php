@@ -7,6 +7,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/setup_state.php';
+require_once '../../includes/db_errors.php';    // dbErrorIsUnknownColumn(), used below
 require_once '../../includes/encryption.php';   // seeds + migrates secret settings
 require_once '../../includes/uploads.php';      // ATTACHMENT_QUARANTINE_EXT
 
@@ -406,6 +407,38 @@ try {
             'status' => 'seeded',
             'details' => ['Created default admin account (username: admin, password: freeitsm) — it must be changed at first sign-in']
         ];
+    }
+
+    // ⚠️ …and the same guarantee for installs that did NOT get their admin row from the
+    // block above. database/freeitsm.sql is mounted as a docker-entrypoint-initdb.d
+    // script, so on the Docker quickstart the row already exists by the time this runs
+    // and `COUNT(*) === 0` is false — which left admin/freeitsm permanently valid there.
+    // The SQL seed now sets the flag itself, but that only helps a fresh container; this
+    // catches the installs already out there.
+    //
+    // Deliberately narrow: the flag is only forced when the published default password
+    // STILL WORKS. Testing the password rather than the username means an admin who
+    // long ago changed it is never nagged, and an account merely named "admin" with a
+    // real password is left alone. password_verify() against the stored hash is the
+    // only honest test of that — the hash is salted, so it cannot be compared literally.
+    try {
+        $defStmt = $conn->query("SELECT id, password_hash, must_change_password FROM analysts WHERE username = 'admin'");
+        $defAdmin = $defStmt ? $defStmt->fetch(PDO::FETCH_ASSOC) : null;
+        if ($defAdmin
+            && (int)$defAdmin['must_change_password'] === 0
+            && password_verify('freeitsm', (string)$defAdmin['password_hash'])) {
+            $conn->prepare("UPDATE analysts SET must_change_password = 1 WHERE id = ?")
+                 ->execute([$defAdmin['id']]);
+            $results[] = [
+                'table'   => 'analysts',
+                'status'  => 'updated',
+                'details' => ['The default admin account is still using the published password — it must now be changed at the next sign-in']
+            ];
+        }
+    } catch (PDOException $e) {
+        // must_change_password may not exist yet on a part-migrated install; the column
+        // pass above creates it, and the next run of Database Verify will do this.
+        if (!dbErrorIsUnknownColumn($e)) throw $e;
     }
 
     // Seed the silent Default tenant (multi-tenancy foundation) if none exists.
@@ -1302,6 +1335,14 @@ try {
             // somebody's file is the worse surprise of the two.
             'attachment_rejected_behaviour'   => 'store',
 
+            // Which attachment types are accepted. Seeded EMPTY on purpose: empty means
+            // "the whole catalogue in includes/uploads.php", so an install picks up new
+            // safe types when the product adds them instead of being frozen at whatever
+            // the list happened to be on the day it was installed. An administrator who
+            // wants to narrow it types the extensions they want; attachmentAllowedTypes()
+            // intersects that with the catalogue, so it can only ever subtract.
+            'attachment_allowed_extensions'   => '',
+
             // ── Brute-force protection ──────────────────────────────────────────
             // None of these were ever seeded, and both call sites read a missing
             // value as 0 and 0 as "off" — so every fresh install shipped with
@@ -1384,7 +1425,16 @@ try {
     // the name the sender gave it. Idempotent: .bin files no longer match.
     if ($tableExists('email_attachments') && $colExists('email_attachments', 'file_path')) {
         try {
-            $riskyExt = '[.](php|phtml|php[0-9]|phps|cgi|pl|py|jsp|asp|aspx|sh|shtml|htaccess|html|htm|svg|xhtml)$';
+            // ⚠️ This one sweep is a DENYLIST, unlike the ingest side, which is an
+            // allow-list and stays that way. A denylist is only defensible here because
+            // it is looking at names that already exist on disk rather than deciding what
+            // may arrive — but it still has to be reasonably complete. .phar and .pht are
+            // executed by common PHP configurations; .hta and .cer are executable on IIS;
+            // .mhtml is a same-origin document; and .xml/.xsl/.xslt matter because a
+            // legacy .xml served as text/xml can carry a self-referencing xml-stylesheet
+            // processing instruction and run script in our own origin. All added after
+            // Erlend Volden pointed out the gaps.
+            $riskyExt = '[.](php|phtml|pht|php[0-9]|phps|phar|cgi|pl|py|jsp|asp|aspx|cer|sh|shtml|hta|htaccess|html|htm|mhtml|svg|svgz|xhtml|xml|xsl|xslt)$';
             $risky = $conn->query("SELECT id, file_path FROM email_attachments WHERE file_path REGEXP '$riskyExt'")->fetchAll(PDO::FETCH_ASSOC);
             $renamed = 0;
             $missing = 0;
@@ -1404,6 +1454,26 @@ try {
                     $missing++;
                     continue;
                 }
+
+                // ⚠️ Two attachments on one email can collide here even though they never
+                // collided on disk: report.htm and report.html both want report.bin, as do
+                // index.html and index.php. rename() overwrites silently on POSIX, so one
+                // file was destroyed and BOTH rows were then pointed at the survivor —
+                // rare, and unrecoverable when it landed. Find a free name instead. The
+                // displayed filename is a separate column, so the suffix is never seen by
+                // anyone; it exists only to keep the two files apart.
+                if (file_exists($newAbs)) {
+                    $base = preg_replace('/\.[^.\/\\\\]+$/', '', $newRel);
+                    $suffix = 1;
+                    do {
+                        $candidate = $base . '-' . $suffix . '.' . ATTACHMENT_QUARANTINE_EXT;
+                        $suffix++;
+                    } while ($suffix < 1000 && file_exists($attachRoot . $candidate));
+                    if (file_exists($attachRoot . $candidate)) continue;   // gave up; leave it alone
+                    $newRel = $candidate;
+                    $newAbs = $attachRoot . $newRel;
+                }
+
                 if (@rename($oldAbs, $newAbs)) {
                     $updPath->execute([$newRel, $att['id']]);
                     $renamed++;

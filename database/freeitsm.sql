@@ -4475,8 +4475,16 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Seed: Default admin account
 -- ----------------------------------------------------------
 -- Username: admin  |  Password: freeitsm
--- IMPORTANT: Change this password after first login!
-INSERT INTO `analysts` (`username`, `password_hash`, `full_name`, `email`, `is_active`, `is_admin`, `created_datetime`)
-SELECT 'admin', '$2y$12$z9jzs9Sqol4i.ThVE/wwL.EzvbYtZrU0GHpzUJX7UC6ODp5h.q2U2', 'Administrator', 'admin@localhost', 1, 1, UTC_TIMESTAMP()
+-- The account is created with must_change_password = 1, so this password cannot be
+-- kept: the first sign-in can go nowhere but the change-password screen.
+--
+-- ⚠️ must_change_password MUST be listed here explicitly. It defaults to 0, and
+-- docker-compose.yml mounts this file as a /docker-entrypoint-initdb.d script — so on
+-- the Docker quickstart THIS seed runs, not the one in api/system/db_verify.php, whose
+-- `COUNT(*) === 0` test then finds the row already present and never fires. Leaving the
+-- column out here left admin/freeitsm permanently valid on the flagship install path,
+-- while README.md promised the opposite. Reported by Erlend Volden.
+INSERT INTO `analysts` (`username`, `password_hash`, `full_name`, `email`, `is_active`, `is_admin`, `must_change_password`, `created_datetime`)
+SELECT 'admin', '$2y$12$z9jzs9Sqol4i.ThVE/wwL.EzvbYtZrU0GHpzUJX7UC6ODp5h.q2U2', 'Administrator', 'admin@localhost', 1, 1, 1, UTC_TIMESTAMP()
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `analysts` LIMIT 1);
