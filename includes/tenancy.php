@@ -60,34 +60,59 @@ function tenancyDegradeAllowed(Exception $e): bool {
 /**
  * Does the tenants table exist? (Cached.) Lets every other function degrade
  * gracefully on an install that hasn't been migrated yet.
+ *
+ * ⚠️ THIS IS THE MASTER SWITCH, SO IT FAILS CLOSED. Every guard below begins with
+ * `if (!isMultiTenant($conn)) return true;`, and isMultiTenant() is this function
+ * two calls down. A bare `catch { $ready = false; }` therefore did not degrade one
+ * guard — it turned off ALL of them, for the whole request, from a single failed
+ * `SELECT 1 FROM tenants`. That is the exact fail-open F9 set out to remove, sitting
+ * one frame above the seven catches F9 actually fixed; found by Erlend Volden when
+ * he re-reviewed those fixes.
+ *
+ * So: only a genuinely missing table means "single-company install". Anything else —
+ * lock-wait timeout, dropped connection, permissions — is not evidence about how many
+ * companies exist, so we say "ready" and let the real queries fail into
+ * tenancyDegradeAllowed(), which denies. Not cached in that case: a transient error
+ * must not pin the answer for the rest of the request.
  */
 function tenancyTablesReady(PDO $conn): bool {
     static $ready = null;
-    if ($ready === null) {
-        try {
-            $conn->query("SELECT 1 FROM tenants LIMIT 1");
-            $ready = true;
-        } catch (Exception $e) {
-            $ready = false;
+    if ($ready !== null) return $ready;
+    try {
+        $conn->query("SELECT 1 FROM tenants LIMIT 1");
+        return $ready = true;
+    } catch (PDOException $e) {
+        if (dbErrorIsMissingTable($e)) {
+            return $ready = false;   // genuinely not migrated yet
         }
+        error_log('tenancy: tenants table unreadable (' . $e->getMessage()
+                  . ') — assuming multi-company so the guards still run');
+        return true;
     }
-    return $ready;
 }
 
 /**
  * Number of tenants on this install. Returns 1 if the table isn't ready.
+ *
+ * ⚠️ Same rule as above: the COUNT can itself fail transiently, and answering 1 would
+ * switch every guard off. A count we cannot take is reported as 2 — "assume more than
+ * one company" — which engages the guards rather than bypassing them. Uncached, for
+ * the same reason.
  */
 function tenantCount(PDO $conn): int {
     static $count = null;
-    if ($count === null) {
-        if (!tenancyTablesReady($conn)) {
-            $count = 1;
-        } else {
-            $count = (int) $conn->query("SELECT COUNT(*) FROM tenants")->fetchColumn();
-            if ($count < 1) $count = 1;
-        }
+    if ($count !== null) return $count;
+    if (!tenancyTablesReady($conn)) {
+        return $count = 1;
     }
-    return $count;
+    try {
+        $n = (int) $conn->query("SELECT COUNT(*) FROM tenants")->fetchColumn();
+        return $count = ($n < 1 ? 1 : $n);
+    } catch (PDOException $e) {
+        error_log('tenancy: could not count tenants (' . $e->getMessage()
+                  . ') — assuming multi-company so the guards still run');
+        return 2;
+    }
 }
 
 /**
@@ -558,7 +583,15 @@ function activeTenantFilter(PDO $conn, int $analystId, string $alias = 't', stri
     return [" AND $qualified = ?", [$active]];
 }
 
-/** Does $table have $column? Cached per request; false if the table is missing. */
+/**
+ * Does $table have $column? Cached per request; false if the table is missing.
+ *
+ * ⚠️ Callers read `false` as "not migrated yet, so allow" — analystCanAccessArticle()
+ * returns true outright on it. That makes a bare catch fail open, so only a genuinely
+ * missing table answers false here. On any other error we answer true, which sends the
+ * caller into its own try/catch, where the query fails and tenancyDegradeAllowed()
+ * denies. Uncached in that case, so a blip does not pin the answer.
+ */
 function tenancyColumnExists(PDO $conn, string $table, string $column): bool {
     static $cache = [];
     $key = $table . '.' . $column;
@@ -567,8 +600,13 @@ function tenancyColumnExists(PDO $conn, string $table, string $column): bool {
         $stmt = $conn->prepare("SHOW COLUMNS FROM `" . str_replace('`', '', $table) . "` LIKE ?");
         $stmt->execute([$column]);
         return $cache[$key] = (bool)$stmt->fetch();
-    } catch (Exception $e) {
-        return $cache[$key] = false;
+    } catch (PDOException $e) {
+        if (dbErrorIsMissingTable($e)) {
+            return $cache[$key] = false;   // no table, so no column
+        }
+        error_log('tenancy: could not inspect ' . $key . ' (' . $e->getMessage()
+                  . ') — assuming the column is present so the guards still run');
+        return true;
     }
 }
 
