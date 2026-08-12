@@ -127,7 +127,12 @@ $translationNamespaces = ['common', 'service-status'];
         .svc-strip { display: flex; gap: 1px; align-items: stretch; height: 30px; }
         .svc-day { flex: 1 1 0; min-width: 0; border-radius: 1px; background: var(--ok-bg, #d1fae5); }
         .svc-day-ok   { background: var(--ok-bg, #d1fae5); }
-        .svc-day-info { background: var(--border, #cbd5e1); }   /* maintenance: visible, not punitive */
+        /* ⚠️ NOT var(--border). That token is a divider colour and it is #343b45 in
+           dark mode, so an excluded day rendered as a near-black gap in the strip —
+           it read as "broken", which is the one thing it is not. A literal mid-grey
+           is legible against both the light and dark card backgrounds, and this is
+           a data colour rather than chrome, so it should not follow a chrome token. */
+        .svc-day-info { background: #94a3b8; }   /* logged, but not counted as downtime */
         .svc-day-down { background: #dc2626; }
         .svc-strip-ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted, #9ca3af); margin-top: 4px; }
 
@@ -536,10 +541,13 @@ $translationNamespaces = ['common', 'service-status'];
             // tooltip component: it is a 90-cell strip and a hover card per cell
             // would be a lot of DOM for something read at a glance.
             const strip = data.strip.map(d => {
+                // ⚠️ Name the actual impact level. This used to say "maintenance"
+                // for any day whose only incident was excluded from downtime — but
+                // "excluded" covers Operational, No Disruption and anything an
+                // administrator adds, so a day was reporting a level it never had.
                 const label = d.impact
                     ? `${d.date} — ${d.impact}`
-                    : (d.state === 'info' ? `${d.date} — ${window.t('service-status.board.history_maintenance')}`
-                                          : `${d.date} — ${window.t('service-status.board.history_no_issues')}`);
+                    : `${d.date} — ${window.t('service-status.board.history_no_issues')}`;
                 const bg = (d.state === 'down' && d.colour) ? ` style="background:${d.colour}"` : '';
                 return `<span class="svc-day svc-day-${d.state}"${bg} title="${escapeHtml(label)}"></span>`;
             }).join('');

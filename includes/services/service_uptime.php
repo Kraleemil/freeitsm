@@ -227,24 +227,35 @@ class ServiceUptime
             $dayEnd   = $dayStart + 86400;
             $key      = gmdate('Y-m-d', $dayStart);
 
-            $worst = null; $worstSev = PHP_INT_MAX; $secs = 0; $sawInfo = false;
+            $worst = null; $worstSev = PHP_INT_MAX; $secs = 0; $info = null;
             foreach ($incidents as $i) {
                 $s = strtotime($i['started'] . ' UTC');
                 $e = $i['ended'] !== null ? strtotime($i['ended'] . ' UTC') : $now;
                 if ($s === false || $e === false || $e <= $dayStart || $s >= $dayEnd) {
                     continue;
                 }
-                if (!$i['counts']) { $sawInfo = true; continue; }
+                // ⚠️ Keep the non-counting incident, do not just remember THAT there
+                // was one. This was a bare `$sawInfo = true`, and the strip then had
+                // no name to show — so the tooltip fell back to the word
+                // "maintenance" for every excluded level. An incident logged at
+                // Operational reported itself as maintenance, which is simply untrue.
+                // Any level with counts_as_downtime = 0 lands here, and there are
+                // three shipped ones plus anything an administrator adds.
+                if (!$i['counts']) {
+                    if ($info === null) { $info = $i; }
+                    continue;
+                }
                 $secs += min($e, $dayEnd) - max($s, $dayStart);
                 $sev = $severity[$i['impact']] ?? 99;
                 if ($sev < $worstSev) { $worstSev = $sev; $worst = $i; }
             }
 
+            $shown = $worst ?? $info;
             $days[] = [
                 'date'    => $key,
-                'state'   => $worst !== null ? 'down' : ($sawInfo ? 'info' : 'ok'),
-                'impact'  => $worst['impact'] ?? null,
-                'colour'  => $worst['colour'] ?? null,
+                'state'   => $worst !== null ? 'down' : ($info !== null ? 'info' : 'ok'),
+                'impact'  => $shown['impact'] ?? null,
+                'colour'  => $shown['colour'] ?? null,
                 'seconds' => $secs,
             ];
         }

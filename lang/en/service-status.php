@@ -38,7 +38,6 @@ return [
         'history_ongoing'     => 'Ongoing',
         'history_excluded'     => '(not counted as downtime)',
         'history_no_issues'   => 'no issues',
-        'history_maintenance' => 'maintenance',
         'incidents'       => 'Incidents',
         'new'             => 'New',
         'col_title'       => 'Title',
