@@ -67,8 +67,28 @@ $translationNamespaces = ['common', 'service-status'];
 
 
         /* ─── Service history + uptime (discussion #59) ────────────────────── */
+        /* ⚠️ The badge and the History link have to line up ACROSS cards, and two
+           separate things stopped them.
+           1. Descriptions are one line or two ("Email" wraps, "VPN" does not), so
+              the badge started at a different height in each card.
+           2. Badge and link on one line wrapped unpredictably — "Operational"
+              left room for the link beside it, "Degraded Performance" did not —
+              so some cards showed one row and others two.
+           The card is a flex column with the description absorbing the slack, and
+           the pair is always stacked. Consistent beats compact here: the eye is
+           scanning DOWN a row of cards, so the badges must share a baseline. */
+        .service-card { display: flex; flex-direction: column; }
+        .service-card .service-desc { flex: 1 1 auto; }
+        .service-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            margin-top: auto;       /* pinned to the bottom, whatever the description did */
+        }
+
         .svc-history-toggle {
-            margin-top: 10px; background: none; border: none; padding: 0;
+            background: none; border: none; padding: 0;
             color: var(--ss-accent, #10b981); font-size: 12px; cursor: pointer;
             text-decoration: underline;
         }
@@ -81,6 +101,10 @@ $translationNamespaces = ['common', 'service-status'];
         .service-card.is-expanded { grid-column: 1 / -1; text-align: left; }
         .service-card.is-expanded .service-name,
         .service-card.is-expanded .service-desc { text-align: left; }
+        /* Expanded there is width to spare, so the pair goes back on one row. */
+        .service-card.is-expanded .service-actions {
+            flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px;
+        }
         .svc-history { margin-top: 12px; border-top: 1px solid var(--border, #e5e7eb); padding-top: 12px; }
         .svc-history-loading { font-size: 12px; color: var(--text-muted, #6b7280); padding: 6px 0; }
 
@@ -448,10 +472,12 @@ $translationNamespaces = ['common', 'service-status'];
                 <div class="service-card">
                     <div class="service-name">${escapeHtml(svc.name)}</div>
                     <div class="service-desc">${escapeHtml(svc.description || '')}</div>
-                    <span class="impact-badge" ${style}>${escapeHtml(svc.current_status)}</span>
-                    <button type="button" class="svc-history-toggle" onclick="toggleServiceHistory(${svc.id}, this)">
-                        ${escapeHtml(window.t('service-status.board.history_show'))}
-                    </button>
+                    <div class="service-actions">
+                        <span class="impact-badge" ${style}>${escapeHtml(svc.current_status)}</span>
+                        <button type="button" class="svc-history-toggle" onclick="toggleServiceHistory(${svc.id}, this)">
+                            ${escapeHtml(window.t('service-status.board.history_show'))}
+                        </button>
+                    </div>
                     <div class="svc-history" id="svcHistory${svc.id}" hidden></div>
                 </div>`;
             }).join('');
