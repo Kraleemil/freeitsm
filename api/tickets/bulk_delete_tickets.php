@@ -19,6 +19,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/services/tickets.php';
+require_once '../../includes/services/notifications.php';   // duringBulk() — discussion #55
 
 header('Content-Type: application/json');
 if (!isset($_SESSION['analyst_id'])) { echo json_encode(['success' => false, 'error' => 'Not authenticated']); exit; }
@@ -43,18 +44,21 @@ try {
     $deleted = 0;
     $failed  = [];
 
-    foreach ($ids as $rawId) {
-        $ticketId = (int)$rawId;
-        if ($ticketId <= 0) { $failed[] = ['id' => $rawId, 'error' => 'Invalid id']; continue; }
-        try {
-            TicketsService::deleteTicket($conn, $ctx, $ticketId, true);
-            $deleted++;
-        } catch (ServiceError $e) {
-            $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
-        } catch (Exception $e) {
-            $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
+    // Notifications suppressed for the loop — see bulk_update_tickets.php (#55).
+    NotificationsService::duringBulk(function () use ($conn, $ctx, $ids, &$deleted, &$failed) {
+        foreach ($ids as $rawId) {
+            $ticketId = (int)$rawId;
+            if ($ticketId <= 0) { $failed[] = ['id' => $rawId, 'error' => 'Invalid id']; continue; }
+            try {
+                TicketsService::deleteTicket($conn, $ctx, $ticketId, true);
+                $deleted++;
+            } catch (ServiceError $e) {
+                $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
+            } catch (Exception $e) {
+                $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
+            }
         }
-    }
+    });
 
     echo json_encode(['success' => true, 'deleted' => $deleted, 'failed' => $failed]);
 

@@ -593,6 +593,221 @@ function renderWaffleMenuJS() {
  * than a 403, and any failure renders no bell rather than breaking the page it is
  * embedded in.
  */
+/**
+ * The global notification bell (discussion #55).
+ *
+ * Rendered from the waffle menu, which is on every module's header — which is
+ * what makes it module-independent without any module knowing about it.
+ *
+ * Polls a COUNT for the badge and only fetches the list when the panel opens:
+ * this runs in every open tab of every analyst, so the idle cost is the cost
+ * that matters, not the cost of opening it.
+ */
+function renderNotificationBell($path_prefix) {
+    if (!isset($_SESSION['analyst_id'])) return;
+    ?>
+    <style>
+        .nb-wrap { position: relative; margin-right: 6px; }
+        .nb-btn {
+            display: flex; align-items: center;
+            background: none; border: none;
+            color: rgba(255,255,255,0.75);
+            cursor: pointer; padding: 4px 6px; border-radius: 4px; position: relative;
+            transition: color 150ms ease, background 150ms ease, transform 140ms cubic-bezier(0.23,1,0.32,1);
+        }
+        .nb-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+        .nb-btn:active { transform: scale(0.94); }
+        .nb-count {
+            position: absolute; top: -1px; right: -2px;
+            min-width: 16px; padding: 0 4px; border-radius: 8px;
+            background: #dc2626; color: #fff;
+            font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+        }
+        .nb-count[hidden] { display: none; }
+        .nb-panel {
+            display: none; position: absolute; top: 34px; right: 0;
+            width: 360px; max-height: 60vh; overflow-y: auto;
+            background: var(--surface, #fff); color: var(--text, #333);
+            border: 1px solid var(--border, #e0e0e0); border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+            z-index: 2000; text-align: left;
+        }
+        .nb-panel.open { display: block; }
+        .nb-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; border-bottom: 1px solid var(--border, #eee);
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.4px; color: var(--text-muted, #666);
+            position: sticky; top: 0; background: var(--surface, #fff);
+        }
+        .nb-markall {
+            border: none; background: none; cursor: pointer;
+            font-size: 11px; text-transform: none; letter-spacing: 0;
+            color: var(--accent, #0078d4); font-weight: 600;
+        }
+        .nb-markall:hover { text-decoration: underline; }
+        .nb-item {
+            display: block; width: 100%; padding: 10px 14px;
+            border: none; border-bottom: 1px solid var(--border-soft, #f2f2f2);
+            background: none; color: inherit; font: inherit; text-align: left;
+            cursor: pointer; text-decoration: none;
+        }
+        .nb-item:hover { background: var(--surface-hover, #f6f6f6); }
+        /* Unread carries a left edge rather than a bold background: the panel is
+           mostly unread, so colouring them all just makes a solid block. */
+        .nb-item.unread { border-left: 3px solid var(--accent, #0078d4); padding-left: 11px; }
+        .nb-item-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+        .nb-item-ref { font-size: 12px; font-weight: 600; color: var(--accent, #0078d4); }
+        .nb-item-meta { font-size: 11px; color: var(--text-dim, #999); white-space: nowrap; }
+        .nb-item-title { font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+        .nb-item-body { font-size: 12px; line-height: 1.4; color: var(--text-muted, #555); overflow-wrap: anywhere; }
+        .nb-badge-count {
+            display: inline-block; margin-left: 6px; padding: 0 5px;
+            border-radius: 7px; background: var(--surface-hover, #eef1f4);
+            color: var(--text-muted, #666); font-size: 10px; font-weight: 700; line-height: 15px;
+        }
+        .nb-empty { padding: 26px 14px; text-align: center; color: var(--text-muted, #666); font-size: 13px; }
+        @media (max-width: 768px) {
+            /* Same reasoning as the war-room panel: anything wider than the
+               viewport makes iOS reflow the whole page to desktop. */
+            .nb-panel { position: fixed; top: 48px; right: 4px; left: 4px; width: auto; max-height: 70vh; }
+            .nb-btn { padding: 8px; }
+        }
+    </style>
+
+    <div class="nb-wrap">
+        <button class="nb-btn" id="nbBtn" type="button" aria-label="<?php echo htmlspecialchars(t('common.notifications.aria')); ?>" title="<?php echo htmlspecialchars(t('common.notifications.title')); ?>">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <span class="nb-count" id="nbCount" hidden>0</span>
+        </button>
+        <div class="nb-panel" id="nbPanel">
+            <div class="nb-head">
+                <span><?php echo htmlspecialchars(t('common.notifications.title')); ?></span>
+                <button type="button" class="nb-markall" id="nbMarkAll"><?php echo htmlspecialchars(t('common.notifications.mark_all')); ?></button>
+            </div>
+            <div id="nbList"></div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        const API = '<?php echo $path_prefix; ?>api/notifications/';
+        const PREFIX = '<?php echo $path_prefix; ?>';
+        const btn   = document.getElementById('nbBtn');
+        const panel = document.getElementById('nbPanel');
+        const badge = document.getElementById('nbCount');
+        const list  = document.getElementById('nbList');
+        if (!btn) return;
+
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+        // Stored UTC without a zone marker; left as-is, Safari and Firefox read it
+        // as local time and every notification looks hours old.
+        function ago(utc) {
+            if (!utc) return '';
+            const then = new Date(String(utc).replace(' ', 'T') + 'Z');
+            if (isNaN(then)) return '';
+            const mins = Math.floor((Date.now() - then.getTime()) / 60000);
+            if (mins < 1)  return window.t('common.notifications.just_now');
+            if (mins < 60) return window.t('common.notifications.minutes', { n: mins });
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24)  return window.t('common.notifications.hours', { n: hrs });
+            return window.t('common.notifications.days', { n: Math.floor(hrs / 24) });
+        }
+
+        function describe(n) {
+            // Translated at render time, never baked into the row — otherwise a
+            // notification written today reads forever in whoever wrote it's language.
+            const key = 'common.notifications.event.' + n.event_type;
+            const txt = window.t(key, { actor: n.actor_name || window.t('common.notifications.someone') });
+            return txt === key ? (n.actor_name || '') : txt;
+        }
+
+        function render(items) {
+            if (!items.length) {
+                list.innerHTML = '<div class="nb-empty">' + esc(window.t('common.notifications.empty')) + '</div>';
+                return;
+            }
+            list.innerHTML = items.map(n => {
+                const count = n.event_count > 1
+                    ? '<span class="nb-badge-count">' + n.event_count + '</span>' : '';
+                const ref = n.entity_ref ? esc(n.entity_ref) : '';
+                return `<a class="nb-item${n.is_read ? '' : ' unread'}" href="${n.link ? esc(PREFIX + n.link) : '#'}"
+                           data-id="${n.id}">
+                    <div class="nb-item-top">
+                        <span class="nb-item-ref">${ref}${count}</span>
+                        <span class="nb-item-meta">${esc(ago(n.updated_datetime))}</span>
+                    </div>
+                    <div class="nb-item-title">${esc(n.title || '')}</div>
+                    <div class="nb-item-body">${esc(describe(n))}</div>
+                </a>`;
+            }).join('');
+        }
+
+        function paintBadge(unread) {
+            badge.textContent = unread > 99 ? '99+' : String(unread);
+            badge.hidden = unread === 0;
+        }
+
+        async function poll() {
+            try {
+                const d = await (await fetch(API + 'get_notifications.php?count_only=1')).json();
+                if (d.success) paintBadge(d.unread);
+            } catch (e) { /* a failed poll is not worth telling anyone about */ }
+        }
+
+        async function open() {
+            panel.classList.add('open');
+            list.innerHTML = '<div class="nb-empty">' + esc(window.t('common.notifications.loading')) + '</div>';
+            try {
+                const d = await (await fetch(API + 'get_notifications.php')).json();
+                if (d.success) { render(d.notifications || []); paintBadge(d.unread); }
+            } catch (e) {
+                list.innerHTML = '<div class="nb-empty">' + esc(window.t('common.notifications.load_failed')) + '</div>';
+            }
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            panel.classList.contains('open') ? panel.classList.remove('open') : open();
+        });
+        document.addEventListener('click', function (e) {
+            if (!panel.contains(e.target) && !btn.contains(e.target)) panel.classList.remove('open');
+        });
+
+        // Follow the link AND mark read. Not awaited: making somebody wait on a
+        // bookkeeping write before their ticket opens would be the wrong trade.
+        list.addEventListener('click', function (e) {
+            const item = e.target.closest('.nb-item');
+            if (!item) return;
+            const id = parseInt(item.dataset.id, 10);
+            if (id) {
+                fetch(API + 'mark_read.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: [id] }), keepalive: true
+                }).catch(() => {});
+            }
+        });
+
+        document.getElementById('nbMarkAll').addEventListener('click', async function (e) {
+            e.stopPropagation();
+            try {
+                const d = await (await fetch(API + 'mark_read.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ all: true })
+                })).json();
+                if (d.success) { paintBadge(d.unread); open(); }
+            } catch (err) { /* leave the panel as it is */ }
+        });
+
+        poll();
+        setInterval(poll, 60000);
+    })();
+    </script>
+    <?php
+}
+
 function renderWarRoomAlerts($path_prefix) {
     if (!isset($_SESSION['analyst_id'])) return;
 
@@ -693,7 +908,11 @@ function renderWarRoomAlerts($path_prefix) {
 
     <div class="wra-wrap">
         <button class="wra-btn" id="wraBtn" type="button" aria-label="War room notifications">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            <!-- Speech bubble, not a bell: the global notification bell (discussion
+                 #55) now sits beside this one, and two identical bells in the same
+                 header is a puzzle rather than a UI. This one is chat, and reads
+                 more accurately as chat anyway. -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
             <span class="wra-count" id="wraCount">0</span>
         </button>
         <div class="wra-panel" id="wraPanel">
@@ -1185,6 +1404,7 @@ function renderHeaderRight($analyst_name, $path_prefix) {
 
     <div class="header-right">
         <?php echo $__tenantSwitcherHtml; ?>
+        <?php renderNotificationBell($path_prefix); ?>
         <?php renderWarRoomAlerts($path_prefix); ?>
         <button class="mail-check-btn" id="mailCheckBtn" onclick="triggerMailCheck()" title="<?php echo htmlspecialchars(t('common.account.mail_check')); ?>" style="display:none;">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>

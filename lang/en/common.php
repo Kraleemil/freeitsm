@@ -130,6 +130,68 @@ return [
     ],
 
     // Account / user menu in the shared header
+    // The global notification bell (discussion #55). Event descriptions are
+    // resolved when the bell renders, not when the row is written, so a
+    // notification reads in the LANGUAGE OF WHOEVER IS READING IT rather than
+    // whoever happened to trigger it.
+    'notifications' => [
+        'title'       => 'Notifications',
+        'aria'        => 'Notifications',
+        'mark_all'    => 'Mark all read',
+        'empty'       => 'Nothing new.',
+        'loading'     => 'Loading…',
+        'load_failed' => 'Could not load notifications.',
+        'someone'     => 'Someone',
+        'just_now'    => 'just now',
+        'minutes'     => '{n}m ago',
+        'hours'       => '{n}h ago',
+        'days'        => '{n}d ago',
+        // ⚠️ NESTED BY ENTITY, not keyed by the literal event name. I18n::t()
+        // splits the key on EVERY dot, so a flat 'ticket.assigned' key here is
+        // unreachable — the lookup silently misses and the bell falls back to
+        // showing a bare name with no explanation of what happened.
+        // Event types are 'ticket.assigned' etc, so 'event.' . $type resolves
+        // through this nesting exactly as intended.
+        'event' => [
+            'ticket' => [
+                'assigned'         => 'Assigned to you by {actor}',
+                'reply_received'   => 'The requester replied',
+                'note_added'       => '{actor} added a note',
+                'status_changed'   => '{actor} changed the status',
+                'priority_changed' => '{actor} changed the priority',
+                'created'          => 'Raised by {actor}',
+            ],
+            'sla' => [
+                'warning'  => 'Approaching its SLA target',
+                'breached' => 'SLA target breached',
+            ],
+            'task' => [
+                'created'   => '{actor} created a task for you',
+                'completed' => '{actor} completed a task',
+            ],
+        ],
+        // Labels for the per-type switches on the Preferences page. Same nesting
+        // rule as above, and for the same reason.
+        'pref' => [
+            'ticket' => [
+                'assigned'         => 'A ticket is assigned to me',
+                'reply_received'   => 'A requester replies to my ticket',
+                'note_added'       => 'Someone adds a note to my ticket',
+                'status_changed'   => 'Someone changes the status of my ticket',
+                'priority_changed' => 'Someone changes the priority of my ticket',
+                'created'          => 'A ticket is raised',
+            ],
+            'sla' => [
+                'warning'  => 'My ticket is approaching its SLA target',
+                'breached' => 'My ticket breaches its SLA target',
+            ],
+            'task' => [
+                'created'   => 'A task is created for me',
+                'completed' => 'A task of mine is completed',
+            ],
+        ],
+    ],
+
     'account' => [
         'mail_check'      => 'Check for new emails',
         'preferences'     => 'Preferences',

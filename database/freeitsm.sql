@@ -149,6 +149,30 @@ CREATE TABLE IF NOT EXISTS `user_preferences` (
     CONSTRAINT `fk_user_pref_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- In-app notifications (discussion #55). One row per thing an analyst is told
+-- about. Rows COALESCE while unread: three changes to the same ticket bump
+-- event_count on one row rather than making three, which is what stops the bell
+-- becoming unusable for anyone carrying a real ticket load.
+CREATE TABLE IF NOT EXISTS `notifications` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `analyst_id`        INT NOT NULL,
+    `event_type`        VARCHAR(64) NOT NULL,     -- 'ticket.assigned', 'ticket.reply_received', …
+    `entity_type`       VARCHAR(32) NOT NULL,     -- 'ticket'
+    `entity_id`         INT NOT NULL,
+    `entity_ref`        VARCHAR(64) NULL,         -- ticket number, for display and the deep link
+    `title`             VARCHAR(255) NULL,        -- the ticket subject at the time
+    `body`              VARCHAR(500) NULL,        -- 'Sam Cover replied'
+    `actor_name`        VARCHAR(100) NULL,        -- who caused it, NULL for system events
+    `event_count`       INT NOT NULL DEFAULT 1,   -- >1 once coalesced
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `read_datetime`     DATETIME NULL,            -- NULL = unread; the badge counts these
+    PRIMARY KEY (`id`),
+    KEY `ix_notif_unread` (`analyst_id`, `read_datetime`, `updated_datetime`),
+    KEY `ix_notif_coalesce` (`analyst_id`, `entity_type`, `entity_id`, `read_datetime`),
+    CONSTRAINT `fk_notif_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `teams` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `name`              VARCHAR(100) NOT NULL,

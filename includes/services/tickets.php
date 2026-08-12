@@ -513,7 +513,7 @@ class TicketsService
     /** Add a note. Returns the note id; touches the ticket's updated_datetime. */
     public static function createNote(PDO $conn, ActorContext $ctx, int $ticketId, array $in): int
     {
-        self::loadTicket($conn, $ctx, $ticketId);   // 404
+        $ticketRow = self::loadTicket($conn, $ctx, $ticketId);   // 404
         $text = trim((string)($in['text'] ?? ''));
         if ($text === '') {
             throw new ServiceError('validation', 'missing_field', "'text' is required.");
@@ -523,6 +523,21 @@ class TicketsService
              ->execute([$ticketId, $ctx->actorId, $text, $isInternal ? 1 : 0]);
         $noteId = (int)$conn->lastInsertId();
         $conn->prepare("UPDATE tickets SET updated_datetime = UTC_TIMESTAMP() WHERE id = ?")->execute([$ticketId]);
+
+        // ticket.note_added (discussion #55). A colleague adding a note to your
+        // ticket is one of the things people most want to be told about, and
+        // until now nothing announced it at all — so workflows could not act on
+        // it either. Non-fatal: a note is saved whether or not anyone hears.
+        try {
+            WorkflowEngine::dispatch('ticket.note_added', [
+                'ticket'      => self::eventTicket($ticketRow),
+                'note_id'     => $noteId,
+                'is_internal' => $isInternal,
+            ]);
+        } catch (Exception $wfEx) {
+            error_log('Workflow dispatch error in TicketsService createNote: ' . $wfEx->getMessage());
+        }
+
         return $noteId;
     }
 

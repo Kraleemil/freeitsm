@@ -1081,6 +1081,38 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
 
     $dbEmailId = $conn->lastInsertId();
 
+    // ticket.reply_received (discussion #55) — only for a reply, never for the
+    // email that CREATED the ticket. ticket.created already covers that one, and
+    // firing both would put two notifications on a single new ticket.
+    //
+    // Runs under the mailbox poll, which has no analyst session, so the actor is
+    // nobody and the assignee is correctly told even though they own the ticket.
+    if ($isInitial != 1 && $ticketId) {
+        try {
+            require_once __DIR__ . '/../../workflow/includes/engine.php';
+            // ⚠️ requester_email is NOT a column on tickets — it lives on the user.
+            // See the same note in api/self-service/reply_ticket.php.
+            $tStmt = $conn->prepare(
+                "SELECT t.id, t.subject, t.priority_id, t.status_id, t.department_id,
+                        t.ticket_type_id AS type_id, t.assigned_analyst_id, t.owner_id,
+                        t.origin_id, t.user_id AS created_by, u.email AS requester_email
+                   FROM tickets t
+                   LEFT JOIN users u ON u.id = t.user_id
+                  WHERE t.id = ? LIMIT 1"
+            );
+            $tStmt->execute([(int)$ticketId]);
+            $tRow = $tStmt->fetch(PDO::FETCH_ASSOC);
+            if ($tRow) {
+                WorkflowEngine::dispatch('ticket.reply_received', [
+                    'ticket' => $tRow,
+                    'source' => 'email',
+                ]);
+            }
+        } catch (Throwable $wfEx) {
+            error_log('Workflow dispatch error on inbound reply: ' . $wfEx->getMessage());
+        }
+    }
+
     // Process attachments
     // Check for inline images by looking for cid: references in the body
     $hasCidReferences = preg_match('/cid:/i', $bodyContent);

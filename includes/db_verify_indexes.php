@@ -142,6 +142,10 @@ return [
     ['morningChecks_Results', 'uq_check_date', 'unique', '(`CheckID`,`CheckDate`)'],
     // Grouping + routing (discussion #64). The dashboard joins on every one of
     // these on each load, and the links table is read per result.
+    // Notifications (discussion #55). The unread index serves the badge, which is
+    // polled by every open tab; the coalesce index is hit on every event written.
+    ['notifications', 'ix_notif_unread', 'key', '(`analyst_id`,`read_datetime`,`updated_datetime`)'],
+    ['notifications', 'ix_notif_coalesce', 'key', '(`analyst_id`,`entity_type`,`entity_id`,`read_datetime`)'],
     ['morningChecks_Groups', 'ix_mcg_team', 'key', '(`AssignedTeamID`)'],
     ['morningChecks_Groups', 'ix_mcg_analyst', 'key', '(`AssignedAnalystID`)'],
     ['morningChecks_Checks', 'ix_mcc_group', 'key', '(`GroupID`)'],

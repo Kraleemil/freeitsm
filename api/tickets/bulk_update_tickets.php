@@ -37,6 +37,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/services/tickets.php';
+require_once '../../includes/services/notifications.php';   // duringBulk() — discussion #55
 
 header('Content-Type: application/json');
 if (!isset($_SESSION['analyst_id'])) { echo json_encode(['success' => false, 'error' => 'Not authenticated']); exit; }
@@ -80,18 +81,26 @@ try {
     $updated = 0;
     $failed  = [];
 
-    foreach ($ids as $rawId) {
-        $ticketId = (int)$rawId;
-        if ($ticketId <= 0) { $failed[] = ['id' => $rawId, 'error' => 'Invalid id']; continue; }
-        try {
-            TicketsService::updateTicket($conn, $ctx, $ticketId, $in, true);
-            $updated++;
-        } catch (ServiceError $e) {
-            $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
-        } catch (Exception $e) {
-            $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
+    // ⚠️ Notifications are suppressed for the whole loop (discussion #55).
+    // This endpoint deliberately loops the service so every ticket gets the same
+    // validation, audit and workflow dispatch a single edit would — which also
+    // means it fires one event PER TICKET. Without this, reassigning 50 tickets
+    // would put 50 rows in somebody's bell. Workflows and audit still run; only
+    // the bell is quiet.
+    NotificationsService::duringBulk(function () use ($conn, $ctx, $ids, $in, &$updated, &$failed) {
+        foreach ($ids as $rawId) {
+            $ticketId = (int)$rawId;
+            if ($ticketId <= 0) { $failed[] = ['id' => $rawId, 'error' => 'Invalid id']; continue; }
+            try {
+                TicketsService::updateTicket($conn, $ctx, $ticketId, $in, true);
+                $updated++;
+            } catch (ServiceError $e) {
+                $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
+            } catch (Exception $e) {
+                $failed[] = ['id' => $ticketId, 'error' => $e->getMessage()];
+            }
         }
-    }
+    });
 
     echo json_encode(['success' => true, 'updated' => $updated, 'failed' => $failed]);
 

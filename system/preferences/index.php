@@ -277,6 +277,41 @@ if (isset($_SESSION['analyst_id'])) {
                     ? t('system.preferences.landing_portal')
                     : t('system.preferences.landing_analyst');
             ?>
+            <?php
+                // Notification types (discussion #55). Rendered from the service's
+                // own registry so adding a type there adds it here — there is no
+                // second list to keep in step.
+                require_once __DIR__ . '/../../includes/services/notifications.php';
+                $notifPrefs = [];
+                try {
+                    $notifPrefs = NotificationsService::effectivePreferences(connectToDatabase(), (int)$_SESSION['analyst_id']);
+                } catch (Exception $e) {
+                    // Section simply renders empty rather than breaking the page.
+                }
+            ?>
+            <?php if ($notifPrefs): ?>
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.notif_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.notif_desc')); ?></p>
+                <div id="notifTypes" style="display:flex;flex-direction:column;gap:10px;margin-top:12px;max-width:520px;">
+                    <?php foreach ($notifPrefs as $key => $on): ?>
+                        <!-- No inline layout: .toggle-group in inbox.css is the shared
+                             switch component and deliberately puts the caption above the
+                             switch (via order:1). Overriding align-items here centred
+                             every row against the rest of the page. -->
+                        <label class="toggle-group">
+                            <span class="toggle-switch">
+                                <input type="checkbox" class="notif-type" data-type="<?php echo htmlspecialchars($key); ?>" <?php echo $on ? 'checked' : ''; ?>>
+                                <span class="toggle-slider"></span>
+                            </span>
+                            <span class="toggle-label"><?php echo htmlspecialchars(t('common.notifications.pref.' . $key)); ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+                <span class="pref-saving-hint" id="notifSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+            </div>
+            <?php endif; ?>
+
             <div class="pref-section">
                 <h3><?php echo htmlspecialchars(t('system.preferences.landing_heading')); ?></h3>
                 <p><?php echo htmlspecialchars(t('system.preferences.landing_desc')); ?></p>
@@ -443,6 +478,22 @@ if (isset($_SESSION['analyst_id'])) {
                     langHint.classList.remove('show');
                 }
             });
+        }
+
+        // ===== Notification types (notification_types) =====
+        // Saved as ONE json preference rather than a row per type, because the
+        // notification writer reads it on every event and one row keeps that to a
+        // single lookup.
+        const notifBoxes = document.querySelectorAll('.notif-type');
+        const notifHint  = document.getElementById('notifSavingHint');
+        if (notifBoxes.length) {
+            notifBoxes.forEach(box => box.addEventListener('change', async function () {
+                notifHint.classList.add('show');
+                const map = {};
+                notifBoxes.forEach(b => { map[b.dataset.type] = b.checked ? 1 : 0; });
+                await savePref('notification_types', JSON.stringify(map));
+                setTimeout(() => notifHint.classList.remove('show'), 1200);
+            }));
         }
 
         // ===== Start page (default_landing_page) =====

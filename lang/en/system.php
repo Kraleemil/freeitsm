@@ -468,6 +468,10 @@ return [
         'language_desc'    => 'The language used across the FreeITSM UI. Translations fall back to English for any strings not yet covered in your chosen language. Reloads the page on change.',
         'saving'           => 'Saving…',
 
+        // Notification bell types (discussion #55).
+        'notif_heading' => 'Notifications',
+        'notif_desc'    => 'Which of these put something in the bell at the top of the screen. You are never notified about your own actions, and several changes to the same ticket are grouped into one.',
+
         // Start page (discussion #63). The override for the install-wide setting.
         'landing_heading' => 'Start page',
         'landing_desc'    => 'Where you are sent when you open FreeITSM without being logged in.',

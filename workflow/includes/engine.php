@@ -95,6 +95,11 @@ class WorkflowEngine
             'ticket.status_changed'    => 'A ticket\'s status changes',
             'ticket.priority_changed'  => 'A ticket\'s priority changes',
             'ticket.assigned'          => 'A ticket is assigned to an analyst',
+            // Added for the notification bell (discussion #55), but useful in their
+            // own right — until now nothing announced that somebody had said
+            // something on a ticket, so no workflow could act on it either.
+            'ticket.note_added'        => 'A note is added to a ticket',
+            'ticket.reply_received'    => 'The requester replies to a ticket',
             'ticket.deleted'           => 'A ticket is moved to the trash',
             'ticket.restored'          => 'A ticket is restored from the trash',
             'form.submitted'           => 'A form submission is received',
@@ -238,6 +243,8 @@ class WorkflowEngine
             'ticket.status_changed'   => array_merge($fullTicket, ['old_status_id', 'new_status_id']),
             'ticket.priority_changed' => array_merge($fullTicket, ['old_priority_id', 'new_priority_id']),
             'ticket.assigned'         => array_merge($fullTicket, ['analyst_id', 'team_id']),
+            'ticket.note_added'       => array_merge($fullTicket, ['note_id', 'is_internal']),
+            'ticket.reply_received'   => array_merge($fullTicket, ['source']),
             'form.submitted' => [
                 'form.id', 'form.name', 'submission.id', 'submission.email',
             ],
@@ -1162,6 +1169,17 @@ class WorkflowEngine
      */
     public static function dispatch(string $event, array $payload): void
     {
+        // In-app notifications (discussion #55) subscribe here rather than at the
+        // 48 individual call sites. Its own try/catch, and BEFORE the workflow
+        // loop, so neither can stop the other: a broken workflow must not cost
+        // somebody their notification, and vice versa.
+        try {
+            require_once __DIR__ . '/../../includes/notifications_router.php';
+            notificationsHandleEvent($event, $payload);
+        } catch (Throwable $nEx) {
+            error_log('[WorkflowEngine::dispatch] notifications: ' . $nEx->getMessage());
+        }
+
         try {
             $conn = connectToDatabase();
             $stmt = $conn->prepare(

@@ -64,7 +64,19 @@ try {
     // Deleted tickets are excluded — a requester shouldn't be able to add to a
     // thread the desk has binned.
     $ticketStmt = $conn->prepare(
-        "SELECT id, subject FROM tickets WHERE id = ? AND user_id = ? AND deleted_datetime IS NULL"
+        // The extra columns feed the ticket.reply_received payload below (#55) —
+        // without assigned_analyst_id there is nobody to notify, and the reply
+        // would silently reach no one's bell.
+        //
+        // ⚠️ requester_email is NOT a column on tickets — it comes from the user.
+        // Selecting it directly throws, and the throw lands in the dispatch's own
+        // catch, so the symptom is "notifications just never arrive".
+        "SELECT t.id, t.subject, t.priority_id, t.status_id, t.department_id, t.ticket_type_id,
+                t.assigned_analyst_id, t.owner_id, t.origin_id, t.user_id,
+                u.email AS requester_email
+           FROM tickets t
+           LEFT JOIN users u ON u.id = t.user_id
+          WHERE t.id = ? AND t.user_id = ? AND t.deleted_datetime IS NULL"
     );
     $ticketStmt->execute([$ticketId, $userId]);
     $ticket = $ticketStmt->fetch(PDO::FETCH_ASSOC);
@@ -128,6 +140,35 @@ try {
     ]);
 
     $emailId = $conn->lastInsertId();
+
+    // ticket.reply_received (discussion #55). The requester coming back is the
+    // single notification analysts most want, and there was no event for it.
+    // Non-fatal: their reply is saved whether or not anyone is told.
+    //
+    // No session analyst here — the actor is a portal user, not an analyst — so
+    // the "never notify me about my own action" rule correctly does not suppress
+    // this for the assignee.
+    try {
+        require_once __DIR__ . '/../../workflow/includes/engine.php';
+        WorkflowEngine::dispatch('ticket.reply_received', [
+            'ticket' => [
+                'id'                  => (int)$ticketId,
+                'subject'             => $ticket['subject'] ?? null,
+                'priority_id'         => isset($ticket['priority_id']) ? (int)$ticket['priority_id'] : null,
+                'status_id'           => isset($ticket['status_id']) ? (int)$ticket['status_id'] : null,
+                'department_id'       => isset($ticket['department_id']) ? (int)$ticket['department_id'] : null,
+                'type_id'             => isset($ticket['ticket_type_id']) ? (int)$ticket['ticket_type_id'] : null,
+                'assigned_analyst_id' => isset($ticket['assigned_analyst_id']) ? (int)$ticket['assigned_analyst_id'] : null,
+                'owner_id'            => isset($ticket['owner_id']) ? (int)$ticket['owner_id'] : null,
+                'origin_id'           => isset($ticket['origin_id']) ? (int)$ticket['origin_id'] : null,
+                'created_by'          => isset($ticket['user_id']) ? (int)$ticket['user_id'] : null,
+                'requester_email'     => $ticket['requester_email'] ?? $fromEmail,
+            ],
+            'source' => 'portal',
+        ]);
+    } catch (Throwable $wfEx) {
+        error_log('Workflow dispatch error in portal reply: ' . $wfEx->getMessage());
+    }
 
     // Attachments land on disk under tickets/attachments/{floor(id/1000)}/{id}/,
     // the same convention as inbound mail (check_mailbox_email.php::saveAttachment)
