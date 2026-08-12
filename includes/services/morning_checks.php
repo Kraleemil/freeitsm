@@ -40,15 +40,26 @@ class MorningChecksService
             if ($name === '') {
                 throw new ServiceError('validation', 'invalid_field', "'name' cannot be empty.");
             }
+            // Grouping and routing (discussion #64). array_key_exists rather than
+            // isset throughout, because clearing an assignment means sending null
+            // — and isset() would read that as "not mentioned, leave it alone",
+            // making it impossible to un-assign a check once assigned.
             $conn->prepare(
                 "UPDATE morningChecks_Checks
-                 SET CheckName = ?, CheckDescription = ?, SortOrder = ?, IsActive = ?, ModifiedDate = UTC_TIMESTAMP()
+                 SET CheckName = ?, CheckDescription = ?, SortOrder = ?, IsActive = ?,
+                     GroupID = ?, AssignedAnalystID = ?, ModifiedDate = UTC_TIMESTAMP()
                  WHERE CheckID = ?"
             )->execute([
                 $name,
                 array_key_exists('description', $in) ? trim((string)$in['description']) : $current['CheckDescription'],
                 array_key_exists('sort_order', $in) ? (int)$in['sort_order'] : (int)$current['SortOrder'],
                 array_key_exists('is_active', $in) ? (int)(bool)$in['is_active'] : (int)$current['IsActive'],
+                array_key_exists('group_id', $in)
+                    ? self::assertExists($conn, self::nullableId($in['group_id']), 'morningChecks_Groups', 'GroupID', 'group_id')
+                    : ($current['GroupID'] ?? null),
+                array_key_exists('assigned_analyst_id', $in)
+                    ? self::assertExists($conn, self::nullableId($in['assigned_analyst_id']), 'analysts', 'id', 'assigned_analyst_id')
+                    : ($current['AssignedAnalystID'] ?? null),
                 $id,
             ]);
             WorkflowEngine::emitCrud('morning_check', 'updated', $id, $name);
@@ -60,17 +71,185 @@ class MorningChecksService
             throw new ServiceError('validation', 'missing_field', "'name' is required.");
         }
         $conn->prepare(
-            "INSERT INTO morningChecks_Checks (CheckName, CheckDescription, SortOrder, IsActive, CreatedDate, ModifiedDate)
-             VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+            "INSERT INTO morningChecks_Checks (CheckName, CheckDescription, SortOrder, IsActive, GroupID, AssignedAnalystID, CreatedDate, ModifiedDate)
+             VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
         )->execute([
             $name,
             trim((string)($in['description'] ?? '')),
             isset($in['sort_order']) ? (int)$in['sort_order'] : 0,
             isset($in['is_active']) ? (int)(bool)$in['is_active'] : 1,
+            self::assertExists($conn, self::nullableId($in['group_id'] ?? null), 'morningChecks_Groups', 'GroupID', 'group_id'),
+            self::assertExists($conn, self::nullableId($in['assigned_analyst_id'] ?? null), 'analysts', 'id', 'assigned_analyst_id'),
         ]);
         $newId = (int)$conn->lastInsertId();
         WorkflowEngine::emitCrud('morning_check', 'created', $newId, $name);
         return $newId;
+    }
+
+    /**
+     * "" and 0 and "0" all mean "no assignment"; anything else is an id.
+     *
+     * A `<select>` with a blank option posts "", and casting that to int gives 0,
+     * which would be stored as a foreign key to analyst zero. Every assignment
+     * field goes through here so there is one answer rather than five.
+     */
+    private static function nullableId($value): ?int
+    {
+        if ($value === null || $value === '' || $value === 0 || $value === '0') {
+            return null;
+        }
+        $i = (int)$value;
+        return $i > 0 ? $i : null;
+    }
+
+    /**
+     * Reject an id that points at nothing.
+     *
+     * db_verify does not create foreign keys (they live in freeitsm.sql), so an
+     * upgraded install has no database-level guard here. That matters more than
+     * usual for GroupID: the dashboard only shows a grouped check when its group
+     * is active, so a check pointing at a group that does not exist disappears
+     * from the round entirely — silently, and with nothing on screen to explain it.
+     */
+    private static function assertExists(PDO $conn, ?int $id, string $table, string $idCol, string $field): ?int
+    {
+        if ($id === null) {
+            return null;
+        }
+        $stmt = $conn->prepare("SELECT 1 FROM `$table` WHERE `$idCol` = ?");
+        $stmt->execute([$id]);
+        if (!$stmt->fetchColumn()) {
+            throw new ServiceError('validation', 'invalid_field', "'$field' does not exist.");
+        }
+        return $id;
+    }
+
+    // ======================================================================
+    //  Groups (discussion #64)
+    //
+    //  ⚠️ GROUPING AND ASSIGNMENT ARE PRESENTATION, NOT PERMISSION. Nothing in
+    //  recordResult() consults either, and that is deliberate rather than an
+    //  oversight: the request was for ownership and routing, and the morning
+    //  somebody is off sick is exactly when the round still has to be done by
+    //  whoever is in. Assignment drives a heading, a label and a filter.
+    //
+    //  The same shape as collision detection, which warns and never blocks.
+    // ======================================================================
+
+    /** Groups with their routing, plus how many active checks each holds. */
+    public static function listGroups(PDO $conn, bool $activeOnly = false): array
+    {
+        $sql = "SELECT g.GroupID, g.GroupName, g.GroupDescription, g.IsActive, g.SortOrder,
+                       g.AssignedTeamID, g.AssignedAnalystID,
+                       t.name      AS TeamName,
+                       a.full_name AS AnalystName,
+                       (SELECT COUNT(*) FROM morningChecks_Checks c
+                         WHERE c.GroupID = g.GroupID AND c.IsActive = 1) AS CheckCount
+                  FROM morningChecks_Groups g
+                  LEFT JOIN teams    t ON t.id = g.AssignedTeamID
+                  LEFT JOIN analysts a ON a.id = g.AssignedAnalystID";
+        if ($activeOnly) {
+            $sql .= " WHERE g.IsActive = 1";
+        }
+        $sql .= " ORDER BY g.SortOrder, g.GroupName";
+        return $conn->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public static function saveGroup(PDO $conn, ActorContext $ctx, array $in): int
+    {
+        $name = trim((string)($in['name'] ?? ''));
+        if ($name === '' && empty($in['id'])) {
+            throw new ServiceError('validation', 'missing_field', "'name' is required.");
+        }
+
+        // A group routes to a team OR an analyst. Both at once is not an error
+        // worth refusing — the resolver prefers the analyst, being the more
+        // specific of the two — but it is worth not pretending otherwise.
+        $teamId    = self::nullableId($in['assigned_team_id'] ?? null);
+        $analystId = self::nullableId($in['assigned_analyst_id'] ?? null);
+
+        if (!empty($in['id'])) {
+            $id  = (int)$in['id'];
+            $cur = $conn->prepare("SELECT * FROM morningChecks_Groups WHERE GroupID = ?");
+            $cur->execute([$id]);
+            $current = $cur->fetch(PDO::FETCH_ASSOC);
+            if (!$current) {
+                throw new ServiceError('not_found', 'not_found', 'That group no longer exists.');
+            }
+            $conn->prepare(
+                "UPDATE morningChecks_Groups
+                    SET GroupName = ?, GroupDescription = ?, AssignedTeamID = ?, AssignedAnalystID = ?,
+                        IsActive = ?, SortOrder = ?, ModifiedDate = UTC_TIMESTAMP()
+                  WHERE GroupID = ?"
+            )->execute([
+                $name !== '' ? $name : $current['GroupName'],
+                array_key_exists('description', $in) ? trim((string)$in['description']) : $current['GroupDescription'],
+                array_key_exists('assigned_team_id', $in)    ? $teamId    : ($current['AssignedTeamID'] ?? null),
+                array_key_exists('assigned_analyst_id', $in) ? $analystId : ($current['AssignedAnalystID'] ?? null),
+                array_key_exists('is_active', $in) ? (int)(bool)$in['is_active'] : (int)$current['IsActive'],
+                array_key_exists('sort_order', $in) ? (int)$in['sort_order'] : (int)$current['SortOrder'],
+                $id,
+            ]);
+            return $id;
+        }
+
+        $conn->prepare(
+            "INSERT INTO morningChecks_Groups (GroupName, GroupDescription, AssignedTeamID, AssignedAnalystID, IsActive, SortOrder, CreatedDate, ModifiedDate)
+             VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+        )->execute([
+            $name,
+            trim((string)($in['description'] ?? '')),
+            $teamId,
+            $analystId,
+            isset($in['is_active']) ? (int)(bool)$in['is_active'] : 1,
+            isset($in['sort_order']) ? (int)$in['sort_order'] : 0,
+        ]);
+        return (int)$conn->lastInsertId();
+    }
+
+    /**
+     * Delete a group. Its checks are NOT deleted — they fall back to ungrouped.
+     *
+     * ⚠️ Deleting a grouping should never delete the work. The FK is
+     * ON DELETE SET NULL and this is stated here as well because "delete group"
+     * is exactly the button somebody presses expecting only the grouping to go.
+     */
+    public static function deleteGroup(PDO $conn, ActorContext $ctx, int $id): int
+    {
+        $n = $conn->prepare("SELECT COUNT(*) FROM morningChecks_Checks WHERE GroupID = ?");
+        $n->execute([$id]);
+        $orphaned = (int)$n->fetchColumn();
+
+        $conn->prepare("UPDATE morningChecks_Checks SET GroupID = NULL WHERE GroupID = ?")->execute([$id]);
+        $conn->prepare("DELETE FROM morningChecks_Groups WHERE GroupID = ?")->execute([$id]);
+        return $orphaned;
+    }
+
+    /**
+     * Who is a check routed to? Returns [analystId, label, source] — all null
+     * when nobody in particular, which is the default.
+     *
+     * Order of precedence, most specific first:
+     *   1. the check's own analyst
+     *   2. its group's analyst
+     *   3. its group's team
+     *
+     * A team is a label rather than a single person, so `analystId` stays null
+     * for it — "is this mine?" then means "am I in that team?", which the
+     * dashboard answers from the analyst's own team membership.
+     */
+    public static function resolveAssignment(array $checkRow): array
+    {
+        if (!empty($checkRow['AssignedAnalystID'])) {
+            return [(int)$checkRow['AssignedAnalystID'], $checkRow['CheckAnalystName'] ?? null, 'check'];
+        }
+        if (!empty($checkRow['GroupAnalystID'])) {
+            return [(int)$checkRow['GroupAnalystID'], $checkRow['GroupAnalystName'] ?? null, 'group'];
+        }
+        if (!empty($checkRow['GroupTeamID'])) {
+            return [null, $checkRow['GroupTeamName'] ?? null, 'team'];
+        }
+        return [null, null, null];
     }
 
     /** Delete a check + its results, atomically. */
@@ -149,22 +328,56 @@ class MorningChecksService
 
         if ($resultId !== false) {
             // Overwrite — StatusID is the source of truth, clear the legacy label snapshot.
+            // ⚠️ ModifiedBy is stamped on the overwrite as well as the insert.
+            // Without it, whoever set the status FIRST was credited forever —
+            // so an analyst covering for an absent colleague did the check and
+            // the board still thanked the colleague. CreatedBy is deliberately
+            // left alone: it means "who first recorded a result today", and the
+            // v1 API publishes it under that meaning.
             $conn->prepare(
                 "UPDATE morningChecks_Results
-                 SET StatusID = ?, Status = NULL, Notes = ?, ModifiedDate = UTC_TIMESTAMP()
+                 SET StatusID = ?, Status = NULL, Notes = ?, ModifiedBy = ?, ModifiedDate = UTC_TIMESTAMP()
                  WHERE ResultID = ?"
-            )->execute([(int)$status['StatusID'], $notes, (int)$resultId]);
+            )->execute([(int)$status['StatusID'], $notes, ($ctx->actorName !== '' ? $ctx->actorName : null), (int)$resultId]);
             self::recordedDispatch($checkId, $checkName, (int)$status['StatusID'], $status['Label'], $date);
             return ['id' => (int)$resultId, 'created' => false];
         }
 
+        $actor = $ctx->actorName !== '' ? $ctx->actorName : null;
         $conn->prepare(
-            "INSERT INTO morningChecks_Results (CheckID, CheckDate, StatusID, Status, Notes, CreatedBy, CreatedDate, ModifiedDate)
-             VALUES (?, ?, ?, NULL, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
-        )->execute([$checkId, $date, (int)$status['StatusID'], $notes, ($ctx->actorName !== '' ? $ctx->actorName : null)]);
+            "INSERT INTO morningChecks_Results (CheckID, CheckDate, StatusID, Status, Notes, CreatedBy, ModifiedBy, CreatedDate, ModifiedDate)
+             VALUES (?, ?, ?, NULL, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+        )->execute([$checkId, $date, (int)$status['StatusID'], $notes, $actor, $actor]);
         $newId = (int)$conn->lastInsertId();
         self::recordedDispatch($checkId, $checkName, (int)$status['StatusID'], $status['Label'], $date);
         return ['id' => $newId, 'created' => true];
+    }
+
+    /**
+     * Put a check back to "not checked" for a date (discussion #64).
+     *
+     * ⚠️ This DELETES the result row rather than setting its status to null.
+     * "Not checked" is the absence of a result — it is what every check looks
+     * like before anyone touches it — so a row with a null status would be a
+     * second, subtly different way of saying the same thing, and every reader
+     * (the dashboard, the chart, the PDF, the API) would have to learn it.
+     *
+     * The consequence is honest and worth stating: clearing a mistake also
+     * discards the note and the attribution that came with it. That is the right
+     * trade for "I clicked green by accident" — the alternative is a half-state
+     * that shows as unchecked but still credits somebody.
+     *
+     * Any tickets or tasks raised from that result go too, via ON DELETE CASCADE
+     * on morningChecks_ResultLinks — but the tickets themselves are untouched,
+     * because raising a ticket is not undone by correcting a click.
+     */
+    public static function clearResult(PDO $conn, ActorContext $ctx, int $checkId, ?string $date = null): bool
+    {
+        $date = $date !== null ? self::validateDate($date, 'date') : date('Y-m-d');
+
+        $stmt = $conn->prepare("DELETE FROM morningChecks_Results WHERE CheckID = ? AND CheckDate = ?");
+        $stmt->execute([$checkId, $date]);
+        return $stmt->rowCount() > 0;
     }
 
     /** Fire morning_check.recorded (best-effort). */

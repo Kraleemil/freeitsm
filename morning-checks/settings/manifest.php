@@ -31,6 +31,17 @@ return [
             'grant'     => 'Manage check statuses',
         ],
         [
+            // Optional grouping, and who the round is pointed at (discussion #64).
+            // ⚠️ Granting this does NOT grant the right to complete a check, and
+            // withholding it does not withhold that either — completing a check
+            // is plain module access, so the round still gets done when the
+            // person it is routed to is away.
+            'id'        => 'groups',
+            'cap'       => Cap::MORNING_CHECKS_GROUPS,
+            'label_key' => 'morning-checks.settings.tab_groups',
+            'grant'     => 'Group checks and route them to a team or an analyst',
+        ],
+        [
             // A per-analyst display preference, not administration.
             'id'        => 'chart',
             'cap'       => null,

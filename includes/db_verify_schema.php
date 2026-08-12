@@ -1674,14 +1674,44 @@ return [
         'updated_at'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Optional grouping + routing for the morning round (discussion #64).
+    // ⚠️ Assignment is guidance, never a lock — nothing in the save path reads
+    // it, so anyone can still complete anyone's check.
+    'morningChecks_Groups' => [
+        'GroupID'           => 'INT NOT NULL AUTO_INCREMENT',
+        'GroupName'         => 'VARCHAR(255) NOT NULL',
+        'GroupDescription'  => 'LONGTEXT NULL',
+        'AssignedTeamID'    => 'INT NULL',
+        'AssignedAnalystID' => 'INT NULL',
+        'IsActive'          => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'SortOrder'         => 'INT NOT NULL DEFAULT 0',
+        'CreatedDate'       => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'ModifiedDate'      => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'morningChecks_Checks' => [
         'CheckID'           => 'INT NOT NULL AUTO_INCREMENT',
         'CheckName'         => 'VARCHAR(255) NOT NULL',
         'CheckDescription'  => 'LONGTEXT NULL',
         'IsActive'          => 'TINYINT(1) NOT NULL DEFAULT 1',
         'SortOrder'         => 'INT NOT NULL DEFAULT 0',
+        // NULL group = ungrouped, where every existing check starts.
+        'GroupID'           => 'INT NULL',
+        'AssignedAnalystID' => 'INT NULL',
         'CreatedDate'       => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'ModifiedDate'      => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // Tickets/tasks raised from a check. A link table rather than columns on the
+    // result, because one bad check can raise several things.
+    'morningChecks_ResultLinks' => [
+        'LinkID'        => 'INT NOT NULL AUTO_INCREMENT',
+        'ResultID'      => 'INT NOT NULL',
+        'EntityType'    => 'VARCHAR(20) NOT NULL',
+        'EntityID'      => 'INT NOT NULL',
+        'EntityRef'     => 'VARCHAR(100) NULL',
+        'CreatedByID'   => 'INT NULL',
+        'CreatedDate'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
     'morningChecks_Results' => [
@@ -1703,6 +1733,9 @@ return [
         'Status'        => 'VARCHAR(50) NULL',
         'Notes'         => 'LONGTEXT NULL',
         'CreatedBy'     => 'VARCHAR(100) NULL',
+        // Who last set the status (discussion #64) — see freeitsm.sql for why
+        // this is not simply CreatedBy being reused.
+        'ModifiedBy'    => 'VARCHAR(100) NULL',
         'CreatedDate'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'ModifiedDate'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],

@@ -94,20 +94,24 @@ $translationNamespaces = ['common', 'morning-checks'];
                 <span class="help-nav-num">2</span>
                 <?php echo htmlspecialchars(t('morning-checks.help.nav_daily_checks')); ?>
             </a>
-            <a href="#trend-chart" class="help-nav-link" data-section="trend-chart">
+            <a href="#groups" class="help-nav-link" data-section="groups">
                 <span class="help-nav-num">3</span>
+                <?php echo htmlspecialchars(t('morning-checks.help.nav_groups')); ?>
+            </a>
+            <a href="#trend-chart" class="help-nav-link" data-section="trend-chart">
+                <span class="help-nav-num">4</span>
                 <?php echo htmlspecialchars(t('morning-checks.help.nav_trend_chart')); ?>
             </a>
             <a href="#pdf-export" class="help-nav-link" data-section="pdf-export">
-                <span class="help-nav-num">4</span>
+                <span class="help-nav-num">5</span>
                 <?php echo htmlspecialchars(t('morning-checks.help.nav_pdf_export')); ?>
             </a>
             <a href="#settings" class="help-nav-link" data-section="settings">
-                <span class="help-nav-num">5</span>
+                <span class="help-nav-num">6</span>
                 <?php echo htmlspecialchars(t('morning-checks.help.nav_settings')); ?>
             </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">6</span>
+                <span class="help-nav-num">7</span>
                 <?php echo htmlspecialchars(t('morning-checks.help.nav_tips')); ?>
             </a>
         </div>
@@ -218,10 +222,48 @@ $translationNamespaces = ['common', 'morning-checks'];
                     <p class="help-note"><?php echo htmlspecialchars(t('morning-checks.help.daily_tip')); ?></p>
                 </div>
 
-                <!-- Section 3: The Trend Chart (highlighted) -->
-                <div class="help-section" id="trend-chart">
+                <!-- Section 3: Groups, routing and who does what (discussion #64) -->
+                <div class="help-section" id="groups">
                     <div class="help-section-header">
                         <span class="help-section-num">3</span>
+                        <h3><?php echo htmlspecialchars(t('morning-checks.help.groups_heading')); ?></h3>
+                    </div>
+                    <p><?php echo htmlspecialchars(t('morning-checks.help.groups_intro')); ?></p>
+
+                    <div class="help-steps">
+                        <div class="help-step">
+                            <div class="help-step-num">1</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('morning-checks.help.groups_step1_strong')); ?></strong> <?php echo t('morning-checks.help.groups_step1_text'); ?>
+                            </div>
+                        </div>
+                        <div class="help-step">
+                            <div class="help-step-num">2</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('morning-checks.help.groups_step2_strong')); ?></strong> <?php echo t('morning-checks.help.groups_step2_text'); ?>
+                            </div>
+                        </div>
+                        <div class="help-step">
+                            <div class="help-step-num">3</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('morning-checks.help.groups_step3_strong')); ?></strong> <?php echo t('morning-checks.help.groups_step3_text'); ?>
+                            </div>
+                        </div>
+                        <div class="help-step">
+                            <div class="help-step-num">4</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('morning-checks.help.groups_step4_strong')); ?></strong> <?php echo t('morning-checks.help.groups_step4_text'); ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="help-note"><?php echo htmlspecialchars(t('morning-checks.help.groups_tip')); ?></p>
+                </div>
+
+                <!-- Section 4: The Trend Chart (highlighted) -->
+                <div class="help-section" id="trend-chart">
+                    <div class="help-section-header">
+                        <span class="help-section-num">4</span>
                         <h3><?php echo htmlspecialchars(t('morning-checks.help.trend_heading')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('morning-checks.help.trend_intro')); ?></p>
@@ -288,10 +330,10 @@ $translationNamespaces = ['common', 'morning-checks'];
                     <p class="help-note"><?php echo htmlspecialchars(t('morning-checks.help.trend_tip')); ?></p>
                 </div>
 
-                <!-- Section 4: PDF Export -->
+                <!-- Section 5: PDF Export -->
                 <div class="help-section" id="pdf-export">
                     <div class="help-section-header">
-                        <span class="help-section-num">4</span>
+                        <span class="help-section-num">5</span>
                         <h3><?php echo htmlspecialchars(t('morning-checks.help.pdf_heading')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('morning-checks.help.pdf_intro')); ?></p>
@@ -322,10 +364,10 @@ $translationNamespaces = ['common', 'morning-checks'];
                     <p class="help-note"><?php echo t('morning-checks.help.pdf_tip'); ?></p>
                 </div>
 
-                <!-- Section 5: Settings (highlighted) -->
+                <!-- Section 6: Settings (highlighted) -->
                 <div class="help-section" id="settings">
                     <div class="help-section-header">
-                        <span class="help-section-num">5</span>
+                        <span class="help-section-num">6</span>
                         <h3><?php echo htmlspecialchars(t('morning-checks.help.settings_heading')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('morning-checks.help.settings_intro')); ?></p>
@@ -360,10 +402,10 @@ $translationNamespaces = ['common', 'morning-checks'];
                     <p class="help-note"><?php echo htmlspecialchars(t('morning-checks.help.settings_tip')); ?></p>
                 </div>
 
-                <!-- Section 6: Quick Tips -->
+                <!-- Section 7: Quick Tips -->
                 <div class="help-section" id="tips">
                     <div class="help-section-header">
-                        <span class="help-section-num">6</span>
+                        <span class="help-section-num">7</span>
                         <h3><?php echo htmlspecialchars(t('morning-checks.help.tips_heading')); ?></h3>
                     </div>
                     <div class="help-cards">

@@ -24,13 +24,18 @@ try {
     if (empty($input['checkId'])) {
         throw new Exception('Check ID is required');
     }
-    MorningChecksService::saveCheck($conn, ActorContext::fromSession($conn), [
+    $payload = [
         'id'          => (int)$input['checkId'],
         'name'        => $input['checkName'] ?? '',
         'description' => $input['checkDescription'] ?? '',
         'sort_order'  => $input['sortOrder'] ?? 0,
         'is_active'   => $input['isActive'] ?? true,
-    ]);
+    ];
+    // See add_check.php: present-but-null means "clear", so only forward what
+    // the caller sent. Reorder saves, for instance, send neither.
+    if (array_key_exists('groupId', $input))   { $payload['group_id']            = $input['groupId']; }
+    if (array_key_exists('analystId', $input)) { $payload['assigned_analyst_id'] = $input['analystId']; }
+    MorningChecksService::saveCheck($conn, ActorContext::fromSession($conn), $payload);
     echo json_encode(['success' => true]);
 } catch (Exception $e) {
     http_response_code(500);

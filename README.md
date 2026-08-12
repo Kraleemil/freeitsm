@@ -77,7 +77,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | [CMDB](https://github.com/edmozley/freeitsm/wiki/CMDB) | Typed configuration items with relationships, impact analysis and AI summaries |
 | [Network Mapper](https://github.com/edmozley/freeitsm/wiki/Network-Mapper) | Architecture diagrams where every node is bound to a real CMDB object |
 | [Calendar](https://github.com/edmozley/freeitsm/wiki/Calendar) | Team calendar with categories, and an iCal feed for your phone |
-| [Morning Checks](https://github.com/edmozley/freeitsm/wiki/Morning-Checks) | Daily infrastructure health checks with trend charts and PDF export |
+| [Morning Checks](https://github.com/edmozley/freeitsm/wiki/Morning-Checks) | Daily infrastructure health checks with optional groups routed to a team or analyst, raise a ticket or task from any check, trend charts and PDF export |
 | [Reporting](https://github.com/edmozley/freeitsm/wiki/Reporting) | System logs, audit trails, and an Intune device dashboard with drill-down |
 | [Software](https://github.com/edmozley/freeitsm/wiki/Software) | Software inventory from an agent script, plus licence management |
 | [Forms](https://github.com/edmozley/freeitsm/wiki/Forms) | Dynamic form builder with AI assist, section headings, conditional questions, versioning and submissions reporting |

@@ -2348,15 +2348,50 @@ CREATE TABLE IF NOT EXISTS `calendar_events` (
 -- Morning Checks
 -- ----------------------------------------------------------
 
+-- Optional grouping for the morning round (discussion #64). A check may sit in
+-- one group or none; ungrouped checks behave exactly as they always have, so an
+-- install that never opens the Groups tab sees no change.
+--
+-- ⚠️ ASSIGNMENT HERE IS GUIDANCE, NOT A LOCK. Nothing in the save path consults
+-- it. Whoever is in first thing can complete any check, which is the whole point
+-- on the morning somebody is off sick — the request was for routing and
+-- ownership, not for a permission.
+CREATE TABLE IF NOT EXISTS `morningChecks_Groups` (
+    `GroupID`           INT NOT NULL AUTO_INCREMENT,
+    `GroupName`         VARCHAR(255) NOT NULL,
+    `GroupDescription`  LONGTEXT NULL,
+    -- A group may be routed to a team OR to one analyst. Both NULL = nobody in
+    -- particular, which is the default and stays the common case.
+    `AssignedTeamID`    INT NULL,
+    `AssignedAnalystID` INT NULL,
+    `IsActive`          TINYINT(1) NOT NULL DEFAULT 1,
+    `SortOrder`         INT NOT NULL DEFAULT 0,
+    `CreatedDate`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `ModifiedDate`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`GroupID`),
+    KEY `ix_mcg_team` (`AssignedTeamID`),
+    KEY `ix_mcg_analyst` (`AssignedAnalystID`),
+    CONSTRAINT `fk_mcg_team`    FOREIGN KEY (`AssignedTeamID`)    REFERENCES `teams` (`id`)     ON DELETE SET NULL,
+    CONSTRAINT `fk_mcg_analyst` FOREIGN KEY (`AssignedAnalystID`) REFERENCES `analysts` (`id`)  ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `morningChecks_Checks` (
     `CheckID`           INT NOT NULL AUTO_INCREMENT,
     `CheckName`         VARCHAR(255) NOT NULL,
     `CheckDescription`  LONGTEXT NULL,
     `IsActive`          TINYINT(1) NOT NULL DEFAULT 1,
     `SortOrder`         INT NOT NULL DEFAULT 0,
+    -- Discussion #64. NULL group = ungrouped, which is where every existing
+    -- check starts. A check's own analyst overrides whatever its group says.
+    `GroupID`           INT NULL,
+    `AssignedAnalystID` INT NULL,
     `CreatedDate`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `ModifiedDate`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`CheckID`)
+    PRIMARY KEY (`CheckID`),
+    KEY `ix_mcc_group` (`GroupID`),
+    KEY `ix_mcc_analyst` (`AssignedAnalystID`),
+    CONSTRAINT `fk_mcc_group`   FOREIGN KEY (`GroupID`)           REFERENCES `morningChecks_Groups` (`GroupID`) ON DELETE SET NULL,
+    CONSTRAINT `fk_mcc_analyst` FOREIGN KEY (`AssignedAnalystID`) REFERENCES `analysts` (`id`)                  ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Configurable status options for morning checks (drives the dashboard
@@ -2393,12 +2428,43 @@ CREATE TABLE IF NOT EXISTS `morningChecks_Results` (
     `Status`        VARCHAR(50) NULL,
     `Notes`         LONGTEXT NULL,
     `CreatedBy`     VARCHAR(100) NULL,
+    -- Who most recently SET the status (discussion #64). Deliberately separate
+    -- from CreatedBy, which keeps meaning "who first recorded a result today":
+    -- the v1 API exposes that as created_by, and redefining it would silently
+    -- change a published contract. The dashboard credits ModifiedBy and falls
+    -- back to CreatedBy, so somebody covering for an absent colleague is
+    -- attributed the check they actually did rather than the person who happened
+    -- to touch it first.
+    `ModifiedBy`    VARCHAR(100) NULL,
     `CreatedDate`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `ModifiedDate`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`ResultID`),
     UNIQUE KEY `uq_check_date` (`CheckID`, `CheckDate`),
     CONSTRAINT `fk_results_checks` FOREIGN KEY (`CheckID`) REFERENCES `morningChecks_Checks` (`CheckID`),
     CONSTRAINT `fk_results_status` FOREIGN KEY (`StatusID`) REFERENCES `morningChecks_Statuses` (`StatusID`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tickets and tasks raised FROM a morning check (discussion #64).
+--
+-- A link table rather than a column pair on the result, because one bad check
+-- can legitimately raise several things — a ticket for the supplier and a task
+-- to chase it — and because the alternative is two nullable columns that then
+-- need a third the first time somebody wants a second ticket.
+--
+-- No FK to tickets/tasks on purpose: the row is a breadcrumb, and a ticket being
+-- deleted or merged should not take the record of "this check raised something"
+-- with it. EntityType keeps it honest about which table the id belongs to.
+CREATE TABLE IF NOT EXISTS `morningChecks_ResultLinks` (
+    `LinkID`        INT NOT NULL AUTO_INCREMENT,
+    `ResultID`      INT NOT NULL,
+    `EntityType`    VARCHAR(20) NOT NULL,   -- 'ticket' | 'task'
+    `EntityID`      INT NOT NULL,
+    `EntityRef`     VARCHAR(100) NULL,      -- ticket number / task title snapshot, for display without a join
+    `CreatedByID`   INT NULL,
+    `CreatedDate`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`LinkID`),
+    KEY `ix_mcrl_result` (`ResultID`),
+    CONSTRAINT `fk_mcrl_result` FOREIGN KEY (`ResultID`) REFERENCES `morningChecks_Results` (`ResultID`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------

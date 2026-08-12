@@ -120,6 +120,11 @@ final class Cap
     const MORNING_CHECKS_MANAGE   = 'morning_checks.manage';    // umbrella
     const MORNING_CHECKS_CHECKS   = 'morning_checks.checks';
     const MORNING_CHECKS_STATUSES = 'morning_checks.statuses';
+    // Grouping and routing (discussion #64). Separate from CHECKS because it
+    // decides who the round is POINTED at — a team-shape decision — rather than
+    // what the round consists of. Neither grants the right to complete a check:
+    // that is plain module access and deliberately stays that way.
+    const MORNING_CHECKS_GROUPS   = 'morning_checks.groups';
 
     // ---- Problem Management ------------------------------------------------
     const PROBLEMS_MANAGE     = 'problems.manage';      // umbrella

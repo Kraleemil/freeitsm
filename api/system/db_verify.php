@@ -75,6 +75,12 @@ $primaryKeys = [
     'morningChecks_Checks'      => 'CheckID',
     'morningChecks_Results'     => 'ResultID',
     'morningChecks_Statuses'    => 'StatusID',
+    // ⚠️ A new table whose PK is not literally `id` MUST be listed here. The
+    // CREATE builder below falls back to PRIMARY KEY (`id`), so the table fails
+    // to create with "Key column 'id' doesn't exist" — which is how these two
+    // announced themselves. The $schema array carries columns and nothing else.
+    'morningChecks_Groups'      => 'GroupID',
+    'morningChecks_ResultLinks' => 'LinkID',
     'knowledge_article_tags'    => null, // composite PK: article_id, tag_id
     'task_tag_map'              => null, // composite PK: task_id, tag_id
 ];

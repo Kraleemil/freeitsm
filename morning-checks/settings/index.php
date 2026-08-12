@@ -254,9 +254,76 @@ $translationNamespaces = ['common', 'morning-checks'];
             </div>
         </div>
 
-        <!-- Chart tab: visual options for the dashboard trend chart.
-             Saved per-analyst via the generic user-preference API so
-             different analysts can choose different looks. -->
+        <?php endif; ?>
+
+        <?php if (settingsTabVisible($visibleTabs, 'groups')): ?>
+        <!-- Groups (discussion #64). Optional organisation plus routing.
+             ⚠️ Routing is a label and a filter, never a permission — anyone with
+             the module can still complete any check, which is the point on the
+             morning the named person is off sick. -->
+        <div class="tab-content<?php echo $activeTabId === 'groups' ? ' active' : ''; ?>" id="groups-tab" data-capability="<?php echo Cap::MORNING_CHECKS_GROUPS; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('morning-checks.settings.groups_heading')); ?></h2>
+                <button class="add-btn" onclick="openGroupModal()"><?php echo htmlspecialchars(t('morning-checks.settings.add')); ?></button>
+            </div>
+            <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo t('morning-checks.settings.groups_intro_html'); ?></p>
+            <table>
+                <thead>
+                    <tr>
+                        <th><?php echo htmlspecialchars(t('morning-checks.settings.col_group')); ?></th>
+                        <th><?php echo htmlspecialchars(t('morning-checks.settings.col_routed_to')); ?></th>
+                        <th><?php echo htmlspecialchars(t('morning-checks.settings.col_checks')); ?></th>
+                        <th><?php echo htmlspecialchars(t('morning-checks.settings.col_order')); ?></th>
+                        <th><?php echo htmlspecialchars(t('morning-checks.settings.col_active')); ?></th>
+                        <th><?php echo htmlspecialchars(t('morning-checks.settings.col_actions')); ?></th>
+                    </tr>
+                </thead>
+                <tbody id="groupsList">
+                    <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-dim,#999);"><?php echo htmlspecialchars(t('morning-checks.settings.loading')); ?></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Group add/edit modal -->
+        <div id="groupModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header" id="groupModalTitle"><?php echo htmlspecialchars(t('morning-checks.settings.group_add_title')); ?></div>
+                <form id="groupForm" onsubmit="return saveGroup(event)">
+                    <input type="hidden" id="groupId">
+                    <div class="form-group">
+                        <label for="groupName"><?php echo htmlspecialchars(t('morning-checks.settings.field_group_name')); ?> *</label>
+                        <input type="text" id="groupName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="groupDescription"><?php echo htmlspecialchars(t('morning-checks.settings.field_description')); ?></label>
+                        <textarea id="groupDescription" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="groupTeam"><?php echo htmlspecialchars(t('morning-checks.settings.field_route_team')); ?></label>
+                        <select id="groupTeam"><option value=""><?php echo htmlspecialchars(t('morning-checks.settings.route_nobody')); ?></option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="groupAnalyst"><?php echo htmlspecialchars(t('morning-checks.settings.field_route_analyst')); ?></label>
+                        <select id="groupAnalyst"><option value=""><?php echo htmlspecialchars(t('morning-checks.settings.route_nobody')); ?></option></select>
+                        <small style="display:block;color:var(--text-muted,#666);margin-top:4px;"><?php echo htmlspecialchars(t('morning-checks.settings.route_help')); ?></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="groupSortOrder"><?php echo htmlspecialchars(t('morning-checks.settings.field_order')); ?></label>
+                        <input type="number" id="groupSortOrder" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="toggle-label">
+                            <span class="toggle-switch"><input type="checkbox" id="groupIsActive" checked><span class="toggle-slider"></span></span>
+                            <?php echo htmlspecialchars(t('morning-checks.settings.field_active')); ?>
+                        </label>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeGroupModal()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+                        <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                    </div>
+                </form>
+            </div>
+        </div>
         <?php endif; ?>
 
         <!-- Chart — a per-analyst display preference; no capability. -->
@@ -296,6 +363,16 @@ $translationNamespaces = ['common', 'morning-checks'];
                     <label for="addCheckDescription"><?php echo htmlspecialchars(t('morning-checks.settings.modal_description')); ?></label>
                     <textarea id="addCheckDescription" rows="3"></textarea>
                 </div>
+                <div class="form-group">
+                    <label for="addCheckGroup"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_group')); ?></label>
+                    <select id="addCheckGroup" class="mc-route-group"></select>
+                    <small class="form-hint"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_group_hint')); ?></small>
+                </div>
+                <div class="form-group">
+                    <label for="addCheckAnalyst"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_analyst')); ?></label>
+                    <select id="addCheckAnalyst" class="mc-route-analyst"></select>
+                    <small class="form-hint"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_analyst_hint')); ?></small>
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeAddModal()"><?php echo htmlspecialchars(t('morning-checks.settings.modal_cancel')); ?></button>
                     <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('morning-checks.settings.modal_add')); ?></button>
@@ -317,6 +394,16 @@ $translationNamespaces = ['common', 'morning-checks'];
                 <div class="form-group">
                     <label for="editCheckDescription"><?php echo htmlspecialchars(t('morning-checks.settings.modal_description')); ?></label>
                     <textarea id="editCheckDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editCheckGroup"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_group')); ?></label>
+                    <select id="editCheckGroup" class="mc-route-group"></select>
+                    <small class="form-hint"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_group_hint')); ?></small>
+                </div>
+                <div class="form-group">
+                    <label for="editCheckAnalyst"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_analyst')); ?></label>
+                    <select id="editCheckAnalyst" class="mc-route-analyst"></select>
+                    <small class="form-hint"><?php echo htmlspecialchars(t('morning-checks.settings.modal_check_analyst_hint')); ?></small>
                 </div>
                 <div class="form-group">
                     <label class="toggle-group">
@@ -533,17 +620,18 @@ $translationNamespaces = ['common', 'morning-checks'];
 
         // --- Modals ---
 
-        function openAddModal() {
+        async function openAddModal() {
             document.getElementById('addCheckForm').reset();
             document.getElementById('addModal').classList.add('active');
             document.getElementById('addCheckName').focus();
+            await fillCheckRouting('addCheckGroup', 'addCheckAnalyst', null, null);
         }
 
         function closeAddModal() {
             document.getElementById('addModal').classList.remove('active');
         }
 
-        function openEditModal(checkId) {
+        async function openEditModal(checkId) {
             const check = checks.find(c => c.CheckID === checkId);
             if (!check) return;
 
@@ -553,6 +641,45 @@ $translationNamespaces = ['common', 'morning-checks'];
             document.getElementById('editIsActive').checked = check.IsActive;
             document.getElementById('editModal').classList.add('active');
             document.getElementById('editCheckName').focus();
+            await fillCheckRouting('editCheckGroup', 'editCheckAnalyst', check.GroupID, check.AssignedAnalystID);
+        }
+
+        /**
+         * Populate a check modal's group + analyst pickers.
+         *
+         * Awaited after the modal is shown rather than before, so a slow lookup
+         * never delays the modal opening — the selects fill in place. Both lists
+         * lead with a "nobody / no group" option: routing is optional here, and
+         * the round works perfectly well with neither set.
+         */
+        async function fillCheckRouting(groupSelId, analystSelId, groupId, analystId) {
+            const groupSel   = document.getElementById(groupSelId);
+            const analystSel = document.getElementById(analystSelId);
+            if (!groupSel && !analystSel) return;
+
+            await Promise.all([loadRoutingOptions(), ensureGroupsLoaded()]);
+
+            if (groupSel) {
+                groupSel.innerHTML = `<option value="">${escapeHtml(window.t('morning-checks.settings.route_no_group'))}</option>` +
+                    MC_GROUPS.map(g =>
+                        `<option value="${g.GroupID}"${Number(groupId) === Number(g.GroupID) ? ' selected' : ''}>${escapeHtml(g.GroupName)}</option>`
+                    ).join('');
+            }
+            if (analystSel) {
+                analystSel.innerHTML = `<option value="">${escapeHtml(window.t('morning-checks.settings.route_nobody'))}</option>` +
+                    MC_ANALYSTS.map(a =>
+                        `<option value="${a.id}"${Number(analystId) === Number(a.id) ? ' selected' : ''}>${escapeHtml(a.full_name)}</option>`
+                    ).join('');
+            }
+        }
+
+        /** The Checks tab needs the group list too, and may open before the Groups tab ever does. */
+        async function ensureGroupsLoaded() {
+            if (MC_GROUPS.length) return;
+            try {
+                const d = await (await fetch(API_BASE + 'get_groups.php')).json();
+                MC_GROUPS = (d.success && d.groups) ? d.groups : [];
+            } catch (e) { /* grouping is optional — the modal still saves without it */ }
         }
 
         function closeEditModal() {
@@ -573,7 +700,9 @@ $translationNamespaces = ['common', 'morning-checks'];
             const formData = {
                 checkName: document.getElementById('addCheckName').value.trim(),
                 checkDescription: document.getElementById('addCheckDescription').value.trim(),
-                sortOrder: checks.length
+                sortOrder: checks.length,
+                groupId: document.getElementById('addCheckGroup').value || null,
+                analystId: document.getElementById('addCheckAnalyst').value || null
             };
 
             try {
@@ -607,7 +736,9 @@ $translationNamespaces = ['common', 'morning-checks'];
                 checkName: document.getElementById('editCheckName').value.trim(),
                 checkDescription: document.getElementById('editCheckDescription').value.trim(),
                 sortOrder: check ? check.SortOrder : 0,
-                isActive: document.getElementById('editIsActive').checked
+                isActive: document.getElementById('editIsActive').checked,
+                groupId: document.getElementById('editCheckGroup').value || null,
+                analystId: document.getElementById('editCheckAnalyst').value || null
             };
 
             try {
@@ -942,12 +1073,177 @@ $translationNamespaces = ['common', 'morning-checks'];
             });
         }
 
+        /* ─── Groups (discussion #64) ─────────────────────────────────────────
+           ⚠️ Routing set here is a LABEL AND A FILTER, not a permission. Nothing
+           on the server checks it when a result is saved, deliberately: the
+           round has to be done every morning, including the one where the named
+           analyst is off sick. */
+        let MC_GROUPS = [];
+        let MC_TEAMS = [];
+        let MC_ANALYSTS = [];
+
+        async function loadGroups() {
+            const tbody = document.getElementById('groupsList');
+            if (!tbody) return;
+            try {
+                const r = await fetch(API_BASE + 'get_groups.php');
+                const d = await r.json();
+                MC_GROUPS = (d.success && d.groups) ? d.groups : [];
+                renderGroups();
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;">${escapeHtml(e.message)}</td></tr>`;
+            }
+        }
+
+        function renderGroups() {
+            const tbody = document.getElementById('groupsList');
+            if (!tbody) return;
+            if (!MC_GROUPS.length) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-dim,#999);">${escapeHtml(window.t('morning-checks.settings.groups_none'))}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = MC_GROUPS.map(g => {
+                // The analyst wins when both are set — the resolver prefers the
+                // more specific of the two, and the table should say what will
+                // actually happen rather than list both hopefully.
+                const routed = g.AnalystName
+                    ? escapeHtml(g.AnalystName)
+                    : (g.TeamName ? escapeHtml(g.TeamName) + ' <span style="color:var(--text-dim,#999);font-size:11px;">('
+                        + escapeHtml(window.t('morning-checks.settings.route_team_word')) + ')</span>'
+                        : `<span style="color:var(--text-dim,#999);">${escapeHtml(window.t('morning-checks.settings.route_nobody'))}</span>`);
+                return `<tr>
+                    <td><strong>${escapeHtml(g.GroupName)}</strong>${g.GroupDescription ? `<div style="font-size:12px;color:var(--text-muted,#666);">${escapeHtml(g.GroupDescription)}</div>` : ''}</td>
+                    <td>${routed}</td>
+                    <td>${Number(g.CheckCount) || 0}</td>
+                    <td>${Number(g.SortOrder) || 0}</td>
+                    <td><span class="status-badge status-${Number(g.IsActive) ? 'active' : 'inactive'}">${Number(g.IsActive) ? escapeHtml(window.t('morning-checks.settings.active')) : escapeHtml(window.t('morning-checks.settings.inactive'))}</span></td>
+                    <td>
+                        <button class="action-btn" onclick="openGroupModal(${g.GroupID})" title="${escapeHtmlAttr(window.t('morning-checks.settings.edit'))}">${ICON_EDIT_S}</button>
+                        <button class="action-btn delete" onclick="deleteGroup(${g.GroupID}, '${escapeJsString(g.GroupName)}', ${Number(g.CheckCount) || 0})" title="${escapeHtmlAttr(window.t('morning-checks.settings.delete'))}">${ICON_DELETE_S}</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        /** Teams and analysts, fetched once and shared by the group and check modals. */
+        async function loadRoutingOptions() {
+            if (MC_ANALYSTS.length) return;
+            try {
+                const [aR, tR] = await Promise.all([
+                    fetch('../../api/tickets/get_analysts.php'),
+                    fetch('../../api/tickets/get_teams.php').catch(() => null)
+                ]);
+                const aD = await aR.json();
+                MC_ANALYSTS = (aD.success && aD.analysts) ? aD.analysts.filter(a => a.is_active) : [];
+                if (tR) {
+                    const tD = await tR.json();
+                    MC_TEAMS = (tD.success && tD.teams) ? tD.teams : [];
+                }
+            } catch (e) { /* routing is optional — the modal still saves without it */ }
+        }
+
+        function fillRoutingSelects(teamSel, analystSel, teamId, analystId) {
+            const none = `<option value="">${escapeHtml(window.t('morning-checks.settings.route_nobody'))}</option>`;
+            if (teamSel) {
+                teamSel.innerHTML = none + MC_TEAMS.map(t =>
+                    `<option value="${t.id}"${Number(teamId) === Number(t.id) ? ' selected' : ''}>${escapeHtml(t.name)}</option>`).join('');
+            }
+            if (analystSel) {
+                analystSel.innerHTML = none + MC_ANALYSTS.map(a =>
+                    `<option value="${a.id}"${Number(analystId) === Number(a.id) ? ' selected' : ''}>${escapeHtml(a.full_name)}</option>`).join('');
+            }
+        }
+
+        async function openGroupModal(id) {
+            await loadRoutingOptions();
+            const g = id ? MC_GROUPS.find(x => Number(x.GroupID) === Number(id)) : null;
+            document.getElementById('groupModalTitle').textContent = g
+                ? window.t('morning-checks.settings.group_edit_title')
+                : window.t('morning-checks.settings.group_add_title');
+            document.getElementById('groupId').value = g ? g.GroupID : '';
+            document.getElementById('groupName').value = g ? g.GroupName : '';
+            document.getElementById('groupDescription').value = g ? (g.GroupDescription || '') : '';
+            document.getElementById('groupSortOrder').value = g ? (g.SortOrder || 0) : 0;
+            document.getElementById('groupIsActive').checked = g ? !!Number(g.IsActive) : true;
+            fillRoutingSelects(document.getElementById('groupTeam'), document.getElementById('groupAnalyst'),
+                               g ? g.AssignedTeamID : '', g ? g.AssignedAnalystID : '');
+            document.getElementById('groupModal').classList.add('active');
+        }
+
+        function closeGroupModal() {
+            document.getElementById('groupModal').classList.remove('active');
+        }
+
+        async function saveGroup(e) {
+            e.preventDefault();
+            const id = document.getElementById('groupId').value;
+            try {
+                const r = await fetch(API_BASE + 'save_group.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: id || null,
+                        name: document.getElementById('groupName').value.trim(),
+                        description: document.getElementById('groupDescription').value.trim(),
+                        assigned_team_id: document.getElementById('groupTeam').value || null,
+                        assigned_analyst_id: document.getElementById('groupAnalyst').value || null,
+                        sort_order: parseInt(document.getElementById('groupSortOrder').value || '0', 10),
+                        is_active: document.getElementById('groupIsActive').checked ? 1 : 0
+                    })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    showToast(window.t('morning-checks.settings.toast_saved'), 'success');
+                    closeGroupModal();
+                    loadGroups();
+                    loadChecks();   // the Checks tab shows each check's group
+                } else {
+                    showToast(d.error || window.t('morning-checks.settings.toast_save_failed'), 'error');
+                }
+            } catch (err) {
+                showToast(window.t('morning-checks.settings.toast_save_failed'), 'error');
+            }
+            return false;
+        }
+
+        async function deleteGroup(id, name, checkCount) {
+            // Say plainly that the CHECKS survive. "Delete group" is exactly the
+            // button somebody presses expecting only the grouping to go, and a
+            // vague confirm would leave them guessing about their round.
+            const msg = checkCount > 0
+                ? window.t('morning-checks.settings.group_delete_confirm_with_checks', { name: name, count: checkCount })
+                : window.t('morning-checks.settings.group_delete_confirm', { name: name });
+            const ok = await showConfirm({
+                title:   window.t('morning-checks.settings.confirm_delete_title'),
+                message: msg,
+                okLabel: window.t('morning-checks.settings.confirm_ok'),
+                okClass: 'danger'
+            });
+            if (!ok) return;
+            try {
+                const r = await fetch(API_BASE + 'delete_group.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    showToast(window.t('morning-checks.settings.toast_deleted'), 'success');
+                    loadGroups();
+                    loadChecks();
+                } else {
+                    showToast(d.error || window.t('morning-checks.settings.toast_delete_failed'), 'error');
+                }
+            } catch (err) {
+                showToast(window.t('morning-checks.settings.toast_delete_failed'), 'error');
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             loadChecks();
             loadStatuses();
             loadChartFillSetting();
             wireChartFillSetting();
+            loadGroups();
         });
     </script>
 </body>

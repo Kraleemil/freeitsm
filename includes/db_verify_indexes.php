@@ -140,6 +140,13 @@ return [
     ['ticket_links', 'ix_ticket_links_target', 'key', '(`target_ticket_id`)'],
     ['problem_notes', 'ix_pnotes_problem', 'key', '(`problem_id`)'],
     ['morningChecks_Results', 'uq_check_date', 'unique', '(`CheckID`,`CheckDate`)'],
+    // Grouping + routing (discussion #64). The dashboard joins on every one of
+    // these on each load, and the links table is read per result.
+    ['morningChecks_Groups', 'ix_mcg_team', 'key', '(`AssignedTeamID`)'],
+    ['morningChecks_Groups', 'ix_mcg_analyst', 'key', '(`AssignedAnalystID`)'],
+    ['morningChecks_Checks', 'ix_mcc_group', 'key', '(`GroupID`)'],
+    ['morningChecks_Checks', 'ix_mcc_analyst', 'key', '(`AssignedAnalystID`)'],
+    ['morningChecks_ResultLinks', 'ix_mcrl_result', 'key', '(`ResultID`)'],
     ['knowledge_articles', 'idx_knowledge_articles_tenant', 'key', '(`tenant_id`)'],
     ['knowledge_tags', 'uq_knowledge_tags_name', 'unique', '(`name`)'],
     ['knowledge_gap_clusters', 'ix_kgc_status', 'key', '(`status`)'],
