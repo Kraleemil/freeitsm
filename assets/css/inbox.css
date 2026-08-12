@@ -425,6 +425,16 @@ body {
     border-bottom: 1px solid var(--border-soft, #f0f0f0);
     cursor: pointer;
     transition: background 0.2s;
+    /* Positioning context for the left-edge stripe and the top-right block
+       (discussion #61). Absolutely positioned children sit against the PADDING
+       box, i.e. inside the selection border below. */
+    position: relative;
+    /* ⚠️ Reserved, transparent, on EVERY row — not only the selected one.
+       .selected used to add this 3px border from nothing, so selecting a row
+       nudged its whole content 3px to the right. Harmless on its own, but with a
+       priority stripe pinned to the left edge that jump becomes obvious. Holding
+       the space on every row fixes both. */
+    border-left: 3px solid transparent;
 }
 
 .email-item:hover {
@@ -433,8 +443,100 @@ body {
 
 .email-item.selected {
     background: var(--accent-soft, #e8f4fd);
-    border-left: 3px solid var(--accent, #0078d4);
+    border-left-color: var(--accent, #0078d4);
 }
+
+/* ─── Row display chips (discussion #61) ──────────────────────────────────────
+   Per-analyst; see includes/inbox_display.php. Three placements, deliberately
+   distinct so two of them can be used at once without ambiguity. */
+
+/* Left edge. Priority and status may BOTH ask for a stripe — they stack side by
+   side rather than one silently winning. */
+.email-stripes {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    pointer-events: none;   /* never steals the row's click */
+}
+
+.email-stripe {
+    width: 3px;
+    height: 100%;
+}
+
+/* Top right. Not top-left: that corner belongs to the unread marker. */
+.email-blocks {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    display: flex;
+    gap: 4px;
+    pointer-events: none;
+}
+
+.email-block {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
+/* Footer row, beside the date and the SLA pill. */
+.email-chip-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+    padding: 1px 8px 1px 6px;
+    border: 1px solid var(--border, #d5dbe1);
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--text-muted, #5b6770);
+    background: var(--surface, #fff);
+    white-space: nowrap;
+}
+
+.email-chip-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #999;
+    flex: 0 0 auto;
+}
+
+.email-chip-agent {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 16px;
+    background: var(--surface-hover, #eef1f4);
+    color: var(--text-muted, #5b6770);
+    white-space: nowrap;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Initials are a fixed-width badge rather than a pill — at two characters the
+   pill padding makes it look like a truncated word. */
+.email-chip-agent.is-initials {
+    justify-content: center;
+    min-width: 22px;
+    padding: 1px 5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    max-width: none;
+}
+
+/* The footer row has to be allowed to shrink now that it can carry more. The
+   date keeps its space; the chips give way first. */
+.email-footer-row .email-time { flex: 0 0 auto; }
 
 .email-item.unread {
     background: var(--row-unread, #f0f8ff);
@@ -471,7 +573,14 @@ body {
 
 .email-footer-row {
     display: flex;
-    justify-content: space-between;
+    /* ⚠️ NOT space-between. With only a date and an SLA pill in here that read
+       the same as this does — but the row can now carry a priority chip, a
+       status chip and an agent chip, and space-between distributes them evenly
+       across the full width, so three chips ended up floating in the middle of
+       the row with gaps between them rather than reading as a group. Left-align
+       and push the SLA pill right explicitly; same result for the old two-item
+       case, correct result for the new one. */
+    justify-content: flex-start;
     align-items: center;
     margin-top: 4px;
     gap: 8px;
@@ -480,6 +589,7 @@ body {
 .email-sla-slot {
     flex: 0 0 auto;
     min-height: 16px;
+    margin-left: auto;   /* stays hard right whatever precedes it */
 }
 
 .email-sla-pill {

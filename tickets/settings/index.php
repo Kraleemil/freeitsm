@@ -24,8 +24,17 @@ requireModuleAccess('tickets');
 // RBAC Layer 2: only the tabs this analyst may see are rendered — a tab they lack is never
 // emitted, so there is no hidden mailbox panel to un-hide. Administrators hold everything.
 $settingsManifest = settingsManifestFor('tickets');
-$visibleTabs      = settingsVisibleTabs(connectToDatabase(), (int) $_SESSION['analyst_id'], $settingsManifest);
+$conn             = connectToDatabase();
+$visibleTabs      = settingsVisibleTabs($conn, (int) $_SESSION['analyst_id'], $settingsManifest);
 $activeTabId      = settingsFirstTabId($visibleTabs);
+
+// Row display (discussion #61) — what this analyst's own ticket rows show.
+// Resolved server-side so the tab opens on the values actually in force, rather
+// than on the shipped defaults with the real ones arriving a moment later.
+require_once '../../includes/inbox_display.php';
+require_once '../../includes/rbac.php';
+$rdConfig   = inboxDisplayForAnalyst($conn, (int) $_SESSION['analyst_id']);
+$rdPersonal = inboxDisplayIsPersonal($conn, (int) $_SESSION['analyst_id']);
 
 $analyst_name = $_SESSION['analyst_name'] ?? 'Analyst';
 
@@ -103,6 +112,78 @@ $translationNamespaces = ['common', 'tickets'];
          * so without this consecutive paragraphs collide visually. */
         .tab-content > p {
             margin-bottom: 14px;
+        }
+
+        /* ─── Row display tab (discussion #61) ────────────────────────────────
+           Controls on the left, a live sample row on the right. The sample is
+           the point: "block, top right" and "pill" are hard to choose between
+           from words alone. */
+        .rd-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 460px) minmax(0, 1fr);
+            gap: 32px;
+            align-items: start;
+        }
+        @media (max-width: 900px) { .rd-layout { grid-template-columns: 1fr; } }
+
+        .rd-field { margin-bottom: 22px; }
+        .rd-field-label {
+            display: block;
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: var(--text, #333);
+        }
+        .rd-options { display: flex; flex-wrap: wrap; gap: 8px; }
+        .rd-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border: 1px solid var(--border, #d5dbe1);
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            background: var(--surface, #fff);
+            transition: border-color .15s, background .15s;
+        }
+        .rd-option:hover { border-color: var(--accent, #0078d4); }
+        .rd-option:has(input:checked) {
+            border-color: var(--accent, #0078d4);
+            background: var(--accent-soft, #e8f4fd);
+            font-weight: 600;
+        }
+        .rd-help {
+            display: block;
+            margin-top: 7px;
+            color: var(--text-muted, #666);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .rd-preview-wrap { position: sticky; top: 12px; }
+        .rd-preview-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted, #666);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: .4px;
+        }
+        /* Deliberately the real inbox classes, on a real-width column, so the
+           sample cannot flatter itself. */
+        .rd-preview {
+            border: 1px solid var(--border, #d5dbe1);
+            border-radius: 8px;
+            overflow: hidden;
+            max-width: 420px;
+            background: var(--surface, #fff);
+        }
+        .rd-admin-sep {
+            width: 1px;
+            height: 26px;
+            background: var(--border, #d5dbe1);
+            margin: 0 4px;
         }
 
         /* Reply cleanup tab: two-column layout — form on the left, the
@@ -1223,6 +1304,71 @@ $translationNamespaces = ['common', 'tickets'];
                     <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
                 </div>
             </form>
+        </div>
+        <?php endif; ?>
+
+        <?php if (settingsTabVisible($visibleTabs, 'row-display')): ?>
+        <!-- Row display (discussion #61). cap => null: a personal view preference,
+             so no data-capability attribute — there is nothing here to grant. The
+             one administrative control inside is gated separately, below. -->
+        <div class="tab-content<?php echo $activeTabId === 'row-display' ? ' active' : ''; ?>" id="row-display-tab">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('tickets.settings.headings.row_display')); ?></h2>
+            </div>
+            <p style="color: var(--text-muted, #555);">
+                <?php echo htmlspecialchars(t('tickets.settings.row_display.intro')); ?>
+            </p>
+
+            <div class="rd-layout">
+                <div class="rd-controls">
+                    <?php
+                    // The registry is the single source of truth for which styles a
+                    // field accepts — the form is generated from it so the UI cannot
+                    // drift from what the server will actually store.
+                    $rdRegistry = inboxDisplayRegistry();
+                    foreach ($rdRegistry as $rdField => $rdSpec):
+                    ?>
+                    <div class="rd-field">
+                        <label class="rd-field-label"><?php echo htmlspecialchars(t('tickets.settings.row_display.field.' . $rdField)); ?></label>
+                        <div class="rd-options" data-field="<?php echo htmlspecialchars($rdField); ?>">
+                            <?php foreach ($rdSpec['styles'] as $rdStyle): ?>
+                            <label class="rd-option">
+                                <input type="radio"
+                                       name="rd_<?php echo htmlspecialchars($rdField); ?>"
+                                       value="<?php echo htmlspecialchars($rdStyle); ?>"
+                                       <?php echo ($rdConfig[$rdField] ?? '') === $rdStyle ? 'checked' : ''; ?>>
+                                <span><?php echo htmlspecialchars(t('tickets.settings.row_display.style.' . $rdStyle)); ?></span>
+                            </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <small class="rd-help"><?php echo htmlspecialchars(t('tickets.settings.row_display.help.' . $rdField)); ?></small>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- A live sample rather than a description. Every combination here
+                     is legal, including two stripes or two blocks at once, and the
+                     only honest way to choose between them is to look. -->
+                <div class="rd-preview-wrap">
+                    <div class="rd-preview-label"><?php echo htmlspecialchars(t('tickets.settings.row_display.preview')); ?></div>
+                    <div class="rd-preview" id="rdPreview"></div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center; margin-top: 26px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary" onclick="rdSave('me')"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                <button type="button" class="action-btn" onclick="rdSave('reset')"><?php echo htmlspecialchars(t('tickets.settings.row_display.reset')); ?></button>
+                <?php if (analystHasCapability($conn, (int)$_SESSION['analyst_id'], Cap::TICKETS_MANAGE)): ?>
+                <span class="rd-admin-sep"></span>
+                <button type="button" class="action-btn" onclick="rdSave('install')"><?php echo htmlspecialchars(t('tickets.settings.row_display.set_default')); ?></button>
+                <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.row_display.set_default_help')); ?></small>
+                <?php endif; ?>
+            </div>
+            <p id="rdFollowing" style="color: var(--text-muted, #666); font-size: 12px; margin-top: 12px;">
+                <?php echo htmlspecialchars($rdPersonal
+                    ? t('tickets.settings.row_display.using_personal')
+                    : t('tickets.settings.row_display.using_default')); ?>
+            </p>
         </div>
         <?php endif; ?>
     </div>
@@ -5776,6 +5922,143 @@ $translationNamespaces = ['common', 'tickets'];
                 `;
             }).join('');
         }
+
+        /* ─── Row display (discussion #61) ────────────────────────────────────
+         * ⚠️ The preview below deliberately emits the REAL inbox class names
+         * (.email-item, .email-stripes, .email-chip-pill, …) against the real
+         * inbox.css, so what you see is what the inbox will do. It is a second
+         * small renderer rather than a call into inbox.js, which is a monolith
+         * with its own bootstrap — so if a class name changes in one place it
+         * must change in both. That is the cost, stated rather than hidden. */
+        function rdCurrent() {
+            const cfg = {};
+            document.querySelectorAll('#row-display-tab .rd-options').forEach(group => {
+                const field = group.dataset.field;
+                const sel = group.querySelector('input:checked');
+                cfg[field] = sel ? sel.value : 'off';
+            });
+            return cfg;
+        }
+
+        const RD_SAMPLE = {
+            ticket_number: 'SD-1042',
+            from: 'Priya Raman',
+            subject: 'Laptop will not wake from sleep',
+            preview: 'Tried a hard restart twice this morning and it still…',
+            priority: 'High',       priority_colour: '#d97706',
+            status: 'In Progress',  status_colour: '#2563eb',
+            assignee: 'Ed Mozley',
+            time: '09:24'
+        };
+
+        function rdEsc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        function rdInitials(name) {
+            const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+            if (!p.length) return '';
+            if (p.length === 1) return p[0].substring(0, 2).toUpperCase();
+            return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+        }
+
+        function rdRenderPreview() {
+            const el = document.getElementById('rdPreview');
+            if (!el) return;
+            const cfg = rdCurrent();
+            const s = RD_SAMPLE;
+
+            const stripes = ['priority', 'status']
+                .filter(f => cfg[f] === 'stripe')
+                .map(f => `<span class="email-stripe" style="background:${f === 'priority' ? s.priority_colour : s.status_colour}"></span>`)
+                .join('');
+            const blocks = ['priority', 'status']
+                .filter(f => cfg[f] === 'block')
+                .map(f => `<span class="email-block" style="background:${f === 'priority' ? s.priority_colour : s.status_colour}"></span>`)
+                .join('');
+
+            let chips = '';
+            ['priority', 'status'].forEach(f => {
+                const style = cfg[f];
+                const label = f === 'priority' ? s.priority : s.status;
+                const col   = f === 'priority' ? s.priority_colour : s.status_colour;
+                if (style === 'dot') {
+                    chips += `<span class="email-chip-dot" style="background:${col}"></span>`;
+                } else if (style === 'pill') {
+                    chips += `<span class="email-chip-pill" style="border-color:${col}">`
+                           + `<span class="email-chip-dot" style="background:${col}"></span>`
+                           + `<span class="email-chip-label">${rdEsc(label)}</span></span>`;
+                }
+            });
+            if (cfg.agent === 'name') {
+                chips += `<span class="email-chip-agent">${rdEsc(s.assignee)}</span>`;
+            } else if (cfg.agent === 'initials') {
+                chips += `<span class="email-chip-agent is-initials">${rdEsc(rdInitials(s.assignee))}</span>`;
+            }
+
+            el.innerHTML = `
+                <div class="email-item unread">
+                    ${stripes ? `<span class="email-stripes">${stripes}</span>` : ''}
+                    ${blocks ? `<span class="email-blocks">${blocks}</span>` : ''}
+                    <div class="email-from">${rdEsc(s.ticket_number)} - ${rdEsc(s.from)}</div>
+                    <div class="email-subject">${rdEsc(s.subject)}</div>
+                    <div class="email-preview">${rdEsc(s.preview)}</div>
+                    <div class="email-footer-row">
+                        <div class="email-time">${rdEsc(s.time)}</div>
+                        ${chips}
+                        <div class="email-sla-slot"></div>
+                    </div>
+                </div>`;
+        }
+
+        async function rdSave(scope) {
+            try {
+                const res = await fetch('../../api/tickets/save_inbox_display.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope: scope, config: rdCurrent() })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    showToast(data.error || 'Could not save', 'error');
+                    return;
+                }
+                // A reset changes the radios, because the answer comes back from
+                // the install default rather than from what is on screen.
+                if (scope === 'reset' && data.config) {
+                    Object.keys(data.config).forEach(f => {
+                        const input = document.querySelector(`#row-display-tab input[name="rd_${f}"][value="${data.config[f]}"]`);
+                        if (input) input.checked = true;
+                    });
+                    rdRenderPreview();
+                }
+                const note = document.getElementById('rdFollowing');
+                if (note && typeof data.personal !== 'undefined') {
+                    note.textContent = data.personal
+                        ? <?php echo json_encode(t('tickets.settings.row_display.using_personal')); ?>
+                        : <?php echo json_encode(t('tickets.settings.row_display.using_default')); ?>;
+                }
+                showToast(
+                    scope === 'install'
+                        ? <?php echo json_encode(t('tickets.settings.row_display.saved_default')); ?>
+                        : <?php echo json_encode(t('tickets.settings.row_display.saved')); ?>,
+                    'success'
+                );
+            } catch (e) {
+                showToast('Could not save: ' + e.message, 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const tab = document.getElementById('row-display-tab');
+            if (!tab) return;
+            tab.addEventListener('change', function (e) {
+                if (e.target && e.target.type === 'radio') rdRenderPreview();
+            });
+            rdRenderPreview();
+        });
 
     </script>
     <script src="../../assets/js/mobile.js?v=22"></script>

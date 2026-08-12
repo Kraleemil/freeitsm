@@ -63,11 +63,21 @@ try {
                 t.assigned_analyst_id,
                 $snoozeCols
                 tp.name AS priority,
+                -- Row-display fields (discussion #61). The names and the analyst id
+                -- were already selected here; only the colours and the analyst's
+                -- display name are new, and both come off joins that already exist
+                -- or cost one more. What the row actually SHOWS is decided per
+                -- analyst — see includes/inbox_display.php — but the data is sent
+                -- regardless so switching a chip on is instant rather than a reload.
+                tp.colour AS priority_colour,
+                ts.colour AS status_colour,
+                aa.full_name AS assignee_name,
                 (SELECT COUNT(*) FROM emails WHERE ticket_id = t.id) as email_count
             FROM LatestEmails le
             INNER JOIN tickets t ON le.ticket_id = t.id
             LEFT JOIN ticket_statuses ts ON ts.id = t.status_id
             LEFT JOIN ticket_priorities tp ON tp.id = t.priority_id
+            LEFT JOIN analysts aa ON aa.id = t.assigned_analyst_id
             WHERE le.rn = 1";
 
     $params = [];

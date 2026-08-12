@@ -1137,11 +1137,13 @@ function renderEmailList() {
                  draggable="true" data-email-id="${email.id}" data-ticket-id="${ticketId}" data-ticket-number="${escapeHtml(email.ticket_number || '')}"
                  onclick="handleEmailRowClick(event, ${email.id})" ondblclick="selectEmailFullScreen(${email.id})"
                  oncontextmenu="openTicketContextMenu(event, ${ticketId}, '${escapeHtml(email.ticket_number || '')}')">
+                ${inboxRowStripes(email)}${inboxRowBlocks(email)}
                 <div class="email-from">${escapeHtml(email.ticket_number || '')} - ${senderLabel(email.from_name, email.from_address, false)} ${countBadge}</div>
                 <div class="email-subject">${escapeHtml(email.subject)}</div>
                 <div class="email-preview">${escapeHtml(email.body_preview || '')}</div>
                 <div class="email-footer-row">
                     <div class="email-time">${formatDateTime(email.received_datetime)}</div>
+                    ${inboxRowChips(email)}
                     ${snoozePill}
                     <div class="email-sla-slot" data-sla-slot="${ticketId}"></div>
                 </div>${trashActions}
@@ -6973,6 +6975,137 @@ function formatWakeTime(value) {
 
 // The small moon pill on a list row. Only rendered for a snooze still in the
 // future — the endpoint already nulls expired ones, and this is the second belt.
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Row display chips (discussion #61)
+ *
+ * What appears on each ticket row is per-analyst, resolved server-side and handed
+ * to us as INBOX_ROW_DISPLAY — see includes/inbox_display.php. Every value has
+ * already been validated against the registry there, but these functions still
+ * whitelist before building a class name, because a renderer that trusts its
+ * input is one stored value away from markup injection.
+ *
+ * ⚠️ Three placements, and the reason there are three:
+ *   stripe → a bar on the LEFT EDGE. Costs no horizontal space, reads instantly
+ *            down a queue, and cannot be confused with the SLA dot.
+ *   block  → a small square top-RIGHT. Quiet; deliberately not top-left, where it
+ *            would fight the unread marker.
+ *   pill/dot → in the footer row beside the date, next to the SLA pill. The
+ *            noisiest, and the only one that carries the actual word.
+ *
+ * The SLA indicator in that footer is ALREADY a red/amber/green dot. A priority
+ * dot is therefore available but not the default: two traffic lights in one row,
+ * meaning different things, is worse than one.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+const INBOX_STYLE_WHITELIST = ['off', 'stripe', 'pill', 'block', 'dot', 'name', 'initials'];
+
+function inboxRowStyle(field) {
+    const cfg = (typeof INBOX_ROW_DISPLAY === 'object' && INBOX_ROW_DISPLAY) ? INBOX_ROW_DISPLAY : {};
+    const v = cfg[field];
+    return INBOX_STYLE_WHITELIST.includes(v) ? v : 'off';
+}
+
+/** Is any field currently asking for this placement? Lets us skip empty containers. */
+function inboxAnyStyleIs(placement) {
+    return ['priority', 'status'].some(f => inboxRowStyle(f) === placement);
+}
+
+/**
+ * "Ed Mozley" → "EM". Falls back to the first two characters of a single word,
+ * so a mononym or a service account still renders something rather than a blank
+ * chip that looks like a bug.
+ */
+function inboxInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '';
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** A safe CSS colour, or null. Anything unrecognised is dropped rather than emitted. */
+function inboxSafeColour(value) {
+    const v = String(value || '').trim();
+    return /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : null;
+}
+
+/** The left-edge stripes. Both priority and status may ask for one; they stack. */
+function inboxRowStripes(email) {
+    if (!inboxAnyStyleIs('stripe')) return '';
+    const bars = [];
+    if (inboxRowStyle('priority') === 'stripe') {
+        const c = inboxSafeColour(email.priority_colour);
+        if (c && email.priority) {
+            bars.push(`<span class="email-stripe" style="background:${c}" title="${escapeHtml(email.priority)}"></span>`);
+        }
+    }
+    if (inboxRowStyle('status') === 'stripe') {
+        const c = inboxSafeColour(email.status_colour);
+        if (c && email.status) {
+            bars.push(`<span class="email-stripe" style="background:${c}" title="${escapeHtml(email.status)}"></span>`);
+        }
+    }
+    return bars.length ? `<span class="email-stripes">${bars.join('')}</span>` : '';
+}
+
+/** The top-right blocks. Same stacking rule as stripes. */
+function inboxRowBlocks(email) {
+    if (!inboxAnyStyleIs('block')) return '';
+    const blocks = [];
+    if (inboxRowStyle('priority') === 'block') {
+        const c = inboxSafeColour(email.priority_colour);
+        if (c && email.priority) {
+            blocks.push(`<span class="email-block" style="background:${c}" title="${escapeHtml(email.priority)}"></span>`);
+        }
+    }
+    if (inboxRowStyle('status') === 'block') {
+        const c = inboxSafeColour(email.status_colour);
+        if (c && email.status) {
+            blocks.push(`<span class="email-block" style="background:${c}" title="${escapeHtml(email.status)}"></span>`);
+        }
+    }
+    return blocks.length ? `<span class="email-blocks">${blocks.join('')}</span>` : '';
+}
+
+/** Pills and dots for the footer row, plus the agent chip. */
+function inboxRowChips(email) {
+    const out = [];
+
+    const colourField = (field, value, colour) => {
+        const style = inboxRowStyle(field);
+        if (style !== 'pill' && style !== 'dot') return;
+        if (!value) return;
+        const c = inboxSafeColour(colour);
+        if (style === 'dot') {
+            out.push(`<span class="email-chip-dot" style="background:${c || '#999'}" title="${escapeHtml(value)}"></span>`);
+        } else {
+            // Tint the pill from the same colour rather than inventing a palette.
+            // The border carries the hue; the text stays readable on any theme.
+            // ⚠️ The label is its own element so a narrow screen can hide it and
+            // leave the dot — a pill degrades to its quietest form rather than
+            // wrapping or being dropped entirely. See mobile.css.
+            const border = c ? ` style="border-color:${c}"` : '';
+            out.push(`<span class="email-chip-pill"${border} title="${escapeHtml(value)}">`
+                   + (c ? `<span class="email-chip-dot" style="background:${c}"></span>` : '')
+                   + `<span class="email-chip-label">${escapeHtml(value)}</span></span>`);
+        }
+    };
+
+    colourField('priority', email.priority, email.priority_colour);
+    colourField('status',   email.status,   email.status_colour);
+
+    const agentStyle = inboxRowStyle('agent');
+    if (agentStyle === 'name' || agentStyle === 'initials') {
+        const name = email.assignee_name || '';
+        if (name) {
+            const label = agentStyle === 'initials' ? inboxInitials(name) : name;
+            out.push(`<span class="email-chip-agent ${agentStyle === 'initials' ? 'is-initials' : ''}" `
+                   + `title="${escapeHtml(name)}">${escapeHtml(label)}</span>`);
+        }
+    }
+
+    return out.join('');
+}
+
 function snoozeRowPill(snoozedUntil, reason) {
     if (!snoozedUntil) return '';
     const d = parseUTCDate(snoozedUntil);

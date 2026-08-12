@@ -553,6 +553,7 @@ return [
             'privacy'         => 'Privacy',
             'reply_cleanup'   => 'Reply cleanup',
             'csat'            => 'CSAT',
+            'row_display'     => 'Row display',
         ],
         // Section h2 headings inside each tab. Most mirror the tab labels but
         // some are more descriptive — kept separate so translators can pick
@@ -576,6 +577,45 @@ return [
             'privacy'          => 'Privacy',
             'reply_cleanup_ai' => 'Reply cleanup AI',
             'csat'             => 'Customer satisfaction surveys',
+            'row_display'      => 'What your ticket rows show',
+        ],
+
+        // Row display (discussion #61). Per-analyst, over an install default.
+        // The style names are shown as button labels, so they say WHERE the
+        // indicator goes rather than naming a shape nobody can place.
+        'row_display' => [
+            'intro' => 'Choose what appears on each ticket row in the middle pane, and how. This is your own setting — it changes nothing for anyone else.',
+
+            'field' => [
+                'priority' => 'Priority',
+                'status'   => 'Status',
+                'agent'    => 'Assigned agent',
+            ],
+
+            'style' => [
+                'off'      => 'Hidden',
+                'stripe'   => 'Left edge',
+                'pill'     => 'Pill with the word',
+                'block'    => 'Block, top right',
+                'dot'      => 'Dot only',
+                'name'     => 'Full name',
+                'initials' => 'Initials',
+            ],
+
+            'help' => [
+                'priority' => 'The left edge costs no space and is easiest to scan down a long queue. A dot sits beside the date — note the SLA indicator is already a coloured dot there, so two dots can be hard to tell apart.',
+                'status'   => 'Off by default: the folder you are looking in usually tells you the status already.',
+                'agent'    => 'Initials keep the row narrow. Hover to see the full name either way.',
+            ],
+
+            'preview'          => 'Preview',
+            'reset'            => 'Use the default',
+            'set_default'      => 'Set as default for everyone',
+            'set_default_help' => 'Applies to analysts who have not chosen their own.',
+            'using_personal'   => 'You are using your own settings.',
+            'using_default'    => 'You are following the install default.',
+            'saved'            => 'Your row display has been saved.',
+            'saved_default'    => 'Saved as the default for everyone who has not chosen their own.',
         ],
 
         'csat' => [

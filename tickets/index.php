@@ -10,6 +10,7 @@ require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
 require_once '../includes/timezone.php';
 require_once '../includes/ticket_snooze.php';
+require_once '../includes/inbox_display.php';   // what each row shows, per analyst
 I18n::initFromSession();
 Tz::init();
 
@@ -762,10 +763,16 @@ $translationNamespaces = ['common', 'tickets'];
         // button that cannot work.
         window.KB_WRITEUP_ENABLED = <?php echo analystCanAccessModule(connectToDatabase(), (int)($_SESSION['analyst_id'] ?? 0), 'knowledge') ? 'true' : 'false'; ?>;
         window.KB_BASE = '../api/knowledge/';
+        // What this analyst's ticket rows show (discussion #61). Resolved
+        // server-side — their own choice over the install default — and already
+        // validated against the registry in includes/inbox_display.php, so the
+        // renderer receives only values it knows. Emitted rather than fetched so
+        // the first paint is already correct instead of reflowing a moment later.
+        window.INBOX_ROW_DISPLAY = <?php echo json_encode(inboxDisplayForAnalyst(connectToDatabase(), (int)($_SESSION['analyst_id'] ?? 0))); ?>;
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=84"></script>
+    <script src="../assets/js/inbox.js?v=85"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

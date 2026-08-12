@@ -186,5 +186,19 @@ return [
             'label_key' => 'tickets.settings.tabs.csat',
             'grant'     => 'Configure the customer satisfaction survey',
         ],
+        [
+            // What your own ticket rows show (discussion #61). A per-analyst view
+            // preference, so there is nothing here to grant and nobody to gate —
+            // the same reasoning as the left-panel tab in the other modules.
+            //
+            // The tab does contain one administrative control: "make this the
+            // default for everyone". That button is gated inside the tab on
+            // Cap::TICKETS_MANAGE rather than by hiding the whole tab, because
+            // hiding it would take away everybody else's personal setting to
+            // protect one button.
+            'id'        => 'row-display',
+            'cap'       => null,
+            'label_key' => 'tickets.settings.tabs.row_display',
+        ],
     ],
 ];

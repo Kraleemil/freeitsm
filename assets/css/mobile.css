@@ -2798,4 +2798,57 @@
     .wr-modal-actions .btn { width: 100%; min-height: 44px; }
     .wr-member { min-height: 44px; }
     .wr-members { max-height: none; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LAYER 20 — INBOX ROW CHIPS (discussion #61)
+
+       The middle-pane footer row already carried a date, a snooze pill and an
+       SLA pill before this feature existed, and mobile.css had NO rules for it
+       at all — it inherited the desktop flex and coped only because there were
+       rarely three things in it at once.
+
+       Row display is now per-analyst and can add a priority pill, a status pill
+       and an agent chip to that same row. On a 360px screen that wraps into a
+       second and third line, and "it wraps" is not the same as "it is usable" —
+       that lesson is why this block exists rather than being left to reflow.
+
+       The rule: PLACEMENTS THAT COST NO WIDTH SURVIVE INTACT; placements that
+       cost width degrade to their quietest form. Nothing is hidden outright, so
+       a chip someone deliberately switched on never silently disappears.
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    /* Stripes and blocks cost no horizontal space — they keep working as-is,
+       and on a phone they are the most useful of the three placements. */
+    .email-stripes { pointer-events: none; }
+    .email-block { width: 9px; height: 9px; }
+
+    /* A pill collapses to its dot. The label is a separate element for exactly
+       this reason: the colour and the tooltip survive, the width does not. */
+    .email-chip-pill .email-chip-label { display: none; }
+    .email-chip-pill {
+        padding: 2px;
+        border-radius: 50%;
+        border-width: 2px;
+        gap: 0;
+        min-height: 0;
+    }
+    .email-chip-pill .email-chip-dot { width: 6px; height: 6px; }
+
+    /* A full name is the single widest thing that can land in this row, so it is
+       capped and ellipsised — "Ed Mozley" becomes "Ed M". Not converted to real
+       initials, because that needs the renderer rather than a stylesheet, and a
+       truncated first name still identifies the owner in a list you already know.
+       `initials` was the shipped default anyway; this only affects somebody who
+       deliberately chose `name`. Verified at 360px. */
+    .email-chip-agent {
+        max-width: 34px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Let the row give way rather than push the date off the edge. */
+    .email-footer-row { flex-wrap: nowrap; gap: 6px; min-width: 0; }
+    .email-footer-row .email-time { flex: 0 0 auto; font-size: 11px; }
+    .email-sla-slot { min-width: 0; overflow: hidden; }
 }
