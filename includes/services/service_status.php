@@ -353,6 +353,13 @@ class ServiceStatusService
         $display_order  = (int)($in['display_order'] ?? 0);
         $is_active      = !empty($in['is_active']) ? 1 : 0;
         $id             = !empty($in['id']) ? (int)$in['id'] : null;
+        // Uptime (discussion #59). Absent means 1 — the conservative answer for a
+        // level nobody has ruled on, and it matches the column default so an old
+        // client that does not send the field cannot silently zero it. Uses
+        // array_key_exists rather than !empty so an explicit 0 is honoured.
+        $counts_down    = array_key_exists('counts_as_downtime', $in)
+            ? (!empty($in['counts_as_downtime']) ? 1 : 0)
+            : 1;
 
         if ($name === '') throw new ServiceError('validation', 'missing_field', 'Name is required');
         if ($colour !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $colour)) {
@@ -368,12 +375,12 @@ class ServiceStatusService
             }
             if ($id) {
                 $conn->prepare(
-                    "UPDATE service_impact_levels SET name=?, colour=?, is_default=?, severity_order=?, display_order=?, is_active=? WHERE id=?"
-                )->execute([$name, $colour ?: null, $is_default, $severity_order, $display_order, $is_active, $id]);
+                    "UPDATE service_impact_levels SET name=?, colour=?, is_default=?, severity_order=?, display_order=?, is_active=?, counts_as_downtime=? WHERE id=?"
+                )->execute([$name, $colour ?: null, $is_default, $severity_order, $display_order, $is_active, $counts_down, $id]);
             } else {
                 $conn->prepare(
-                    "INSERT INTO service_impact_levels (name, colour, is_default, severity_order, display_order, is_active) VALUES (?, ?, ?, ?, ?, ?)"
-                )->execute([$name, $colour ?: null, $is_default, $severity_order, $display_order, $is_active]);
+                    "INSERT INTO service_impact_levels (name, colour, is_default, severity_order, display_order, is_active, counts_as_downtime) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                )->execute([$name, $colour ?: null, $is_default, $severity_order, $display_order, $is_active, $counts_down]);
                 $id = (int)$conn->lastInsertId();
             }
             $hasDefault = (int)$conn->query("SELECT COUNT(*) FROM service_impact_levels WHERE is_default = 1")->fetchColumn();

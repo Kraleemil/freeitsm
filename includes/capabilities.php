@@ -132,6 +132,11 @@ final class Cap
     const SERVICE_STATUS_SERVICES = 'service_status.services';
     const SERVICE_STATUS_STATUSES = 'service_status.statuses';
     const SERVICE_STATUS_IMPACTS  = 'service_status.impacts';
+    // Uptime reporting (discussion #59): the measurement window, and whether
+    // customers see the figures. Separate from IMPACTS because the rule that
+    // decides WHAT counts as downtime lives on the impact level itself — this
+    // one governs how it is reported, which is a publishing decision.
+    const SERVICE_STATUS_UPTIME   = 'service_status.uptime';
 
     // ---- War room ----------------------------------------------------------
     // Using the war room is plain module access — in an outage you do not want

@@ -27,6 +27,18 @@ return [
         'service_count'   => '{count} services',
         'loading'         => 'Loading...',
         'no_services'     => 'No services configured. Go to Settings to add services.',
+        // Service history + uptime (discussion #59), derived from incidents.
+        'history_show'        => 'History and uptime',
+        'history_hide'        => 'Hide history',
+        'history_loading'     => 'Working it out…',
+        'history_uptime'      => 'uptime',
+        'history_today'       => 'today',
+        'history_days_ago'    => ' days ago',
+        'history_none'        => 'No incidents in this period.',
+        'history_ongoing'     => 'Ongoing',
+        'history_excluded'     => '(not counted as downtime)',
+        'history_no_issues'   => 'no issues',
+        'history_maintenance' => 'maintenance',
         'incidents'       => 'Incidents',
         'new'             => 'New',
         'col_title'       => 'Title',
@@ -77,6 +89,15 @@ return [
         'tab_services'     => 'Services',
         'tab_statuses'     => 'Statuses',
         'tab_impacts'      => 'Impact levels',
+        'tab_uptime'      => 'Uptime',
+        'uptime_heading'  => 'Uptime reporting',
+        'uptime_intro_html' => 'Service history and uptime are worked out from your incidents, so they cover outages that have <strong>already happened</strong> rather than starting from today. Which impact levels count as downtime is set on each level, over on <strong>Impact levels</strong>.',
+        'uptime_window'   => 'Default period',
+        'uptime_window_days' => 'Last {days} days',
+        'uptime_window_help' => 'What each service shows before anyone changes it. Individual services can still be viewed over a different period.',
+        'uptime_portal'   => 'Show uptime to customers in the portal',
+        'uptime_portal_help' => 'Off by default. A percentage is a stronger statement than a status dot: once customers can see it, it reads as a published figure.',
+        'uptime_saved'    => 'Uptime settings saved.',
 
         'services_heading' => 'Services',
         'statuses_heading' => 'Incident statuses',
@@ -100,6 +121,7 @@ return [
         'col_resolved'    => 'Resolved',
         'col_default'     => 'Default',
         'col_severity'    => 'Severity',
+        'col_downtime'    => 'Counts as downtime',
 
         'active'          => 'Active',
         'inactive'        => 'Inactive',
@@ -128,6 +150,10 @@ return [
         'resolved_help_html' => 'Incidents in this status auto-stamp <code>resolved_datetime</code> and drop off the active dashboard.',
         'field_severity'  => 'Severity order',
         'severity_help'   => '1 = worst (Major Outage). Higher = less severe.',
+ // Uptime (discussion #59). Lives on the impact level because that is what the
+ // question is about; see the Uptime tab for the window and portal visibility.
+        'field_downtime'  => 'Time at this level counts as downtime',
+        'downtime_help'   => 'Turn this off for planned maintenance. Counting maintenance makes a well-run service look worse than a neglected one, so it is excluded by default.',
         'field_default'   => 'Default',
 
         'cancel'          => 'Cancel',

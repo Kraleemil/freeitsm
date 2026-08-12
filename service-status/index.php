@@ -65,6 +65,53 @@ $translationNamespaces = ['common', 'service-status'];
             margin-bottom: 36px;
         }
 
+
+        /* ─── Service history + uptime (discussion #59) ────────────────────── */
+        .svc-history-toggle {
+            margin-top: 10px; background: none; border: none; padding: 0;
+            color: var(--ss-accent, #10b981); font-size: 12px; cursor: pointer;
+            text-decoration: underline;
+        }
+        .svc-history[hidden] { display: none !important; }
+        /* ⚠️ An open history SPANS THE WHOLE GRID. The service cards are a
+           minmax(200px, 1fr) grid, and a four-column table plus a 90-cell strip
+           inside 200px is unreadable: the incident titles were clipped and the
+           strip rendered as a barcode of 1px slivers. Screenshot caught both.
+           Spanning gives the table room and makes each strip cell ~10px. */
+        .service-card.is-expanded { grid-column: 1 / -1; text-align: left; }
+        .service-card.is-expanded .service-name,
+        .service-card.is-expanded .service-desc { text-align: left; }
+        .svc-history { margin-top: 12px; border-top: 1px solid var(--border, #e5e7eb); padding-top: 12px; }
+        .svc-history-loading { font-size: 12px; color: var(--text-muted, #6b7280); padding: 6px 0; }
+
+        .svc-history-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+        .svc-uptime-figure { font-size: 20px; font-weight: 700; color: var(--text, #111); }
+        .svc-uptime-label  { font-size: 11px; color: var(--text-muted, #6b7280); margin-left: 6px; }
+        .svc-win-group { display: flex; gap: 4px; }
+        .svc-win {
+            border: 1px solid var(--border, #e5e7eb); background: var(--surface, #fff);
+            color: var(--text-muted, #6b7280); font-size: 11px; padding: 3px 8px;
+            border-radius: 5px; cursor: pointer;
+            transition: background 150ms ease, color 150ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+        }
+        .svc-win:hover { border-color: var(--ss-accent, #10b981); }
+        .svc-win:active { transform: scale(0.94); }
+        .svc-win.is-on { background: var(--ss-accent, #10b981); border-color: var(--ss-accent, #10b981); color: #fff; font-weight: 600; }
+
+        /* The strip. flex with min-width 0 cells so 7, 30, 90 or 365 days all fit
+           the same width without a horizontal scrollbar appearing at 365. */
+        .svc-strip { display: flex; gap: 1px; align-items: stretch; height: 30px; }
+        .svc-day { flex: 1 1 0; min-width: 0; border-radius: 1px; background: var(--ok-bg, #d1fae5); }
+        .svc-day-ok   { background: var(--ok-bg, #d1fae5); }
+        .svc-day-info { background: var(--border, #cbd5e1); }   /* maintenance: visible, not punitive */
+        .svc-day-down { background: #dc2626; }
+        .svc-strip-ends { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted, #9ca3af); margin-top: 4px; }
+
+        .svc-history-table { width: 100%; margin-top: 12px; border-collapse: collapse; font-size: 12px; }
+        .svc-history-table td { padding: 6px 8px; border-top: 1px solid var(--border-soft, #f1f5f9); vertical-align: middle; }
+        .svc-excluded { font-size: 10px; color: var(--text-muted, #9ca3af); font-style: italic; }
+
+        @media (prefers-reduced-motion: reduce) { .svc-win:active { transform: none; } }
         .service-card {
             background: var(--surface, #fff);
             border: 1px solid var(--border, #e5e7eb);
@@ -394,13 +441,107 @@ $translationNamespaces = ['common', 'service-status'];
             grid.innerHTML = services.map(svc => {
                 const il = impactByName(svc.current_status);
                 const style = il && il.colour ? `style="background:${il.colour}; color:#fff;"` : '';
+                // History is loaded on demand (discussion #59): a dashboard with
+                // twenty services should not fire twenty history queries to draw a
+                // page most people are only glancing at.
                 return `
                 <div class="service-card">
                     <div class="service-name">${escapeHtml(svc.name)}</div>
                     <div class="service-desc">${escapeHtml(svc.description || '')}</div>
                     <span class="impact-badge" ${style}>${escapeHtml(svc.current_status)}</span>
+                    <button type="button" class="svc-history-toggle" onclick="toggleServiceHistory(${svc.id}, this)">
+                        ${escapeHtml(window.t('service-status.board.history_show'))}
+                    </button>
+                    <div class="svc-history" id="svcHistory${svc.id}" hidden></div>
                 </div>`;
             }).join('');
+        }
+
+        /* ─── Service history + uptime (discussion #59) ───────────────────────
+           Everything shown here is derived from incidents; there is no history
+           table. See includes/services/service_uptime.php for what that can and
+           cannot see (changes made DURING an incident are not yet recorded). */
+        const svcHistoryCache = {};
+
+        async function toggleServiceHistory(serviceId, btn) {
+            const box = document.getElementById('svcHistory' + serviceId);
+            if (!box) return;
+            const card = box.closest('.service-card');
+            if (!box.hidden) {
+                box.hidden = true;
+                if (card) card.classList.remove('is-expanded');
+                btn.textContent = window.t('service-status.board.history_show');
+                return;
+            }
+            box.hidden = false;
+            if (card) card.classList.add('is-expanded');
+            btn.textContent = window.t('service-status.board.history_hide');
+            if (svcHistoryCache[serviceId]) { renderServiceHistory(serviceId, svcHistoryCache[serviceId]); return; }
+            box.innerHTML = `<div class="svc-history-loading">${escapeHtml(window.t('service-status.board.history_loading'))}</div>`;
+            await loadServiceHistory(serviceId);
+        }
+
+        async function loadServiceHistory(serviceId, days) {
+            const box = document.getElementById('svcHistory' + serviceId);
+            try {
+                const q = days ? ('&days=' + encodeURIComponent(days)) : '';
+                const res = await fetch(`../api/service-status/get_service_history.php?service_id=${serviceId}${q}`);
+                const data = await res.json();
+                if (!data.success) {
+                    box.innerHTML = `<div class="svc-history-loading">${escapeHtml(data.error || '')}</div>`;
+                    return;
+                }
+                svcHistoryCache[serviceId] = data;
+                renderServiceHistory(serviceId, data);
+            } catch (e) {
+                box.innerHTML = `<div class="svc-history-loading">${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function renderServiceHistory(serviceId, data) {
+            const box = document.getElementById('svcHistory' + serviceId);
+            const s = data.summary;
+
+            const windowPicker = data.windows.map(w =>
+                `<button type="button" class="svc-win${w === s.window_days ? ' is-on' : ''}"
+                         onclick="loadServiceHistory(${serviceId}, ${w})">${w}d</button>`).join('');
+
+            // One cell per day, oldest first. title carries the detail rather than a
+            // tooltip component: it is a 90-cell strip and a hover card per cell
+            // would be a lot of DOM for something read at a glance.
+            const strip = data.strip.map(d => {
+                const label = d.impact
+                    ? `${d.date} — ${d.impact}`
+                    : (d.state === 'info' ? `${d.date} — ${window.t('service-status.board.history_maintenance')}`
+                                          : `${d.date} — ${window.t('service-status.board.history_no_issues')}`);
+                const bg = (d.state === 'down' && d.colour) ? ` style="background:${d.colour}"` : '';
+                return `<span class="svc-day svc-day-${d.state}"${bg} title="${escapeHtml(label)}"></span>`;
+            }).join('');
+
+            const rows = data.incidents.length
+                ? data.incidents.map(i => `
+                    <tr>
+                        <td>${escapeHtml(i.started)}</td>
+                        <td><span class="impact-badge"${i.colour ? ` style="background:${i.colour};color:#fff;"` : ''}>${escapeHtml(i.impact)}</span></td>
+                        <td>${i.ongoing ? escapeHtml(window.t('service-status.board.history_ongoing')) : escapeHtml(i.duration)}</td>
+                        <td>${escapeHtml(i.title)}${i.counts ? '' : ` <span class="svc-excluded">${escapeHtml(window.t('service-status.board.history_excluded'))}</span>`}</td>
+                    </tr>`).join('')
+                : `<tr><td colspan="4" class="svc-history-loading">${escapeHtml(window.t('service-status.board.history_none'))}</td></tr>`;
+
+            box.innerHTML = `
+                <div class="svc-history-head">
+                    <div class="svc-uptime">
+                        <span class="svc-uptime-figure">${s.uptime_percent.toFixed(2)}%</span>
+                        <span class="svc-uptime-label">${escapeHtml(window.t('service-status.board.history_uptime'))}</span>
+                    </div>
+                    <div class="svc-win-group">${windowPicker}</div>
+                </div>
+                <div class="svc-strip">${strip}</div>
+                <div class="svc-strip-ends">
+                    <span>${s.window_days}${escapeHtml(window.t('service-status.board.history_days_ago'))}</span>
+                    <span>${escapeHtml(window.t('service-status.board.history_today'))}</span>
+                </div>
+                <table class="svc-history-table"><tbody>${rows}</tbody></table>`;
         }
 
         function renderIncidents(incidents) {

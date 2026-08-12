@@ -2752,6 +2752,12 @@ return [
         'severity_order'    => 'INT NOT NULL DEFAULT 99',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
+        // Uptime: does time at this level count as downtime? Defaults to 1 so an
+        // upgrade is conservative — an existing custom level counts until somebody
+        // says otherwise, rather than quietly vanishing from the figures. The
+        // catch-up migration below then clears it for Maintenance / Operational /
+        // No Disruption, which are the shipped levels where it is plainly wrong.
+        'counts_as_downtime' => 'TINYINT(1) NOT NULL DEFAULT 1',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 

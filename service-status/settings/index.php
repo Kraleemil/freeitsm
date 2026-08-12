@@ -16,8 +16,15 @@ requireModuleAccess('service-status');
 
 // RBAC Layer 2: only the tabs this analyst may see are rendered.
 $settingsManifest = settingsManifestFor('service-status');
-$visibleTabs      = settingsVisibleTabs(connectToDatabase(), (int) $_SESSION['analyst_id'], $settingsManifest);
+$ssConn           = connectToDatabase();
+$visibleTabs      = settingsVisibleTabs($ssConn, (int) $_SESSION['analyst_id'], $settingsManifest);
 $activeTabId      = settingsFirstTabId($visibleTabs);
+
+// Uptime tab (discussion #59). Read server-side so the controls open on the values
+// actually in force rather than flashing the defaults first.
+require_once '../../includes/services/service_uptime.php';
+$uptimeWindow = ServiceUptime::defaultWindowDays($ssConn);
+$uptimePortal = ServiceUptime::shownInPortal($ssConn);
 
 $current_page = 'settings';
 $path_prefix = '../../';
@@ -138,9 +145,46 @@ $translationNamespaces = ['common', 'service-status'];
             </div>
             <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo t('service-status.settings.impacts_intro_html'); ?></p>
             <table>
-                <thead><tr><th><?php echo htmlspecialchars(t('service-status.settings.col_name')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_colour')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_severity')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_default')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_order')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_status')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_actions')); ?></th></tr></thead>
-                <tbody id="impacts-list"><tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-dim, #999);"><?php echo htmlspecialchars(t('service-status.settings.loading')); ?></td></tr></tbody>
+                <thead><tr><th><?php echo htmlspecialchars(t('service-status.settings.col_name')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_colour')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_severity')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_downtime')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_default')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_order')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_status')); ?></th><th><?php echo htmlspecialchars(t('service-status.settings.col_actions')); ?></th></tr></thead>
+                <tbody id="impacts-list"><tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-dim, #999);"><?php echo htmlspecialchars(t('service-status.settings.loading')); ?></td></tr></tbody>
             </table>
+        </div>
+        <?php endif; ?>
+
+        <?php if (settingsTabVisible($visibleTabs, 'uptime')): ?>
+        <div class="tab-content<?php echo $activeTabId === 'uptime' ? ' active' : ''; ?>" id="uptime-tab" data-capability="<?php echo Cap::SERVICE_STATUS_UPTIME; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('service-status.settings.uptime_heading')); ?></h2>
+            </div>
+            <p style="color: var(--text-muted, #666); margin-bottom: 20px; max-width: 720px;">
+                <?php echo t('service-status.settings.uptime_intro_html'); ?>
+            </p>
+
+            <div style="max-width: 520px;">
+                <div class="form-group">
+                    <label for="uptimeWindow"><?php echo htmlspecialchars(t('service-status.settings.uptime_window')); ?></label>
+                    <select id="uptimeWindow" class="form-select">
+                        <?php foreach (ServiceUptime::WINDOWS as $w): ?>
+                        <option value="<?php echo (int)$w; ?>"<?php echo $w === $uptimeWindow ? ' selected' : ''; ?>>
+                            <?php echo htmlspecialchars(t('service-status.settings.uptime_window_days', ['days' => $w])); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small style="display:block; color:var(--text-muted, #666); margin-top:4px;"><?php echo htmlspecialchars(t('service-status.settings.uptime_window_help')); ?></small>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px;">
+                    <label class="toggle-label">
+                        <span class="toggle-switch"><input type="checkbox" id="uptimePortal"<?php echo $uptimePortal ? ' checked' : ''; ?>><span class="toggle-slider"></span></span>
+                        <?php echo htmlspecialchars(t('service-status.settings.uptime_portal')); ?>
+                    </label>
+                    <small style="display:block; color:var(--text-muted, #666); margin-top:4px;"><?php echo htmlspecialchars(t('service-status.settings.uptime_portal_help')); ?></small>
+                </div>
+
+                <div style="margin-top: 24px;">
+                    <button class="btn btn-primary" onclick="saveUptimeSettings()"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                </div>
+            </div>
         </div>
         <?php endif; ?>
     </div>
@@ -175,6 +219,19 @@ $translationNamespaces = ['common', 'service-status'];
                     <label for="lookupItemSeverityOrder"><?php echo htmlspecialchars(t('service-status.settings.field_severity')); ?></label>
                     <input type="number" id="lookupItemSeverityOrder" value="99" min="1">
                     <small style="display:block; color:var(--text-muted, #666); margin-top:4px;"><?php echo htmlspecialchars(t('service-status.settings.severity_help')); ?></small>
+                </div>
+
+                <!-- Uptime (discussion #59). Lives HERE, on the impact level, rather
+                     than on a separate "downtime rules" screen: whether time counts
+                     against uptime is a property OF the level, so a custom level
+                     added later is asked the question when it is created instead of
+                     defaulting to whatever a second list happened to say. -->
+                <div class="form-group" id="lookupItemDowntimeGroup" style="display: none;">
+                    <label class="toggle-label">
+                        <span class="toggle-switch"><input type="checkbox" id="lookupItemDowntime" checked><span class="toggle-slider"></span></span>
+                        <?php echo htmlspecialchars(t('service-status.settings.field_downtime')); ?>
+                    </label>
+                    <small style="display:block; color:var(--text-muted, #666); margin-top:4px;"><?php echo htmlspecialchars(t('service-status.settings.downtime_help')); ?></small>
                 </div>
 
                 <div class="form-group">
@@ -401,7 +458,7 @@ $translationNamespaces = ['common', 'service-status'];
 
         const LOOKUP_KINDS = {
             'status': { get: 'get_incident_statuses.php', save: 'save_incident_status.php', del: 'delete_incident_status.php', listKey: 'statuses',      tableId: 'statuses-list', colspan: 7, hasResolved: true,  hasSeverity: false, labelKey: 'service-status.settings.kind_status' },
-            'impact': { get: 'get_impact_levels.php',     save: 'save_impact_level.php',    del: 'delete_impact_level.php',    listKey: 'impact_levels', tableId: 'impacts-list',  colspan: 7, hasResolved: false, hasSeverity: true,  labelKey: 'service-status.settings.kind_impact' }
+            'impact': { get: 'get_impact_levels.php',     save: 'save_impact_level.php',    del: 'delete_impact_level.php',    listKey: 'impact_levels', tableId: 'impacts-list',  colspan: 8, hasResolved: false, hasSeverity: true,  labelKey: 'service-status.settings.kind_impact' }
         };
 
         const lookupCache = { status: [], impact: [] };
@@ -436,11 +493,18 @@ $translationNamespaces = ['common', 'service-status'];
                 const flagCol = cfg.hasResolved
                     ? `<td>${r.is_resolved ? yesBadge : noBadge}</td>`
                     : `<td>${r.severity_order}</td>`;
+                // Impact levels carry one extra column: does time at this level count
+                // against uptime? (discussion #59) Absent reads as yes, matching the
+                // column default, so an un-migrated row is never shown as excluded.
+                const downtimeCol = cfg.hasSeverity
+                    ? `<td>${r.counts_as_downtime === undefined || Number(r.counts_as_downtime) ? yesBadge : noBadge}</td>`
+                    : '';
                 return `
                 <tr>
                     <td><strong>${escapeHtml(r.name)}</strong></td>
                     <td>${swatch}</td>
                     ${flagCol}
+                    ${downtimeCol}
                     <td>${r.is_default ? yesBadge : noBadge}</td>
                     <td>${r.display_order}</td>
                     <td><span class="status-badge status-${r.is_active ? 'active' : 'inactive'}">${r.is_active ? escapeHtml(window.t('service-status.settings.active')) : escapeHtml(window.t('service-status.settings.inactive'))}</span></td>
@@ -466,9 +530,11 @@ $translationNamespaces = ['common', 'service-status'];
             document.getElementById('lookupItemResolved').checked = false;
             document.getElementById('lookupItemDefault').checked = false;
             document.getElementById('lookupItemSeverityOrder').value = '99';
+            document.getElementById('lookupItemDowntime').checked = true;
             document.getElementById('lookupItemOrder').value = '0';
             document.getElementById('lookupItemActive').checked = true;
             document.getElementById('lookupItemResolvedGroup').style.display = cfg.hasResolved ? '' : 'none';
+            document.getElementById('lookupItemDowntimeGroup').style.display = cfg.hasSeverity ? '' : 'none';
             document.getElementById('lookupItemSeverityGroup').style.display = cfg.hasSeverity ? '' : 'none';
             document.getElementById('lookupModal').classList.add('active');
         }
@@ -485,9 +551,11 @@ $translationNamespaces = ['common', 'service-status'];
             document.getElementById('lookupItemResolved').checked = !!item.is_resolved;
             document.getElementById('lookupItemDefault').checked = !!item.is_default;
             document.getElementById('lookupItemSeverityOrder').value = item.severity_order ?? 99;
+            document.getElementById('lookupItemDowntime').checked = item.counts_as_downtime === undefined ? true : !!Number(item.counts_as_downtime);
             document.getElementById('lookupItemOrder').value = item.display_order;
             document.getElementById('lookupItemActive').checked = !!item.is_active;
             document.getElementById('lookupItemResolvedGroup').style.display = cfg.hasResolved ? '' : 'none';
+            document.getElementById('lookupItemDowntimeGroup').style.display = cfg.hasSeverity ? '' : 'none';
             document.getElementById('lookupItemSeverityGroup').style.display = cfg.hasSeverity ? '' : 'none';
             document.getElementById('lookupModal').classList.add('active');
         }
@@ -524,6 +592,7 @@ $translationNamespaces = ['common', 'service-status'];
             };
             if (cfg.hasResolved) payload.is_resolved = document.getElementById('lookupItemResolved').checked ? 1 : 0;
             if (cfg.hasSeverity) payload.severity_order = parseInt(document.getElementById('lookupItemSeverityOrder').value || '99', 10);
+            if (cfg.hasSeverity) payload.counts_as_downtime = document.getElementById('lookupItemDowntime').checked ? 1 : 0;
 
             try {
                 const res = await fetch(API_BASE + cfg.save, {
@@ -539,6 +608,28 @@ $translationNamespaces = ['common', 'service-status'];
         document.getElementById('lookupModal').addEventListener('click', function(e) {
             if (e.target === this) closeLookupModal();
         });
+
+        // Uptime tab (discussion #59). Two settings, one save.
+        async function saveUptimeSettings() {
+            const win = document.getElementById('uptimeWindow');
+            const por = document.getElementById('uptimePortal');
+            if (!win || !por) return;
+            try {
+                const res = await fetch('../../api/service-status/save_uptime_settings.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        window_days: parseInt(win.value, 10),
+                        show_portal: por.checked ? 1 : 0
+                    })
+                });
+                const data = await res.json();
+                if (data.success) showToast(window.t('service-status.settings.uptime_saved'), 'success');
+                else showToast(data.error || window.t('service-status.toast.save_failed'), 'error');
+            } catch (e) {
+                showToast(window.t('service-status.toast.save_failed'), 'error');
+            }
+        }
     </script>
     <script src="../../assets/js/mobile.js?v=22"></script>
 </body>

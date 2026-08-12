@@ -3869,18 +3869,25 @@ CREATE TABLE IF NOT EXISTS `service_impact_levels` (
     `severity_order`    INT NOT NULL DEFAULT 99,
     `display_order`     INT NOT NULL DEFAULT 0,
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
+    -- Does time at this level count against uptime? A property OF the level
+    -- rather than a separate "downtime rules" screen, so a custom level added
+    -- later is asked the question when it is created instead of silently
+    -- defaulting to whatever a second list happened to say. Planned maintenance
+    -- is excluded by convention — counting it makes a well-run service look
+    -- worse than a neglected one.
+    `counts_as_downtime` TINYINT(1) NOT NULL DEFAULT 1,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_service_impact_levels_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT IGNORE INTO `service_impact_levels` (`name`, `colour`, `is_default`, `severity_order`, `display_order`) VALUES
-    ('Major Outage',   '#dc2626', 0, 1, 10),
-    ('Partial Outage', '#f59e0b', 0, 2, 20),
-    ('Degraded',       '#eab308', 0, 3, 30),
-    ('Maintenance',    '#0891b2', 0, 4, 40),
-    ('Operational',    '#16a34a', 1, 5, 50),
-    ('No Disruption',  '#9ca3af', 0, 6, 60);
+INSERT IGNORE INTO `service_impact_levels` (`name`, `colour`, `is_default`, `severity_order`, `display_order`, `counts_as_downtime`) VALUES
+    ('Major Outage',   '#dc2626', 0, 1, 10, 1),
+    ('Partial Outage', '#f59e0b', 0, 2, 20, 1),
+    ('Degraded',       '#eab308', 0, 3, 30, 1),
+    ('Maintenance',    '#0891b2', 0, 4, 40, 0),
+    ('Operational',    '#16a34a', 1, 5, 50, 0),
+    ('No Disruption',  '#9ca3af', 0, 6, 60, 0);
 
 CREATE TABLE IF NOT EXISTS `status_incidents` (
     `id`                    INT NOT NULL AUTO_INCREMENT,

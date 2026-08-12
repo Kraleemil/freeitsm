@@ -2668,14 +2668,38 @@ try {
     if ($tableExists('service_impact_levels')) {
         $cnt = (int) $conn->query("SELECT COUNT(*) FROM service_impact_levels")->fetchColumn();
         if ($cnt === 0) {
-            $conn->exec("INSERT INTO service_impact_levels (name, colour, is_default, severity_order, display_order) VALUES
-                ('Major Outage',   '#dc2626', 0, 1, 10),
-                ('Partial Outage', '#f59e0b', 0, 2, 20),
-                ('Degraded',       '#eab308', 0, 3, 30),
-                ('Maintenance',    '#0891b2', 0, 4, 40),
-                ('Operational',    '#16a34a', 1, 5, 50),
-                ('No Disruption',  '#9ca3af', 0, 6, 60)");
+            $conn->exec("INSERT INTO service_impact_levels (name, colour, is_default, severity_order, display_order, counts_as_downtime) VALUES
+                ('Major Outage',   '#dc2626', 0, 1, 10, 1),
+                ('Partial Outage', '#f59e0b', 0, 2, 20, 1),
+                ('Degraded',       '#eab308', 0, 3, 30, 1),
+                ('Maintenance',    '#0891b2', 0, 4, 40, 0),
+                ('Operational',    '#16a34a', 1, 5, 50, 0),
+                ('No Disruption',  '#9ca3af', 0, 6, 60, 0)");
             $results[] = ['table' => 'service_impact_levels', 'status' => 'seeded', 'details' => ['Inserted 6 default impact levels']];
+        }
+    }
+
+    // Uptime (discussion #59): the new counts_as_downtime column defaults to 1, which
+    // is the conservative answer for a level nobody has ruled on. For the three SHIPPED
+    // levels where it is plainly wrong it is cleared once, on the upgrade path only.
+    //
+    // ⚠️ Guarded by a marker row rather than by "is it still 1?", because an
+    // administrator who deliberately decides that maintenance DOES count for them must
+    // not have that choice reverted on the next verification. Running once is the
+    // difference between a migration and a policy.
+    if ($tableExists('service_impact_levels') && $colExists('service_impact_levels', 'counts_as_downtime')) {
+        $already = (int) $conn->query(
+            "SELECT COUNT(*) FROM system_settings WHERE setting_key = 'status_downtime_defaults_applied'"
+        )->fetchColumn();
+        if ($already === 0) {
+            $n = $conn->exec(
+                "UPDATE service_impact_levels SET counts_as_downtime = 0
+                  WHERE name IN ('Maintenance', 'Operational', 'No Disruption')"
+            );
+            $conn->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('status_downtime_defaults_applied', '1')")
+                 ->execute();
+            $results[] = ['table' => 'service_impact_levels', 'status' => 'updated',
+                          'details' => ["Excluded {$n} level(s) from downtime (Maintenance / Operational / No Disruption)"]];
         }
     }
 
