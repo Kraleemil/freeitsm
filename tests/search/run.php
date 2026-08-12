@@ -149,7 +149,24 @@ try {
         VALUES (?,?,?,?,?,?,?,?,NOW())");
     foreach ($rows as $r) $ins->execute($r);
 
-    $all = ['tenant_id' => null, 'include_internal' => true, 'include_deleted' => true];
+    // ⚠️ SCOPE EVERY QUERY TO THE FIXTURE'S OWN SOURCE TYPES.
+    //
+    // Every assertion below is written as though the index contains only the six
+    // rows above — "total === 1", "results[0] is mine". That is true on a clean
+    // install and false on any install with real indexed content, because the
+    // fixtures use ordinary English words. On a populated database a search for
+    // 'floor' returned thirteen tickets with the fixture ranked second, and
+    // 'guidance -swelling' correctly excluded the fixture but still matched a real
+    // ticket reading "Any guidance would…", so the totals were never going to hold.
+    //
+    // That failed the RIGHT way round only by luck: a suite that passes on an empty
+    // database and fails on a real one is a suite whose result depends on whose
+    // machine it runs on. source_type is an IN filter (search.php:151), so naming
+    // the fixture's types makes the isolation these assertions already assume into
+    // something the query actually enforces.
+    $mineOnly = [$T.'_ticket', $T.'_email', $T.'_note', $T.'_article'];
+    $all = ['tenant_id' => null, 'include_internal' => true, 'include_deleted' => true,
+            'source_types' => $mineOnly];
     $only = fn(array $res) => array_map(fn($g) => $g['ticket_id'], $res['results']);
 
     // --- finding things ---
