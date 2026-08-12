@@ -546,20 +546,30 @@ exact shape of R4 cannot pass again.
 
 ## Outstanding
 
+Everything that was in scope for this branch is done. Nothing on this list is: these are
+open findings, several of them live and exploitable in the shipped product, deferred
+because they are separate work — not because they were judged minor.
+
 **In the application**
 
-- **The four sibling endpoints from S2** — `api/tickets/delete_user.php` (no tenancy
-  check at all), `api/v1/resources/users.php`, `api/integrations/escalate_ticket.php`
-  (`preview=1` returns before the service is called), `api/messaging/test_channel.php`
-  and `slack_diagnose.php`. Not regressions; the next piece of work.
-- **S6** — the MFA attempt counter is session-scoped, and a correct password step resets
+- **The four sibling endpoints from S2 — live cross-tenant bugs, reachable today.**
+  `api/tickets/delete_user.php` (no tenancy check at all), `api/v1/resources/users.php`
+  (the `PATCH /users/{id}` twin), `api/integrations/escalate_ticket.php` (`preview=1`
+  returns before the service is called), `api/messaging/test_channel.php` and
+  `slack_diagnose.php`. These are not regressions and this branch does not touch them,
+  but neither fact makes them harmless: they are exploitable in the shipped product
+  now, and deferring them was a sequencing decision about what belongs in one
+  reviewable branch — not a judgement that the risk is small. This class is open.
+- **S6 — open, by design decision rather than by fix.** The MFA attempt counter is
+  session-scoped, and a correct password step resets
   the account and IP counters, so an attacker holding a valid password can loop for
   unlimited guesses at ~25% more requests. Needs a per-account or per-IP counter in the
   database.
 - **S3's cousins** and **S9's remaining items**, listed above.
 
-- CSRF tokens across the 369 endpoints that read `php://input`. F7 shipped the
-  minimum viable defence; this is the real one.
+- **CSRF tokens across the 369 endpoints that read `php://input` — open.** F7 shipped
+  the minimum viable defence; this is the real one, and until it lands the layer
+  should be read as partial rather than present.
 - **F10** — `db_verify` still has no dry-run, preview or backup prompt, and the header
   comment claiming it "never drops anything" is still wrong.
 - **F4** and **F11** — SLA snapshotting and subject access / erasure. Both features.
