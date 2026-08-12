@@ -565,7 +565,15 @@ because they are separate work — not because they were judged minor.
   the account and IP counters, so an attacker holding a valid password can loop for
   unlimited guesses at ~25% more requests. Needs a per-account or per-IP counter in the
   database.
-- **S3's cousins** and **S9's remaining items**, listed above.
+- ~~**S3's cousins** and **S9's remaining items**, listed above.~~ **Both closed in round three
+  (`main`, 2026-08-12).** S3's cousin turned out to be a single guard —
+  `TasksService::ticketAccessible()` in `includes/services/tasks.php`, whose bare
+  `catch { return true; }` made a lock-wait timeout read as authorisation.
+  ⚠️ **It was very nearly missed, and the reason is worth keeping:** this entry named a
+  *class* rather than a *file*, so working down the list, every item with a filename got
+  done and this one did not. It surfaced only when the summary sentence on the wiki was
+  fact-checked. The suite now sweeps `includes/services/*.php` for the pattern, so the
+  next one cannot be added quietly.
 
 - **CSRF tokens across the 369 endpoints that read `php://input` — open.** F7 shipped
   the minimum viable defence; this is the real one, and until it lands the layer

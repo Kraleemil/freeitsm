@@ -449,7 +449,19 @@ class TasksService
             $tid = ($row['tenant_id'] === null) ? getDefaultTenantId($conn) : (int)$row['tenant_id'];
             return in_array($tid, $ctx->companyScope, true);
         } catch (Exception $e) {
-            return true; // tenant_id column missing on a part-migrated install
+            // ⚠️ This was `return true` for ANY exception, with the comment "tenant_id
+            // column missing on a part-migrated install". That is the right intention
+            // and the wrong implementation, and it is the fail-open pattern F9 and S3
+            // removed from every guard in includes/tenancy.php: a missing column is one
+            // reason a query throws, but so are a lock-wait timeout, a dropped
+            // connection and a permissions error — and none of those is evidence that
+            // the caller may reach this ticket. Under load, "the database was briefly
+            // busy" meant "yes, you may read another company's tasks".
+            //
+            // tenancyDegradeAllowed() is the helper that draws that line: genuinely
+            // missing schema still degrades to allow, everything else denies and logs.
+            // Erlend Volden listed this class as "S3's cousins"; this was the last one.
+            return tenancyDegradeAllowed($e);
         }
     }
 

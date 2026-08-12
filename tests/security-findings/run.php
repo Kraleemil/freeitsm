@@ -706,6 +706,34 @@ foreach (['test_channel', 'slack_diagnose'] as $mf) {
           'the guard lives there and neither file included it');
 }
 
+heading("S3's cousins  Guards that forgive the wrong exceptions");
+
+// The round-two write-up listed "S3's cousins" as outstanding — a cross-reference
+// rather than a filename, which is exactly why it was the item missed when the rest
+// of that list was worked through. A bare `catch { return true; }` in an access
+// guard means a lock-wait timeout reads as authorisation.
+$tk = code("$APP/includes/services/tasks.php");
+check("TasksService::ticketAccessible() denies on an unexpected database error",
+      strpos($tk, 'return tenancyDegradeAllowed($e)') !== false,
+      'a bare `return true` here turns a busy database into a cross-company read');
+
+// ...and the sweep that found it, kept as a standing check so the next one cannot
+// be added quietly. Only genuinely missing schema may degrade to "allowed".
+$failOpen = [];
+foreach (glob("$APP/includes/services/*.php") as $svc) {
+    $lines = explode("\n", code($svc));
+    foreach ($lines as $i => $line) {
+        if (!preg_match('/catch\s*\(/', $line)) { continue; }
+        $window = implode("\n", array_slice($lines, $i, 4));
+        if (preg_match('/return\s+true\s*;/', $window)) {
+            $failOpen[] = basename($svc) . ' line ~' . ($i + 1);
+        }
+    }
+}
+check("no service-layer catch block returns true unconditionally",
+      $failOpen === [],
+      'fail-open guards: ' . implode(', ', $failOpen) . ' — use tenancyDegradeAllowed()');
+
 heading('S6  The MFA counter, in the database rather than the session');
 
 $thr = code("$APP/includes/mfa_throttle.php");
