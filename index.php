@@ -6,10 +6,20 @@
 session_start();
 require_once 'config.php';
 require_once 'includes/functions.php'; // sessionIsAdmin() — gates the System card below
+require_once 'includes/landing.php';   // where an unauthenticated visitor goes (discussion #63)
 
 // Check if user is logged in
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: login.php');
+    // Which front door? An analyst's own preference (cached in a cookie, because
+    // there is no session to read it from yet) beats the install-wide default.
+    // Both login URLs still work when typed directly — this only decides where
+    // "/" sends somebody who has expressed no opinion by choosing a URL.
+    try {
+        $target = landingResolve(connectToDatabase());
+    } catch (Exception $e) {
+        $target = 'login.php';   // never let a database blip lock people out
+    }
+    header('Location: ' . $target);
     exit;
 }
 

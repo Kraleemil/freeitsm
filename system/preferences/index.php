@@ -43,6 +43,10 @@ $prefDefaults = [
     // once. Read by assets/js/inbox.js. 'summary' is the default because it puts
     // what you are about to act on, and the actions themselves, on screen.
     'tickets_multiselect_pane'   => 'summary',
+    // Which front door "/" sends you to (discussion #63). Empty string means
+    // "whatever the administrator chose" — the only value that is NOT a landing
+    // key, because "follow the install default" is a real third choice here.
+    'default_landing_page'       => '',
 ];
 $prefs = $prefDefaults;
 if (isset($_SESSION['analyst_id'])) {
@@ -259,6 +263,32 @@ if (isset($_SESSION['analyst_id'])) {
                 <span class="pref-saving-hint" id="langSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
             </div>
 
+            <?php
+                // Start page (discussion #63). Shown with the administrator's choice
+                // named, so "use the site default" is not a guess.
+                require_once __DIR__ . '/../../includes/landing.php';
+                $landingDefaultKey = 'analyst';
+                try {
+                    $landingDefaultKey = landingInstallDefault(connectToDatabase());
+                } catch (Exception $e) {
+                    // Falls back to 'analyst', which is what index.php would do too.
+                }
+                $landingDefaultName = $landingDefaultKey === 'portal'
+                    ? t('system.preferences.landing_portal')
+                    : t('system.preferences.landing_analyst');
+            ?>
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.landing_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.landing_desc')); ?></p>
+                <select id="landingSelect" class="pref-language-select">
+                    <option value=""><?php echo htmlspecialchars(t('system.preferences.landing_default', ['name' => $landingDefaultName])); ?></option>
+                    <option value="analyst" <?php echo $prefs['default_landing_page'] === 'analyst' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.landing_analyst')); ?></option>
+                    <option value="portal" <?php echo $prefs['default_landing_page'] === 'portal' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.landing_portal')); ?></option>
+                </select>
+                <span class="pref-saving-hint" id="landingSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+                <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;"><?php echo htmlspecialchars(t('system.preferences.landing_note')); ?></p>
+            </div>
+
             <div class="pref-section">
                 <h3><?php echo htmlspecialchars(t('system.preferences.timezone_heading')); ?></h3>
                 <p><?php echo htmlspecialchars(t('system.preferences.timezone_desc')); ?></p>
@@ -412,6 +442,19 @@ if (isset($_SESSION['analyst_id'])) {
                 } else {
                     langHint.classList.remove('show');
                 }
+            });
+        }
+
+        // ===== Start page (default_landing_page) =====
+        // Saved like any other preference; set_user_preference.php mirrors this
+        // one into a cookie so index.php can read it before anyone has logged in.
+        const landingSelect = document.getElementById('landingSelect');
+        const landingHint   = document.getElementById('landingSavingHint');
+        if (landingSelect) {
+            landingSelect.addEventListener('change', async function() {
+                landingHint.classList.add('show');
+                await savePref('default_landing_page', landingSelect.value);
+                setTimeout(() => landingHint.classList.remove('show'), 1200);
             });
         }
 

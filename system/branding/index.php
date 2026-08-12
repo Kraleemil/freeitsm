@@ -267,11 +267,29 @@ $translationNamespaces = ['common', 'system'];
                     </div>
                     <div class="logo-controls">
                         <div class="file-row">
-                            <input type="file" id="logoFile" name="logo" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
+                            <!-- SVG deliberately absent: the server stopped accepting it in the
+                                 security round (an SVG is XML that can carry <script>, and the
+                                 logo is served from our own origin — see save_branding.php).
+                                 The picker was still offering it, so choosing one got you a
+                                 server-side error instead of a greyed-out file. -->
+                            <input type="file" id="logoFile" name="logo" accept=".png,.jpg,.jpeg,image/png,image/jpeg">
                             <button type="button" class="btn btn-link" id="removeLogoBtn" style="display:none;"><?php echo htmlspecialchars(t('system.branding.remove')); ?></button>
                         </div>
                         <div class="logo-hint"><?php echo htmlspecialchars(t('system.branding.logo_hint')); ?></div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Landing page (discussion #63) -->
+            <div class="settings-card">
+                <h3><?php echo htmlspecialchars(t('system.branding.landing_heading')); ?></h3>
+                <p class="card-desc"><?php echo htmlspecialchars(t('system.branding.landing_desc')); ?></p>
+                <select id="landingPage" class="slot-input" style="max-width:420px;">
+                    <option value="analyst"><?php echo htmlspecialchars(t('system.branding.landing_analyst')); ?></option>
+                    <option value="portal"><?php echo htmlspecialchars(t('system.branding.landing_portal')); ?></option>
+                </select>
+                <div class="info-note" style="margin-top:12px;">
+                    <?php echo htmlspecialchars(t('system.branding.landing_note')); ?>
                 </div>
             </div>
 
@@ -363,6 +381,8 @@ $translationNamespaces = ['common', 'system'];
             document.getElementById('footerLeft').value = b.footer_left || '';
             document.getElementById('footerCenter').value = b.footer_center || '';
             document.getElementById('footerRight').value = b.footer_right || '';
+            // Sits outside `branding` — it is an install behaviour, not a slot (#63).
+            document.getElementById('landingPage').value = data.landing_page || 'analyst';
 
             currentLogoPath = b.logo_path || null;
             renderLogoPreview();
@@ -427,6 +447,7 @@ $translationNamespaces = ['common', 'system'];
         fd.append('footer_left',   document.getElementById('footerLeft').value);
         fd.append('footer_center', document.getElementById('footerCenter').value);
         fd.append('footer_right',  document.getElementById('footerRight').value);
+        fd.append('landing_page',  document.getElementById('landingPage').value);
 
         const logoInput = document.getElementById('logoFile');
         if (logoInput.files && logoInput.files[0]) {

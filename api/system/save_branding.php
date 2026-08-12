@@ -22,6 +22,7 @@ require_once '../../config.php';
 require_once '../../includes/admin_api_guard.php'; // System admins only (issue #34)
 require_once '../../includes/functions.php';
 require_once '../../includes/uploads.php';         // the ONE home for file writes
+require_once '../../includes/landing.php';         // install-wide landing default (#63)
 
 header('Content-Type: application/json');
 
@@ -56,8 +57,32 @@ try {
         $stmt->execute([':k' => $key, ':v' => $value]);
     };
 
+    // Landing page (#63). Only sent when the form includes it, so an older
+    // client posting just the text slots leaves the choice alone.
+    //
+    // ⚠️ Stored as a KEY ('analyst' | 'portal'), never a path. This drives a
+    // redirect on "/", the most-visited URL in the product — accepting a path
+    // here would put an open redirect on the front door. Anything unrecognised
+    // is rejected outright rather than silently falling back, so a typo in an
+    // integration surfaces instead of quietly changing where users land.
+    //
+    // ⚠️ Validated BEFORE anything is written. This endpoint has no transaction,
+    // so a throw partway through leaves whatever it had already saved — which
+    // meant a request rejected for a bad landing_page still blanked the six
+    // header/footer slots on its way out.
+    $landing = null;
+    if (array_key_exists('landing_page', $_POST)) {
+        $landing = (string)$_POST['landing_page'];
+        if (!landingIsValid($landing)) {
+            throw new Exception("'landing_page' must be one of: " . implode(', ', array_keys(landingTargets())));
+        }
+    }
+
     foreach ($values as $k => $v) {
         $upsert($conn, 'branding_' . $k, $v);
+    }
+    if ($landing !== null) {
+        $upsert($conn, LANDING_SETTING_KEY, $landing);
     }
 
     // Logo handling — three paths: upload new / explicitly remove / leave alone

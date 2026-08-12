@@ -242,10 +242,20 @@ return [
     // Branding page (system/branding/index.php)
     'branding' => [
         'title'    => 'Branding',
-        'subtitle' => 'Set the organisation logo and default header/footer text used on diagrams and exported documents',
+        'subtitle' => 'Set the organisation logo, the page people land on, and default header/footer text used on diagrams and exported documents',
+
+        // Landing page (discussion #63).
+        'landing_heading' => 'Landing page',
+        'landing_desc'    => 'Where someone is sent when they open FreeITSM without being logged in.',
+        'landing_analyst' => 'Analyst login',
+        'landing_portal'  => 'Self-service portal',
+        'landing_note'    => 'Both login pages link to each other, so nobody is ever locked out of the one you did not choose. Analysts can override this for themselves under Preferences.',
 
         'logo_heading'  => 'Company Logo',
-        'logo_desc'     => 'Used as the {code} token in any header/footer slot. PNG, JPG, or SVG, max 2&nbsp;MB. SVG is recommended for crisp print and export.',
+        // SVG was dropped in the security round — it is XML that can carry a
+        // script, and the logo is served from our own origin. The text still
+        // recommended it, which is worse than not mentioning it.
+        'logo_desc'     => 'Used as the {code} token in any header/footer slot. PNG or JPG, max 2&nbsp;MB.',
         'no_logo'       => 'No logo',
         'remove'        => 'Remove',
         'logo_hint'     => 'Pick a file to replace the current logo. The new image is saved when you press Save.',
@@ -457,6 +467,14 @@ return [
         'language_heading' => 'Interface language',
         'language_desc'    => 'The language used across the FreeITSM UI. Translations fall back to English for any strings not yet covered in your chosen language. Reloads the page on change.',
         'saving'           => 'Saving…',
+
+        // Start page (discussion #63). The override for the install-wide setting.
+        'landing_heading' => 'Start page',
+        'landing_desc'    => 'Where you are sent when you open FreeITSM without being logged in.',
+        'landing_default' => 'Use the site default ({name})',
+        'landing_analyst' => 'Analyst login',
+        'landing_portal'  => 'Self-service portal',
+        'landing_note'    => 'Unlike your other preferences, this one has to be readable before you log in, so it is also stored in this browser. It is reapplied automatically each time you sign in, including on a new device.',
 
         'timezone_heading' => 'Timezone',
         'timezone_desc'    => 'Dates and times across FreeITSM are shown in this timezone. Defaults to the server timezone until you choose one.',

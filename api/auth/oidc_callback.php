@@ -17,6 +17,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/oidc.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/landing.php';   // re-issue the landing cookie on login (#63)
 
 /** Bounce back to the originating portal's login page with an error message. */
 function ssoBail(string $msg): void {
@@ -164,6 +165,8 @@ try {
     $_SESSION['analyst_name']     = $analyst['full_name'];
     $_SESSION['analyst_email']    = $analyst['email'];
     $_SESSION['allowed_modules']  = getAnalystAllowedModules($conn, $analystId);
+    // Landing preference follows the person, not the browser (#63).
+    landingRefreshCookieFromPreference($conn, (int)$analystId);
     // Remember the SSO context so logout can also end the session at the IdP.
     $_SESSION['sso_provider_id']  = $providerId;
     $_SESSION['sso_id_token']     = $tokens['id_token'];

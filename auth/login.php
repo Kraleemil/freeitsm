@@ -6,6 +6,7 @@ session_start();
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/ldap.php';
+require_once __DIR__ . '/../includes/landing.php';   // re-issue the landing cookie on login (#63)
 
 // An SSO sign-in attempt that failed bounces back here with a message.
 $sso_error = $_SESSION['sso_error'] ?? null;
@@ -343,6 +344,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['analyst_name'] = $analyst['full_name'];
                         $_SESSION['analyst_email'] = $analyst['email'];
 
+                        // Landing preference follows the person, not the browser (#63).
+                        landingRefreshCookieFromPreference($conn, (int)$analyst['id']);
+
                         $updateSql = "UPDATE analysts SET last_login_datetime = UTC_TIMESTAMP() WHERE id = ?";
                         $updateStmt = $conn->prepare($updateSql);
                         $updateStmt->execute([$analyst['id']]);
@@ -379,6 +383,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['analyst_username'] = $analyst['username'];
                     $_SESSION['analyst_name'] = $analyst['full_name'];
                     $_SESSION['analyst_email'] = $analyst['email'];
+
+                    // Landing preference follows the person, not the browser (#63).
+                    landingRefreshCookieFromPreference($conn, (int)$analyst['id']);
 
                     // Update last login time
                     $updateSql = "UPDATE analysts SET last_login_datetime = UTC_TIMESTAMP() WHERE id = ?";

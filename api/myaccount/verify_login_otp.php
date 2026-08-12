@@ -9,6 +9,7 @@ require_once '../../includes/functions.php';
 require_once '../../includes/totp.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/mfa_throttle.php';
+require_once '../../includes/landing.php';   // re-issue the landing cookie on login (#63)
 
 header('Content-Type: application/json');
 
@@ -156,6 +157,9 @@ try {
     $_SESSION['analyst_name'] = $_SESSION['mfa_pending_name'];
     $_SESSION['analyst_email'] = $_SESSION['mfa_pending_email'];
     $_SESSION['allowed_modules'] = $_SESSION['mfa_pending_allowed_modules'];
+
+    // Landing preference follows the person, not the browser (#63).
+    landingRefreshCookieFromPreference($conn, (int)$_SESSION['analyst_id']);
 
     // Clear pending state
     unset($_SESSION['mfa_pending_analyst_id']);

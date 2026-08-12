@@ -14,6 +14,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/landing.php';   // install-wide landing default (#63)
 
 header('Content-Type: application/json');
 
@@ -84,6 +85,8 @@ try {
             'footer_center'  => $values['branding_footer_center'],
             'footer_right'   => $values['branding_footer_right'],
         ],
+        // Which front door "/" sends an unauthenticated visitor to (#63).
+        'landing_page' => landingInstallDefault($conn),
     ]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
