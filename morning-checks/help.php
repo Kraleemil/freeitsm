@@ -200,6 +200,12 @@ $translationNamespaces = ['common', 'morning-checks'];
                                 <strong><?php echo htmlspecialchars(t('morning-checks.help.daily_step4_strong')); ?></strong> <?php echo t('morning-checks.help.daily_step4_text'); ?>
                             </div>
                         </div>
+                        <div class="help-step">
+                            <div class="help-step-num">5</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('morning-checks.help.daily_step5_strong')); ?></strong> <?php echo t('morning-checks.help.daily_step5_text'); ?>
+                            </div>
+                        </div>
                     </div>
 
                     <p style="margin-top: 18px;"><?php echo htmlspecialchars(t('morning-checks.help.daily_states_intro')); ?></p>
@@ -395,6 +401,12 @@ $translationNamespaces = ['common', 'morning-checks'];
                             <div class="help-step-num">4</div>
                             <div>
                                 <strong><?php echo htmlspecialchars(t('morning-checks.help.settings_step4_strong')); ?></strong> <?php echo t('morning-checks.help.settings_step4_text'); ?>
+                            </div>
+                        </div>
+                        <div class="help-step">
+                            <div class="help-step-num">5</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('morning-checks.help.settings_step5_strong')); ?></strong> <?php echo t('morning-checks.help.settings_step5_text'); ?>
                             </div>
                         </div>
                     </div>
