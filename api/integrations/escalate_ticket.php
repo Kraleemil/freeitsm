@@ -53,6 +53,29 @@ if (!integrationsSchemaReady($conn)) {
     exit;
 }
 
+// ⚠️ THE COMPANY CHECK BELONGS HERE, NOT IN THE SERVICE.
+//
+// integrationsEscalate() checks the company — and this file's design note says every
+// check lives in the service. That held for the write, and only for the write: the
+// `preview` branch further down builds its answer and returns BEFORE the service is
+// ever called, so the invariant quietly covered one of the two paths.
+//
+// POST {"ticket_id": <any id>, "preview": 1} therefore returned another company's
+// subject line, requester name and email address, priority, type, the requester's
+// original message body, and the filename of every attachment — to any analyst with
+// the tickets module. No tracker connection was needed, because the preview never
+// touches one. Reported by Erlend Volden; it is the read-side sibling of S1.
+//
+// Checking here covers preview and escalation with one line, and the service keeps
+// its own check because it is reachable from elsewhere. Two checks on the write path
+// is the correct amount when one of them is a boundary and the other is a service.
+if (!analystCanAccessTicket($conn, (int)($_SESSION['analyst_id'] ?? 0), $ticketId)) {
+    // Same words as a deleted ticket, deliberately: "no longer exists" and "not
+    // yours" must be indistinguishable or the refusal itself confirms the ticket.
+    echo json_encode(['success' => false, 'error' => 'That ticket no longer exists.']);
+    exit;
+}
+
 // Read the ticket for the summary and the description. Only public fields — the
 // notes table is not touched at all, which is the strongest form of "internal
 // notes never cross".

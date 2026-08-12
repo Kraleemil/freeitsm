@@ -21,6 +21,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/admin_api_guard.php'; // System admins only (issue #34)
 require_once '../../includes/functions.php';
+require_once '../../includes/uploads.php';         // the ONE home for file writes
 
 header('Content-Type: application/json');
 
@@ -64,46 +65,48 @@ try {
     $hasFile = isset($_FILES['logo']) && is_array($_FILES['logo']) && $_FILES['logo']['error'] !== UPLOAD_ERR_NO_FILE;
 
     if ($hasFile) {
-        $f = $_FILES['logo'];
-        if ($f['error'] !== UPLOAD_ERR_OK) {
-            throw new Exception('Logo upload failed (error code ' . (int)$f['error'] . ')');
-        }
-        if ($f['size'] > 2 * 1024 * 1024) {
-            throw new Exception('Logo too large (max 2 MB)');
-        }
-        // Whitelist on extension AND mime so a renamed .php can't slip past.
-        // Allowed: PNG, JPG, SVG (vector ideal for crisp print/export).
-        $allowed = [
-            'png'  => ['image/png'],
-            'jpg'  => ['image/jpeg'],
-            'jpeg' => ['image/jpeg'],
-            'svg'  => ['image/svg+xml', 'text/xml', 'application/xml'],
-        ];
-        $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-        if (!isset($allowed[$ext])) {
-            throw new Exception('Unsupported logo format. Use PNG, JPG, or SVG.');
-        }
-        $mime = function_exists('mime_content_type') ? @mime_content_type($f['tmp_name']) : null;
-        if ($mime && !in_array($mime, $allowed[$ext], true)) {
-            throw new Exception('Logo file content does not match its extension.');
-        }
+        // ⚠️ SVG IS NO LONGER ACCEPTED, AND THIS NO LONGER MOVES THE FILE ITSELF.
+        //
+        // Two problems, one cause: this endpoint had its own upload code and its own
+        // type list, so it never inherited the rule the rest of the app settled on.
+        //
+        //  1. It accepted SVG. An SVG is XML that can carry <script>, and the logo is
+        //     served from our own origin. Inside the <img> tags that render it that
+        //     script stays dormant — but navigating straight to the file makes it a
+        //     top-level document on our origin, and it runs. The path was guessable
+        //     (`logo.svg`), so the link needed no discovery. UPLOAD_TYPES_IMAGE has
+        //     deliberately excluded SVG since the F-round for exactly this reason;
+        //     branding was simply not using it. Reported by Erlend Volden.
+        //
+        //  2. It called move_uploaded_file() directly, under a name it chose from the
+        //     uploaded extension — the pattern includes/uploads.php exists to be the
+        //     single home for.
+        //
+        // PNG and JPG remain, and lose nothing a logo needs. Vector sharpness is a
+        // real loss and it is a deliberate trade: one exception to the app-wide type
+        // rule is how the rule stops meaning anything.
+        //
+        // uploadPrepareWebServableDir() rather than the deny-all: the browser has to
+        // be able to fetch a logo. It blocks execution and adds a sandbox CSP, which
+        // also neutralises any logo.svg already sitting on disk from before today.
         $uploadDir = __DIR__ . '/../../system/uploads/branding';
-        if (!is_dir($uploadDir)) {
-            if (!mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
-                throw new Exception('Could not create upload directory');
-            }
+        uploadPrepareWebServableDir($uploadDir);
+
+        // Tear down any previous logo before saving the new one. Both the legacy
+        // fixed names (logo.png / logo.svg / …) and whatever random name the
+        // current pointer holds, so switching format never leaves a stale file.
+        $prev = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'branding_logo_path'");
+        $prev->execute();
+        $prevPath = (string)($prev->fetchColumn() ?: '');
+        if ($prevPath !== '' && strpos($prevPath, 'system/uploads/branding/') === 0) {
+            @unlink(__DIR__ . '/../../' . $prevPath);
         }
-        // Tear down any previous logo before saving the new one — otherwise
-        // a switch from logo.png to logo.svg leaves the stale png behind
         foreach (glob($uploadDir . '/logo.*') as $old) {
             @unlink($old);
         }
-        $destName = 'logo.' . ($ext === 'jpeg' ? 'jpg' : $ext);
-        $destPath = $uploadDir . '/' . $destName;
-        if (!move_uploaded_file($f['tmp_name'], $destPath)) {
-            throw new Exception('Failed to save logo file');
-        }
-        $relPath = 'system/uploads/branding/' . $destName;
+
+        $stored  = uploadStoreFile($_FILES['logo'], $uploadDir, UPLOAD_TYPES_IMAGE, 2 * 1024 * 1024);
+        $relPath = 'system/uploads/branding/' . $stored['stored_name'];
         $upsert($conn, 'branding_logo_path', $relPath);
     } elseif ($removeLogo) {
         // Explicit remove — delete file(s) and clear the DB pointer

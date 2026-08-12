@@ -86,6 +86,65 @@ if (!isset($_SESSION['analyst_id'])) {
         .verify-btn:hover { background: var(--sys-accent-hover, #37474f); }
         .verify-btn:disabled { background: #999; color: #fff; cursor: not-allowed; }
 
+        .verify-actions { display: flex; gap: 10px; align-items: center; }
+
+        /* Secondary to the run button: the safe action should be easy to reach
+           without competing with the one people came here to press. */
+        .preview-btn {
+            background: transparent;
+            color: var(--sys-accent, #546e7a);
+            border: 1px solid var(--border, #d5dbe1);
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .preview-btn:hover { background: var(--hover-bg, #f0f3f5); border-color: var(--sys-accent, #546e7a); }
+        .preview-btn:disabled { color: #999; cursor: not-allowed; }
+
+        .backup-notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 0 0 20px;
+            padding: 12px 16px;
+            border-radius: 6px;
+            background: var(--warn-bg, #fff8e1);
+            border: 1px solid var(--warn-border, #ffe0a3);
+            color: var(--warn-text, #6d4c00);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .backup-notice svg { flex: 0 0 auto; margin-top: 1px; }
+
+        .preview-panel {
+            border: 1px solid var(--border, #d5dbe1);
+            border-radius: 8px;
+            padding: 18px 20px;
+            margin-bottom: 20px;
+            background: var(--card-bg, #fff);
+        }
+        .preview-panel h3 { margin: 0 0 4px; font-size: 15px; }
+        .preview-readonly { font-size: 12px; color: var(--text-faint, #78868f); margin-bottom: 14px; }
+        .preview-line { font-size: 13px; padding: 4px 0; }
+        .preview-drops {
+            margin-top: 14px;
+            border: 1px solid var(--danger-border, #f3c2c2);
+            background: var(--danger-bg, #fdf1f1);
+            color: var(--danger-text, #8a2b2b);
+            border-radius: 6px;
+            padding: 12px 14px;
+            font-size: 13px;
+        }
+        .preview-drops ul { margin: 8px 0 0; padding-left: 18px; }
+        .preview-drops li { margin-bottom: 6px; line-height: 1.45; }
+        .preview-safe { margin-top: 12px; font-size: 13px; color: var(--ok-text, #2e7d32); }
+
         .results-summary {
             display: flex;
             gap: 15px;
@@ -450,12 +509,33 @@ if (!isset($_SESSION['analyst_id'])) {
                 <h2><?php echo htmlspecialchars(t('system.db_verify.heading')); ?></h2>
                 <p><?php echo htmlspecialchars(t('system.db_verify.intro')); ?></p>
             </div>
-            <button class="verify-btn" id="verifyBtn" onclick="runVerification()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                <?php echo htmlspecialchars(t('system.db_verify.run')); ?>
-            </button>
+            <div class="verify-actions">
+                <button class="preview-btn" id="previewBtn" onclick="runPreview()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <?php echo htmlspecialchars(t('system.db_verify.preview')); ?>
+                </button>
+                <button class="verify-btn" id="verifyBtn" onclick="runVerification()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <?php echo htmlspecialchars(t('system.db_verify.run')); ?>
+                </button>
+            </div>
+        </div>
+
+        <!-- Verification is not read-only: it can DROP columns. The page said
+             nothing about that, and the endpoint's own comment claimed the
+             opposite, so an administrator had no reason to take a backup. -->
+        <div class="backup-notice">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span><?php echo htmlspecialchars(t('system.db_verify.backup_notice')); ?></span>
         </div>
 
         <div id="summaryArea"></div>
@@ -491,6 +571,71 @@ if (!isset($_SESSION['analyst_id'])) {
     <script src="../../assets/js/tz.js?v=1"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
     <script>
+        // Read-only look at what a verification would change. Hits a separate
+        // endpoint that contains no DDL at all — see includes/db_verify_preview.php
+        // for why this is an inspection rather than the migration with a flag.
+        async function runPreview() {
+            const btn = document.getElementById('previewBtn');
+            btn.disabled = true;
+            const original = btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-inline"></span> ' + window.t('system.db_verify.previewing');
+
+            const area = document.getElementById('summaryArea');
+            try {
+                const response = await fetch('../../api/system/db_verify_preview.php');
+                const data = await response.json();
+                if (!data.success) {
+                    area.innerHTML = '<div class="preview-panel"><p class="preview-line">'
+                        + escapeHtml(window.t('system.db_verify.preview_failed', { error: data.error || '' })) + '</p></div>';
+                } else {
+                    area.innerHTML = renderPreview(data.preview);
+                }
+            } catch (error) {
+                area.innerHTML = '<div class="preview-panel"><p class="preview-line">'
+                    + escapeHtml(window.t('system.db_verify.preview_failed', { error: error.message })) + '</p></div>';
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
+
+        function renderPreview(p) {
+            const s = p.summary || { creates: 0, adds: 0, drops: 0 };
+            let html = '<div class="preview-panel">'
+                     + '<h3>' + escapeHtml(window.t('system.db_verify.preview_heading')) + '</h3>'
+                     + '<p class="preview-readonly">' + escapeHtml(window.t('system.db_verify.preview_readonly')) + '</p>';
+
+            if (!s.creates && !s.adds && !s.drops) {
+                html += '<p class="preview-line">' + escapeHtml(window.t('system.db_verify.preview_none')) + '</p></div>';
+                return html;
+            }
+
+            if (s.creates) {
+                html += '<p class="preview-line">' + escapeHtml(window.t('system.db_verify.preview_creates', { count: s.creates }))
+                      + ' — ' + escapeHtml((p.tables_to_create || []).join(', ')) + '</p>';
+            }
+            if (s.adds) {
+                html += '<p class="preview-line">' + escapeHtml(window.t('system.db_verify.preview_adds', { count: s.adds })) + '</p>';
+            }
+
+            // The destructive list is the whole point of the feature, so it is not
+            // one line in a summary — it names every item and why it goes.
+            if (s.drops) {
+                html += '<div class="preview-drops"><strong>'
+                      + escapeHtml(window.t('system.db_verify.preview_drops', { count: s.drops })) + '</strong><br>'
+                      + escapeHtml(window.t('system.db_verify.preview_drop_warn')) + '<ul>';
+                (p.destructive || []).forEach(function (d) {
+                    html += '<li><code>' + escapeHtml(d.table) + '.' + escapeHtml(d.name) + '</code> ('
+                          + escapeHtml(d.kind) + ') — ' + escapeHtml(d.why) + '</li>';
+                });
+                html += '</ul></div>';
+            } else {
+                html += '<p class="preview-safe">' + escapeHtml(window.t('system.db_verify.preview_safe')) + '</p>';
+            }
+
+            return html + '</div>';
+        }
+
         async function runVerification() {
             const btn = document.getElementById('verifyBtn');
             btn.disabled = true;

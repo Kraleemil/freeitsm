@@ -24,6 +24,21 @@ require_once __DIR__ . '/request_guard.php';
 // make the seeded-credentials fix cosmetic. See the file.
 require_once __DIR__ . '/password_gate.php';
 
+// ⚠️ Stop announcing the exact PHP build on every single response.
+//
+// Withholding the version from setup/ (S9) is worth very little while every other
+// response carries `X-Powered-By: PHP/8.4.0`, which is what PHP's expose_php
+// directive does by default. The proper fix is `expose_php = Off` in php.ini, and
+// that stays the recommendation — but it is not something a self-hosted operator on
+// shared hosting can always reach, so the app removes the header where it can.
+//
+// Harmless when the header was never set, and it must run before any output, which
+// is why it lives here: every page and endpoint includes this file, most of them
+// before printing anything.
+if (!headers_sent()) {
+    header_remove('X-Powered-By');
+}
+
 /**
  * Connect to MySQL database using PDO
  *

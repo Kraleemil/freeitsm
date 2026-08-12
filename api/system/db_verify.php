@@ -13,11 +13,27 @@ require_once '../../includes/uploads.php';      // ATTACHMENT_QUARANTINE_EXT
 
 header('Content-Type: application/json');
 
-// Database Verification CREATES AND ALTERS TABLES. It is idempotent and never drops
-// anything, so the blast radius is limited — but it is unmistakably an administrator's
-// action, and it checked only that you were logged in: any analyst at all could run schema
-// changes against the live database. (Found closing out the RBAC roll-out. D005 had missed
-// it too, for two separate reasons — see that tool's write-detection and signature patterns.)
+// ⚠️ Database Verification CREATES, ALTERS **AND DROPS**. TAKE A BACKUP FIRST.
+//
+// This comment used to say it "never drops anything". That was false, and had been
+// for a long time: this file contains DROP COLUMN for tickets.status,
+// tickets.priority, tickets.requester_email, tickets.requester_name,
+// ticket_rota_entries.location, warroom_messages.team_id and
+// warroom_presence.team_id, plus DROP INDEX and DROP FOREIGN KEY. Each drop is
+// guarded and each is the tail end of a migration that has already copied the data
+// somewhere better — but "the data was moved first" is a very different promise from
+// "nothing is ever dropped", and an administrator who read the old sentence would
+// reasonably have skipped their backup. Reported by Erlend Volden (F10).
+//
+// It IS idempotent: running it twice changes nothing the second time.
+//
+// To see what a run would do to a particular database before running it, call
+// api/system/db_verify_preview.php — read-only, executes no DDL at all.
+//
+// It is unmistakably an administrator's action, and it once checked only that you were
+// logged in: any analyst at all could run schema changes against the live database.
+// (Found closing out the RBAC roll-out. D005 had missed it too, for two separate
+// reasons — see that tool's write-detection and signature patterns.)
 //
 // There IS a real bootstrap problem underneath: on a fresh install no analyst exists yet,
 // and this is the endpoint that builds the table they will log in against. That used to be

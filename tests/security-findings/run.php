@@ -649,6 +649,254 @@ check("oidc_callback.php honours must_change_password",
       && strpos($oidc, "password_expired") !== false,
       'SSO would otherwise be the one sign-in path that skips the gate');
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  ROUND THREE — the deferred findings (S2, S6, S9 remainder, F10)
+//
+//  Round two's lesson was that storage is half a round trip: the old suite
+//  certified a fix by finding a string in a file while the feature was broken.
+//  These lean on behaviour wherever behaviour is reachable — a real counter in a
+//  real database, a real HTTP response with and without a session — and fall back
+//  to source only where the alternative would be untestable without a second
+//  company or a broken PHP build.
+// ═══════════════════════════════════════════════════════════════════════════
+
+heading('S2  The four sibling endpoints');
+
+$du = code("$APP/api/tickets/delete_user.php");
+check("delete_user.php calls a tenancy guard at all",
+      strpos($du, 'analystCanAccessUser') !== false,
+      'it had no company check of any kind');
+// Position is the finding. A guard under the counts still answers "how many
+// tickets does that other company's contact have?" before refusing.
+$guardPos = strpos($du, 'analystCanAccessUser');
+$countPos = strpos($du, 'SELECT COUNT(*) FROM tickets');
+check("...ABOVE the ticket/asset counts, so the refusal text leaks nothing",
+      $guardPos !== false && $countPos !== false && $guardPos < $countPos,
+      'the counts are a cross-tenant oracle whether or not the DELETE runs');
+check("delete_user.php answers 'not found' rather than 'not yours'",
+      strpos($du, 'User not found') !== false);
+
+$v1u = code("$APP/api/v1/resources/users.php");
+check("v1 PATCH /users/{id} checks the SUBJECT row, not just the destination",
+      substr_count($v1u, 'apiKeyCanAccessTenantRow') >= 2,
+      'the destination check existed; the subject check did not');
+check("v1 GET /users/{id} is scoped too",
+      substr_count($v1u, 'apiKeyCanAccessTenantRow') >= 2);
+check("v1 GET /users (list) is scoped by the key's companies",
+      strpos($v1u, 'apiKeyTenantFilter') !== false,
+      'the list returned every requester on the install');
+
+$esc = code("$APP/api/integrations/escalate_ticket.php");
+// ⚠️ Compare against the preview BRANCH, not the first mention of $isPreview —
+// that is its assignment, which necessarily comes near the top of the file while
+// the branch it controls is 100 lines further down. The first draft of this check
+// compared against the assignment and reported a correct fix as broken.
+$escGuard   = strpos($esc, 'analystCanAccessTicket');
+$escPreview = strpos($esc, 'if ($isPreview)');
+check("escalate_ticket.php checks the ticket BEFORE the preview branch",
+      $escGuard !== false && $escPreview !== false && $escGuard < $escPreview,
+      'the preview returned another company\'s message body without reaching the service');
+
+foreach (['test_channel', 'slack_diagnose'] as $mf) {
+    $src = code("$APP/api/messaging/$mf.php");
+    check("$mf.php checks the channel's company",
+          strpos($src, 'analystCanAccessChannel') !== false);
+    check("...and requires includes/tenancy.php, or that call is a fatal",
+          strpos($src, "includes/tenancy.php") !== false,
+          'the guard lives there and neither file included it');
+}
+
+heading('S6  The MFA counter, in the database rather than the session');
+
+$thr = code("$APP/includes/mfa_throttle.php");
+check("the throttle whitelists its table names",
+      strpos($thr, 'MFA_THROTTLE_TABLES') !== false
+      && strpos($thr, 'in_array($table, MFA_THROTTLE_TABLES, true)') !== false,
+      'a caller-supplied table would otherwise be interpolated into SQL');
+check("a disabled account-lockout policy cannot re-enable unlimited code guessing",
+      strpos($thr, 'MFA_THROTTLE_FALLBACK_THRESHOLD') !== false,
+      'max_failed_logins = 0 must not mean "no MFA limit"');
+foreach (['api/myaccount/verify_login_otp.php', 'api/self-service/verify_login_otp.php'] as $otp) {
+    $src = code("$APP/$otp");
+    check("$otp records failures durably",  strpos($src, 'mfaThrottleRecordFailure') !== false);
+    check("$otp refuses while locked",      strpos($src, 'mfaThrottleMinutesRemaining') !== false);
+    check("$otp clears the count ONLY on a correct code",
+          strpos($src, 'mfaThrottleReset') !== false);
+}
+
+// The behavioural half. This is the finding: the count must survive the thing the
+// attacker actually did — throw the session away and present the password again.
+if ($conn === null) {
+    skipped("the MFA counter survives a fresh session and a password reset", 'no database connection');
+} else {
+    require_once "$APP/includes/mfa_throttle.php";
+    $tmpUser = 'sectest_mfa_' . bin2hex(random_bytes(4));
+    try {
+        $conn->prepare("INSERT INTO analysts (username, password_hash, full_name, email, is_active, is_admin)
+                        VALUES (?, ?, 'Security suite fixture', 'sectest@example.invalid', 0, 0)")
+             ->execute([$tmpUser, password_hash('irrelevant', PASSWORD_BCRYPT)]);
+        $tmpId = (int)$conn->lastInsertId();
+
+        $threshold = mfaThrottleThreshold($conn);
+        $lockedAt  = null;
+        for ($i = 1; $i <= $threshold; $i++) {
+            $r = mfaThrottleRecordFailure($conn, 'analysts', $tmpId);
+            if ($r['locked']) { $lockedAt = $i; break; }
+        }
+        check("wrong codes lock the account's code step at the configured threshold",
+              $lockedAt === $threshold, "locked at " . var_export($lockedAt, true) . ", expected $threshold");
+
+        check("a locked account reports minutes remaining",
+              mfaThrottleMinutesRemaining($conn, 'analysts', $tmpId) > 0);
+
+        // ⚠️ THE ACTUAL BUG. A successful password step clears failed_login_count and
+        // locked_until, which is why looping cost the attacker nothing. Simulate
+        // exactly that and assert the MFA lock is untouched.
+        $conn->prepare("UPDATE analysts SET failed_login_count = 0, locked_until = NULL WHERE id = ?")
+             ->execute([$tmpId]);
+        check("a SUCCESSFUL PASSWORD STEP does not clear the MFA lock",
+              mfaThrottleMinutesRemaining($conn, 'analysts', $tmpId) > 0,
+              'this is the loop the finding described — password resets the counters, five more guesses');
+
+        // ...and only the right code clears it.
+        mfaThrottleReset($conn, 'analysts', $tmpId);
+        check("a correct code clears the lock",
+              mfaThrottleMinutesRemaining($conn, 'analysts', $tmpId) === 0);
+
+        $row = $conn->prepare("SELECT mfa_failed_count FROM analysts WHERE id = ?");
+        $row->execute([$tmpId]);
+        check("...and resets the count to zero", (int)$row->fetchColumn() === 0);
+
+        $conn->prepare("DELETE FROM analysts WHERE id = ?")->execute([$tmpId]);
+        $left = $conn->prepare("SELECT COUNT(*) FROM analysts WHERE username = ?");
+        $left->execute([$tmpUser]);
+        check("the fixture analyst was cleaned up", (int)$left->fetchColumn() === 0);
+    } catch (PDOException $e) {
+        try { $conn->prepare("DELETE FROM analysts WHERE username = ?")->execute([$tmpUser]); } catch (Exception $x) {}
+        skipped("the MFA counter survives a fresh session and a password reset",
+                'mfa_failed_count not migrated yet — run Database Verification (' . $e->getMessage() . ')');
+    }
+}
+
+heading('S9  The remainder');
+
+$tm = code("$APP/includes/ticket_merge.php");
+check("the merge snapshot is written through uploads.php, not by hand",
+      strpos($tm, 'uploadStoreBytes') !== false && strpos($tm, 'file_put_contents') === false,
+      'it hand-wrote a .html into the web root');
+
+$sb = code("$APP/api/system/save_branding.php");
+check("branding no longer accepts SVG",
+      strpos($sb, 'image/svg+xml') === false && strpos($sb, "'svg'") === false,
+      'an SVG logo is script on our own origin when navigated to directly');
+check("branding uses the shared image whitelist",
+      strpos($sb, 'UPLOAD_TYPES_IMAGE') !== false);
+check("branding no longer moves the file itself",
+      strpos($sb, 'move_uploaded_file') === false);
+check("...and prepares the directory as web-servable, not deny-all",
+      strpos($sb, 'uploadPrepareWebServableDir') !== false,
+      'the deny-all would 403 the logo on every page');
+// The rule this depends on, asserted directly rather than assumed.
+require_once "$APP/includes/uploads.php";
+check("UPLOAD_TYPES_IMAGE genuinely excludes svg",
+      !array_key_exists('svg', UPLOAD_TYPES_IMAGE));
+
+// S9d — a web.config that 500s is not a web.config that denies.
+$configs = ['change-management/attachments', 'contracts/rfp-builder/uploads',
+            'recordings', 'tickets/attachments', 'war-room/attachments'];
+// ⚠️ Strip the XML comments first. Each of these files EXPLAINS why there is no
+// <handlers> section, which means the explanation contains the string being
+// searched for — the identical trap withoutComments() exists for in PHP, and it
+// failed all five of these on the first run. The suite has now been caught by its
+// own documented lesson twice, in two different languages.
+$stripXml = fn(string $s): string => (string)preg_replace('~<!--.*?-->~s', '', $s);
+foreach ($configs as $dir) {
+    $raw = @file_get_contents("$APP/$dir/web.config");
+    $xml = is_string($raw) ? $stripXml($raw) : '';
+    check("$dir/web.config has no <handlers> section",
+          $xml !== '' && stripos($xml, '<handlers') === false,
+          'clearing a locked section makes IIS answer 500.19 for the whole path');
+    check("...but still denies by request filtering",
+          stripos($xml, 'denyUrlSequences') !== false);
+}
+check("the generator no longer writes <handlers><clear/> either",
+      strpos(code("$APP/includes/uploads.php"), '<handlers>') === false,
+      'directories created at runtime would otherwise reintroduce it');
+
+// S9e — containment, and the sibling-prefix trap in the comparison itself.
+foreach (['api/tickets/get_attachment.php', 'api/self-service/get_attachment.php'] as $ga) {
+    $src = code("$APP/$ga");
+    check("$ga contains the resolved path to the attachments directory",
+          strpos($src, 'realpath') !== false && strpos($src, 'strncmp') !== false,
+          'a bare strpos prefix also matches a sibling like attachments-old');
+}
+
+heading('F10  Database Verification tells the truth about what it does');
+
+$dbv = @file_get_contents("$APP/api/system/db_verify.php");   // raw: the claim IS a comment
+// ⚠️ Match the ORIGINAL SENTENCE, not the words "never drops". The corrected header
+// deliberately quotes the old claim while explaining that it was false — which is
+// how the next reader learns the history, and which makes a naive search for the
+// phrase match the very comment that fixes it.
+check("db_verify.php no longer asserts that it never drops anything",
+      is_string($dbv) && stripos($dbv, 'idempotent and never drops') === false,
+      'it contains DROP COLUMN for seven columns');
+check("...and says to take a backup",
+      is_string($dbv) && stripos($dbv, 'TAKE A BACKUP') !== false);
+$prev = code("$APP/api/system/db_verify_preview.php");
+check("the preview endpoint executes no DDL",
+      $prev !== '' && stripos($prev, 'ALTER TABLE') === false
+      && stripos($prev, 'CREATE TABLE') === false && stripos($prev, 'DROP ') === false,
+      'a read-only preview must be provably read-only, not conditionally read-only');
+
+// The register of destructive operations must not drift from the migration.
+// ⚠️ Comment-stripped source, for the third time in this section: the corrected
+// header comment lists the columns it drops by name, so a raw scan reports prose
+// as though it were SQL ("DROP COLUMN for tickets.status" yields a column named
+// `for`). Every real DROP is executable code, so nothing is lost by stripping.
+require_once "$APP/includes/db_verify_preview.php";
+$dbvRaw = code("$APP/api/system/db_verify.php");
+$missing = [];
+foreach (DB_VERIFY_DESTRUCTIVE as $op) {
+    if ($op['kind'] !== 'column') { continue; }
+    if (!preg_match('/DROP COLUMN\s+`?' . preg_quote($op['name'], '/') . '`?/i', $dbvRaw)) {
+        $missing[] = $op['table'] . '.' . $op['name'];
+    }
+}
+check("every column drop the preview promises is one db_verify actually performs",
+      $missing === [], 'stale entries: ' . implode(', ', $missing));
+
+// ...and the direction that actually matters: a DROP in the migration that the
+// preview does not know about would under-report to an administrator.
+preg_match_all('/DROP COLUMN\s+`?([a-zA-Z0-9_]+)`?/i', $dbvRaw, $m);
+$declared = array_column(array_filter(DB_VERIFY_DESTRUCTIVE, fn($o) => $o['kind'] === 'column'), 'name');
+$unlisted = array_values(array_diff(array_unique($m[1] ?? []), $declared));
+check("no column drop in db_verify.php is missing from the preview's register",
+      $unlisted === [],
+      'undeclared: ' . implode(', ', $unlisted) . ' — add them to DB_VERIFY_DESTRUCTIVE');
+
+// ── Live checks (need a base URL) ──────────────────────────────────────────
+if ($BASE === null) {
+    skipped("setup/ hides the PHP version from anonymous visitors", 'no base URL');
+    skipped("X-Powered-By is not returned", 'no base URL');
+} else {
+    $anon = @file_get_contents($BASE . 'setup/');
+    check("setup/ hides the exact PHP version from anonymous visitors",
+          is_string($anon) && strpos($anon, PHP_VERSION) === false,
+          'the build number maps straight to a published vulnerability list');
+    // Positive control: the page must still be answering, or the check above
+    // passes for the wrong reason — the round-two lesson, applied here.
+    check("CONTROL — ...and that page really did render",
+          is_string($anon) && stripos($anon, 'setup') !== false && strlen($anon) > 500);
+
+    $ctx  = stream_context_create(['http' => ['ignore_errors' => true]]);
+    @file_get_contents($BASE . 'login.php', false, $ctx);
+    $hdrs = implode("\n", $http_response_header ?? []);
+    check("X-Powered-By is not returned to the browser",
+          stripos($hdrs, 'X-Powered-By') === false,
+          'withholding the version from setup/ is worth little if every response announces it');
+}
+
 echo "\n" . str_repeat('─', 60) . "\n";
 echo "  {$pass} passed, {$fail} failed" . ($skip ? ", {$skip} skipped" : '') . "\n";
 if ($skip && $BASE === null) {

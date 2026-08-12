@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS `analysts` (
     -- seeded `admin` account, whose admin/freeitsm credentials were otherwise
     -- permanent — nothing forced, warned about or nagged on the change.
     `must_change_password`      TINYINT(1) NOT NULL DEFAULT 0,
+    -- MFA code-step throttling. Kept SEPARATE from failed_login_count/locked_until
+    -- above on purpose: a successful password step clears those two, so an attacker
+    -- who already holds a valid password never trips them. Only a correct MFA code
+    -- clears these. See includes/mfa_throttle.php.
+    `mfa_failed_count`          INT NOT NULL DEFAULT 0,
+    `mfa_locked_until`          DATETIME NULL,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_analysts_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -327,6 +333,11 @@ CREATE TABLE IF NOT EXISTS `users` (
     `password_hash`   VARCHAR(255) NULL,
     `totp_secret`     VARCHAR(500) NULL,
     `totp_enabled`    TINYINT(1) NOT NULL DEFAULT 0,
+    -- The portal twin of the analyst MFA throttle: the portal offers the same
+    -- second factor, so it had the same session-scoped counter and the same hole.
+    -- See includes/mfa_throttle.php.
+    `mfa_failed_count` INT NOT NULL DEFAULT 0,
+    `mfa_locked_until` DATETIME NULL,
     `auth_provider_id` INT NULL,
     -- The portal user's chosen colour palette ('default' | 'dark'), matching the
     -- ids in Theme::THEMES. NULL = follow the install default. Analysts keep

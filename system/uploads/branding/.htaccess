@@ -1,4 +1,6 @@
-# Uploaded content. NEVER executed — see includes/uploads.php.
+# Branding uploads. Static content IS served here — the logo is fetched by the
+# browser on every page — but nothing may execute.
+# See includes/uploads.php, uploadPrepareWebServableDir().
 php_flag engine off
 RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py .jsp .asp .aspx .shtml
 RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py
@@ -20,3 +22,14 @@ RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py
     Deny from all
   </IfModule>
 </FilesMatch>
+# Defence in depth for anything script-bearing already on disk — chiefly a
+# logo.svg uploaded before SVG was refused. `sandbox` stops script running even
+# when the file is opened directly as the top-level document.
+#
+# ⚠️ CONDITIONAL: this whole block is skipped when mod_headers is not enabled
+# (a stock WAMP, for instance), so it is a bonus layer and never the defence.
+# The defence is that SVG can no longer be uploaded at all.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+</IfModule>

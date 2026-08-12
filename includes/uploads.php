@@ -160,8 +160,26 @@ function uploadStoreFile(array $file, string $destDir, array $allowed = UPLOAD_T
 
     // ⚠️ Gate 2: and the CONTENT must match it. This is what stops `shell.php`
     // renamed to `shell.png`, and equally a real PNG named `.php`.
+    //
+    // ⚠️ A NULL mime means THIS SERVER COULD NOT TELL, not "it is fine". This used
+    // to read `if ($mime !== null && …)`, so on any install without the fileinfo
+    // extension gate 2 did not run at all — it silently downgraded to "we trust the
+    // extension", which is gate 1 twice. The sibling uploadStoreBytes() has always
+    // failed closed here; the parent now matches it, which is the direction the
+    // difference should have been resolved in. Erlend Volden flagged the mismatch.
+    //
+    // fileinfo is bundled and on by default in every supported PHP, so this is a
+    // misconfiguration rather than a normal state — and the honest response to "I
+    // cannot check this file" is to refuse the file, with a message that tells the
+    // administrator what to switch on rather than blaming the person uploading.
     $mime = uploadDetectMime($file['tmp_name']);
-    if ($mime !== null && !in_array($mime, $allowed[$ext], true)) {
+    if ($mime === null) {
+        error_log('uploads: refusing an upload because this server cannot inspect file contents '
+                  . '— enable the fileinfo extension in php.ini');
+        throw new Exception('This server cannot check what is inside uploaded files, so the upload '
+                          . 'was refused. Ask an administrator to enable the PHP "fileinfo" extension.');
+    }
+    if (!in_array($mime, $allowed[$ext], true)) {
         throw new Exception('That file\'s contents do not match its ' . $ext . ' extension.');
     }
 
@@ -208,17 +226,26 @@ function uploadPrepareDir(string $dir): void
     // a file that cannot be NAMED .php cannot be executed by any server.
     $webConfig = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . 'web.config';
     if (!file_exists($webConfig)) {
-        // <handlers><clear/> removes the PHP handler so nothing here can execute;
-        // denyUrlSequences "." refuses any request for a file with an extension,
-        // which is every file in here. Served through PHP endpoints, never directly.
+        // ⚠️ NO <handlers><clear/> HERE — that was the bug, not the protection.
+        //
+        // The handlers section is locked at the server level on a default IIS
+        // install (overrideModeDefault="Deny"), so a web.config that clears it makes
+        // IIS refuse to read the file at all: every request under this directory —
+        // and, depending on where it sits, the application around it — answers
+        // HTTP 500.19 "config section cannot be used at this path". A directory that
+        // 500s is not a directory that is denied; it is a broken site, and the
+        // failure looks like FreeITSM being broken rather than like a deny.
+        // Reported by Erlend Volden.
+        //
+        // denyUrlSequences alone does the whole job and is not a locked section: "."
+        // refuses any URL containing a dot, which is every file in here, with a
+        // clean 404.5. Nothing in this directory is fetched directly — it is read by
+        // get_attachment.php — so refusing everything is exactly right.
         @file_put_contents($webConfig, <<<'IIS'
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Uploaded content. NEVER executed, never served directly — see includes/uploads.php. -->
 <configuration>
   <system.webServer>
-    <handlers>
-      <clear />
-    </handlers>
     <security>
       <requestFiltering>
         <denyUrlSequences>
@@ -261,6 +288,131 @@ RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py
     Deny from all
   </IfModule>
 </FilesMatch>
+HT
+        );
+    }
+}
+
+/**
+ * Prepare a directory whose contents the BROWSER IS MEANT TO FETCH.
+ *
+ * ⚠️ Read this before using it. uploadPrepareDir() above refuses everything, which
+ * is right for attachments — they are read by get_attachment.php, never fetched. It
+ * is wrong for a directory whose whole job is to be fetched directly, and the
+ * earlier round left those alone rather than guess. This is the policy for
+ * PASSIVE-CONTENT directories:
+ *
+ *   system/uploads/branding   the logo, rendered as <img src> on every page  ✅
+ *
+ * ⚠️ NOT SUITABLE FOR lms/content, and that is a deliberate exclusion rather than
+ * an oversight. SCORM packages ARE HTML and JavaScript that has to run for the
+ * course to play at all, so the `sandbox` directive below would not harden the LMS,
+ * it would break it. Hardening that directory needs a different answer — most
+ * likely serving packages through a PHP endpoint on a separate origin — and it is a
+ * design job, not a one-line policy. It stays on the outstanding list.
+ *
+ * ⚠️ WHAT EACH LAYER ACTUALLY BUYS, because they are not equal and it would be easy
+ * to read this function as stronger than it is:
+ *
+ *   1. The upload whitelist (UPLOAD_TYPES_IMAGE, no SVG) — the real defence. It
+ *      works on every server and needs no configuration, and it is why nothing
+ *      script-bearing gets in here in the first place.
+ *   2. No-execute rules — verified working: a .php placed in the branding folder is
+ *      refused 403 by Apache and is not run.
+ *   3. The Content-Security-Policy headers — DEFENCE IN DEPTH ONLY, AND CONDITIONAL.
+ *      They sit inside <IfModule mod_headers.c>, so on a server without mod_headers
+ *      (including a stock WAMP, where this was tested) they are silently absent.
+ *      Confirmed by fetching a stored logo and reading the response headers: only
+ *      Content-Type came back.
+ *
+ * The practical consequence is worth stating plainly rather than leaving implied: a
+ * legacy `logo.svg` uploaded before this change is still servable, and on a server
+ * without mod_headers it is still script-capable if someone navigates straight to
+ * it. Layer 1 stops any NEW one arriving; it cannot retroactively make an old one
+ * safe. Removing an existing SVG logo is an operator action, and it is called out
+ * in the release notes rather than hidden in a code comment.
+ */
+function uploadPrepareWebServableDir(string $dir): void
+{
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        throw new Exception('The upload folder could not be created.');
+    }
+
+    $webConfig = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . 'web.config';
+    if (!file_exists($webConfig)) {
+        // Deny by EXTENSION rather than denying every dotted URL: static files here
+        // must still be served. No <handlers><clear/> — see uploadPrepareDir().
+        @file_put_contents($webConfig, <<<'IIS'
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Web-servable uploads: static content is served, nothing executes. See includes/uploads.php. -->
+<configuration>
+  <system.webServer>
+    <security>
+      <requestFiltering>
+        <fileExtensions allowUnlisted="true">
+          <add fileExtension=".php" allowed="false" />
+          <add fileExtension=".phtml" allowed="false" />
+          <add fileExtension=".phar" allowed="false" />
+          <add fileExtension=".php3" allowed="false" />
+          <add fileExtension=".php4" allowed="false" />
+          <add fileExtension=".php5" allowed="false" />
+          <add fileExtension=".php7" allowed="false" />
+          <add fileExtension=".php8" allowed="false" />
+          <add fileExtension=".phps" allowed="false" />
+          <add fileExtension=".cgi" allowed="false" />
+          <add fileExtension=".pl" allowed="false" />
+          <add fileExtension=".py" allowed="false" />
+          <add fileExtension=".asp" allowed="false" />
+          <add fileExtension=".aspx" allowed="false" />
+          <add fileExtension=".shtml" allowed="false" />
+        </fileExtensions>
+      </requestFiltering>
+    </security>
+    <httpProtocol>
+      <customHeaders>
+        <add name="X-Content-Type-Options" value="nosniff" />
+        <add name="Content-Security-Policy" value="default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox" />
+      </customHeaders>
+    </httpProtocol>
+  </system.webServer>
+</configuration>
+IIS
+        );
+    }
+
+    $htaccess = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . '.htaccess';
+    if (!file_exists($htaccess)) {
+        @file_put_contents($htaccess, <<<'HT'
+# Web-servable uploads: static content IS served, nothing executes.
+# See includes/uploads.php — uploadPrepareWebServableDir().
+php_flag engine off
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py .jsp .asp .aspx .shtml
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php5.c>
+  php_flag engine off
+</IfModule>
+<FilesMatch "\.(php|phtml|php[0-9]|phps|cgi|pl|py|jsp|asp|aspx|sh|shtml|htaccess)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+# Neutralise anything script-bearing that is already here — a logo.svg uploaded
+# before SVG was refused, or a crafted page inside a SCORM package. sandbox alone
+# stops script execution even when the file IS the top-level document.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+</IfModule>
 HT
         );
     }

@@ -76,6 +76,14 @@ return [
         'encryption_key_missing_masked'  => 'Not found — needed for encrypting sensitive settings',
         'ca_ini_masked_ok'               => 'Configured',
         'ca_ini_masked_broken'           => 'Set, but pointing at a file that is not there — fix the path or comment the setting out in php.ini.',
+        // The exact PHP build number is the one detail on this page that maps
+        // straight to a published vulnerability list, so it is the version itself
+        // that is withheld — never the verdict. A stranger still learns that the
+        // version is fine, old, or too old; they do not learn which release to
+        // look up.
+        'php_version_ok_masked'          => 'Meets the requirement',
+        'php_version_too_low_masked'     => 'Too old — PHP 7.4 or higher is required',
+        'php_version_eol_masked'         => 'Supported, but this release has reached end of life and no longer receives security updates. Sign in as an administrator to see the version.',
     ],
 
     'locked' => [

@@ -57,6 +57,14 @@ return [
         // there was no column like this and nothing anywhere forced, warned about or
         // even nagged on the change. Cleared the moment they set a new one.
         'must_change_password'   => 'TINYINT(1) NOT NULL DEFAULT 0',
+        // MFA code-step throttling (S6). Deliberately SEPARATE from
+        // failed_login_count / locked_until above, and that separation is the fix:
+        // a successful password step resets those two, so an attacker holding a
+        // valid password never tripped them, and the MFA count had nowhere durable
+        // to live. Only entering a correct code clears these.
+        // See includes/mfa_throttle.php.
+        'mfa_failed_count'       => 'INT NOT NULL DEFAULT 0',
+        'mfa_locked_until'       => 'DATETIME NULL',
     ],
 
     'auth_providers' => [
@@ -278,6 +286,11 @@ return [
         'password_hash'   => 'VARCHAR(255) NULL',
         'totp_secret'     => 'VARCHAR(500) NULL',
         'totp_enabled'    => 'TINYINT(1) NOT NULL DEFAULT 0',
+        // The portal twin of the analyst MFA throttle (S6). The portal login has the
+        // same second factor, so it had the same session-scoped counter and the same
+        // hole. See includes/mfa_throttle.php.
+        'mfa_failed_count' => 'INT NOT NULL DEFAULT 0',
+        'mfa_locked_until' => 'DATETIME NULL',
         'auth_provider_id' => 'INT NULL',
         // Portal user's colour palette ('default' | 'dark'); NULL = install
         // default. Analysts use user_preferences, which is keyed by analyst_id

@@ -33,7 +33,19 @@ function apiUsersList(PDO $conn, array $apiKey, array $params, array $body): voi
         $like = '%' . trim($_GET['q']) . '%';
         array_push($args, $like, $like, $like, $like);
     }
-    $whereSql = implode(' AND ', $where);
+    // ⚠️ Scope the list to the key's companies.
+    //
+    // This read every row in `users` regardless of the key's company scope, so a key
+    // issued to one customer company could page through every requester on the
+    // install — address, username and display name — or search them with ?q=. The
+    // resource is company-aware everywhere else, which is what made this easy to
+    // miss: apiUsersCreate checks the destination company, so the file looks scoped.
+    //
+    // Erlend Volden reported the PATCH twin (below); the list and single GET had the
+    // same gap and are the higher-volume leak, so all three are closed together.
+    [$scopeSql, $scopeArgs] = apiKeyTenantFilter($conn, $apiKey, '');
+    $whereSql = implode(' AND ', $where) . $scopeSql;
+    $args     = array_merge($args, $scopeArgs);
     [$page, $perPage, $offset] = apiPagination();
 
     $countStmt = $conn->prepare("SELECT COUNT(*) FROM users WHERE $whereSql");
@@ -55,6 +67,13 @@ function apiUsersList(PDO $conn, array $apiKey, array $params, array $body): voi
 
 // GET /users/{id}
 function apiUsersGet(PDO $conn, array $apiKey, array $params, array $body): void {
+    // Same gap as the list, one row at a time. The ticket counts below were already
+    // scoped by apiKeyTicketFilter(), which made the endpoint look careful while the
+    // record itself — address, username, display name — was fetched by raw id.
+    // Unknown id and out-of-scope id give the identical 404 on purpose.
+    if (!apiKeyCanAccessTenantRow($conn, $apiKey, 'users', (int)$params[0])) {
+        apiError(404, 'not_found', 'Requester not found.');
+    }
     $stmt = $conn->prepare("SELECT id, email, username, display_name, preferred_name, tenant_id, created_at FROM users WHERE id = ?");
     $stmt->execute([$params[0]]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -143,6 +162,20 @@ function apiUsersCreate(PDO $conn, array $apiKey, array $params, array $body): v
 
 // PATCH /users/{id}
 function apiUsersUpdate(PDO $conn, array $apiKey, array $params, array $body): void {
+    // ⚠️ The REST twin of the save_user.php hole (S1), reported by Erlend Volden.
+    //
+    // The check further down tests the DESTINATION company when the body sets
+    // tenant_id — but nothing tested the SUBJECT, so a key scoped to company A could
+    // PATCH a requester owned by company B: rewrite their email address, then use the
+    // portal's password-reset flow against the address it now controls. Guarding where
+    // a record is going while leaving open which record you may touch guards nothing;
+    // that is the identical lesson as S1, one layer up.
+    //
+    // apiKeyCanAccessTenantRow() already existed and handles the single-company and
+    // unscoped-key cases internally. It was simply never called here.
+    if (!apiKeyCanAccessTenantRow($conn, $apiKey, 'users', (int)$params[0])) {
+        apiError(404, 'not_found', 'Requester not found.');
+    }
     $stmt = $conn->prepare("SELECT id, email, username, display_name, preferred_name, tenant_id, created_at FROM users WHERE id = ?");
     $stmt->execute([$params[0]]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);

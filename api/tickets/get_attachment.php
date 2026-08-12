@@ -66,9 +66,34 @@ try {
     }
 
     // Build full file path
-    $filePath = dirname(dirname(__DIR__)) . '/tickets/attachments/' . $attachment['file_path'];
+    $baseDir  = dirname(dirname(__DIR__)) . '/tickets/attachments';
+    $filePath = $baseDir . '/' . $attachment['file_path'];
 
     if (!file_exists($filePath)) {
+        http_response_code(404);
+        exit('Attachment file not found');
+    }
+
+    // ⚠️ Containment: the resolved file must be INSIDE the attachments directory.
+    //
+    // file_path comes out of the database, so this is not reachable from a request
+    // parameter today — which is exactly why it was missing. It is the second half of
+    // the pattern: every writer now generates its own random name (uploads.php), and
+    // the reader refuses to follow a path that leaves the directory regardless of how
+    // the row got there. A stored `../../config.php`, whether from a future bug, an
+    // older row written before the upload rules existed, or anyone with a foothold in
+    // the database, would otherwise be read and returned by an authenticated request.
+    //
+    // realpath() also resolves symlinks, so a link planted inside the folder cannot
+    // point out of it. Both sides are realpath()'d because comparing a resolved path
+    // against an unresolved prefix fails on Windows, where the base arrives with
+    // forward slashes and comes back with backslashes.
+    $realBase = realpath($baseDir);
+    $realFile = realpath($filePath);
+    if ($realBase === false || $realFile === false
+        || strncmp($realFile, $realBase . DIRECTORY_SEPARATOR, strlen($realBase) + 1) !== 0) {
+        error_log('get_attachment: refused a path outside the attachments directory — attachment id '
+                  . (int)$attachment['id'] . ', stored path ' . (string)$attachment['file_path']);
         http_response_code(404);
         exit('Attachment file not found');
     }
@@ -85,8 +110,8 @@ try {
     // anything unrecognised downloads as octet-stream. See includes/uploads.php.
     attachmentSendHeaders((string)$attachment['filename'], (int)$attachment['file_size']);
 
-    // Output file contents
-    readfile($filePath);
+    // Output file contents — the CONTAINED path, not the one built from the row.
+    readfile($realFile);
 
 } catch (Exception $e) {
     http_response_code(500);

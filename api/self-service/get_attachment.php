@@ -83,7 +83,13 @@ try {
     $baseDir  = realpath(dirname(dirname(__DIR__)) . '/tickets/attachments');
     $filePath = realpath($baseDir . '/' . $attachment['file_path']);
 
-    if ($baseDir === false || $filePath === false || strpos($filePath, $baseDir) !== 0 || !is_file($filePath)) {
+    // ⚠️ Compare against the base plus a separator, not the bare prefix. A plain
+    // strpos($file, $base) === 0 also accepts a SIBLING whose name merely starts the
+    // same way — `tickets/attachments-old`, `tickets/attachmentsX` — because the
+    // prefix matches before the path component ends. Harmless here today only because
+    // no such directory exists; the check should not depend on that staying true.
+    if ($baseDir === false || $filePath === false || !is_file($filePath)
+        || strncmp($filePath, $baseDir . DIRECTORY_SEPARATOR, strlen($baseDir) + 1) !== 0) {
         http_response_code(404);
         exit('Attachment file not found');
     }

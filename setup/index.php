@@ -197,15 +197,25 @@ if (file_exists($configPath)) {
 // 6. PHP version
 // PHP_VERSION_ID, not (float)phpversion(): the float cast reads "8.10.0" as 8.1,
 // so it silently mis-orders the moment PHP ships an x.10.
+// ⚠️ The version NUMBER is withheld from anonymous visitors (safe_detail), the
+// verdict is not. setup/ is reachable without signing in — it has to be, or a fresh
+// install could never be checked — and it printed the exact build ("8.2.7") to
+// anybody who asked. That single string is the difference between "there is a PHP
+// app here" and a list of published vulnerabilities to try, and it survived the F2
+// round because that pass was looking for paths and account names, not build
+// numbers. Reported by Erlend Volden.
+//
+// The masked twins keep the pass/warn/fail verdict, so somebody mid-install still
+// learns their PHP is too old — they just have to sign in to learn which release.
 $phpVersion = phpversion();
 if (PHP_VERSION_ID < 70400) {
-    $checks[] = ['name' => t('setup.checks.php_version'), 'status' => 'fail', 'detail' => t('setup.detail.php_version_too_low', ['version' => $phpVersion])];
+    $checks[] = ['name' => t('setup.checks.php_version'), 'status' => 'fail', 'detail' => t('setup.detail.php_version_too_low', ['version' => $phpVersion]), 'safe_detail' => t('setup.detail.php_version_too_low_masked')];
 } elseif (PHP_VERSION_ID < 80100) {
     // 7.4 and 8.0 still run, but neither has had an upstream security fix since
     // Nov 2022 / Nov 2023. Warn rather than fail — we still support them.
-    $checks[] = ['name' => t('setup.checks.php_version'), 'status' => 'warn', 'detail' => t('setup.detail.php_version_eol', ['version' => $phpVersion])];
+    $checks[] = ['name' => t('setup.checks.php_version'), 'status' => 'warn', 'detail' => t('setup.detail.php_version_eol', ['version' => $phpVersion]), 'safe_detail' => t('setup.detail.php_version_eol_masked')];
 } else {
-    $checks[] = ['name' => t('setup.checks.php_version'), 'status' => 'pass', 'detail' => t('setup.detail.php_version_ok', ['version' => $phpVersion])];
+    $checks[] = ['name' => t('setup.checks.php_version'), 'status' => 'pass', 'detail' => t('setup.detail.php_version_ok', ['version' => $phpVersion]), 'safe_detail' => t('setup.detail.php_version_ok_masked')];
 }
 
 // 7. PHP extensions (always check, regardless of config)

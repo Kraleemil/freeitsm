@@ -305,6 +305,24 @@ return [
         'checking'    => 'Checking tables...',
         'placeholder' => 'Click "Run Verification" to check your database schema',
 
+        // Preview (F10). Verification can drop columns, so there is now a way to
+        // see what a run would change before running it.
+        'preview'           => 'Preview',
+        'previewing'        => 'Checking…',
+        'preview_heading'   => 'What a verification would change',
+        'preview_readonly'  => 'Nothing has been changed. This was a read-only check.',
+        'preview_none'      => 'Your database already matches the expected schema. A verification would change nothing.',
+        'preview_creates'   => '{count} table(s) would be created',
+        'preview_adds'      => '{count} column(s) would be added',
+        'preview_drops'     => '{count} column(s) or index(es) would be REMOVED',
+        'preview_drop_warn' => 'Take a backup before running verification. The items below will be permanently removed.',
+        'preview_safe'      => 'No columns or indexes would be removed.',
+        'preview_failed'    => 'The preview could not be completed: {error}',
+
+        // Shown above the Run button, always. Verification is not a read-only
+        // action and the page should not imply that it is.
+        'backup_notice' => 'Verification changes your database and can permanently remove outdated columns. Take a backup first, or use Preview to see what would change.',
+
         'count_ok'      => 'OK',
         'count_created' => 'Created',
         'count_updated' => 'Updated',

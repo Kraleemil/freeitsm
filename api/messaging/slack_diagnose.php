@@ -24,6 +24,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
+require_once '../../includes/tenancy.php';
 require_once '../../includes/messaging/messaging.php';
 require_once '../../includes/messaging/slack_manifest.php';
 
@@ -46,9 +47,22 @@ try {
     echo json_encode(['success' => false, 'error' => 'Database unavailable']);
     exit;
 }
-if (!messagingAdminMayAdministerChannel($conn, $id)) {
+$isAdminSlackPath = messagingAdminMayAdministerChannel($conn, $id);
+if (!$isAdminSlackPath) {
     requireModuleAccessJson('tickets');
     requireCapabilityJson(Cap::TICKETS_MESSAGING);
+}
+
+// ⚠️ ...and may you administer THIS channel? The twin of the check added to
+// test_channel.php, and the more revealing of the two: these checks report the
+// workspace name, the bot's identity, the granted scopes and the configured URLs
+// for the channel named in the request. Pointed at another company's pinned Slack
+// channel by a capability-holding analyst from elsewhere, it was a tidy summary of
+// that company's integration. NULL tenant_id = shared intake, so those stay open to
+// anyone with the capability; the admin-Slack carve-out is preserved as designed.
+if (!$isAdminSlackPath && !analystCanAccessChannel($conn, (int) $_SESSION['analyst_id'], $id)) {
+    echo json_encode(['success' => false, 'error' => 'Slack channel not found']);
+    exit;
 }
 
 $checks = [];

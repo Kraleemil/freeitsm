@@ -15,6 +15,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
+require_once '../../includes/tenancy.php';
 require_once '../../includes/messaging/messaging.php';
 require_once '../../includes/messaging/ingest.php';
 
@@ -30,7 +31,8 @@ if (!isset($_SESSION['analyst_id'])) {
 // explains why an admin is allowed here for a Slack channel and nothing else.
 $rawIn = file_get_contents('php://input');
 $input = json_decode($rawIn, true);
-if (!messagingAdminMayAdministerChannel(connectToDatabase(), (int) ($input['id'] ?? $_GET['id'] ?? 0))) {
+$isAdminSlackPath = messagingAdminMayAdministerChannel(connectToDatabase(), (int) ($input['id'] ?? $_GET['id'] ?? 0));
+if (!$isAdminSlackPath) {
     requireModuleAccessJson('tickets');
     requireCapabilityJson(Cap::TICKETS_MESSAGING);
 }
@@ -43,6 +45,28 @@ try {
     }
 
     $conn = connectToDatabase();
+
+    // ⚠️ Company check. The two gates above answer "may you administer channels at
+    // all?"; neither answers "may you administer THIS one?". An analyst holding
+    // TICKETS_MESSAGING for company A could therefore point this at a channel pinned
+    // to company B and run all three checks against it — validating B's stored
+    // credentials with B's provider, and, in `simulate` mode, driving a synthetic
+    // message through B's real ingest to create and delete a ticket in B's company.
+    // Reported by Erlend Volden as one of the S1 siblings.
+    //
+    // analystCanAccessChannel() already encodes the rule this needs, including the
+    // part that is easy to get wrong: a channel with tenant_id NULL is SHARED INTAKE,
+    // not Default-owned, so it stays administerable by anyone with the capability.
+    // Only a channel PINNED to a company is restricted.
+    //
+    // The admin-Slack path deliberately keeps its exemption. It is a documented,
+    // narrow carve-out (System → Integrations → Slack), and is_admin is not the same
+    // thing as can_access_all_tenants — applying the check to it as well would lock
+    // administrators out of the Slack screen they are meant to own.
+    if (!$isAdminSlackPath && !analystCanAccessChannel($conn, (int) $_SESSION['analyst_id'], $channelId)) {
+        throw new Exception('Channel not found');   // same words as a missing id
+    }
+
     $channel = loadMessagingChannel($conn, $channelId);
     if (!$channel) {
         throw new Exception('Channel not found');

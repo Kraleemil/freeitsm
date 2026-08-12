@@ -8,6 +8,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/totp.php';
 require_once '../../includes/encryption.php';
+require_once '../../includes/mfa_throttle.php';
 
 header('Content-Type: application/json');
 
@@ -47,23 +48,67 @@ try {
         exit;
     }
 
+    // ⚠️ Is this account's code step locked? Checked BEFORE the code is examined,
+    // so a locked account leaks nothing about whether a guess was close.
+    //
+    // This is the half the session counter could never do: it survives the attacker
+    // discarding the session, because it lives on the account row. See
+    // includes/mfa_throttle.php for why re-presenting the password did not save us.
+    $lockedMins = mfaThrottleMinutesRemaining($conn, 'analysts', (int)$analystId);
+    if ($lockedMins > 0) {
+        error_log('MFA code step is locked for analyst ' . (int)$analystId . ' for a further '
+                  . $lockedMins . ' minute(s), from ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Too many incorrect codes. Please try again in ' . $lockedMins . ' minute(s).',
+        ]);
+        exit;
+    }
+
     // Decrypt the secret
     $secret = decryptValue($row['totp_secret']);
 
-    // ⚠️ Verify the code — and COUNT the failures.
+    // ⚠️ Verify the code — and COUNT the failures, in TWO places.
     //
     // This endpoint had no attempt counter, no delay and no logging, and it sits
     // outside the IP-ban path that protects the password step. A six-digit TOTP is
     // one million possibilities, which is nothing to a script: given a valid
     // password, the second factor was brute-forceable.
     //
-    // The counter lives in the session because the challenge does — mfa_pending_*
-    // is what makes this endpoint answer at all. An attacker who throws the session
-    // away to reset the count has to present the password again, and THAT path is
-    // rate-limited by account lockout and the IP ban. So this closes the loop rather
-    // than just narrowing it.
+    // The session counter below abandons the challenge cheaply. It is NOT the
+    // defence, and the reasoning that once said it was has been corrected: the
+    // session belongs to the attacker, and re-presenting a valid password resets
+    // failed_login_count, so looping cost one extra request per five guesses. The
+    // account-row counter is the real limit; the session one stays because it is
+    // what still applies on a database that has not been migrated yet.
     if (!verifyTotpCode($secret, $code)) {
         $_SESSION['mfa_attempts'] = ($_SESSION['mfa_attempts'] ?? 0) + 1;
+
+        // Durable count first, so it is recorded even if the response below changes.
+        $throttle = mfaThrottleRecordFailure($conn, 'analysts', (int)$analystId);
+        if ($throttle['locked']) {
+            $abandonedUsername = (string)($_SESSION['mfa_pending_username'] ?? 'unknown');
+            unset(
+                $_SESSION['mfa_pending_analyst_id'],
+                $_SESSION['mfa_pending_username'],
+                $_SESSION['mfa_pending_name'],
+                $_SESSION['mfa_pending_email'],
+                $_SESSION['mfa_pending_allowed_modules'],
+                $_SESSION['mfa_attempts']
+            );
+            if (function_exists('logLoginAttempt')) {
+                logLoginAttempt($conn, (int)$analystId, $abandonedUsername, false);
+            }
+            error_log('MFA code step LOCKED for analyst ' . (int)$analystId . ' after '
+                      . $throttle['attempts'] . ' failed codes across sessions, for '
+                      . $throttle['minutes'] . ' minute(s), from ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Too many incorrect codes. Please try again in ' . $throttle['minutes'] . ' minute(s).',
+                'restart' => true,
+            ]);
+            exit;
+        }
 
         if ($_SESSION['mfa_attempts'] >= 5) {
             // ⚠️ Read the username BEFORE the unset() below, not after. The logging call
@@ -97,8 +142,11 @@ try {
         exit;
     }
 
-    // Correct code — reset the counter so a later challenge starts clean.
+    // Correct code — reset both counters so a later challenge starts clean.
+    // This is the ONLY place the durable count is cleared: proving possession of the
+    // second factor is the only thing that should earn a fresh allowance.
     unset($_SESSION['mfa_attempts']);
+    mfaThrottleReset($conn, 'analysts', (int)$analystId);
 
     // MFA verified — complete login. Rotate the session id first: this is the point
     // the session stops being anonymous, so it must not keep the id it arrived with.

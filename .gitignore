@@ -124,6 +124,11 @@ contracts/rfp-builder/uploads/*
 !contracts/rfp-builder/uploads/web.config
 system/uploads/branding/*
 !system/uploads/branding/.htaccess
+# ⚠️ The IIS half has to ship too. Every other upload directory un-ignores both
+# files; branding un-ignored only the .htaccess, so on IIS its protection existed
+# solely if uploadPrepareWebServableDir() happened to have run — i.e. only after
+# somebody had already uploaded a logo.
+!system/uploads/branding/web.config
 recordings/*
 !recordings/.htaccess
 !recordings/web.config

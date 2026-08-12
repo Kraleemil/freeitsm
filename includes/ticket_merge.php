@@ -61,6 +61,7 @@
 
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/services/tickets.php';
+require_once __DIR__ . '/uploads.php';   // the merge snapshot is written through it
 
 /** Tables whose rows describe the conversation and therefore follow it. */
 const MERGE_MOVE_TABLES = [
@@ -738,16 +739,38 @@ function mergeAttachSnapshot(PDO $conn, int $targetId, array $source, string $ht
     $baseDir = dirname(__DIR__) . '/tickets/attachments';
     $subDir  = (string)floor($emailId / 1000);
     $dir     = $baseDir . '/' . $subDir . '/' . $emailId;
-    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-        throw new Exception('Could not create the attachment directory for the merge snapshot');
+
+    // ⚠️ THE SNAPSHOT GOES THROUGH includes/uploads.php LIKE EVERYTHING ELSE.
+    //
+    // This used to file_put_contents() a hand-named `.html` straight into the web
+    // root — the exact pattern uploads.php exists to stop, written by the one caller
+    // nobody thought to check because the bytes are ours rather than a stranger's.
+    // Erlend Volden flagged it: provenance is not the point. An `.html` file living
+    // under tickets/attachments/ is same-origin script execution the moment anything
+    // serves it, and the only thing standing in the way was a .htaccess that does not
+    // exist on nginx and needs separate configuration on IIS.
+    //
+    // uploadStoreBytes() gives it a random name of OUR choosing. `.html` is not an
+    // accepted type — deliberately, that decision is the sanitiser's whole point — so
+    // the file is QUARANTINED to `.bin`, which no server hands to an interpreter and
+    // which attachmentSendHeaders() can only ever return as an octet-stream download.
+    //
+    // The feature is unaffected: `filename` in the database is still `SDREF.html`, so
+    // the analyst downloads a file that opens in a browser as before. What changed is
+    // that the copy sitting on our disk is inert, and its name is unguessable.
+    $stored = uploadStoreBytes(
+        $html,
+        preg_replace('/[^a-zA-Z0-9._-]/', '_', (string)$ref) . '.html',
+        $dir,
+        ATTACHMENT_POLICY_STORE
+    );
+    if (empty($stored['stored'])) {
+        throw new Exception('Could not write the merge snapshot file'
+            . ($stored['reason'] ? ' — ' . $stored['reason'] : ''));
     }
 
-    $safeRef  = preg_replace('/[^a-zA-Z0-9._-]/', '_', (string)$ref);
-    $filename = $safeRef . '.html';
-    $relPath  = $subDir . '/' . $emailId . '/' . $filename;
-    if (file_put_contents($baseDir . '/' . $relPath, $html) === false) {
-        throw new Exception('Could not write the merge snapshot file');
-    }
+    $filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', (string)$ref) . '.html';
+    $relPath  = $subDir . '/' . $emailId . '/' . $stored['stored_name'];
 
     $conn->prepare(
         "INSERT INTO email_attachments (email_id, filename, content_type, file_path, file_size, is_inline, created_datetime)
