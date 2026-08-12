@@ -26,9 +26,15 @@ if (!$input) { echo json_encode(['success' => false, 'error' => 'Invalid request
 $fromName  = trim($input['from_name'] ?? '');
 $fromEmail = trim($input['from_email'] ?? '');
 $subject   = trim($input['subject'] ?? '');
-if ($fromName === '')  { echo json_encode(['success' => false, 'error' => 'Requester name is required']); exit; }
-if ($fromEmail === '') { echo json_encode(['success' => false, 'error' => 'Requester email is required']); exit; }
-if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) { echo json_encode(['success' => false, 'error' => 'Invalid email address']); exit; }
+// A requester chosen from the picker (discussion #54). Either this OR a
+// name/email pair — the form sends one or the other, never both.
+$userId    = isset($input['user_id']) && (int)$input['user_id'] > 0 ? (int)$input['user_id'] : null;
+
+if ($userId === null) {
+    if ($fromName === '')  { echo json_encode(['success' => false, 'error' => 'Requester name is required']); exit; }
+    if ($fromEmail === '') { echo json_encode(['success' => false, 'error' => 'Requester email is required']); exit; }
+    if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) { echo json_encode(['success' => false, 'error' => 'Invalid email address']); exit; }
+}
 if ($subject === '')   { echo json_encode(['success' => false, 'error' => 'Subject is required']); exit; }
 
 try {
@@ -36,10 +42,28 @@ try {
     $ctx = ActorContext::fromSession($conn);
     $tenantId = getActiveTenantId($conn, $analystId);
 
+    // ⚠️ A SCOPED LIST IS NOT A CHECK.
+    //
+    // The picker only offers requesters this analyst can reach, because
+    // get_users.php is company-filtered. That governs what is easy to choose,
+    // not what can be sent: user_id arrives in a JSON body and can be any
+    // integer. Without this line, an analyst scoped to one company could file a
+    // ticket against another company's contact by editing one number — which is
+    // the same shape as the S1/S2 findings, arriving fresh with a new feature
+    // rather than being inherited from an old one.
+    //
+    // Same refusal text as an id that does not exist: "not yours" and "not
+    // there" must stay indistinguishable.
+    if ($userId !== null && !analystCanAccessUser($conn, $analystId, $userId)) {
+        echo json_encode(['success' => false, 'error' => 'That requester was not found']);
+        exit;
+    }
+
     // Map the manual-create payload onto the service's canonical keys.
     $in = [
         'subject'             => $subject,
         'description'         => $input['body'] ?? '',
+        'user_id'             => $userId,
         'requester_email'     => $fromEmail,
         'requester_name'      => $fromName,
         'priority'            => $input['priority'] ?? 'Normal',

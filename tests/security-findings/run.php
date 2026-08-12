@@ -734,6 +734,38 @@ check("no service-layer catch block returns true unconditionally",
       $failOpen === [],
       'fail-open guards: ' . implode(', ', $failOpen) . ' — use tenancyDegradeAllowed()');
 
+heading('Unscoped lists  Endpoints that read a scoped table');
+
+// ⚠️ THE RECURRING SHAPE, now with three instances found in three separate
+// rounds: an endpoint that filters something ABOUT each row while the row set
+// itself is unfiltered. get_users.php scoped only its per-user ticket count —
+// with a comment explaining that the count must not reveal cross-company
+// activity — while `FROM users u` returned every requester on the install.
+// Found while building the requester picker (discussion #54) on top of it.
+$gu = code("$APP/api/tickets/get_users.php");
+check("get_users.php scopes the USER LIST, not only the ticket count",
+      strpos($gu, 'activeTenantFilter') !== false,
+      'the list itself returned every requester on the install');
+// Precedence is half the fix: appended after a bare `a LIKE ? OR b LIKE ?` the
+// company clause would bind to the last OR branch only.
+check("...and brackets the search terms so the company clause cannot bind to one OR branch",
+      strpos($gu, 'AND (u.display_name LIKE ?') !== false,
+      'an unbracketed OR list makes the tenancy clause decorative');
+
+// The picker sends a user_id, so the boundary must re-check it. A scoped list
+// governs what is easy to choose, never what can be sent.
+$ct = code("$APP/api/tickets/create_ticket.php");
+check("create_ticket.php authorises a chosen requester id",
+      strpos($ct, 'analystCanAccessUser') !== false,
+      'user_id arrives in a JSON body and can be any integer');
+
+// And the requester created by a manual ticket gets a company like every other
+// path does — three callers resolved it and the fourth quietly did not.
+$ts = code("$APP/includes/services/tickets.php");
+check("a requester created by a manual ticket gets its company resolved",
+      strpos($ts, 'resolveTenantForNewUser') !== false,
+      'they were inserted with no tenant_id at all, so their tickets sat in triage forever');
+
 heading('S6  The MFA counter, in the database rather than the session');
 
 $thr = code("$APP/includes/mfa_throttle.php");

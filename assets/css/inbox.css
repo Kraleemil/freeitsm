@@ -3985,3 +3985,193 @@ body.ticket-popout .ticket-toolbar {
 }
 .att-send-btn:hover:not(:disabled) { border-color: var(--accent, #0078d4); color: var(--accent, #0078d4); }
 .att-send-btn:disabled { opacity: .6; cursor: default; }
+
+/* ─── Requester picker (discussion #54) ───────────────────────────────────────
+   One combobox replacing the old name + email pair in the new-ticket modal.
+   Inline rather than a modal because raising a ticket for somebody is a
+   tens-of-times-a-day action; the browse modal behind the magnifier is the
+   escape hatch, not the route. */
+
+.req-picker { position: relative; }
+
+.req-input { padding-right: 38px; }   /* room for the browse button */
+
+.req-browse {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted, #6b7680);
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.req-browse:hover { background: var(--surface-hover, #eef1f4); color: var(--text, #333); }
+/* Pressable things should feel pressed. */
+.req-browse:active { transform: translateY(-50%) scale(0.92); }
+
+.req-results {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 292px;
+    overflow-y: auto;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #d5dbe1);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    /* Scales from the field it belongs to, not from its own middle. */
+    transform-origin: top center;
+    animation: reqPop 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Never from scale(0) — nothing in the real world appears from nothing. */
+@keyframes reqPop {
+    from { opacity: 0; transform: scale(0.97) translateY(-2px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.req-opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-soft, #f2f4f6);
+}
+.req-opt:last-child { border-bottom: none; }
+.req-opt:hover,
+.req-opt.is-active { background: var(--accent-soft, #e8f4fd); }
+
+.req-opt-avatar {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--surface-hover, #eef1f4);
+    color: var(--text-muted, #5b6770);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+.req-opt-avatar-add { background: var(--accent-soft, #e8f4fd); color: var(--accent, #0078d4); font-size: 16px; font-weight: 400; }
+
+.req-opt-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.req-opt-name  { font-size: 13px; color: var(--text, #222); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.req-opt-email { font-size: 11px; color: var(--text-muted, #78868f); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.req-opt-company {
+    flex: 0 0 auto;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--surface-hover, #eef1f4);
+    color: var(--text-muted, #5b6770);
+    white-space: nowrap;
+}
+
+/* The add row is separated from the matches: it is a different KIND of action,
+   not the least-good match. */
+.req-opt-add { border-top: 1px solid var(--border, #d5dbe1); }
+
+.req-empty { padding: 10px; font-size: 12px; color: var(--text-muted, #78868f); }
+
+/* ⚠️ `hidden` has to be re-asserted for anything given a display value here.
+   The HTML attribute only works through the user-agent rule `[hidden]{display:none}`,
+   which ANY author rule setting display beats on specificity — so `.req-chosen`
+   with `display:flex` rendered an empty chip above the search box permanently.
+   Caught in a screenshot; it is invisible to reasoning about the markup, because
+   the markup is correct. */
+.req-chosen[hidden],
+.req-picker[hidden],
+.req-new[hidden],
+.req-results[hidden],
+.req-chosen-company[hidden] { display: none !important; }
+
+/* Chosen state, replacing the input entirely. */
+.req-chosen {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 8px 7px 10px;
+    border: 1px solid var(--accent, #0078d4);
+    border-radius: 6px;
+    background: var(--accent-soft, #e8f4fd);
+}
+.req-chosen-avatar {
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface, #fff);
+    color: var(--text-muted, #5b6770);
+    font-size: 11px; font-weight: 600;
+}
+.req-chosen-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.req-chosen-name  { font-size: 13px; font-weight: 600; color: var(--text, #222); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.req-chosen-email { font-size: 11px; color: var(--text-muted, #5b6770); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.req-chosen-company {
+    flex: 0 0 auto; font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    background: var(--surface, #fff); color: var(--text-muted, #5b6770); white-space: nowrap;
+}
+.req-chosen-clear {
+    flex: 0 0 auto;
+    width: 26px; height: 26px;
+    border: none; border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted, #5b6770);
+    font-size: 18px; line-height: 1; cursor: pointer;
+    transition: background 150ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.req-chosen-clear:hover { background: rgba(0, 0, 0, 0.06); }
+.req-chosen-clear:active { transform: scale(0.92); }
+
+/* The "someone new" panel. */
+.req-new {
+    margin-top: 10px;
+    padding: 12px;
+    border: 1px dashed var(--border, #d5dbe1);
+    border-radius: 8px;
+    background: var(--surface-hover, #fafbfc);
+}
+.req-new-head { font-size: 12px; font-weight: 600; color: var(--text-muted, #5b6770); margin-bottom: 10px; }
+.req-new-cancel {
+    margin-top: 10px;
+    border: none; background: transparent;
+    color: var(--text-muted, #6b7680);
+    font-size: 12px; cursor: pointer; padding: 0; text-decoration: underline;
+}
+
+/* Browse modal list. */
+.req-browse-list { margin-top: 12px; max-height: 46vh; overflow-y: auto; border: 1px solid var(--border, #d5dbe1); border-radius: 8px; }
+.req-browse-row {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 0.8fr);
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-soft, #f2f4f6);
+    font-size: 13px;
+}
+.req-browse-row:last-child { border-bottom: none; }
+.req-browse-row:hover { background: var(--accent-soft, #e8f4fd); }
+.req-browse-name  { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.req-browse-email { color: var(--text-muted, #78868f); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.req-browse-company { color: var(--text-muted, #78868f); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+    .req-results { animation: none; }
+    .req-browse:active, .req-chosen-clear:active { transform: translateY(-50%); }
+}

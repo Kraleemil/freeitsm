@@ -5504,9 +5504,10 @@ function logout() {
 
 // New Ticket Modal Functions
 function openNewTicketModal() {
-    // Clear form
-    document.getElementById('newTicketFromName').value = '';
-    document.getElementById('newTicketFromEmail').value = '';
+    // Clear form. The requester picker owns the name/email fields now, so it
+    // resets them — clearing them here as well would fight it.
+    initRequesterPicker();
+    reqReset();
     document.getElementById('newTicketSubject').value = '';
     document.getElementById('newTicketBody').value = '';
 
@@ -5590,14 +5591,14 @@ async function createNewTicket() {
     const priority = document.getElementById('newTicketPriority').value;
     const mailboxId = document.getElementById('newTicketMailbox').value;
 
-    // Validate required fields
-    if (!fromName) {
-        showToast('Please enter the requester name', 'error');
-        return;
-    }
-    if (!fromEmail) {
-        showToast('Please enter the requester email', 'error');
-        return;
+    // Validate required fields. Two valid shapes now: a requester chosen from
+    // the picker, or a name and address typed for somebody genuinely new.
+    if (!reqChosenUser) {
+        if (!fromName || !fromEmail) {
+            showToast(t('tickets.new_ticket_modal.requester_required'), 'error');
+            document.getElementById('reqSearch').focus();
+            return;
+        }
     }
     if (!subject) {
         showToast('Please enter a subject', 'error');
@@ -5615,8 +5616,12 @@ async function createNewTicket() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                from_name: fromName,
-                from_email: fromEmail,
+                // The id when one was chosen, the typed pair when it was not.
+                // Never both: a stale name beside a chosen person is exactly the
+                // ambiguity this replaced.
+                user_id: reqChosenUser ? reqChosenUser.id : null,
+                from_name: reqChosenUser ? '' : fromName,
+                from_email: reqChosenUser ? '' : fromEmail,
                 subject: subject,
                 body: body,
                 department_id: departmentId || null,
@@ -5645,6 +5650,297 @@ async function createNewTicket() {
         createBtn.textContent = originalText;
     }
 }
+
+// ============================================
+// Requester picker (discussion #54)
+//
+// One field replacing the old name + email pair. The email was already the
+// identity — TicketsService looks the requester up by address — so the name box
+// was doing nothing whenever the person existed, and a typo in the address
+// silently created a second, ghost requester. Both of those are what this fixes.
+//
+// Shape, and why:
+//   · Typeahead inline, NOT a modal. Raising a ticket on someone's behalf is a
+//     tens-of-times-a-day action; a second surface to open and close is friction
+//     paid every time to help a rare case. The modal still exists, behind the
+//     magnifier, for when you want to browse rather than search.
+//   · "+ Add someone new" is ALWAYS the last row, not a zero-results state. If
+//     you are adding a Dan and a Dan already exists, a no-matches trigger would
+//     never appear — the one time you most need it.
+//   · Choosing sends user_id. The server re-checks it with analystCanAccessUser:
+//     the list being scoped governs what is easy to pick, not what can be sent.
+// ============================================
+
+let reqChosenUser = null;      // {id, name, email, company} or null
+let reqSearchTimer = null;
+let reqActiveIndex = -1;       // keyboard cursor into reqLastResults
+let reqLastResults = [];
+
+function reqEls() {
+    return {
+        picker:  document.getElementById('reqPicker'),
+        input:   document.getElementById('reqSearch'),
+        results: document.getElementById('reqResults'),
+        chosen:  document.getElementById('reqChosen'),
+        newBox:  document.getElementById('reqNew'),
+        name:    document.getElementById('newTicketFromName'),
+        email:   document.getElementById('newTicketFromEmail')
+    };
+}
+
+/** Back to the empty state: nothing chosen, nothing typed, no new-person form. */
+function reqReset() {
+    const e = reqEls();
+    if (!e.input) return;
+    reqChosenUser = null;
+    reqLastResults = [];
+    reqActiveIndex = -1;
+    e.input.value = '';
+    e.results.hidden = true;
+    e.results.innerHTML = '';
+    e.input.setAttribute('aria-expanded', 'false');
+    e.chosen.hidden = true;
+    e.picker.hidden = false;
+    e.newBox.hidden = true;
+    if (e.name) e.name.value = '';
+    if (e.email) e.email.value = '';
+}
+
+function reqCloseList() {
+    const e = reqEls();
+    if (!e.results) return;
+    e.results.hidden = true;
+    e.input.setAttribute('aria-expanded', 'false');
+    reqActiveIndex = -1;
+}
+
+/** Commit a chosen requester and swap the input for the chip. */
+function reqChoose(user) {
+    const e = reqEls();
+    reqChosenUser = user;
+    document.getElementById('reqChosenAvatar').textContent = inboxInitials(user.name || user.email || '?');
+    document.getElementById('reqChosenName').textContent = user.name || '(no name)';
+    document.getElementById('reqChosenEmail').textContent = user.email || '';
+    const comp = document.getElementById('reqChosenCompany');
+    // The company is the confirmation that you picked the right Daniel, so it
+    // shows only when there is more than one to confuse.
+    if (user.company) { comp.textContent = user.company; comp.hidden = false; }
+    else { comp.hidden = true; }
+    e.picker.hidden = true;
+    e.newBox.hidden = true;
+    e.chosen.hidden = false;
+    reqCloseList();
+}
+
+/** Reveal the new-person fields, pre-filled from whatever was typed. */
+function reqShowNew(term) {
+    const e = reqEls();
+    const looksLikeEmail = term.indexOf('@') !== -1;
+    e.newBox.hidden = false;
+    // Put what they typed where it belongs, then land focus on the empty one —
+    // retyping a name you have already typed is the thing that makes a fallback
+    // feel like a punishment.
+    if (looksLikeEmail) {
+        e.email.value = term;
+        e.name.value = '';
+        e.name.focus();
+    } else {
+        e.name.value = term;
+        e.email.value = '';
+        e.email.focus();
+    }
+    reqCloseList();
+}
+
+function reqRenderResults(users, term) {
+    const e = reqEls();
+    reqLastResults = users;
+    reqActiveIndex = -1;
+
+    const rows = users.map((u, i) => {
+        const name  = u.display_name || u.preferred_name || u.username || '(no name)';
+        const email = u.email || u.username || '';
+        const comp  = u.tenant_name ? `<span class="req-opt-company">${escapeHtml(u.tenant_name)}</span>` : '';
+        return `<div class="req-opt" role="option" data-i="${i}" aria-selected="false">
+                    <span class="req-opt-avatar">${escapeHtml(inboxInitials(name))}</span>
+                    <span class="req-opt-text">
+                        <span class="req-opt-name">${escapeHtml(name)}</span>
+                        <span class="req-opt-email">${escapeHtml(email)}</span>
+                    </span>${comp}
+                </div>`;
+    }).join('');
+
+    // Always last, never conditional on emptiness — see the header note.
+    const addLabel = term
+        ? t('tickets.new_ticket_modal.requester_add_named').replace('%s', term)
+        : t('tickets.new_ticket_modal.requester_add');
+    const addRow = `<div class="req-opt req-opt-add" role="option" data-add="1" aria-selected="false">
+                        <span class="req-opt-avatar req-opt-avatar-add">+</span>
+                        <span class="req-opt-text"><span class="req-opt-name">${escapeHtml(addLabel)}</span></span>
+                    </div>`;
+
+    const empty = users.length ? '' :
+        `<div class="req-empty">${escapeHtml(t('tickets.new_ticket_modal.requester_none'))}</div>`;
+
+    e.results.innerHTML = empty + rows + addRow;
+    e.results.hidden = false;
+    e.input.setAttribute('aria-expanded', 'true');
+}
+
+async function reqSearch() {
+    const e = reqEls();
+    const term = e.input.value.trim();
+    try {
+        const res = await fetch(API_BASE + 'get_users.php?limit=8&search=' + encodeURIComponent(term));
+        const data = await res.json();
+        reqRenderResults((data.success && data.users) ? data.users : [], term);
+    } catch (err) {
+        reqRenderResults([], term);
+    }
+}
+
+/** Move the keyboard cursor. Rows include the trailing "add" row. */
+function reqMove(delta) {
+    const e = reqEls();
+    const opts = e.results.querySelectorAll('.req-opt');
+    if (!opts.length) return;
+    reqActiveIndex += delta;
+    if (reqActiveIndex < 0) reqActiveIndex = opts.length - 1;
+    if (reqActiveIndex >= opts.length) reqActiveIndex = 0;
+    opts.forEach((o, i) => {
+        const on = i === reqActiveIndex;
+        o.classList.toggle('is-active', on);
+        o.setAttribute('aria-selected', on ? 'true' : 'false');
+        if (on) o.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+function reqCommitActive() {
+    const e = reqEls();
+    const opts = e.results.querySelectorAll('.req-opt');
+    const el = opts[reqActiveIndex];
+    if (!el) return false;
+    reqActivateOption(el);
+    return true;
+}
+
+function reqActivateOption(el) {
+    const e = reqEls();
+    if (el.hasAttribute('data-add')) {
+        reqShowNew(e.input.value.trim());
+        return;
+    }
+    const u = reqLastResults[parseInt(el.getAttribute('data-i'), 10)];
+    if (!u) return;
+    reqChoose({
+        id: u.id,
+        name: u.display_name || u.preferred_name || u.username || '',
+        email: u.email || '',
+        company: u.tenant_name || ''
+    });
+}
+
+function initRequesterPicker() {
+    const e = reqEls();
+    if (!e.input || e.input.getAttribute('data-req-ready')) return;
+    e.input.setAttribute('data-req-ready', '1');
+
+    e.input.addEventListener('input', () => {
+        clearTimeout(reqSearchTimer);
+        reqSearchTimer = setTimeout(reqSearch, 200);   // one request per pause
+    });
+    e.input.addEventListener('focus', () => { if (e.results.hidden) reqSearch(); });
+
+    e.input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'ArrowDown')      { ev.preventDefault(); reqMove(1); }
+        else if (ev.key === 'ArrowUp')   { ev.preventDefault(); reqMove(-1); }
+        else if (ev.key === 'Enter')     { if (!e.results.hidden && reqCommitActive()) ev.preventDefault(); }
+        else if (ev.key === 'Escape')    { if (!e.results.hidden) { ev.stopPropagation(); reqCloseList(); } }
+    });
+
+    e.results.addEventListener('mousedown', (ev) => {
+        // mousedown, not click: blur would close the list before click landed.
+        const opt = ev.target.closest('.req-opt');
+        if (opt) { ev.preventDefault(); reqActivateOption(opt); }
+    });
+
+    document.addEventListener('click', (ev) => {
+        if (e.picker && !e.picker.contains(ev.target)) reqCloseList();
+    });
+
+    document.getElementById('reqChosenClear').addEventListener('click', () => {
+        reqReset();
+        e.input.focus();
+    });
+    document.getElementById('reqNewCancel').addEventListener('click', () => {
+        e.newBox.hidden = true;
+        e.name.value = '';
+        e.email.value = '';
+        e.input.focus();
+    });
+    document.getElementById('reqBrowse').addEventListener('click', openReqBrowse);
+}
+
+// ─── Browse modal: the escape hatch ──────────────────────────────────────────
+
+function openReqBrowse() {
+    const m = document.getElementById('reqBrowseModal');
+    m.classList.add('active');
+    const s = document.getElementById('reqBrowseSearch');
+    s.value = document.getElementById('reqSearch').value.trim();   // carry the term across
+    reqBrowseLoad();
+    setTimeout(() => s.focus(), 30);
+    if (!s.getAttribute('data-ready')) {
+        s.setAttribute('data-ready', '1');
+        let tmr = null;
+        s.addEventListener('input', () => { clearTimeout(tmr); tmr = setTimeout(reqBrowseLoad, 200); });
+    }
+}
+
+function closeReqBrowse() {
+    document.getElementById('reqBrowseModal').classList.remove('active');
+}
+
+async function reqBrowseLoad() {
+    const list = document.getElementById('reqBrowseList');
+    const term = document.getElementById('reqBrowseSearch').value.trim();
+    list.innerHTML = '<div class="req-empty">' + escapeHtml(t('common.loading')) + '</div>';
+    try {
+        const res = await fetch(API_BASE + 'get_users.php?limit=100&search=' + encodeURIComponent(term));
+        const data = await res.json();
+        const users = (data.success && data.users) ? data.users : [];
+        if (!users.length) {
+            list.innerHTML = '<div class="req-empty">' + escapeHtml(t('tickets.new_ticket_modal.requester_none')) + '</div>';
+            return;
+        }
+        list.innerHTML = users.map(u => {
+            const name = u.display_name || u.preferred_name || u.username || '(no name)';
+            return `<div class="req-browse-row" data-id="${u.id}"
+                         data-name="${escapeHtml(name)}"
+                         data-email="${escapeHtml(u.email || '')}"
+                         data-company="${escapeHtml(u.tenant_name || '')}">
+                        <span class="req-opt-avatar">${escapeHtml(inboxInitials(name))}</span>
+                        <span class="req-browse-name">${escapeHtml(name)}</span>
+                        <span class="req-browse-email">${escapeHtml(u.email || '')}</span>
+                        <span class="req-browse-company">${escapeHtml(u.tenant_name || '')}</span>
+                    </div>`;
+        }).join('');
+    } catch (err) {
+        list.innerHTML = '<div class="req-empty">' + escapeHtml(t('tickets.new_ticket_modal.requester_none')) + '</div>';
+    }
+}
+
+document.addEventListener('click', function (ev) {
+    const row = ev.target.closest ? ev.target.closest('.req-browse-row') : null;
+    if (!row) return;
+    reqChoose({
+        id: parseInt(row.getAttribute('data-id'), 10),
+        name: row.getAttribute('data-name'),
+        email: row.getAttribute('data-email'),
+        company: row.getAttribute('data-company')
+    });
+    closeReqBrowse();
+});
 
 // ============================================
 // Search Modal Functions

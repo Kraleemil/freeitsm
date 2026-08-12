@@ -324,14 +324,54 @@ $translationNamespaces = ['common', 'tickets'];
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.title')); ?></div>
             <div class="modal-body">
-                <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div class="form-group">
-                        <label class="form-label"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_name')); ?> *</label>
-                        <input type="text" class="form-input" id="newTicketFromName" placeholder="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.name_placeholder')); ?>" required>
+                <!-- Requester picker (discussion #54). One field replacing the old
+                     name + email pair: the email was already the identity, and the
+                     name box silently did nothing whenever the person existed. -->
+                <div class="form-group">
+                    <label class="form-label" for="reqSearch"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester')); ?> *</label>
+
+                    <!-- Chosen state. Replaces the input rather than sitting beside
+                         it, so there is never a stale search term next to a choice. -->
+                    <div class="req-chosen" id="reqChosen" hidden>
+                        <span class="req-chosen-avatar" id="reqChosenAvatar"></span>
+                        <span class="req-chosen-text">
+                            <span class="req-chosen-name" id="reqChosenName"></span>
+                            <span class="req-chosen-email" id="reqChosenEmail"></span>
+                        </span>
+                        <span class="req-chosen-company" id="reqChosenCompany" hidden></span>
+                        <button type="button" class="req-chosen-clear" id="reqChosenClear"
+                                aria-label="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_clear')); ?>">&times;</button>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_email')); ?> *</label>
-                        <input type="email" class="form-input" id="newTicketFromEmail" placeholder="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.email_placeholder')); ?>" required>
+
+                    <div class="req-picker" id="reqPicker">
+                        <input type="text" class="form-input req-input" id="reqSearch" autocomplete="off"
+                               role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="reqResults"
+                               placeholder="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_placeholder')); ?>">
+                        <button type="button" class="req-browse" id="reqBrowse"
+                                title="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_browse')); ?>"
+                                aria-label="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_browse')); ?>">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </button>
+                        <div class="req-results" id="reqResults" role="listbox" hidden></div>
+                    </div>
+
+                    <!-- The "someone new" path. Revealed by choosing the last row of
+                         the list, never shown speculatively. -->
+                    <div class="req-new" id="reqNew" hidden>
+                        <div class="req-new-head"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_new_head')); ?></div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div>
+                                <label class="form-label" for="newTicketFromName"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_name')); ?> *</label>
+                                <input type="text" class="form-input" id="newTicketFromName" placeholder="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.name_placeholder')); ?>">
+                            </div>
+                            <div>
+                                <label class="form-label" for="newTicketFromEmail"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_email')); ?> *</label>
+                                <input type="email" class="form-input" id="newTicketFromEmail" placeholder="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.email_placeholder')); ?>">
+                            </div>
+                        </div>
+                        <button type="button" class="req-new-cancel" id="reqNewCancel"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_new_cancel')); ?></button>
                     </div>
                 </div>
                 <div class="form-group">
@@ -373,6 +413,23 @@ $translationNamespaces = ['common', 'tickets'];
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeNewTicketModal()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
                 <button class="btn btn-primary" onclick="createNewTicket()"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.create_btn')); ?></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Browse requesters. The escape hatch behind the magnifier, for when you
+         want to look down a list rather than type — not the main route, which is
+         why it is a second surface you only meet by asking for it. -->
+    <div class="modal" id="reqBrowseModal">
+        <div class="modal-content" style="max-width: 640px;">
+            <div class="modal-header"><?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_browse_title')); ?></div>
+            <div class="modal-body">
+                <input type="text" class="form-input" id="reqBrowseSearch" autocomplete="off"
+                       placeholder="<?php echo htmlspecialchars(t('tickets.new_ticket_modal.requester_placeholder')); ?>">
+                <div class="req-browse-list" id="reqBrowseList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeReqBrowse()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
             </div>
         </div>
     </div>
@@ -772,7 +829,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=85"></script>
+    <script src="../assets/js/inbox.js?v=86"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

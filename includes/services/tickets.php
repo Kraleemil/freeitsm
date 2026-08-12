@@ -56,13 +56,29 @@ class TicketsService
         $requesterEmail = strtolower(trim((string)($in['requester_email'] ?? '')));
         $requesterName  = trim((string)($in['requester_name'] ?? ''));
 
+        // An already-known requester, chosen from the picker (discussion #54).
+        // Optional and additive: every existing caller still sends an address and
+        // is unaffected. When present it wins, because "this exact person" is a
+        // stronger statement than an address that has to be matched.
+        //
+        // ⚠️ THE CALLER MUST HAVE AUTHORISED THIS ID ALREADY. The service takes
+        // it on trust, exactly as it takes tenantId on trust — see
+        // api/tickets/create_ticket.php, which calls analystCanAccessUser()
+        // before getting here. A scoped picker list is not a check: the id
+        // arrives in a request body and can be edited.
+        $requesterUserId = isset($in['user_id']) && (int)$in['user_id'] > 0 ? (int)$in['user_id'] : null;
+
         if ($subject === '') {
             throw new ServiceError('validation', 'missing_field', "'subject' is required.");
         }
-        if ($requesterEmail === '' || !filter_var($requesterEmail, FILTER_VALIDATE_EMAIL)) {
+        // The address is required only when there is no chosen requester to
+        // stand in for it — picking somebody from the directory already
+        // identifies them, and a directory user may legitimately have no mailbox.
+        if ($requesterUserId === null
+            && ($requesterEmail === '' || !filter_var($requesterEmail, FILTER_VALIDATE_EMAIL))) {
             throw new ServiceError('validation', 'missing_field', "'requester_email' is required and must be a valid email address.");
         }
-        if ($requesterName === '') {
+        if ($requesterName === '' && $requesterEmail !== '') {
             $requesterName = ucfirst(explode('@', $requesterEmail)[0]);
         }
 
@@ -113,13 +129,45 @@ class TicketsService
         try {
             $conn->beginTransaction();
 
-            $uStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $uStmt->execute([$requesterEmail]);
-            $userId = $uStmt->fetchColumn();
-            if ($userId === false) {
-                $conn->prepare("INSERT INTO users (email, display_name, created_at) VALUES (?, ?, UTC_TIMESTAMP())")
-                     ->execute([$requesterEmail, $requesterName]);
-                $userId = $conn->lastInsertId();
+            if ($requesterUserId !== null) {
+                // Chosen from the picker. Confirm the row still exists — an id
+                // can be stale by the time it arrives — and read the address back
+                // FROM the record rather than from the request, so the ticket and
+                // its initial email row describe the person that was picked.
+                $pStmt = $conn->prepare("SELECT id, email, display_name FROM users WHERE id = ?");
+                $pStmt->execute([$requesterUserId]);
+                $picked = $pStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$picked) {
+                    throw new ServiceError('validation', 'invalid_field', 'That requester no longer exists.');
+                }
+                $userId         = (int)$picked['id'];
+                $requesterEmail = (string)($picked['email'] ?? '');
+                if ($requesterName === '') {
+                    $requesterName = (string)($picked['display_name'] ?? '');
+                }
+            } else {
+                $uStmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
+                $uStmt->execute([$requesterEmail]);
+                $userId = $uStmt->fetchColumn();
+                if ($userId === false) {
+                    // ⚠️ tenant_id was missing from this INSERT entirely, so a
+                    // requester born from a manual ticket had NO company — while
+                    // the very same person created through the Users screen, LDAP
+                    // or SSO gets one resolved from their email domain. Three
+                    // paths did it properly and the fourth quietly did not, which
+                    // on a multi-company install means their tickets land in
+                    // triage forever and they are invisible to a scoped analyst.
+                    //
+                    // resolveTenantForNewUser() returns null when the domain maps
+                    // to nothing, which is the correct "unknown, send to triage"
+                    // answer rather than a guess.
+                    $newTenantId = function_exists('resolveTenantForNewUser')
+                        ? resolveTenantForNewUser($conn, $requesterEmail)
+                        : null;
+                    $conn->prepare("INSERT INTO users (email, display_name, tenant_id, created_at) VALUES (?, ?, ?, UTC_TIMESTAMP())")
+                         ->execute([$requesterEmail, $requesterName, $newTenantId]);
+                    $userId = $conn->lastInsertId();
+                }
             }
 
             $ticketNumber = self::generateTicketNumber($conn);
