@@ -79,12 +79,16 @@ $translationNamespaces = ['common', 'service-status'];
                 <span class="help-nav-num">4</span>
                 <?php echo htmlspecialchars(t('service-status.help.nav_history')); ?>
             </a>
-            <a href="#settings" class="help-nav-link" data-section="settings">
+            <a href="#uptime" class="help-nav-link" data-section="uptime">
                 <span class="help-nav-num">5</span>
+                <?php echo htmlspecialchars(t('service-status.help.nav_uptime')); ?>
+            </a>
+            <a href="#settings" class="help-nav-link" data-section="settings">
+                <span class="help-nav-num">6</span>
                 <?php echo htmlspecialchars(t('service-status.help.nav_settings')); ?>
             </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">6</span>
+                <span class="help-nav-num">7</span>
                 <?php echo htmlspecialchars(t('service-status.help.nav_tips')); ?>
             </a>
         </div>
@@ -263,10 +267,40 @@ $translationNamespaces = ['common', 'service-status'];
                     <p class="help-note"><?php echo htmlspecialchars(t('service-status.help.history_tip')); ?></p>
                 </div>
 
-                <!-- Section 5: Settings -->
-                <div class="help-section" id="settings">
+                <!-- Section 5: Uptime and per-service history (discussion #59) -->
+                <div class="help-section" id="uptime">
                     <div class="help-section-header">
                         <span class="help-section-num">5</span>
+                        <h3><?php echo htmlspecialchars(t('service-status.help.uptime_heading')); ?></h3>
+                    </div>
+                    <p><?php echo t('service-status.help.uptime_p1_html'); ?></p>
+                    <p><?php echo t('service-status.help.uptime_p2_html'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('service-status.help.uptime_record_heading')); ?></h4>
+                    <p><?php echo t('service-status.help.uptime_record_p_html'); ?></p>
+                    <div class="help-list">
+                        <div><?php echo t('service-status.help.uptime_step1_html'); ?></div>
+                        <div><?php echo t('service-status.help.uptime_step2_html'); ?></div>
+                        <div><?php echo t('service-status.help.uptime_step3_html'); ?></div>
+                    </div>
+                    <p class="help-note"><?php echo t('service-status.help.uptime_resolve_note_html'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('service-status.help.uptime_counts_heading')); ?></h4>
+                    <p><?php echo t('service-status.help.uptime_counts_p_html'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('service-status.help.uptime_reading_heading')); ?></h4>
+                    <div class="help-list">
+                        <div><?php echo t('service-status.help.uptime_read_green_html'); ?></div>
+                        <div><?php echo t('service-status.help.uptime_read_red_html'); ?></div>
+                        <div><?php echo t('service-status.help.uptime_read_grey_html'); ?></div>
+                    </div>
+                    <p class="help-note"><?php echo t('service-status.help.uptime_tip_html'); ?></p>
+                </div>
+
+                <!-- Section 6: Settings -->
+                <div class="help-section" id="settings">
+                    <div class="help-section-header">
+                        <span class="help-section-num">6</span>
                         <h3><?php echo htmlspecialchars(t('service-status.help.settings_heading')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('service-status.help.settings_p1')); ?></p>
@@ -302,7 +336,7 @@ $translationNamespaces = ['common', 'service-status'];
                 <!-- Section 6: Quick Tips -->
                 <div class="help-section" id="tips">
                     <div class="help-section-header">
-                        <span class="help-section-num">6</span>
+                        <span class="help-section-num">7</span>
                         <h3><?php echo htmlspecialchars(t('service-status.help.tips_heading')); ?></h3>
                     </div>
                     <div class="help-cards">

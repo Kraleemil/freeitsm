@@ -2761,6 +2761,25 @@ return [
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Incident update log (discussion #59, phase 2). Each row is a moment; the
+    // per-service impacts at that moment live in the table below. See
+    // includes/services/service_uptime.php for how the two are read back.
+    'status_incident_updates' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'incident_id'       => 'INT NOT NULL',
+        'status_id'         => 'INT NULL',
+        'comment'           => 'LONGTEXT NULL',
+        'created_by_id'     => 'INT NULL',
+        'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    'status_incident_update_services' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'update_id'         => 'INT NOT NULL',
+        'service_id'        => 'INT NOT NULL',
+        'impact_level_id'   => 'INT NULL',
+    ],
+
     'status_incidents' => [
         'id'                    => 'INT NOT NULL AUTO_INCREMENT',
         'title'                 => 'VARCHAR(255) NOT NULL',

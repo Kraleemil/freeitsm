@@ -118,6 +118,9 @@ class ServiceStatusService
             )->execute([$title, $status[0], $comment, $ctx->actorId]);
             $incidentId = (int)$conn->lastInsertId();
             self::replaceIncidentServices($conn, $incidentId, $links);
+            // The opening snapshot. Written even for an incident nobody ever edits,
+            // so the reader never has to special-case "one update or none".
+            self::recordIncidentUpdate($conn, $ctx, $incidentId, $status[0], $comment, $links);
             $conn->commit();
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -167,6 +170,12 @@ class ServiceStatusService
             if ($links !== null) {
                 self::replaceIncidentServices($conn, $id, $links);
             }
+            // ⚠️ Every edit is a moment in the incident's life, so every edit
+            // appends. $links is null when the caller did not mention services —
+            // recordIncidentUpdate() then snapshots the CURRENT links, so the
+            // timeline stays continuous through a status-only or comment-only
+            // change rather than gaining a hole where nothing was said.
+            self::recordIncidentUpdate($conn, $ctx, $id, $statusId, $comment, $links);
             $conn->commit();
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -269,6 +278,62 @@ class ServiceStatusService
         $ins = $conn->prepare("INSERT INTO status_incident_services (incident_id, service_id, impact_level_id) VALUES (?, ?, ?)");
         foreach ($links as [$serviceId, $impactId]) {
             $ins->execute([$incidentId, $serviceId, $impactId]);
+        }
+    }
+
+    /**
+     * Record a moment in an incident's life (discussion #59, phase 2).
+     *
+     * ⚠️ THIS IS WHY DOWNGRADING A SERVICE NO LONGER LOSES THE EARLIER LEVEL.
+     * replaceIncidentServices() above deletes and re-inserts, so
+     * status_incident_services only ever holds the CURRENT impact — moving a
+     * service from Major Outage to Degraded overwrote the first value and the
+     * history then reported the whole incident at whatever it ended on.
+     *
+     * Each call appends a full SNAPSHOT of the per-service impacts, not a diff.
+     * A diff would make the reader reconstruct state, and one missing row would
+     * silently shift a service's entire timeline; a snapshot costs a few rows
+     * and cannot drift.
+     *
+     * A service is "restored" either by moving it to a level that does not count
+     * as downtime, or by dropping it from $links entirely. Both simply end its
+     * interval at this update, which is why there is no per-service resolved flag.
+     *
+     * Best-effort by design: an install that has not run Database Verification
+     * since this shipped has no tables to write to, and failing to save an
+     * incident because its audit trail could not be appended would be a worse
+     * outcome than the missing trail. The reader falls back for such incidents.
+     *
+     * @param array|null $links [[serviceId, impactId], …] — null means "unchanged",
+     *                          in which case the current links are snapshotted.
+     */
+    private static function recordIncidentUpdate(PDO $conn, ActorContext $ctx, int $incidentId, ?int $statusId, ?string $comment, ?array $links): void
+    {
+        try {
+            if ($links === null) {
+                $cur = $conn->prepare("SELECT service_id, impact_level_id FROM status_incident_services WHERE incident_id = ?");
+                $cur->execute([$incidentId]);
+                $links = [];
+                foreach ($cur->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $links[] = [(int)$r['service_id'], $r['impact_level_id'] !== null ? (int)$r['impact_level_id'] : null];
+                }
+            }
+
+            $conn->prepare(
+                "INSERT INTO status_incident_updates (incident_id, status_id, comment, created_by_id, created_datetime)
+                 VALUES (?, ?, ?, ?, UTC_TIMESTAMP())"
+            )->execute([$incidentId, $statusId, $comment, $ctx->actorId]);
+            $updateId = (int)$conn->lastInsertId();
+
+            if ($links) {
+                $ins = $conn->prepare("INSERT INTO status_incident_update_services (update_id, service_id, impact_level_id) VALUES (?, ?, ?)");
+                foreach ($links as [$serviceId, $impactId]) {
+                    $ins->execute([$updateId, $serviceId, $impactId]);
+                }
+            }
+        } catch (Exception $e) {
+            error_log('service-status: could not record the incident update — ' . $e->getMessage()
+                      . ' (run Database Verification to add status_incident_updates)');
         }
     }
 

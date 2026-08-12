@@ -89,6 +89,24 @@ class ServiceUptime
      */
     public static function incidentsFor(PDO $conn, int $serviceId, int $windowDays): array
     {
+        // ⚠️ FIND THE INCIDENT, NOT THE CURRENT LINK.
+        //
+        // This used to start FROM status_incident_services, which holds only the
+        // link as it stands now. Phase 2 made that wrong: a service that has been
+        // RESTORED is recorded by dropping it from the latest snapshot, so its
+        // current link is gone — and the incident that took it down for nine
+        // hours vanished from its history entirely. A four-service outage where
+        // everything was brought back reported all four at 100%.
+        //
+        // The incident is therefore matched if it touched this service in the
+        // current links OR anywhere in its update log.
+        $hasLog = self::updateLogAvailable($conn);
+        $logClause = $hasLog
+            ? "OR EXISTS (SELECT 1 FROM status_incident_update_services y
+                            JOIN status_incident_updates u ON u.id = y.update_id
+                           WHERE u.incident_id = si.id AND y.service_id = ?)"
+            : '';
+
         $sql = "SELECT si.id AS incident_id, si.title,
                        si.created_datetime  AS started,
                        si.resolved_datetime AS ended,
@@ -96,11 +114,12 @@ class ServiceUptime
                        il.colour AS colour,
                        il.counts_as_downtime AS counts,
                        sst.is_resolved AS status_resolved
-                  FROM status_incident_services sis
-                  JOIN status_incidents si       ON si.id = sis.incident_id
+                  FROM status_incidents si
+                  LEFT JOIN status_incident_services sis
+                         ON sis.incident_id = si.id AND sis.service_id = ?
                   LEFT JOIN service_impact_levels il  ON il.id = sis.impact_level_id
                   LEFT JOIN service_incident_statuses sst ON sst.id = si.status_id
-                 WHERE sis.service_id = ?
+                 WHERE (sis.id IS NOT NULL $logClause)
                    -- Overlaps the window: it either has not ended, or it ended
                    -- inside it. An incident that STARTED before the window but
                    -- is still running must be included, which a naive
@@ -110,12 +129,23 @@ class ServiceUptime
                         OR si.resolved_datetime >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY))
                  ORDER BY si.created_datetime DESC";
 
+        $params = $hasLog ? [$serviceId, $serviceId, $windowDays] : [$serviceId, $windowDays];
         $stmt = $conn->prepare($sql);
-        $stmt->execute([$serviceId, $windowDays]);
+        $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Phase 2: where an incident has an update log, its segments replace the
+        // single row derived from the incident's own start and end.
         $out = [];
         foreach ($rows as $r) {
+            $segments = self::segmentsFor($conn, (int)$r['incident_id'], $serviceId,
+                                          (string)$r['started'], $r['ended']);
+            if ($segments !== null) {
+                foreach ($segments as $seg) {
+                    $out[] = $seg + ['title' => (string)$r['title'], 'incident_id' => (int)$r['incident_id']];
+                }
+                continue;
+            }
             // An incident is "ongoing" when it has no resolved stamp. The status
             // being a resolved one without a stamp is a data oddity rather than a
             // state; treat the stamp as authoritative and let the UI show the row.
@@ -133,6 +163,136 @@ class ServiceUptime
             ];
         }
         return $out;
+    }
+
+    /**
+     * Do the phase-2 log tables exist? Cached — every service on the board asks.
+     *
+     * An install that has not run Database Verification since phase 2 shipped
+     * still works: the log clause is left out of the query and every incident
+     * falls back to its own start and end, which is exactly phase-1 behaviour.
+     */
+    private static function updateLogAvailable(PDO $conn): bool
+    {
+        static $ok = null;
+        if ($ok !== null) {
+            return $ok;
+        }
+        try {
+            $conn->query("SELECT 1 FROM status_incident_update_services LIMIT 1");
+            return $ok = true;
+        } catch (Exception $e) {
+            return $ok = false;
+        }
+    }
+
+    /**
+     * One row per period this service spent at a given impact DURING an incident
+     * (discussion #59, phase 2), or null when the incident predates the log.
+     *
+     * Each update is a full snapshot, so a service's interval runs from the
+     * update that named it to the next update — whether or not that next update
+     * mentions the service. A service dropped from the snapshot, or moved to a
+     * level that does not count as downtime, simply stops being impacted there.
+     *
+     * ⚠️ Returning null rather than an empty array is the whole compatibility
+     * story. No updates means "this incident was created before the log existed",
+     * and the caller falls back to the incident's own start and end. An empty
+     * array would mean "the log says this service was never impacted", which is a
+     * completely different claim and would erase every historical outage.
+     *
+     * @return array|null
+     */
+    private static function segmentsFor(PDO $conn, int $incidentId, int $serviceId, string $incidentStart, ?string $incidentEnd): ?array
+    {
+        try {
+            $stmt = $conn->prepare(
+                "SELECT u.id, u.created_datetime,
+                        sus.impact_level_id,
+                        il.name   AS impact,
+                        il.colour AS colour,
+                        il.counts_as_downtime AS counts
+                   FROM status_incident_updates u
+                   LEFT JOIN status_incident_update_services sus
+                          ON sus.update_id = u.id AND sus.service_id = ?
+                   LEFT JOIN service_impact_levels il ON il.id = sus.impact_level_id
+                  WHERE u.incident_id = ?
+                  ORDER BY u.created_datetime ASC, u.id ASC"
+            );
+            $stmt->execute([$serviceId, $incidentId]);
+            $updates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            return null;   // tables not migrated yet — fall back
+        }
+
+        if (!$updates) {
+            return null;   // pre-log incident — fall back
+        }
+
+        $incidentEndTs = $incidentEnd !== null ? strtotime($incidentEnd . ' UTC') : time();
+        $out = [];
+
+        foreach ($updates as $idx => $u) {
+            // No row for this service in that snapshot => not impacted from here on.
+            if ($u['impact_level_id'] === null) {
+                continue;
+            }
+            $from = strtotime((string)$u['created_datetime'] . ' UTC');
+            // The next update ends this interval, whatever it says — including
+            // saying nothing about this service, which is how "restored" is
+            // recorded when a service is simply dropped from the snapshot.
+            $to = isset($updates[$idx + 1])
+                ? strtotime((string)$updates[$idx + 1]['created_datetime'] . ' UTC')
+                : $incidentEndTs;
+            if ($from === false || $to === false) {
+                continue;
+            }
+            // The incident's own end still caps the last interval: resolving does
+            // not necessarily write a further update.
+            $to = min($to, $incidentEndTs);
+            if ($to <= $from) {
+                continue;   // two saves in the same second, or a resolved-then-edited incident
+            }
+
+            $out[] = [
+                'impact'  => (string)($u['impact'] ?? 'Unknown'),
+                'colour'  => $u['colour'] ?? null,
+                'counts'  => (int)($u['counts'] ?? 1) === 1,
+                'started' => gmdate('Y-m-d H:i:s', $from),
+                'ended'   => ($incidentEnd === null && !isset($updates[$idx + 1])) ? null : gmdate('Y-m-d H:i:s', $to),
+                'ongoing' => ($incidentEnd === null && !isset($updates[$idx + 1])),
+                'seconds' => $to - $from,
+            ];
+        }
+
+        // ⚠️ Merge consecutive segments at the SAME level.
+        //
+        // Every save writes a snapshot, so a service that was simply never
+        // touched by five updates produces five adjacent identical rows. The
+        // durations were right but it read as five separate outages — the
+        // three-day Email outage listed as 9h + 18h + 8h + 14h + 5h, and a
+        // reader has to add them up to learn anything. The underlying data keeps
+        // every update; this is the reading of it.
+        //
+        // Only ADJACENT ones merge, so a genuine Major → Degraded → Major stays
+        // three rows, which is the distinction the whole feature exists to make.
+        $merged = [];
+        foreach ($out as $seg) {
+            $last = $merged ? count($merged) - 1 : -1;
+            if ($last >= 0
+                && $merged[$last]['impact'] === $seg['impact']
+                && $merged[$last]['ended'] === $seg['started']) {
+                $merged[$last]['ended']   = $seg['ended'];
+                $merged[$last]['ongoing'] = $seg['ongoing'];
+                $merged[$last]['seconds'] += $seg['seconds'];
+                continue;
+            }
+            $merged[] = $seg;
+        }
+
+        // Every update dropped the service (raised then immediately removed): the
+        // log is present and says "never impacted", which is a real answer.
+        return $merged;
     }
 
     /**

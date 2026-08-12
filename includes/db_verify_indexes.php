@@ -218,6 +218,12 @@ return [
     ['service_impact_levels', 'uq_service_impact_levels_name', 'unique', '(`name`)'],
     ['status_incidents', 'ix_status_incidents_status_id', 'key', '(`status_id`)'],
     ['status_incident_services', 'ix_sis_impact_level_id', 'key', '(`impact_level_id`)'],
+    // Incident update log (discussion #59, phase 2). Every read walks an
+    // incident's updates in time order, so both columns are indexed.
+    ['status_incident_updates', 'ix_siu_incident_id', 'key', '(`incident_id`)'],
+    ['status_incident_updates', 'ix_siu_created', 'key', '(`created_datetime`)'],
+    ['status_incident_update_services', 'ix_sius_update_id', 'key', '(`update_id`)'],
+    ['status_incident_update_services', 'ix_sius_service_id', 'key', '(`service_id`)'],
     ['cmdb_icons', 'uq_cmdb_icons_key', 'unique', '(`icon_key`)'],
     ['cmdb_classes', 'uq_cmdb_classes_key', 'unique', '(`class_key`)'],
     ['cmdb_classes', 'ix_cmdb_classes_icon_id', 'key', '(`icon_id`)'],

@@ -66,6 +66,19 @@ $translationNamespaces = ['common', 'service-status'];
         }
 
 
+        /* Incident update thread (discussion #59, phase 2) */
+        .inc-updates-toggle { margin-left: 10px; background: none; border: none; padding: 0;
+            color: var(--ss-accent, #10b981); font-size: 11px; cursor: pointer; text-decoration: underline; }
+        .inc-updates-row[hidden] { display: none !important; }
+        .inc-updates { padding: 4px 0 8px; }
+        .inc-update { padding: 8px 0; border-top: 1px solid var(--border-soft, #f1f5f9); }
+        .inc-update:first-child { border-top: none; }
+        .inc-update-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+        .inc-update-when { font-size: 12px; color: var(--text-muted, #6b7280); }
+        .inc-update-who  { font-size: 11px; color: var(--text-dim, #9ca3af); }
+        .inc-update-comment { font-size: 13px; margin-bottom: 6px; }
+        .inc-update-clear { font-size: 11px; color: var(--text-dim, #9ca3af); font-style: italic; }
+
         /* ─── Service history + uptime (discussion #59) ────────────────────── */
         /* ⚠️ The badge and the History link have to line up ACROSS cards, and two
            separate things stopped them.
@@ -607,13 +620,70 @@ $translationNamespaces = ['common', 'service-status'];
 
                 return `
                     <tr class="${isResolved ? 'resolved' : ''}">
-                        <td><span class="incident-title" onclick="editIncident(${inc.id})">${escapeHtml(inc.title)}</span></td>
+                        <td>
+                            <span class="incident-title" onclick="editIncident(${inc.id})">${escapeHtml(inc.title)}</span>
+                            <button type="button" class="inc-updates-toggle" onclick="toggleIncidentUpdates(${inc.id}, this)">${escapeHtml(window.t('service-status.board.updates_show'))}</button>
+                        </td>
                         <td><span class="incident-status" ${statusStyle}>${escapeHtml(inc.status)}</span></td>
                         <td><div class="incident-services-list">${svcs || `<span style="color:var(--text-dim, #999)">${escapeHtml(window.t('service-status.board.none'))}</span>`}</div></td>
                         <td><span class="incident-date">${dateStr}</span></td>
                     </tr>
+                    <tr class="inc-updates-row" id="incUpdatesRow${inc.id}" hidden>
+                        <td colspan="4"><div class="inc-updates" id="incUpdates${inc.id}"></div></td>
+                    </tr>
                 `;
             }).join('');
+        }
+
+        /* ─── Incident update thread (discussion #59, phase 2) ────────────────
+           The rows behind the per-service history: what was said, when, by whom,
+           and which services were at which impact at that moment. Loaded on
+           demand — most people reading the board never open one. */
+        async function toggleIncidentUpdates(incidentId, btn) {
+            const row = document.getElementById('incUpdatesRow' + incidentId);
+            const box = document.getElementById('incUpdates' + incidentId);
+            if (!row) return;
+            if (!row.hidden) {
+                row.hidden = true;
+                btn.textContent = window.t('service-status.board.updates_show');
+                return;
+            }
+            row.hidden = false;
+            btn.textContent = window.t('service-status.board.updates_hide');
+            box.innerHTML = `<div class="svc-history-loading">${escapeHtml(window.t('service-status.board.history_loading'))}</div>`;
+            try {
+                const res = await fetch(API_BASE + 'get_incident_updates.php?incident_id=' + incidentId);
+                const data = await res.json();
+                // ⚠️ "None recorded" and "could not load" are different facts and
+                // must not share a message. Collapsing them says an incident has
+                // no history when the request simply failed — the same shape of
+                // lie as a strip cell that named a level it never had.
+                if (!data.success) {
+                    box.innerHTML = `<div class="svc-history-loading">${escapeHtml(data.error || window.t('service-status.board.updates_failed'))}</div>`;
+                    return;
+                }
+                if (!data.updates.length) {
+                    // An incident raised before phase 2 legitimately has none.
+                    box.innerHTML = `<div class="svc-history-loading">${escapeHtml(window.t('service-status.board.updates_none'))}</div>`;
+                    return;
+                }
+                box.innerHTML = data.updates.map(u => {
+                    const tags = (u.services || []).map(s =>
+                        `<span class="incident-svc-tag"${s.colour ? ` style="background:${s.colour};color:#fff;"` : ''}>${escapeHtml(s.service)}${s.impact ? ' · ' + escapeHtml(s.impact) : ''}</span>`
+                    ).join('');
+                    return `<div class="inc-update">
+                        <div class="inc-update-meta">
+                            <span class="inc-update-when">${escapeHtml(formatDate(u.created_datetime))}</span>
+                            ${u.status ? `<span class="incident-status"${u.status_colour ? ` style="background:${u.status_colour};color:#fff;"` : ''}>${escapeHtml(u.status)}</span>` : ''}
+                            ${u.author ? `<span class="inc-update-who">${escapeHtml(u.author)}</span>` : ''}
+                        </div>
+                        ${u.comment ? `<div class="inc-update-comment">${escapeHtml(u.comment)}</div>` : ''}
+                        ${tags ? `<div class="incident-services-list">${tags}</div>` : `<div class="inc-update-clear">${escapeHtml(window.t('service-status.board.updates_all_clear'))}</div>`}
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                box.innerHTML = `<div class="svc-history-loading">${escapeHtml(e.message)}</div>`;
+            }
         }
 
         // Incident timestamps come from the API as UTC strings ("YYYY-MM-DD HH:MM:SS",

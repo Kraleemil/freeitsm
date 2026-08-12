@@ -3914,6 +3914,49 @@ CREATE TABLE IF NOT EXISTS `status_incident_services` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------
+-- Incident update log (discussion #59, phase 2)
+--
+-- status_incident_services holds only the CURRENT impact per service: saving an
+-- incident deletes and re-inserts those rows, so downgrading a service from
+-- Major Outage to Degraded overwrote the earlier value and the history reported
+-- the whole incident at whatever it ended on. That is what this fixes.
+--
+-- ⚠️ EACH UPDATE IS A FULL SNAPSHOT, not a diff. Every save writes one row here
+-- plus one _update_services row per affected service, describing the state at
+-- that moment. Carrying values forward from a diff would mean the reader has to
+-- reconstruct state, and a single missing row would silently shift a service's
+-- whole timeline. A snapshot costs a few more rows and cannot drift.
+--
+-- A service being restored is recorded either by moving it to a level that does
+-- not count as downtime, or by dropping it from the snapshot entirely. Both end
+-- its interval at that update, which is why the reader does not need a special
+-- "resolved" marker per service.
+-- ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `status_incident_updates` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `incident_id`       INT NOT NULL,
+    `status_id`         INT NULL,
+    `comment`           LONGTEXT NULL,
+    `created_by_id`     INT NULL,
+    `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_siu_incident_id` (`incident_id`),
+    KEY `ix_siu_created` (`created_datetime`),
+    CONSTRAINT `fk_siu_incident` FOREIGN KEY (`incident_id`) REFERENCES `status_incidents` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `status_incident_update_services` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `update_id`         INT NOT NULL,
+    `service_id`        INT NOT NULL,
+    `impact_level_id`   INT NULL,
+    PRIMARY KEY (`id`),
+    KEY `ix_sius_update_id` (`update_id`),
+    KEY `ix_sius_service_id` (`service_id`),
+    CONSTRAINT `fk_sius_update` FOREIGN KEY (`update_id`) REFERENCES `status_incident_updates` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------
 -- CMDB (Configuration Management Database)
 -- See docs/cmdb.md for the full design rationale.
 -- ----------------------------------------------------------
