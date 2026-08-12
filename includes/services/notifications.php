@@ -293,7 +293,10 @@ class NotificationsService
     public static function linkFor(string $entityType, int $entityId): ?string
     {
         switch ($entityType) {
-            case 'ticket': return 'tickets/?ticket=' . $entityId;
+            // ⚠️ `ticket_id`, not `ticket` or `id`. assets/js/inbox.js reads exactly
+            // one parameter name and ignores the rest, so the wrong one loads the
+            // inbox and quietly does nothing — a link that looks like it worked.
+            case 'ticket': return 'tickets/?ticket_id=' . $entityId;
             case 'task':   return 'tasks/?task=' . $entityId;
         }
         return null;
