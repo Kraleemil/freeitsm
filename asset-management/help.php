@@ -231,11 +231,23 @@ $translationNamespaces = ['common', 'asset-management'];
                         .\Invoke-AssetInventory.ps1 <span class="flag">-ApiUrl</span> <span class="string">"https://freeitsm.internal"</span> <span class="flag">-ApiKey</span> <span class="string">"your-api-key"</span> <span class="flag">-SkipCertificateCheck</span>
                     </div>
 
-                    <p>To read the thumbprint, run this <em>on the FreeITSM server</em> and copy the value for your site's certificate. Spaces, colons and lower case are all accepted, so you can paste it straight from <strong>certmgr</strong> or from your browser's certificate details.</p>
+                    <p>Where you read the thumbprint depends on what serves FreeITSM. Spaces, colons and lower case are all accepted, so paste it however you find it.</p>
+
+                    <p><strong>Apache, XAMPP, WAMP or nginx</strong> &mdash; the certificate is a file, not an entry in the Windows certificate store. Run this on the FreeITSM server, adjusting the path to your certificate:</p>
+
+                    <div class="help-code">
+                        (New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(<span class="string">"C:\xampp\apache\conf\ssl.crt\server.crt"</span>)).Thumbprint
+                    </div>
+
+                    <p><strong>IIS</strong> &mdash; the certificate is in the store, so on the FreeITSM server:</p>
 
                     <div class="help-code">
                         Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, Thumbprint
                     </div>
+
+                    <p><strong>Any server, from a browser</strong> &mdash; visit your FreeITSM address, click through the certificate warning, open the certificate details and copy <strong>Thumbprint</strong> or <strong>SHA-1 fingerprint</strong>.</p>
+
+                    <p class="help-note">XAMPP's built-in certificate is issued to <strong>localhost</strong>, so installing it as a trusted root still won't work &mdash; it will be rejected on the name instead. Pinning the thumbprint sidesteps that, because you have named the exact certificate you mean.</p>
 
                     <p class="help-note">A thumbprint is not a secret &mdash; it is a fingerprint of the certificate the server already shows to everyone who connects. The API key is the secret, which is exactly why it should not travel over a connection nobody is checking.</p>
 
