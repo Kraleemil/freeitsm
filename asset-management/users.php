@@ -31,7 +31,10 @@ $translationNamespaces = ['common', 'asset-management'];
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <style>
-        body { margin: 0; background: var(--bg, #f4f6f8); }
+        /* ⚠️ --app-bg, not --bg. There is no --bg token in theme.css, so the
+           fallback applied on every theme and the page kept a light background
+           while the rest of the module went dark. Same trap as --input-bg. */
+        body { margin: 0; background: var(--app-bg, #f5f5f5); }
         .au-wrap {
             display: grid;
             grid-template-columns: 330px 1fr;
