@@ -1677,6 +1677,17 @@ return [
     // Optional grouping + routing for the morning round (discussion #64).
     // ⚠️ Assignment is guidance, never a lock — nothing in the save path reads
     // it, so anyone can still complete anyone's check.
+    // Handover document templates (discussion #56).
+    'asset_handover_templates' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'name'             => 'VARCHAR(120) NOT NULL',
+        'blocks'           => 'LONGTEXT NULL',
+        'is_default'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'is_active'        => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     // In-app notifications (discussion #55).
     'notifications' => [
         'id'               => 'INT NOT NULL AUTO_INCREMENT',

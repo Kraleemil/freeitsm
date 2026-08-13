@@ -9,6 +9,7 @@ require_once '../../includes/i18n.php';
 require_once '../../includes/theme.php';
 require_once '../../includes/timezone.php';
 require_once '../../includes/settings_manifest.php';
+require_once '../../includes/handover_styles.php';   // the preview uses the real document CSS (#56)
 I18n::initFromSession();
 Tz::init();
 requireModuleAccess('assets');
@@ -241,6 +242,67 @@ $translationNamespaces = ['common', 'asset-management'];
             gap: 10px;
             flex-wrap: wrap;
         }
+        /* ─── Handover designer (discussion #56) ─────────────────────────── */
+        .ho-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 16px; }
+        .ho-spacer { flex: 1 1 auto; }
+        .ho-select {
+            padding: 8px 10px; border: 1px solid var(--border, #d5dbe1); border-radius: 5px;
+            background: var(--surface, #fff); color: var(--text, #333); font-size: 14px; min-width: 220px;
+        }
+        .ho-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+        .ho-field { display: block; margin-bottom: 14px; }
+        .ho-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted, #666); margin-bottom: 4px; }
+        .ho-field input[type=text], .ho-block textarea, .ho-block input[type=text] {
+            width: 100%; box-sizing: border-box; padding: 8px 10px;
+            border: 1px solid var(--border, #d5dbe1); border-radius: 5px;
+            background: var(--surface, #fff); color: var(--text, #333);
+            font-size: 13px; font-family: inherit;
+        }
+        .ho-block textarea { resize: vertical; min-height: 62px; }
+        .ho-merge { border: 1px solid var(--border, #e0e0e0); border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; }
+        .ho-merge-title { font-size: 12px; font-weight: 700; color: var(--text, #333); }
+        .ho-merge-hint { font-size: 12px; color: var(--text-muted, #666); margin: 2px 0 8px; }
+        .ho-merge-codes { display: flex; flex-wrap: wrap; gap: 6px; }
+        .ho-code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+            padding: 3px 7px; border-radius: 4px; cursor: pointer;
+            border: 1px solid var(--border, #d5dbe1); background: var(--surface-hover, #f4f6f8); color: var(--text, #333);
+        }
+        .ho-code:hover { border-color: var(--accent, #0078d4); color: var(--accent, #0078d4); }
+        .ho-block {
+            border: 1px solid var(--border, #e0e0e0); border-radius: 6px;
+            margin-bottom: 8px; background: var(--surface, #fff);
+        }
+        .ho-block.disabled { opacity: 0.55; }
+        .ho-block-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+        .ho-block-name { font-weight: 600; font-size: 13px; flex: 1 1 auto; color: var(--text, #333); }
+        .ho-mini {
+            border: 1px solid var(--border, #d5dbe1); background: var(--surface, #fff);
+            color: var(--text-muted, #666); border-radius: 4px; cursor: pointer;
+            width: 26px; height: 26px; line-height: 1; font-size: 13px;
+        }
+        .ho-mini:hover:not(:disabled) { color: var(--accent, #0078d4); border-color: var(--accent, #0078d4); }
+        .ho-mini:disabled { opacity: 0.35; cursor: default; }
+        .ho-block-body { padding: 0 10px 10px; display: grid; gap: 8px; }
+        .ho-cols { display: flex; flex-wrap: wrap; gap: 10px; }
+        .ho-col-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text, #333); }
+        .ho-preview-wrap { position: sticky; top: 12px; }
+        .ho-preview-head {
+            font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+            color: var(--text-muted, #666); margin-bottom: 6px;
+        }
+        /* The preview is a real document, so it keeps the document's own light
+           palette even when the settings page around it is dark. */
+        .ho-preview {
+            background: #fff; padding: 26px 28px; border-radius: 6px;
+            border: 1px solid var(--border, #e0e0e0);
+            max-height: 70vh; overflow: auto;
+        }
+        @media (max-width: 1100px) {
+            .ho-grid { grid-template-columns: 1fr; }
+            .ho-preview-wrap { position: static; }
+        }
+<?php echo handoverDocumentCss(); ?>
     </style>
     <?php /* Mobile-friendly opt-in (#937). AFTER this page's own <style> so its
              @media rules win on ties. Every rule inside is gated at 768px. */ ?>
@@ -383,6 +445,57 @@ $translationNamespaces = ['common', 'asset-management'];
             </table>
         </div>
 
+        <?php endif; ?>
+
+        <?php if (settingsTabVisible($visibleTabs, 'handover')): ?>
+        <!-- Handover document designer (discussion #56) -->
+        <div class="tab-content<?php echo $activeTabId === 'handover' ? ' active' : ''; ?>" id="handover-tab" data-capability="<?php echo Cap::ASSETS_HANDOVER; ?>">
+            <div class="settings-section">
+                <div class="settings-section-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    <h2><?php echo htmlspecialchars(t('asset-management.settings.handover_heading')); ?></h2>
+                </div>
+                <div class="settings-section-body">
+                    <p class="settings-description"><?php echo t('asset-management.settings.handover_intro'); ?></p>
+
+                    <div class="ho-toolbar">
+                        <select id="hoTemplateSelect" class="ho-select"></select>
+                        <button type="button" class="btn btn-secondary" id="hoNewBtn"><?php echo htmlspecialchars(t('asset-management.settings.handover_new')); ?></button>
+                        <button type="button" class="btn btn-secondary" id="hoDefaultBtn"><?php echo htmlspecialchars(t('asset-management.settings.handover_make_default')); ?></button>
+                        <button type="button" class="btn btn-secondary danger" id="hoDeleteBtn"><?php echo htmlspecialchars(t('asset-management.settings.handover_delete')); ?></button>
+                        <span class="ho-spacer"></span>
+                        <button type="button" class="btn btn-primary" id="hoSaveBtn"><?php echo htmlspecialchars(t('asset-management.settings.handover_save')); ?></button>
+                    </div>
+
+                    <div class="ho-grid">
+                        <div class="ho-blocks">
+                            <label class="ho-field">
+                                <span class="ho-field-label"><?php echo htmlspecialchars(t('asset-management.settings.handover_name')); ?></span>
+                                <input type="text" id="hoName" maxlength="120">
+                            </label>
+
+                            <div class="ho-merge">
+                                <div class="ho-merge-title"><?php echo htmlspecialchars(t('asset-management.settings.handover_merge_title')); ?></div>
+                                <div class="ho-merge-hint"><?php echo htmlspecialchars(t('asset-management.settings.handover_merge_hint')); ?></div>
+                                <div id="hoMergeCodes" class="ho-merge-codes"></div>
+                            </div>
+
+                            <div id="hoBlockList"></div>
+                        </div>
+
+                        <div class="ho-preview-wrap">
+                            <div class="ho-preview-head"><?php echo htmlspecialchars(t('asset-management.settings.handover_preview')); ?></div>
+                            <div class="ho-preview hb-doc" id="hoPreview"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <?php endif; ?>
 
         <?php if (settingsTabVisible($visibleTabs, 'warranty')): ?>
@@ -1617,6 +1730,225 @@ $translationNamespaces = ['common', 'asset-management'];
             return div.innerHTML;
         }
     </script>
+
+    <?php if (settingsTabVisible($visibleTabs, 'handover')): ?>
+    <script>
+    /* ─── Handover document designer (discussion #56) ──────────────────────────
+       The blocks come from the server's catalogue, so this file never decides
+       what a document can contain — add a block type in HandoverTemplates and it
+       appears here. The preview renders through the SAME server-side renderer as
+       the printed page, which is why it cannot show something the document will
+       not produce. */
+    (function () {
+        const API = '../../api/assets/handover_templates.php';
+        let META = null;            // catalogue, columns, merge codes
+        let blocks = [];            // the template being edited
+        let currentId = 0;
+        let lastFocused = null;     // where a merge code gets inserted
+
+        const el = id => document.getElementById(id);
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+            ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+
+        const blockLabel = type => {
+            const k = 'asset-management.settings.handover_block_' + type;
+            const v = window.t(k);
+            return v === k ? type : v;
+        };
+        const fieldLabel = (type, field) => {
+            const k = 'asset-management.settings.handover_field_' + field;
+            const v = window.t(k);
+            return v === k ? field : v;
+        };
+        const colLabel = col => {
+            const k = 'asset-management.settings.handover_col_' + col;
+            const v = window.t(k);
+            return v === k ? col : v;
+        };
+
+        async function api(payload, isPost) {
+            const opts = isPost
+                ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+                : undefined;
+            const url = isPost ? API : API + '?' + new URLSearchParams(payload);
+            const r = await fetch(url, opts);
+            return r.json();
+        }
+
+        function renderMergeCodes() {
+            el('hoMergeCodes').innerHTML = META.merge_codes
+                .map(c => `<button type="button" class="ho-code" data-code="${esc(c)}">${esc(c)}</button>`).join('');
+        }
+
+        function renderBlocks() {
+            el('hoBlockList').innerHTML = blocks.map((b, i) => {
+                const def = META.catalogue[b.type] || { text: {} };
+                const textFields = Object.keys(def.text || {}).map(f => `
+                    <label class="ho-field" style="margin:0">
+                        <span class="ho-field-label">${esc(fieldLabel(b.type, f))}</span>
+                        ${(b.text[f] || '').length > 60 || f === 'body'
+                            ? `<textarea data-block="${i}" data-field="${esc(f)}">${esc(b.text[f] || '')}</textarea>`
+                            : `<input type="text" data-block="${i}" data-field="${esc(f)}" value="${esc(b.text[f] || '')}">`}
+                    </label>`).join('');
+
+                const cols = b.columns ? `
+                    <div>
+                        <span class="ho-field-label">${esc(window.t('asset-management.settings.handover_columns'))}</span>
+                        <div class="ho-cols">
+                            ${Object.keys(META.columns).map(c => `
+                                <label class="ho-col-toggle">
+                                    <input type="checkbox" data-block="${i}" data-col="${esc(c)}" ${b.columns[c] ? 'checked' : ''}>
+                                    ${esc(colLabel(c))}
+                                </label>`).join('')}
+                        </div>
+                    </div>` : '';
+
+                const hasBody = textFields || cols;
+                return `
+                <div class="ho-block ${b.enabled ? '' : 'disabled'}">
+                    <div class="ho-block-head">
+                        <input type="checkbox" data-block="${i}" data-enabled="1" ${b.enabled ? 'checked' : ''}
+                               title="${esc(window.t('asset-management.settings.handover_show'))}">
+                        <span class="ho-block-name">${esc(blockLabel(b.type))}</span>
+                        <button type="button" class="ho-mini" data-move="up" data-block="${i}" ${i === 0 ? 'disabled' : ''}>&uarr;</button>
+                        <button type="button" class="ho-mini" data-move="down" data-block="${i}" ${i === blocks.length - 1 ? 'disabled' : ''}>&darr;</button>
+                    </div>
+                    ${hasBody ? `<div class="ho-block-body">${textFields}${cols}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        let previewTimer = null;
+        function schedulePreview() {
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(refreshPreview, 300);
+        }
+        async function refreshPreview() {
+            try {
+                const d = await api({ action: 'preview', blocks: blocks }, true);
+                // Server-rendered and already escaped there; assigning it here is
+                // what makes the preview honest about the real output.
+                if (d.success) el('hoPreview').innerHTML = d.html;
+            } catch (e) { /* preview is advisory */ }
+        }
+
+        async function loadTemplateList(selectId) {
+            const d = await api({ action: 'list' });
+            const sel = el('hoTemplateSelect');
+            const list = d.templates || [];
+            sel.innerHTML = list.map(t =>
+                `<option value="${t.id}">${esc(t.name)}${t.is_default ? ' ★' : ''}${t.is_active ? '' : ' (' + esc(window.t('asset-management.settings.handover_inactive')) + ')'}</option>`
+            ).join('') || `<option value="0">${esc(window.t('asset-management.settings.handover_default_name'))}</option>`;
+            if (selectId) sel.value = String(selectId);
+            await loadTemplate(parseInt(sel.value, 10) || 0);
+        }
+
+        async function loadTemplate(id) {
+            currentId = id;
+            if (!id) {
+                blocks = JSON.parse(JSON.stringify(META.defaults));
+                el('hoName').value = window.t('asset-management.settings.handover_default_name');
+            } else {
+                const d = await api({ action: 'get', id: id });
+                if (!d.success) return;
+                blocks = d.template.blocks;
+                el('hoName').value = d.template.name;
+            }
+            renderBlocks();
+            refreshPreview();
+        }
+
+        // ── events ──────────────────────────────────────────────────────────
+        el('hoBlockList').addEventListener('input', function (e) {
+            const t = e.target, i = parseInt(t.dataset.block, 10);
+            if (isNaN(i)) return;
+            if (t.dataset.field) { blocks[i].text[t.dataset.field] = t.value; schedulePreview(); }
+        });
+        el('hoBlockList').addEventListener('change', function (e) {
+            const t = e.target, i = parseInt(t.dataset.block, 10);
+            if (isNaN(i)) return;
+            if (t.dataset.enabled) { blocks[i].enabled = t.checked; renderBlocks(); refreshPreview(); }
+            else if (t.dataset.col) { blocks[i].columns[t.dataset.col] = t.checked; refreshPreview(); }
+        });
+        el('hoBlockList').addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-move]');
+            if (!btn) return;
+            const i = parseInt(btn.dataset.block, 10);
+            const j = btn.dataset.move === 'up' ? i - 1 : i + 1;
+            if (j < 0 || j >= blocks.length) return;
+            [blocks[i], blocks[j]] = [blocks[j], blocks[i]];
+            renderBlocks();
+            refreshPreview();
+        });
+        // Remember the last text box touched, so a merge code lands where the
+        // administrator was typing rather than at the end of some other field.
+        el('hoBlockList').addEventListener('focusin', function (e) {
+            if (e.target.dataset && e.target.dataset.field) lastFocused = e.target;
+        });
+        el('hoMergeCodes').addEventListener('click', function (e) {
+            const btn = e.target.closest('.ho-code');
+            if (!btn) return;
+            const code = btn.dataset.code;
+            if (!lastFocused) { showToast(window.t('asset-management.settings.handover_pick_field'), 'info'); return; }
+            const s = lastFocused.selectionStart ?? lastFocused.value.length;
+            lastFocused.value = lastFocused.value.slice(0, s) + code + lastFocused.value.slice(lastFocused.selectionEnd ?? s);
+            lastFocused.dispatchEvent(new Event('input', { bubbles: true }));
+            lastFocused.focus();
+            lastFocused.selectionStart = lastFocused.selectionEnd = s + code.length;
+        });
+
+        el('hoTemplateSelect').addEventListener('change', function () { loadTemplate(parseInt(this.value, 10) || 0); });
+
+        el('hoNewBtn').addEventListener('click', function () {
+            currentId = 0;
+            blocks = JSON.parse(JSON.stringify(META.defaults));
+            el('hoName').value = window.t('asset-management.settings.handover_new_name');
+            renderBlocks();
+            refreshPreview();
+        });
+
+        el('hoSaveBtn').addEventListener('click', async function () {
+            const d = await api({ action: 'save', id: currentId, name: el('hoName').value, blocks: blocks, is_active: 1 }, true);
+            if (d.success) {
+                showToast(window.t('asset-management.settings.handover_saved'), 'success');
+                loadTemplateList(d.id);
+            } else {
+                showToast(d.error || window.t('asset-management.settings.handover_save_failed'), 'error');
+            }
+        });
+
+        el('hoDefaultBtn').addEventListener('click', async function () {
+            if (!currentId) { showToast(window.t('asset-management.settings.handover_save_first'), 'info'); return; }
+            const d = await api({ action: 'default', id: currentId }, true);
+            if (d.success) { showToast(window.t('asset-management.settings.handover_default_set'), 'success'); loadTemplateList(currentId); }
+        });
+
+        el('hoDeleteBtn').addEventListener('click', async function () {
+            if (!currentId) return;
+            const ok = await showConfirm({
+                title:   window.t('asset-management.settings.handover_delete'),
+                message: window.t('asset-management.settings.handover_delete_confirm', { name: el('hoName').value }),
+                okLabel: window.t('asset-management.settings.handover_delete'),
+                okClass: 'danger'
+            });
+            if (!ok) return;
+            const d = await api({ action: 'delete', id: currentId }, true);
+            if (d.success) { showToast(window.t('asset-management.settings.handover_deleted'), 'success'); loadTemplateList(0); }
+        });
+
+        // Loaded on first paint rather than on tab open: the tab may already be
+        // the active one when the page loads from a deep link.
+        (async function init() {
+            const m = await api({ action: 'meta' });
+            if (!m.success) return;
+            META = m;
+            renderMergeCodes();
+            loadTemplateList(0);
+        })();
+    })();
+    </script>
+    <?php endif; ?>
+
     <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
     <script src="../../assets/js/mobile.js?v=22"></script>
 </body>

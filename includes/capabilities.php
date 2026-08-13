@@ -74,6 +74,7 @@ final class Cap
     const ASSETS_LOCATIONS = 'assets.locations';
     const ASSETS_SUPPLIERS = 'assets.suppliers';
     const ASSETS_WARRANTY  = 'assets.warranty';
+    const ASSETS_HANDOVER  = 'assets.handover';    // designing the handover document
     const ASSETS_VCENTER   = 'assets.vcenter';     // credentials
     const ASSETS_INTUNE    = 'assets.intune';      // credentials
 

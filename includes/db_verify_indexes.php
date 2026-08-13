@@ -142,6 +142,8 @@ return [
     ['morningChecks_Results', 'uq_check_date', 'unique', '(`CheckID`,`CheckDate`)'],
     // Grouping + routing (discussion #64). The dashboard joins on every one of
     // these on each load, and the links table is read per result.
+    // Handover templates (discussion #56) — the render path looks up the default.
+    ['asset_handover_templates', 'ix_aht_default', 'key', '(`is_default`,`is_active`)'],
     // Notifications (discussion #55). The unread index serves the badge, which is
     // polled by every open tab; the coalesce index is hit on every event written.
     ['notifications', 'ix_notif_unread', 'key', '(`analyst_id`,`read_datetime`,`updated_datetime`)'],

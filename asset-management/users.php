@@ -57,7 +57,7 @@ $translationNamespaces = ['common', 'asset-management'];
             padding: 8px 10px;
             border: 1px solid var(--border, #d5dbe1);
             border-radius: 5px;
-            background: var(--input-bg, #fff);
+            background: var(--surface, #fff);
             color: var(--text, #333);
             font-size: 14px;
         }

@@ -73,6 +73,15 @@ return [
             'setting_keys' => ['asset_warranty_surface', 'asset_warranty_days'],
         ],
         [
+            // Designing the handover document (discussion #56). Note this gates
+            // DESIGNING it, not producing one — printing a handover for somebody
+            // is plain module access, the same as viewing their equipment.
+            'id'        => 'handover',
+            'cap'       => Cap::ASSETS_HANDOVER,
+            'label_key' => 'asset-management.settings.tab_handover',
+            'grant'     => 'Design the equipment handover document',
+        ],
+        [
             'id'           => 'vcenter',
             'cap'          => Cap::ASSETS_VCENTER,
             'label_key'    => 'asset-management.settings.tab_vcenter',

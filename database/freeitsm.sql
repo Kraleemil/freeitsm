@@ -149,6 +149,28 @@ CREATE TABLE IF NOT EXISTS `user_preferences` (
     CONSTRAINT `fk_user_pref_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Handover document templates (discussion #56).
+--
+-- `blocks` is a JSON array describing which sections appear, in what order, and
+-- what their editable text says. It is deliberately a document rather than a set
+-- of columns: the shape is a LIST OF BLOCKS, and modelling that relationally
+-- would mean a second table and a join to render one page.
+--
+-- ⚠️ The JSON is validated against a fixed block catalogue on save — see
+-- HandoverTemplates::sanitiseBlocks(). Nothing arbitrary is ever stored, so
+-- rendering never has to trust it.
+CREATE TABLE IF NOT EXISTS `asset_handover_templates` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `name`             VARCHAR(120) NOT NULL,
+    `blocks`           LONGTEXT NULL,          -- JSON, see above
+    `is_default`       TINYINT(1) NOT NULL DEFAULT 0,
+    `is_active`        TINYINT(1) NOT NULL DEFAULT 1,
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_aht_default` (`is_default`, `is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- In-app notifications (discussion #55). One row per thing an analyst is told
 -- about. Rows COALESCE while unread: three changes to the same ticket bump
 -- event_count on one row rather than making three, which is what stops the bell
