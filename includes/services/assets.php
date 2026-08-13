@@ -459,4 +459,117 @@ class AssetsService
         require_once __DIR__ . '/../asset_warranty_calendar.php';
         try { syncAssetWarrantyCalendar($conn); } catch (Exception $syncEx) { /* non-critical */ }
     }
+
+    // ======================================================================
+    //  Who holds what (discussion #56)
+    // ======================================================================
+
+    /**
+     * Everyone who currently holds at least one asset, with how many.
+     *
+     * The list is driven by `users_assets`, not by `users`: the question being
+     * answered is "who has kit", so somebody with nothing does not belong on the
+     * list at all. Search is applied here rather than client-side because an
+     * install with thousands of requesters should not ship them all to a browser.
+     *
+     * ⚠️ INNER JOIN to users on purpose. users_assets has no foreign key, and
+     * older installs carry rows pointing at requesters that no longer exist —
+     * Ed's own dev database has nine. A LEFT JOIN would list them as blank people
+     * holding real equipment, which reads as data loss rather than as stale rows.
+     */
+    public static function usersHoldingAssets(PDO $conn, ActorContext $ctx, string $search = '', int $limit = 200): array
+    {
+        [$tenantSql, $tenantArgs] = activeTenantFilter($conn, $ctx->actorId, 'a');
+
+        $where = '';
+        $args  = [];
+        $search = trim($search);
+        if ($search !== '') {
+            $where = " AND (u.display_name LIKE ? OR u.email LIKE ?)";
+            $args[] = '%' . $search . '%';
+            $args[] = '%' . $search . '%';
+        }
+
+        $limit = max(1, min($limit, 500));
+        $sql = "SELECT u.id, u.email, u.display_name,
+                       COUNT(ua.id)            AS asset_count,
+                       MAX(ua.assigned_datetime) AS latest_assignment
+                  FROM users_assets ua
+                  JOIN users  u ON u.id = ua.user_id
+                  JOIN assets a ON a.id = ua.asset_id
+                 WHERE 1=1 $tenantSql $where
+                 GROUP BY u.id, u.email, u.display_name
+                 ORDER BY (u.display_name IS NULL OR u.display_name = ''), u.display_name, u.email
+                 LIMIT $limit";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->execute(array_merge($tenantArgs, $args));
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$r) {
+            $r['id']          = (int)$r['id'];
+            $r['asset_count'] = (int)$r['asset_count'];
+            $r['name']        = self::personName($r);
+        }
+        return $rows;
+    }
+
+    /**
+     * One person, and everything currently assigned to them.
+     *
+     * Returns ['user' => …, 'assets' => […]] or null when the person does not
+     * exist. An existing person holding nothing returns an empty asset list
+     * rather than null — "Ada has no equipment" is a real and useful answer,
+     * particularly during offboarding.
+     */
+    public static function assetsForUser(PDO $conn, ActorContext $ctx, int $userId): ?array
+    {
+        $u = $conn->prepare("SELECT id, email, display_name, preferred_name FROM users WHERE id = ?");
+        $u->execute([$userId]);
+        $user = $u->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+            return null;
+        }
+        $user['id']   = (int)$user['id'];
+        $user['name'] = self::personName($user);
+
+        [$tenantSql, $tenantArgs] = activeTenantFilter($conn, $ctx->actorId, 'a');
+
+        $sql = "SELECT a.id, a.hostname, a.manufacturer, a.model, a.service_tag, a.asset_tag,
+                       a.operating_system, a.purchase_date, a.warranty_expiry,
+                       at.name  AS asset_type,
+                       ast.name AS asset_status,
+                       loc.name AS location,
+                       ua.assigned_datetime, ua.expected_return_date, ua.notes,
+                       an.full_name AS assigned_by
+                  FROM users_assets ua
+                  JOIN assets a          ON a.id  = ua.asset_id
+                  LEFT JOIN asset_types  at  ON at.id  = a.asset_type_id
+                  LEFT JOIN asset_status_types ast ON ast.id = a.asset_status_id
+                  LEFT JOIN asset_locations loc ON loc.id = a.location_id
+                  LEFT JOIN analysts     an  ON an.id  = ua.assigned_by_analyst_id
+                 WHERE ua.user_id = ? $tenantSql
+                 ORDER BY at.name, a.hostname";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->execute(array_merge([$userId], $tenantArgs));
+        $assets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($assets as &$a) {
+            $a['id'] = (int)$a['id'];
+        }
+
+        return ['user' => $user, 'assets' => $assets];
+    }
+
+    /** Best available human name for a requester row, falling back to the email. */
+    private static function personName(array $row): string
+    {
+        foreach (['display_name', 'preferred_name', 'email'] as $k) {
+            if (!empty($row[$k])) {
+                return (string)$row[$k];
+            }
+        }
+        return '#' . ($row['id'] ?? '?');
+    }
 }

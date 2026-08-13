@@ -85,8 +85,12 @@ $translationNamespaces = ['common', 'asset-management'];
                 <span class="help-nav-num">8</span>
                 <?php echo htmlspecialchars(t('asset-management.help.nav_dashboard')); ?>
             </a>
-            <a href="#tips" class="help-nav-link" data-section="tips">
+            <a href="#who-holds-what" class="help-nav-link" data-section="who-holds-what">
                 <span class="help-nav-num">9</span>
+                <?php echo htmlspecialchars(t('asset-management.help.nav_users')); ?>
+            </a>
+            <a href="#tips" class="help-nav-link" data-section="tips">
+                <span class="help-nav-num">10</span>
                 <?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?>
             </a>
         </div>
@@ -396,9 +400,41 @@ $translationNamespaces = ['common', 'asset-management'];
                 </div>
 
                 <!-- Section 9: Quick Tips -->
-                <div class="help-section" id="tips">
+                <!-- Section 9: Who holds what + the handover document (discussion #56) -->
+                <div class="help-section" id="who-holds-what">
                     <div class="help-section-header">
                         <span class="help-section-num">9</span>
+                        <h3><?php echo htmlspecialchars(t('asset-management.help.users_heading')); ?></h3>
+                    </div>
+                    <p><?php echo htmlspecialchars(t('asset-management.help.users_intro')); ?></p>
+
+                    <div class="help-steps">
+                        <div class="help-step">
+                            <div class="help-step-num">1</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('asset-management.help.users_step1_strong')); ?></strong> <?php echo t('asset-management.help.users_step1_text'); ?>
+                            </div>
+                        </div>
+                        <div class="help-step">
+                            <div class="help-step-num">2</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('asset-management.help.users_step2_strong')); ?></strong> <?php echo t('asset-management.help.users_step2_text'); ?>
+                            </div>
+                        </div>
+                        <div class="help-step">
+                            <div class="help-step-num">3</div>
+                            <div>
+                                <strong><?php echo htmlspecialchars(t('asset-management.help.users_step3_strong')); ?></strong> <?php echo t('asset-management.help.users_step3_text'); ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="help-note"><?php echo htmlspecialchars(t('asset-management.help.users_tip')); ?></p>
+                </div>
+
+                <div class="help-section" id="tips">
+                    <div class="help-section-header">
+                        <span class="help-section-num">10</span>
                         <h3><?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?></h3>
                     </div>
                     <div class="help-cards">
