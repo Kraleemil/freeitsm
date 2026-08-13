@@ -21,18 +21,48 @@
     Optional path to save the JSON output to a file instead of (or in addition to)
     posting to the API.
 
+.PARAMETER CertificateThumbprint
+    The SHA-1 fingerprint of the certificate the server is expected to present.
+    The inventory is only sent if the server presents exactly that certificate.
+
+    Use this when FreeITSM is served over an internal name with a self-signed
+    certificate: it works without installing anything, and unlike
+    -SkipCertificateCheck it still refuses an impostor server.
+
+    Read it off the server with:
+        Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, Thumbprint
+    or from a browser's certificate details.
+
+.PARAMETER SkipCertificateCheck
+    Accept the server's HTTPS certificate without validating it at all.
+
+    Lab use only. It disables the protection against an impostor server, and
+    since the API key travels in a request header, anyone able to intercept the
+    connection can read it. Prefer -CertificateThumbprint, or install the
+    issuing CA into the machine's Trusted Root store.
+
 .EXAMPLE
     .\Invoke-AssetInventory.ps1 -ApiUrl "https://itsm.yourcompany.com" -ApiKey "abc123"
 
 .EXAMPLE
     .\Invoke-AssetInventory.ps1 -OutputFile "C:\Temp\asset.json"
+
+.EXAMPLE
+    # Internal server with a self-signed certificate - pinned, safe for production
+    .\Invoke-AssetInventory.ps1 -ApiUrl "https://freeitsm.internal" -ApiKey "abc123" -CertificateThumbprint "A1B2C3D4E5F60718293A4B5C6D7E8F9012345678"
+
+.EXAMPLE
+    # Same, but accepting any certificate - lab use only
+    .\Invoke-AssetInventory.ps1 -ApiUrl "https://freeitsm.internal" -ApiKey "abc123" -SkipCertificateCheck
 #>
 
 [CmdletBinding()]
 param(
     [string]$ApiUrl,
     [string]$ApiKey,
-    [string]$OutputFile
+    [string]$OutputFile,
+    [string]$CertificateThumbprint,
+    [switch]$SkipCertificateCheck
 )
 
 # Require at least one output destination
@@ -46,8 +76,32 @@ if (-not $ApiUrl -and -not $OutputFile) {
     Write-Host "  .\Invoke-AssetInventory.ps1 -OutputFile `"C:\Temp\asset.json`""
     Write-Host "  .\Invoke-AssetInventory.ps1 -ApiUrl `"https://itsm.yourcompany.com`" -ApiKey `"your-key`" -OutputFile `"C:\Temp\asset.json`""
     Write-Host ""
+    Write-Host ""
+    Write-Host "If your FreeITSM uses a self-signed certificate, add either:" -ForegroundColor Yellow
+    Write-Host "  -CertificateThumbprint `"A1B2...`"   accept only that certificate (recommended)"
+    Write-Host "  -SkipCertificateCheck              accept any certificate (lab use only)"
+    Write-Host ""
     Write-Host "Run as Administrator for full results (BitLocker, TPM)." -ForegroundColor Gray
     exit 1
+}
+
+# Validate the certificate arguments before collecting anything - inventory takes
+# the best part of a minute, and a typo in a thumbprint shouldn't cost that.
+# Accept it in any of the forms people copy it in: with spaces (certmgr), with
+# colons (openssl), or lower case.
+$pinnedThumbprint = $null
+if ($CertificateThumbprint) {
+    $pinnedThumbprint = ($CertificateThumbprint -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
+    if ($pinnedThumbprint.Length -ne 40) {
+        Write-Host "Error: -CertificateThumbprint should be a 40-character SHA-1 fingerprint." -ForegroundColor Red
+        Write-Host "  Got $($pinnedThumbprint.Length) usable characters from '$CertificateThumbprint'." -ForegroundColor Red
+        exit 1
+    }
+}
+
+if ($pinnedThumbprint -and $SkipCertificateCheck) {
+    Write-Host "Note: -CertificateThumbprint given, so -SkipCertificateCheck is ignored." -ForegroundColor Yellow
+    $SkipCertificateCheck = $false
 }
 
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -315,40 +369,161 @@ if ($ApiUrl) {
     $headers = @{ 'Content-Type' = 'application/json'; 'Authorization' = '' }
     if ($ApiKey) { $headers['Authorization'] = $ApiKey }
 
+    # ─── TLS negotiation ─────────────────────────────────────────────────────────
+    # Windows PowerShell 5.1 (.NET Framework) leaves SecurityProtocol at
+    # "SystemDefault", which on older builds still offers TLS 1.0 and gets refused
+    # by a hardened server, so ask for 1.2 explicitly there.
+    #
+    # PowerShell 7 (.NET Core) is deliberately left alone: it negotiates the best
+    # protocol the OS supports, including TLS 1.3, and pinning it here would be a
+    # downgrade. Note .NET Framework's Tls13 enum value is not reliably supported
+    # by SCHANNEL, so it is not set even where the enum exists.
+    if ($PSVersionTable.PSVersion.Major -lt 6) {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    }
+
+    # ─── Certificate validation ──────────────────────────────────────────────────
+    # Three modes, in descending order of safety:
+    #
+    #   default                  - normal validation against the machine's trust store
+    #   -CertificateThumbprint   - accept only the one certificate with that fingerprint
+    #   -SkipCertificateCheck    - accept anything (lab use only)
+    #
+    # PowerShell 7 has a per-request -SkipCertificateCheck switch. 5.1 does not, so
+    # there the only lever is the process-wide validation callback - saved here and
+    # restored in the finally block so we don't leave the session trusting anything.
+    $restoreCallback   = $false
+    $originalCallback  = $null
+    $requestArgs       = @{}
+    $isCoreEdition     = $PSVersionTable.PSVersion.Major -ge 6
+
+    if ($pinnedThumbprint) {
+        Write-Host ""
+        Write-Host "Pinned to certificate $pinnedThumbprint" -ForegroundColor Cyan
+
+        if ($isCoreEdition) {
+            # .NET Core ignores ServicePointManager, and Invoke-RestMethod exposes no
+            # per-request validation callback, so verify the certificate ourselves in
+            # a preflight handshake and only then skip the built-in check.
+            $uri = [Uri]$url
+            try {
+                $tcp = New-Object System.Net.Sockets.TcpClient($uri.Host, $uri.Port)
+                $ssl = New-Object System.Net.Security.SslStream($tcp.GetStream(), $false, { $true })
+                $ssl.AuthenticateAsClient($uri.Host)
+                $presented = (New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($ssl.RemoteCertificate)).Thumbprint.ToUpperInvariant()
+                $ssl.Dispose(); $tcp.Close()
+            } catch {
+                Write-Host "Error: could not read the server's certificate: $_" -ForegroundColor Red
+                exit 1
+            }
+
+            if ($presented -ne $pinnedThumbprint) {
+                Write-Host "Error: certificate mismatch - refusing to send." -ForegroundColor Red
+                Write-Host "  expected: $pinnedThumbprint" -ForegroundColor Red
+                Write-Host "  server:   $presented" -ForegroundColor Red
+                exit 1
+            }
+            $requestArgs['SkipCertificateCheck'] = $true
+        } else {
+            # .NET Framework: the callback runs for the real connection, so the
+            # comparison happens on the certificate actually being negotiated.
+            $originalCallback = [Net.ServicePointManager]::ServerCertificateValidationCallback
+            [Net.ServicePointManager]::ServerCertificateValidationCallback = {
+                param($sender, $certificate, $chain, $sslPolicyErrors)
+                $presented = [System.Security.Cryptography.X509Certificates.X509Certificate2]$certificate
+                $presented.Thumbprint.ToUpperInvariant() -eq $pinnedThumbprint
+            }.GetNewClosure()
+            $restoreCallback = $true
+        }
+    }
+    elseif ($SkipCertificateCheck) {
+        Write-Host ""
+        Write-Host "WARNING: certificate validation is disabled for this run." -ForegroundColor Yellow
+        Write-Host "  Anyone able to intercept this connection can read the API key." -ForegroundColor Yellow
+        Write-Host "  Use -CertificateThumbprint instead outside a lab." -ForegroundColor Yellow
+
+        if ($isCoreEdition) {
+            $requestArgs['SkipCertificateCheck'] = $true
+        } else {
+            $originalCallback = [Net.ServicePointManager]::ServerCertificateValidationCallback
+            [Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+            $restoreCallback = $true
+        }
+    }
+
     Write-Host ""
     Write-Host "Posting to $url ..." -ForegroundColor Cyan
 
+    $postFailed = $false
+
     try {
-        $response = Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($json)) -ContentType 'application/json; charset=utf-8'
-        Write-Host "Success!" -ForegroundColor Green
-        Write-Host ($response | ConvertTo-Json -Compress) -ForegroundColor Gray
-    } catch {
-        Write-Host "Error posting to API: $_" -ForegroundColor Red
-        if ($_.Exception.Response) {
-            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-            Write-Host "Response: $($reader.ReadToEnd())" -ForegroundColor Red
-        }
-        exit 1
-    }
-
-    # Post device manager data separately
-    if ($devices.Count -gt 0) {
-        $dmUrl = "$($ApiUrl.TrimEnd('/'))/api/external/device-manager/submit/"
-        $dmPayload = [ordered]@{
-            hostname = $env:COMPUTERNAME
-            devices  = $devices
-        }
-        $dmJson = $dmPayload | ConvertTo-Json -Depth 5 -Compress:$false
-
-        Write-Host ""
-        Write-Host "Posting device manager data to $dmUrl ..." -ForegroundColor Cyan
         try {
-            $dmResponse = Invoke-RestMethod -Uri $dmUrl -Method POST -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($dmJson)) -ContentType 'application/json; charset=utf-8'
-            Write-Host "  Devices synced: $($dmResponse.devices_synced)" -ForegroundColor Green
+            $response = Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($json)) -ContentType 'application/json; charset=utf-8' @requestArgs
+            Write-Host "Success!" -ForegroundColor Green
+            Write-Host ($response | ConvertTo-Json -Compress) -ForegroundColor Gray
         } catch {
-            Write-Host "  Warning: Device manager POST failed: $_" -ForegroundColor Yellow
+            Write-Host "Error posting to API: $_" -ForegroundColor Red
+
+            # A rejected certificate is the most common failure against an internal
+            # FreeITSM, and the raw .NET message doesn't say what to do about it.
+            $trustError = ($_.Exception.Message -match 'trust relationship|SSL/TLS|SSL connection could not be established') -or
+                          ($_.Exception.InnerException -and $_.Exception.InnerException.Message -match 'certificate')
+
+            if ($trustError -and -not $SkipCertificateCheck -and -not $pinnedThumbprint) {
+                Write-Host ""
+                Write-Host "This machine does not trust the HTTPS certificate presented by $ApiUrl." -ForegroundColor Yellow
+                Write-Host "That is normal for a FreeITSM served over an internal name with a" -ForegroundColor Yellow
+                Write-Host "self-signed certificate, or one from a private CA." -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "Pick one of these, best first:" -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "  1. Install the issuing CA certificate into this machine's Trusted Root" -ForegroundColor Yellow
+                Write-Host "     store - by Group Policy if you have a domain. Nothing to change here." -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "  2. Pin the server's certificate, if there is no internal CA:" -ForegroundColor Yellow
+                Write-Host "     .\Invoke-AssetInventory.ps1 -ApiUrl `"$ApiUrl`" -ApiKey `"your-key`" -CertificateThumbprint `"<thumbprint>`"" -ForegroundColor Gray
+                Write-Host ""
+                Write-Host "  3. Skip the check entirely - lab use only, exposes the API key:" -ForegroundColor Yellow
+                Write-Host "     .\Invoke-AssetInventory.ps1 -ApiUrl `"$ApiUrl`" -ApiKey `"your-key`" -SkipCertificateCheck" -ForegroundColor Gray
+            }
+            elseif ($trustError -and $pinnedThumbprint) {
+                Write-Host ""
+                Write-Host "The server did not present the pinned certificate $pinnedThumbprint." -ForegroundColor Yellow
+                Write-Host "Check the thumbprint, or whether the server's certificate has been renewed." -ForegroundColor Yellow
+            }
+
+            if ($_.Exception.Response) {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                Write-Host "Response: $($reader.ReadToEnd())" -ForegroundColor Red
+            }
+            $postFailed = $true
+        }
+
+        # Post device manager data separately
+        if (-not $postFailed -and $devices.Count -gt 0) {
+            $dmUrl = "$($ApiUrl.TrimEnd('/'))/api/external/device-manager/submit/"
+            $dmPayload = [ordered]@{
+                hostname = $env:COMPUTERNAME
+                devices  = $devices
+            }
+            $dmJson = $dmPayload | ConvertTo-Json -Depth 5 -Compress:$false
+
+            Write-Host ""
+            Write-Host "Posting device manager data to $dmUrl ..." -ForegroundColor Cyan
+            try {
+                $dmResponse = Invoke-RestMethod -Uri $dmUrl -Method POST -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($dmJson)) -ContentType 'application/json; charset=utf-8' @requestArgs
+                Write-Host "  Devices synced: $($dmResponse.devices_synced)" -ForegroundColor Green
+            } catch {
+                Write-Host "  Warning: Device manager POST failed: $_" -ForegroundColor Yellow
+            }
+        }
+    } finally {
+        if ($restoreCallback) {
+            [Net.ServicePointManager]::ServerCertificateValidationCallback = $originalCallback
         }
     }
+
+    if ($postFailed) { exit 1 }
 }
 
 Write-Host ""

@@ -212,6 +212,33 @@ $translationNamespaces = ['common', 'asset-management'];
                         .\Invoke-AssetInventory.ps1 <span class="flag">-ApiUrl</span> <span class="string">"https://itsm.yourcompany.com"</span> <span class="flag">-ApiKey</span> <span class="string">"your-api-key"</span> <span class="flag">-OutputFile</span> <span class="string">"C:\Temp\asset.json"</span>
                     </div>
 
+                    <h4>If FreeITSM uses a self-signed certificate</h4>
+
+                    <p>On an internal address such as <strong>https://freeitsm.internal</strong>, the certificate is often self-signed or issued by a private CA. Machines that do not trust that certificate cannot post their inventory, and the script stops with <em>&ldquo;Could not establish trust relationship for the SSL/TLS secure channel&rdquo;</em>.</p>
+
+                    <p>There are three ways through, best first:</p>
+
+                    <ol>
+                        <li><strong>Install the issuing CA certificate</strong> into the Trusted Root store on the machines running the script &mdash; by Group Policy if you have a domain. Nothing about the script changes, and every other tool on those machines benefits too. In a domain with an internal PKI this is usually already the case.</li>
+                        <li><strong>Pin the certificate</strong> with <strong>-CertificateThumbprint</strong>, if there is no internal CA to install. The inventory is sent only if the server presents exactly that certificate, so an impostor server is still refused. This is safe to use in production.</li>
+                        <li><strong>Skip the check</strong> with <strong>-SkipCertificateCheck</strong>. This accepts <em>any</em> certificate, so anyone able to intercept the connection can read the API key and the inventory. Use it to get going in a lab, not as a permanent setting.</li>
+                    </ol>
+
+                    <div class="help-code">
+                        <span class="comment"># Pin the server's certificate &mdash; recommended for internal addresses</span><br>
+                        .\Invoke-AssetInventory.ps1 <span class="flag">-ApiUrl</span> <span class="string">"https://freeitsm.internal"</span> <span class="flag">-ApiKey</span> <span class="string">"your-api-key"</span> <span class="flag">-CertificateThumbprint</span> <span class="string">"A1B2C3D4E5F60718293A4B5C6D7E8F9012345678"</span><br><br>
+                        <span class="comment"># Accept any certificate &mdash; lab use only</span><br>
+                        .\Invoke-AssetInventory.ps1 <span class="flag">-ApiUrl</span> <span class="string">"https://freeitsm.internal"</span> <span class="flag">-ApiKey</span> <span class="string">"your-api-key"</span> <span class="flag">-SkipCertificateCheck</span>
+                    </div>
+
+                    <p>To read the thumbprint, run this <em>on the FreeITSM server</em> and copy the value for your site's certificate. Spaces, colons and lower case are all accepted, so you can paste it straight from <strong>certmgr</strong> or from your browser's certificate details.</p>
+
+                    <div class="help-code">
+                        Get-ChildItem Cert:\LocalMachine\My | Format-List Subject, Thumbprint
+                    </div>
+
+                    <p class="help-note">A thumbprint is not a secret &mdash; it is a fingerprint of the certificate the server already shows to everyone who connects. The API key is the secret, which is exactly why it should not travel over a connection nobody is checking.</p>
+
                     <div class="help-flow">
                         <div class="help-flow-step">PowerShell script</div>
                         <div class="help-flow-arrow">&rarr;</div>
@@ -325,6 +352,12 @@ $translationNamespaces = ['common', 'asset-management'];
                             <div class="help-step-num">5</div>
                             <div>
                                 <strong>Run as SYSTEM</strong> &mdash; for full data (TPM, BitLocker), run the scheduled task as <strong>NT AUTHORITY\SYSTEM</strong> with highest privileges. Otherwise, standard user works for the core inventory.
+                            </div>
+                        </div>
+                        <div class="help-step">
+                            <div class="help-step-num">6</div>
+                            <div>
+                                <strong>Check the certificate is trusted</strong> &mdash; if FreeITSM is on an internal address with a self-signed certificate, add <strong>-CertificateThumbprint</strong> to the arguments, or install the issuing CA by Group Policy. Without one of the two, every machine will fail at the same point and nothing will appear in the asset list. Prove it on one machine before rolling the task out.
                             </div>
                         </div>
                     </div>
