@@ -17,7 +17,8 @@
  *     a finding in the August 2026 security review.
  *
  * Those formats are tier 2: one external extractor, in a container, reached over
- * HTTP. Until an install has one they are recorded as `unsupported`, which is
+ * HTTP — see includes/search/tika.php. Until an install configures one they are
+ * recorded as `unsupported`, which is
  * the honest answer rather than silence.
  *
  * WHAT IT DOES HANDLE, AND WHY IT NEEDS NOTHING
@@ -39,6 +40,8 @@ const ATT_TEXT_TRUNCATED   = 'truncated';
 const ATT_TEXT_TOO_LARGE   = 'too_large';
 const ATT_TEXT_UNSUPPORTED = 'unsupported';
 const ATT_TEXT_FAILED      = 'failed';
+/** Queued for an extractor that is configured but was not reachable. RETRIED. */
+const ATT_TEXT_PENDING     = 'pending';
 
 /** Files bigger than this are never opened. */
 const ATT_TEXT_MAX_FILE_BYTES = 20971520;   // 20 MB

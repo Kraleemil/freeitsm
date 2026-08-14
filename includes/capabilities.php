@@ -196,6 +196,7 @@ final class Cap
     const TICKETS_PRIVACY         = 'tickets.privacy';          // what requesters see of their own ticket
     const TICKETS_REPLY_CLEANUP   = 'tickets.reply_cleanup';    // AI provider + API key
     const TICKETS_CSAT            = 'tickets.csat';
+    const TICKETS_INDEXING        = 'tickets.indexing';         // how attachment text gets read
 }
 
 /**

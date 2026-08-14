@@ -585,6 +585,7 @@ return [
             'email_templates' => 'Templates',
             'reply_templates' => 'Reply templates',
             'merge_behaviour' => 'Merge behaviour',
+            'indexing'        => 'Indexing',
             'rota'            => 'Rota',
             'analysts'        => 'Analysts',
             'general'         => 'General',
@@ -608,6 +609,7 @@ return [
             'email_templates'  => 'Email templates',
             'reply_templates'  => 'Shared reply templates',
             'merge_behaviour'  => 'Merge behaviour',
+            'indexing'         => 'Attachment indexing',
             'rota_shifts'      => 'Rota shifts',
             'rota_settings'    => 'Rota settings',
             'analysts'         => 'Analysts',
@@ -1034,6 +1036,16 @@ return [
             'saved'                => 'Merge behaviour saved',
         ],
 
+        // Attachment indexing (discussion #53, tier 2)
+        'indexing' => [
+            'cron_label'          => 'Read documents on a schedule',
+            'cron_help'           => 'A scheduled task works through waiting documents in the background. This is the right answer for a busy service desk, and needs the scheduled task to be set up on your server. Without it, nothing is lost &mdash; documents are read by the option below instead, just more slowly.',
+            'opportunistic_label' => 'Read a few whenever FreeITSM is being used',
+            'opportunistic_help'  => 'Takes a small number of waiting documents while somebody is already working in FreeITSM. This means attachment searching works out of the box on an installation with no scheduled tasks. It is deliberately a handful at a time, so nobody waits.',
+            'where_service'       => 'Neither switch does anything until a document-reading service is set up under <strong>System &rarr; Integrations &rarr; Apache Tika</strong>. Word, Excel, PowerPoint and text files are read immediately either way and are unaffected by any of this.',
+            'saved'               => 'Indexing settings saved',
+        ],
+
         'reply_templates_empty'   => 'No shared reply templates yet',
         'reply_template_saved'    => 'Template saved',
         'reply_template_deleted'  => 'Template deleted',
@@ -1061,6 +1073,7 @@ return [
             'ticket_origins'  => 'Ticket origins record how a ticket came in (e.g. Email, Phone, Portal) — define the origins analysts can choose from.',
             'mailboxes'       => 'Mailboxes connect FreeITSM to email accounts so incoming messages become tickets and replies go back out — add and authenticate the ones your service desk monitors.',
             'privacy'         => 'A ticket does not only hold your conversation with the person who raised it. Forwarding to a supplier, or copying in a colleague, puts that message on the same ticket — and their reply lands there too. This decides how much of that the requester sees in the self-service portal.',
+            'indexing' => 'The text inside attachments is read so it can be searched. Word, Excel, PowerPoint and plain text files are read by FreeITSM itself, the moment they arrive. PDFs, older Office files and scanned documents need a separate document-reading service — set that up under <strong>System &rarr; Integrations &rarr; Apache Tika</strong> — and because those take much longer, they are read in the background. These two switches decide when that background work happens.',
             'merge_behaviour' => 'When two tickets turn out to be the same thing, an analyst can merge them. These settings decide what that does to the ticket references your requesters are holding, and what happens to the conversations. They apply to everyone — a merge changes what the customer sees, so two analysts on the same mailbox must not be able to disagree about it.',
             'reply_templates' => 'Canned responses your analysts can drop into a reply instead of retyping them. These are the shared ones the whole team sees — an analyst\'s own private templates are saved from the reply window and are not listed here.',
             'rota_shifts'     => 'Shifts are the working-pattern templates (e.g. Early, Late, On-call) that analysts are assigned on the staff rota — define them here before building the rota.',

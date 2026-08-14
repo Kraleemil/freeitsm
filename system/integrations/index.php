@@ -62,6 +62,15 @@ foreach ($providers as $pk => $pmeta) {
         // which the card renders as "Not set up".
     }
 }
+
+// An extractor has no "connections" to count — there is one endpoint and it is
+// either pointed somewhere or it is not.
+require_once dirname(__DIR__, 2) . '/includes/search/tika.php';
+foreach ($providers as $pk => $pmeta) {
+    if (($pmeta['kind'] ?? 'tracker') !== 'extractor') continue;
+    try { $counts[$pk] = tikaConfigured($conn) ? 1 : 0; }
+    catch (Exception $e) { $counts[$pk] = 0; }
+}
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
@@ -138,9 +147,17 @@ foreach ($providers as $pk => $pmeta) {
                     <p><?php echo htmlspecialchars(t($meta['blurb'])); ?></p>
                     <span class="provider-count <?php echo $n === 0 ? 'is-none' : ''; ?>">
                         <?php
-                        echo htmlspecialchars($n === 1
-                            ? t('system.integrations.one_connection')
-                            : str_replace('{n}', (string)$n, t('system.integrations.n_connections')));
+                        // "3 connections" is the tracker/messaging shape. An
+                        // extractor is one endpoint, so it reads as a state.
+                        if (($meta['kind'] ?? 'tracker') === 'extractor') {
+                            echo htmlspecialchars($n > 0
+                                ? t('system.integrations.configured')
+                                : t('system.integrations.not_configured'));
+                        } else {
+                            echo htmlspecialchars($n === 1
+                                ? t('system.integrations.one_connection')
+                                : str_replace('{n}', (string)$n, t('system.integrations.n_connections')));
+                        }
                         ?>
                     </span>
                 </a>

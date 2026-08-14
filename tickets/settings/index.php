@@ -965,6 +965,39 @@ $translationNamespaces = ['common', 'tickets'];
         <!-- Merge Behaviour Tab -->
         <?php endif; ?>
 
+        <?php if (settingsTabVisible($visibleTabs, 'indexing')): ?>
+        <div class="tab-content<?php echo $activeTabId === 'indexing' ? ' active' : ''; ?>" id="indexing-tab" data-capability="<?php echo Cap::TICKETS_INDEXING; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('tickets.settings.headings.indexing')); ?></h2>
+            </div>
+            <p style="margin-bottom: 20px; color: var(--text-muted, #666);"><?php echo t('tickets.settings.intros.indexing'); ?></p>
+            <form id="indexingForm" style="max-width: 820px;">
+
+                <div class="form-group">
+                    <label style="display:block;font-weight:400;">
+                        <input type="checkbox" id="extractCron">
+                        <strong><?php echo htmlspecialchars(t('tickets.settings.indexing.cron_label')); ?></strong>
+                        <small style="display:block;margin-left:22px;color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.indexing.cron_help')); ?></small>
+                    </label>
+
+                    <label style="display:block;margin-top:16px;font-weight:400;">
+                        <input type="checkbox" id="extractOpportunistic">
+                        <strong><?php echo htmlspecialchars(t('tickets.settings.indexing.opportunistic_label')); ?></strong>
+                        <small style="display:block;margin-left:22px;color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.indexing.opportunistic_help')); ?></small>
+                    </label>
+                </div>
+
+                <p style="margin-top:22px;color: var(--text-muted, #666);font-size:13px;">
+                    <?php echo t('tickets.settings.indexing.where_service'); ?>
+                </p>
+
+                <div class="form-actions" style="margin-top:18px;">
+                    <button type="submit" class="btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                </div>
+            </form>
+        </div>
+        <?php endif; ?>
+
         <?php if (settingsTabVisible($visibleTabs, 'merge-behaviour')): ?>
         <div class="tab-content<?php echo $activeTabId === 'merge-behaviour' ? ' active' : ''; ?>" id="merge-behaviour-tab" data-capability="<?php echo Cap::TICKETS_MERGE; ?>">
             <div class="section-header">
@@ -4684,6 +4717,47 @@ $translationNamespaces = ['common', 'tickets'];
             } catch (e) {
                 console.error('Error loading merge settings:', e);
             }
+        }
+
+        // ── Attachment indexing (discussion #53) ────────────────────────────
+        // Both switches default ON when the setting has never been written, so a
+        // fresh install reads attachments without anyone turning anything on.
+        async function loadIndexingSettings() {
+            const cronEl = document.getElementById('extractCron');
+            if (!cronEl) return;
+            try {
+                // get_system_settings.php returns the whole set; there is no key
+                // filter, so don't pass one and imply there is.
+                const d = await (await fetch(API_SETTINGS + 'get_system_settings.php')).json();
+                const s = (d && d.settings) || {};
+                cronEl.checked = s.attachment_extract_cron !== '0';
+                document.getElementById('extractOpportunistic').checked = s.attachment_extract_opportunistic !== '0';
+            } catch (e) {
+                cronEl.checked = true;
+                document.getElementById('extractOpportunistic').checked = true;
+            }
+        }
+        loadIndexingSettings();
+
+        const indexingForm = document.getElementById('indexingForm');
+        if (indexingForm) {
+            indexingForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                try {
+                    const response = await fetch(API_SETTINGS + 'save_system_settings.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ settings: {
+                            attachment_extract_cron:          document.getElementById('extractCron').checked ? '1' : '0',
+                            attachment_extract_opportunistic: document.getElementById('extractOpportunistic').checked ? '1' : '0'
+                        } })
+                    });
+                    const data = await response.json();
+                    showToast(data.success ? t('tickets.settings.indexing.saved') : ('Error: ' + data.error), data.success ? 'success' : 'error');
+                } catch (err) {
+                    showToast('Failed to save settings', 'error');
+                }
+            });
         }
 
         const mergeForm = document.getElementById('mergeBehaviourForm');

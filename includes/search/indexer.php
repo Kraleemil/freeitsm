@@ -152,6 +152,7 @@ function searchIndexTicket(PDO $conn, int $ticketId, int $maxBody = SEARCH_INDEX
 function searchIndexTicketAttachments(PDO $conn, int $ticketId, ?int $tenantId, string $scope, int $maxBody): int
 {
     require_once __DIR__ . '/extract.php';
+    require_once __DIR__ . '/tika.php';   // tier 2, when an extractor is configured
 
     // Inline images (the cid: ones in an HTML signature) are skipped: they are
     // never documents, and a signature logo on every reply would otherwise be
@@ -178,9 +179,31 @@ function searchIndexTicketAttachments(PDO $conn, int $ticketId, ?int $tenantId, 
         $status = $r['text_status'];
         $text   = (string)($r['extracted_text'] ?? '');
 
-        if ($status === null) {
-            // Not extracted yet. Decide before opening anything.
-            if (!attTextSupports((string)$r['filename'])) {
+        // Two statuses are NOT final, and both must be revisited or the queue can
+        // never drain:
+        //
+        //   unsupported  the built-in tier could not read it — but an extraction
+        //                service may have been configured since
+        //   pending      it IS meant to be read; the service was unreachable at
+        //                the time, or it has only just been queued
+        //
+        // ⚠️ Leaving `pending` out of this list is exactly the bug that makes a
+        // queue look like it is working while clearing nothing: the drain
+        // reindexes the ticket, the ticket declines to reconsider the row, and
+        // the depth never moves.
+        $reconsider = in_array($status, [ATT_TEXT_UNSUPPORTED, ATT_TEXT_PENDING], true)
+                      && tikaConfigured($conn)
+                      && tikaHandles((string)$r['filename']);
+
+        if ($status === null || $reconsider) {
+            $filename  = (string)$r['filename'];
+            $builtIn   = attTextSupports($filename);                              // tier 1
+            $viaTika   = tikaConfigured($conn) && tikaHandles($filename);         // tier 2
+            $extractor = 'builtin';
+
+            if (!$builtIn && !$viaTika) {
+                // Nothing here can read it. Recorded honestly, and revisited on
+                // its own the moment an extraction service is configured.
                 $status = ATT_TEXT_UNSUPPORTED;
                 $text   = '';
             } else {
@@ -192,6 +215,9 @@ function searchIndexTicketAttachments(PDO $conn, int $ticketId, ?int $tenantId, 
                 // config.php and put it in a searchable table. realpath() both
                 // sides, because comparing a resolved path against an unresolved
                 // prefix fails on Windows.
+                //
+                // It matters twice over now: without it, tier 2 would happily
+                // POST the contents of that file to an external service.
                 $full     = $baseDir . '/' . $r['file_path'];
                 $realFile = realpath($full);
                 if ($realBase === false || $realFile === false
@@ -200,10 +226,37 @@ function searchIndexTicketAttachments(PDO $conn, int $ticketId, ?int $tenantId, 
                               . 'directory — attachment ' . $attId . ', stored path ' . (string)$r['file_path']);
                     $status = ATT_TEXT_FAILED;
                     $text   = '';
-                } else {
-                    $res    = attTextExtractFile($realFile, (string)$r['filename'], $maxBody);
+                } elseif ((int)$r['file_size'] > ATT_TEXT_MAX_FILE_BYTES) {
+                    // The size gate applies to BOTH tiers. There is no point
+                    // shipping 200 MB across the network to be told it is big.
+                    $status = ATT_TEXT_TOO_LARGE;
+                    $text   = '';
+                } elseif ($builtIn) {
+                    $res    = attTextExtractFile($realFile, $filename, $maxBody);
                     $status = $res['status'];
                     $text   = $res['text'];
+                } else {
+                    // ── Tier 2 ──────────────────────────────────────────────
+                    // ⚠️ The three outcomes are NOT interchangeable. `pending`
+                    // means "we still owe this file"; `failed` means "asked and
+                    // answered". Writing `failed` when the service is merely
+                    // down would blacklist every PDF that arrived during a
+                    // five-minute outage, permanently and silently.
+                    $res       = tikaExtract($conn, $realFile, $filename);
+                    $extractor = 'tika';
+                    if ($res['ok']) {
+                        $text   = $res['text'];
+                        $status = mb_strlen($text, 'UTF-8') > $maxBody ? ATT_TEXT_TRUNCATED : ATT_TEXT_EXTRACTED;
+                        if ($status === ATT_TEXT_TRUNCATED) $text = mb_substr($text, 0, $maxBody, 'UTF-8');
+                    } elseif ($res['retry']) {
+                        $status = ATT_TEXT_PENDING;
+                        $text   = '';
+                        error_log('[tika] deferring attachment ' . $attId . ': ' . $res['error']);
+                    } else {
+                        $status = ATT_TEXT_FAILED;
+                        $text   = '';
+                        error_log('[tika] could not read attachment ' . $attId . ': ' . $res['error']);
+                    }
                 }
             }
 
@@ -211,13 +264,13 @@ function searchIndexTicketAttachments(PDO $conn, int $ticketId, ?int $tenantId, 
                 $ins = $conn->prepare(
                     "INSERT INTO attachment_text
                        (attachment_id, status, extractor, extracted_text, chars, extracted_datetime)
-                     VALUES (?, ?, 'builtin', ?, ?, NOW())
+                     VALUES (?, ?, ?, ?, ?, NOW())
                      ON DUPLICATE KEY UPDATE
                        status = VALUES(status), extractor = VALUES(extractor),
                        extracted_text = VALUES(extracted_text), chars = VALUES(chars),
                        extracted_datetime = NOW()"
                 );
-                $ins->execute([$attId, $status, $text, mb_strlen($text, 'UTF-8')]);
+                $ins->execute([$attId, $status, $extractor, $text, mb_strlen($text, 'UTF-8')]);
             } catch (Exception $e) {
                 // No attachment_text table yet (Database Verification not run).
                 // Indexing the rest of the ticket still succeeded.

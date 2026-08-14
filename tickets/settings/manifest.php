@@ -148,6 +148,19 @@ return [
             'setting_keys' => ['merge_reference_mode', 'merge_originals_mode', 'merge_ai_summary'],
         ],
         [
+            // How the text inside attachments gets read (discussion #53). Only
+            // the two DRAINING switches live here — where the extraction service
+            // itself lives is System → Integrations → Apache Tika, because that
+            // is a connection to a third-party product rather than a ticket
+            // setting. Install-wide, not per-analyst: two analysts cannot
+            // usefully disagree about whether a queue is being worked.
+            'id'           => 'indexing',
+            'cap'          => Cap::TICKETS_INDEXING,
+            'label_key'    => 'tickets.settings.tabs.indexing',
+            'grant'        => 'Decide how the text inside attachments gets read for searching',
+            'setting_keys' => ['attachment_extract_cron', 'attachment_extract_opportunistic'],
+        ],
+        [
             'id'        => 'rota',
             'cap'       => Cap::TICKETS_ROTA,
             'label_key' => 'tickets.settings.tabs.rota',

@@ -21,6 +21,15 @@ header('Content-Type: application/json');
 try {
     $conn = connectToDatabase();
 
+    // Opportunistic draining (discussion #53). Somebody looking at the search
+    // index is the ideal moment to read a few waiting documents: they are
+    // already here, they care about this specific thing, and a second's delay on
+    // a page they opened deliberately is a fair trade for an install with no
+    // scheduled task. Silent, tiny, and switchable off in
+    // Tickets → Settings → Indexing.
+    require_once '../../includes/search/extract_queue.php';
+    extractQueueDrainOpportunistic($conn);
+
     // An install that has never run Database Verification has no corpus. That is
     // a normal state with a clear remedy, not an error — say which it is.
     if (!searchCorpusReady($conn)) {

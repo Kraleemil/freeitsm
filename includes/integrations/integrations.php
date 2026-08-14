@@ -135,6 +135,22 @@ function integrationsAvailableProviders(): array
         // Anything reading this registry must therefore check `kind` before
         // assuming a provider can be escalated to. `integrationsTrackerProviders()`
         // below is the safe list for that.
+        // Document text extraction (discussion #53, tier 2). Not a tracker and
+        // not a messaging channel: there is one endpoint, no credentials, and
+        // nothing is ever sent TO it except a file to read.
+        //
+        // It lives here rather than under System → Search because it is a named
+        // third-party product you point at with a URL, which is what this screen
+        // is for. The *search backend* selector is a different question and
+        // deliberately does not live here — see the wiki's Full-Text-Search §8.4.
+        'tika' => [
+            'key'         => 'tika',
+            'kind'        => 'extractor',
+            'name'        => 'Apache Tika',
+            'blurb'       => 'system.integrations.tika_blurb',
+            'page'        => 'tika.php',   // its own page; see provider.php
+            'credential_fields' => [],
+        ],
         'slack' => [
             'key'         => 'slack',
             'kind'        => 'messaging',
