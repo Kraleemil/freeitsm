@@ -60,6 +60,16 @@ function getSystemAreas() {
             'desc'     => 'system.landing.db_verify_desc',
             'keywords' => 'system.landing.db_verify_keywords',
         ],
+        // Next to Database Verification on purpose: the search index is created
+        // by it, and "I ran Verification, now what does search hold?" is the
+        // question this screen answers.
+        [
+            'icon'     => 'search',
+            'url'      => 'search/',
+            'title'    => 'system.landing.search_title',
+            'desc'     => 'system.landing.search_desc',
+            'keywords' => 'system.landing.search_keywords',
+        ],
         [
             'icon'     => 'colours',
             'url'      => 'colours/',
@@ -190,6 +200,7 @@ function systemAreaIcon($key) {
         'routing_test'=> '<rect x="2" y="4" width="20" height="16" rx="2"></rect><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>',
         'topology'    => '<rect x="9" y="3" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><path d="M12 8v4M6 16v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"></path>',
         'orphaned'    => '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+        'search'      => '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
     ];
     $inner = $icons[$key] ?? '<rect x="3" y="3" width="18" height="18" rx="2"></rect>';
     return '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' . $inner . '</svg>';

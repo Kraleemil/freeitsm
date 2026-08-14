@@ -34,7 +34,15 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
     $sinceId   = (int)($opts['since_ticket_id'] ?? 0);
     $limit     = (int)($opts['limit'] ?? 0);          // 0 = everything; used for a quick sample
     $started   = microtime(true);
-    $counts    = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'articles' => 0, 'skipped' => 0];
+    // Articles are a separate pass. A CHUNKED caller (the Search screen rebuilds
+    // in slices so a large install cannot hit max_execution_time) turns them off
+    // for every slice but the last, or every slice would redo all of them.
+    $doArticles = !isset($opts['articles']) || $opts['articles'];
+
+    // last_ticket_id is what makes the run resumable: the caller passes it back
+    // as since_ticket_id to continue where this one stopped.
+    $counts    = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'articles' => 0,
+                  'skipped' => 0, 'last_ticket_id' => $sinceId, 'tickets_remaining' => 0];
 
     if (!searchCorpusReady($conn)) {
         throw new RuntimeException('search_documents does not exist — run Database Verification first.');
@@ -70,6 +78,7 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
         $counts['emails']  += $one['emails'];
         $counts['notes']   += $one['notes'];
         $counts['skipped'] += $one['skipped'];
+        $counts['last_ticket_id'] = (int)$t['id'];
 
         if (++$done % $batch === 0) {
             $conn->commit();
@@ -85,6 +94,20 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
     // no ticket. Archived ones are skipped for the same reason trashed tickets
     // are: the command palette has always excluded them, so indexing them would
     // put results in one search that the rest of the product hides.
+    // How many tickets a resuming caller still has to go. Counted after the pass
+    // so a chunked rebuild can show honest progress and know when to stop.
+    try {
+        $rem = $conn->prepare("SELECT COUNT(*) FROM tickets
+                                WHERE deleted_datetime IS NULL AND id > ?");
+        $rem->execute([$counts['last_ticket_id']]);
+        $counts['tickets_remaining'] = (int)$rem->fetchColumn();
+    } catch (Exception $e) { $counts['tickets_remaining'] = 0; }
+
+    if (!$doArticles) {
+        $counts['seconds'] = round(microtime(true) - $started, 2);
+        return $counts;
+    }
+
     try {
         $aSel = $conn->query(
             "SELECT id FROM knowledge_articles
