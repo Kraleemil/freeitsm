@@ -244,6 +244,74 @@ try {
         } catch (Exception $e) { /* table not ready — no contract results */ }
     }
 
+    // --- Inside ticket content: messages and notes (discussion #53) ------
+    //
+    // Every source above matches a NAME or a REFERENCE. This one asks the search
+    // corpus, so the palette finds a phrase buried in the fourth reply of a
+    // two-year-old ticket — the thing discussion #53 asked for.
+    //
+    // ⚠️ DELIBERATELY LAST, and capped harder than the rest. The palette is a
+    // jump-to-a-thing tool: type a hostname, press Enter, you are there. Content
+    // hits are a different intent — find where something was SAID — and mixing
+    // them in would mean "LT-001" returns message snippets above the asset
+    // called LT-001. Appended last, so the client renders them in their own
+    // group below the name matches.
+    //
+    // It does NOT decide permissions itself: searchScopeForAnalyst builds the
+    // predicate and the search function applies it INSIDE the query, the same as
+    // api/tickets/search_content.php. Filtering here would starve the results.
+    if ($can('tickets')) {
+        try {
+            require_once '../../includes/search/search.php';
+
+            // Tickets already found by number or subject above. A content hit on
+            // the same ticket is not a second thing to jump to.
+            $already = [];
+            foreach ($results as $r) {
+                if (($r['type'] ?? '') === 'ticket') $already[(int)$r['id']] = true;
+            }
+
+            $scope = searchScopeForAnalyst($conn, $analystId, ['include_internal' => true]);
+            $res   = searchCorpusQuery($conn, $q, $scope, ['limit' => $perType + count($already)]);
+
+            if (!empty($res['ok']) && !empty($res['results'])) {
+                $ids = [];
+                foreach ($res['results'] as $g) {
+                    $tid = $g['ticket_id'] ?? null;
+                    if ($tid !== null && !isset($already[(int)$tid])) $ids[] = (int)$tid;
+                }
+                $ids = array_slice($ids, 0, $perType);
+
+                if ($ids) {
+                    // Read the display fields from `tickets`, not the corpus —
+                    // the corpus is a search index, not a second ticket list.
+                    $in = implode(',', array_fill(0, count($ids), '?'));
+                    $st = $conn->prepare(
+                        "SELECT id, ticket_number, subject FROM tickets
+                          WHERE id IN ($in) AND deleted_datetime IS NULL"
+                    );
+                    $st->execute($ids);
+                    $meta = [];
+                    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $meta[(int)$r['id']] = $r;
+
+                    // Keep the corpus's relevance order rather than the SQL's.
+                    foreach ($ids as $tid) {
+                        if (!isset($meta[$tid])) continue;
+                        $m = $meta[$tid];
+                        $results[] = [
+                            'type'     => 'ticket_content',
+                            'module'   => 'tickets',
+                            'id'       => $tid,
+                            'title'    => $m['subject'],
+                            'subtitle' => $m['ticket_number'],
+                            'url'      => 'tickets/?ticket_id=' . $tid,
+                        ];
+                    }
+                }
+            }
+        } catch (Exception $e) { /* corpus absent or not verified — no content results */ }
+    }
+
     echo json_encode(['success' => true, 'results' => $results]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

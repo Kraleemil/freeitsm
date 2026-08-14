@@ -36,9 +36,14 @@
         command: '<polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>',
         search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>'
     };
+    // A content hit is still a ticket, so it carries the ticket icon rather than
+    // a magnifying glass — the row's job is "here is a ticket", and the group
+    // heading above it already says it was found by its text.
+    ICONS.ticket_content = ICONS.ticket;
     var TYPE_LABEL = {
         ticket: 'Ticket', change: 'Change', problem: 'Problem',
-        knowledge: 'Article', contract: 'Contract', ci: 'Config item', asset: 'Asset'
+        knowledge: 'Article', contract: 'Contract', ci: 'Config item', asset: 'Asset',
+        ticket_content: 'Ticket'
     };
 
     // Static quick actions. Each has a matcher label and a run().
@@ -178,7 +183,12 @@
 
         if (serverResults && serverResults.length) {
             // Group the entity results by type, in a stable order.
-            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci'].forEach(function (type) {
+            // ⚠️ 'ticket_content' is LAST on purpose. Everything before it matched
+            // a name or a reference, which is what the palette is for — type a
+            // hostname, press Enter, you are there. A content hit is a different
+            // intent, and putting it any higher means "LT-001" shows message
+            // snippets above the asset actually called LT-001.
+            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci', 'ticket_content'].forEach(function (type) {
                 var group = serverResults.filter(function (r) { return r.type === type; });
                 if (!group.length) return;
                 html += '<div class="cmdp-group-label">' + esc(pluralType(type)) + '</div>';
@@ -217,7 +227,12 @@
         return {
             ticket: 'Tickets', change: 'Changes', problem: 'Problems',
             knowledge: 'Knowledge', contract: 'Contracts',
-            asset: 'Assets', ci: 'Configuration items'
+            asset: 'Assets', ci: 'Configuration items',
+            // Says WHERE the match was, not what the thing is — these are the
+            // same tickets as the group above, found by their text instead of
+            // their name, and the label is the only thing that explains why a
+            // ticket whose subject looks unrelated is in the list.
+            ticket_content: 'Found inside tickets'
         }[type] || type;
     }
 
