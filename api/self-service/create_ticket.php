@@ -236,6 +236,16 @@ try {
     // which is exactly what NULL means.
     claimPendingRecordings($conn, $recordingIds, (int)$ticketId, $userId, null);
 
+    // Announce it. Until now this path dispatched NOTHING, so a ticket raised in
+    // the portal was invisible to every workflow with a ticket.created trigger
+    // and to the notification bell. See includes/ticket_events.php.
+    //
+    // Deliberately AFTER the commit, for the same reason the recordings claim is:
+    // a ticket that rolled back must never have announced itself. It also matters
+    // to the search indexer downstream, which cannot see uncommitted rows.
+    require_once '../../includes/ticket_events.php';
+    ticketDispatchCreated($conn, (int)$ticketId, $userId, $fromEmail);
+
     echo json_encode([
         'success' => true,
         'ticket_id' => (int)$ticketId,

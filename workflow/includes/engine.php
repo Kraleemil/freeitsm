@@ -1180,6 +1180,20 @@ class WorkflowEngine
             error_log('[WorkflowEngine::dispatch] notifications: ' . $nEx->getMessage());
         }
 
+        // The search corpus subscribes here for the same reason (discussion #53).
+        // Before this, the ONLY thing that ever indexed a ticket was somebody
+        // remembering to run scripts/search_backfill.php by hand, so anything
+        // raised since the last run was silently unfindable.
+        //
+        // Its own try/catch, like the notifications above: an index that cannot
+        // be written must not cost somebody their ticket.
+        try {
+            require_once __DIR__ . '/../../includes/search/indexer.php';
+            searchIndexHandleEvent($event, $payload);
+        } catch (Throwable $sEx) {
+            error_log('[WorkflowEngine::dispatch] search index: ' . $sEx->getMessage());
+        }
+
         try {
             $conn = connectToDatabase();
             $stmt = $conn->prepare(

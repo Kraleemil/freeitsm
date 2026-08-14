@@ -202,26 +202,12 @@ class TicketsService
             throw $e;
         }
 
-        try {
-            $rb = $conn->prepare("SELECT status_id, priority_id FROM tickets WHERE id = ?");
-            $rb->execute([$ticketId]);
-            $row = $rb->fetch(PDO::FETCH_ASSOC) ?: [];
-            WorkflowEngine::dispatch('ticket.created', [
-                'ticket' => [
-                    'id'                  => $ticketId,
-                    'subject'             => $subject,
-                    'priority_id'         => isset($row['priority_id']) ? (int)$row['priority_id'] : null,
-                    'status_id'           => isset($row['status_id']) ? (int)$row['status_id'] : null,
-                    'department_id'       => $departmentId,
-                    'type_id'             => $typeId,
-                    'assigned_analyst_id' => $analystId,
-                    'created_by'          => $ctx->actorId,
-                    'requester_email'     => $requesterEmail,
-                ],
-            ]);
-        } catch (Exception $wfEx) {
-            error_log('Workflow dispatch error in TicketsService create: ' . $wfEx->getMessage());
-        }
+        // Announced through the shared helper, which is also what the portal and
+        // the mailbox ingest call. The payload is built there from the stored
+        // row so all three channels announce identically — see the header of
+        // includes/ticket_events.php for why that stopped being true.
+        require_once dirname(__DIR__) . '/ticket_events.php';
+        ticketDispatchCreated($conn, (int)$ticketId, $ctx->actorId, $requesterEmail);
 
         return $ticketId;
     }

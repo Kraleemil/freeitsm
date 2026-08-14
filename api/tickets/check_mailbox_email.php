@@ -1059,6 +1059,10 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
         ]);
 
         $ticketId = $conn->lastInsertId();
+        // Announced further down, once the opening message has been written —
+        // anything listening (the search indexer especially) wants the ticket
+        // and its first message to both exist.
+        $ticketWasCreatedHere = true;
     }
 
     // Insert email
@@ -1087,6 +1091,22 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
     //
     // Runs under the mailbox poll, which has no analyst session, so the actor is
     // nobody and the assignee is correctly told even though they own the ticket.
+    // A ticket that arrived by email now announces itself. It never did: this
+    // file writes its own INSERT and never went near TicketsService, so the
+    // comment above — "ticket.created already covers that one" — was describing
+    // an event that was not being fired for this channel at all. The reply event
+    // is suppressed for the opening message on the strength of it, so a new email
+    // ticket used to announce NOTHING, to workflows or to the notification bell.
+    //
+    // Placed here so the opening message row already exists: the search indexer
+    // reads the ticket and its messages together.
+    if (!empty($ticketWasCreatedHere) && $ticketId) {
+        require_once __DIR__ . '/../../includes/ticket_events.php';
+        // created_by is null on purpose — nobody signed in created this, it
+        // arrived. The requester's address is resolved from the linked user.
+        ticketDispatchCreated($conn, (int)$ticketId, null, $fromAddress);
+    }
+
     if ($isInitial != 1 && $ticketId) {
         try {
             require_once __DIR__ . '/../../workflow/includes/engine.php';

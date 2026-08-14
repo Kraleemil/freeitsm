@@ -22,6 +22,7 @@
  */
 
 require_once __DIR__ . '/corpus.php';
+require_once __DIR__ . '/indexer.php';   // the shared per-ticket document builder
 
 /**
  * @param callable|null $progress fn(string $stage, int $done, int $total): void
@@ -56,75 +57,19 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
     $sel->execute($args);
     $tickets = $sel->fetchAll(PDO::FETCH_ASSOC);
 
-    $emailSel = $conn->prepare("SELECT id, subject, body_content, body_type, received_datetime
-                                  FROM emails WHERE ticket_id = ?");
-    $noteSel  = $conn->prepare("SELECT id, note_text, is_internal, created_datetime
-                                  FROM ticket_notes WHERE ticket_id = ?");
-
     $done = 0;
     $conn->beginTransaction();
     foreach ($tickets as $t) {
-        $ticketId = (int)$t['id'];
-        // NULL here means "the default company" for a ticket — searchCorpusTicketScope
-        // records that as a scope rather than leaving NULL to be re-interpreted later.
-        [$tenantId, $scope] = searchCorpusTicketScope(
-            $t['tenant_id'] === null ? null : (int)$t['tenant_id']
-        );
-
-        // 1. the subject, as its own row — so "matched the subject" can be stated
-        //    to the user and weighted separately from body text
-        searchCorpusUpsert($conn, [
-            'source_type'     => SEARCH_SOURCE_TICKET,
-            'source_id'       => $ticketId,
-            'ticket_id'       => $ticketId,
-            'tenant_id'       => $tenantId,
-            'tenant_scope'    => $scope,
-            'is_internal'     => 0,
-            'title'           => (string)$t['subject'],
-            'body'            => '',
-            'source_datetime' => $t['created_datetime'],
-        ]);
-        $counts['tickets']++;
-
-        // 2. every message on the ticket
-        $emailSel->execute([$ticketId]);
-        foreach ($emailSel->fetchAll(PDO::FETCH_ASSOC) as $e) {
-            $body = searchCorpusPlainText((string)($e['body_content'] ?? ''), $maxBody);
-            if ($body === '' && (string)($e['subject'] ?? '') === '') { $counts['skipped']++; continue; }
-            searchCorpusUpsert($conn, [
-                'source_type'     => SEARCH_SOURCE_EMAIL,
-                'source_id'       => (int)$e['id'],
-                'ticket_id'       => $ticketId,
-                'tenant_id'       => $tenantId,
-                'tenant_scope'    => $scope,
-                'is_internal'     => 0,
-                'title'           => (string)($e['subject'] ?? ''),
-                'body'            => $body,
-                'source_datetime' => $e['received_datetime'],
-            ]);
-            $counts['emails']++;
-        }
-
-        // 3. every note. is_internal is carried as a FACT, so the search
-        //    predicate can exclude them rather than the caller filtering after.
-        $noteSel->execute([$ticketId]);
-        foreach ($noteSel->fetchAll(PDO::FETCH_ASSOC) as $n) {
-            $body = searchCorpusPlainText((string)$n['note_text'], $maxBody);
-            if ($body === '') { $counts['skipped']++; continue; }
-            searchCorpusUpsert($conn, [
-                'source_type'     => SEARCH_SOURCE_NOTE,
-                'source_id'       => (int)$n['id'],
-                'ticket_id'       => $ticketId,
-                'tenant_id'       => $tenantId,
-                'tenant_scope'    => $scope,
-                // NULL defaults to internal in ticket_notes, so treat it as internal.
-                'is_internal'     => ($n['is_internal'] === null ? 1 : (int)$n['is_internal']),
-                'title'           => '',
-                'body'            => $body,
-                'source_datetime' => $n['created_datetime'],
-            ]);
-            $counts['notes']++;
-        }
+        // ONE definition of what a ticket's corpus rows are, shared with the live
+        // indexer (includes/search/indexer.php). It used to be written out again
+        // here; if the two ever drifted, a search result would depend on whether
+        // a ticket happened to be indexed live or by a rebuild, which is close to
+        // undebuggable. The subject/message/note construction now lives there.
+        $one = searchIndexTicket($conn, (int)$t['id'], $maxBody);
+        $counts['tickets'] += $one['tickets'];
+        $counts['emails']  += $one['emails'];
+        $counts['notes']   += $one['notes'];
+        $counts['skipped'] += $one['skipped'];
 
         if (++$done % $batch === 0) {
             $conn->commit();
