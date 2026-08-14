@@ -69,9 +69,16 @@ const MERGE_MOVE_TABLES = [
     'tasks', 'form_submissions', 'webchat_conversations',
 ];
 
-/** Move tables where a duplicate row on the target must not be created. */
+/**
+ * Move tables where a duplicate row on the target must not be created.
+ *
+ * The value is the column that pairs with ticket_id to make a row unique, and it
+ * goes straight into the SQL below — so a wrong name here is not a mismatch, it is
+ * an "Unknown column" thrown into a catch that assumes the table is simply absent.
+ * The move then silently does not happen. Check the name against the schema.
+ */
 const MERGE_MOVE_DEDUPE = [
-    'ticket_cmdb_objects' => 'object_id',
+    'ticket_cmdb_objects' => 'cmdb_object_id',
     'problem_tickets'     => 'problem_id',
     'change_tickets'      => 'change_id',
 ];
