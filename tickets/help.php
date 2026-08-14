@@ -323,6 +323,16 @@ try {
                     <p class="help-note"><?php echo t('tickets.help.working.time_tip1'); ?></p>
 
                     <p class="help-note"><?php echo t('tickets.help.working.time_tip2'); ?></p>
+
+                    <h4>Linking the equipment a ticket is about</h4>
+
+                    <p>The <strong>Affected equipment</strong> section on a ticket records which device the problem concerns. Click <strong>+ Link equipment</strong> and the picker opens already showing whatever is assigned to the person who raised the ticket &mdash; for &ldquo;my monitor is flickering&rdquo;, that is almost always the answer, and it is one click.</p>
+
+                    <p>Start typing and it searches the whole estate instead. As well as hostname, make, model, serial number and asset tag, <strong>it searches the location</strong>. That matters more than it sounds: when somebody reports the screen in a meeting room, nobody involved knows its hostname &mdash; they know where it is. Searching &ldquo;meeting room 3&rdquo; finds it, provided your assets have locations set.</p>
+
+                    <p>Each linked item shows its asset tag, make and model, serial number, type and location on the ticket, so the device is identified without a round of questions. Click one to open it in Assets, or use the &times; to unlink.</p>
+
+                    <p class="help-note">Requesters can link equipment themselves when raising a ticket in the self-service portal, but only equipment assigned to <em>them</em>. Shared items &mdash; meeting room screens, printers, anything nobody holds &mdash; can only be attached by an analyst, so expect to add those yourself when a ticket describes one.</p>
                 </div>
 
                 <!-- Section 4: Working faster — templates, bulk actions, merge & split -->

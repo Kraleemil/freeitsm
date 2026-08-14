@@ -89,8 +89,12 @@ $translationNamespaces = ['common', 'asset-management'];
                 <span class="help-nav-num">9</span>
                 <?php echo htmlspecialchars(t('asset-management.help.nav_users')); ?>
             </a>
-            <a href="#tips" class="help-nav-link" data-section="tips">
+            <a href="#linked-tickets" class="help-nav-link" data-section="linked-tickets">
                 <span class="help-nav-num">10</span>
+                Tickets on an asset
+            </a>
+            <a href="#tips" class="help-nav-link" data-section="tips">
+                <span class="help-nav-num">11</span>
                 <?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?>
             </a>
         </div>
@@ -483,9 +487,23 @@ $translationNamespaces = ['common', 'asset-management'];
                     <p class="help-note"><?php echo htmlspecialchars(t('asset-management.help.users_tip')); ?></p>
                 </div>
 
-                <div class="help-section" id="tips">
+                <div class="help-section" id="linked-tickets">
                     <div class="help-section-header">
                         <span class="help-section-num">10</span>
+                        <h3>Tickets raised against an asset</h3>
+                    </div>
+                    <p>Every asset has a <strong>Tickets</strong> tab listing what has been reported against it &mdash; open tickets first, then everything that came before. Click any row to open the ticket.</p>
+
+                    <p>The value is in the history rather than the open list. A monitor that has been reported three times in a year is a monitor to replace, not repair, and that pattern is invisible if each report is only ever read on its own. It is also the quickest answer to &ldquo;has this happened before?&rdquo; when a user says the problem is back.</p>
+
+                    <p>A long history is capped at the twenty most recent closed tickets, with the true total shown alongside, so an asset that has been in service for years still opens quickly.</p>
+
+                    <p class="help-note">Tickets appear here once somebody links the asset to them &mdash; from the <strong>Affected equipment</strong> section on the ticket, or by the requester choosing their device when raising it in the self-service portal. Nothing is linked automatically, so this tab stays empty on assets nobody has attached to a ticket.</p>
+                </div>
+
+                <div class="help-section" id="tips">
+                    <div class="help-section-header">
+                        <span class="help-section-num">11</span>
                         <h3><?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?></h3>
                     </div>
                     <div class="help-cards">
