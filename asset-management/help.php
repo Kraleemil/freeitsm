@@ -342,7 +342,8 @@ $translationNamespaces = ['common', 'asset-management'];
                         <div class="help-step">
                             <div class="help-step-num">1</div>
                             <div>
-                                <strong>Get your API key</strong> &mdash; go to Admin &gt; API Keys and generate a key. This authenticates the script against FreeITSM.
+                                <strong>Get your API key</strong> &mdash; go to <strong>Software &rarr; Settings &rarr; API Keys</strong> and generate a key. This authenticates the script against FreeITSM.<br>
+                                <span class="help-note" style="display:block;margin-top:6px;">Yes, <strong>Software</strong>, not Assets. And <strong>not</strong> the keys under <strong>System &rarr; API</strong>, which are a different system entirely: those are for the REST API and begin <code>fitsm_</code>. The inventory script needs the Software one, which is 40 characters with no prefix. A key from the wrong page fails with <em>Invalid authorization key</em>.</span>
                             </div>
                         </div>
                         <div class="help-step">
@@ -517,7 +518,7 @@ $translationNamespaces = ['common', 'asset-management'];
                         </div>
                         <div class="help-card row">
                             <div class="help-card-icon">&#128274;</div>
-                            <div><strong>API keys</strong><br>API keys authenticate the PowerShell script. Generate them in Admin &gt; API Keys. You can deactivate a key at any time without deleting it.</div>
+                            <div><strong>API keys</strong><br>API keys authenticate the PowerShell script. Generate them in <strong>Software &rarr; Settings &rarr; API Keys</strong>, not System &rarr; API. You can deactivate a key at any time without deleting it.</div>
                         </div>
                         <div class="help-card row">
                             <div class="help-card-icon">&#128187;</div>
