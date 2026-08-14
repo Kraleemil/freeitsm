@@ -992,7 +992,11 @@ $translationNamespaces = ['common', 'tickets'];
                 </p>
 
                 <div class="form-actions" style="margin-top:18px;">
-                    <button type="submit" class="btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                    <?php /* `btn btn-primary`, both classes: .btn carries the padding,
+                             radius and weight, .btn-primary only the colours. On its own
+                             it renders a bare coloured rectangle. Every other button on
+                             this page uses the pair. */ ?>
+                    <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
                 </div>
             </form>
         </div>
