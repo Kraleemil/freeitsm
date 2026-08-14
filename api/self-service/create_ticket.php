@@ -105,6 +105,33 @@ try {
 
     $ticketId = $conn->lastInsertId();
 
+    // Equipment the user attached to the report (discussion #57).
+    //
+    // ⚠️ Re-checked here against users_assets rather than trusted from the
+    // request. The dropdown is scoped to the user's own kit, but a scoped list
+    // has never been a check — without this, any asset id posted by hand would
+    // be accepted, letting a portal user attach (and then read back the details
+    // of) equipment belonging to somebody else.
+    if (!empty($input['asset_ids']) && is_array($input['asset_ids'])) {
+        $assetIds = array_values(array_unique(array_filter(array_map('intval', $input['asset_ids']))));
+        if ($assetIds) {
+            $owns = $conn->prepare("SELECT 1 FROM users_assets WHERE user_id = ? AND asset_id = ?");
+            $link = $conn->prepare(
+                "INSERT INTO ticket_assets (ticket_id, asset_id, created_datetime, created_by_user_id)
+                 VALUES (?, ?, UTC_TIMESTAMP(), ?)"
+            );
+            foreach ($assetIds as $assetId) {
+                $owns->execute([$userId, $assetId]);
+                if (!$owns->fetchColumn()) continue;   // not theirs — silently ignored
+                try {
+                    $link->execute([$ticketId, $assetId, $userId]);
+                } catch (PDOException $pe) {
+                    if ($pe->errorInfo[1] != 1062) throw $pe;   // duplicate is fine
+                }
+            }
+        }
+    }
+
     // Create initial email entry
     $hasAttachments = !empty($inputAttachments) ? 1 : 0;
 

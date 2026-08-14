@@ -2226,6 +2226,7 @@ function displayEmail(email, recordings) {
             <div id="threadContainer">
                 ${emailBodyHost(email.body_content, 'email-body-content', email.body_type)}
             </div>
+            <div id="ticketAssetsContainer"></div>
             <div id="cmdbObjectsContainer"></div>
             <div id="slaContainer"></div>
             <div id="timeEntriesContainer"></div>
@@ -2241,6 +2242,7 @@ function displayEmail(email, recordings) {
     loadNotes(email.ticket_id);
     loadTicketAttachments(email.ticket_id);
     loadCmdbObjects(email.ticket_id);
+    loadTicketAssets(email.ticket_id);
     loadTimeEntries(email.ticket_id);
     loadSlaState(email.ticket_id);
 
@@ -3958,6 +3960,197 @@ async function removeCmdbObject(ev, linkId, ticketId) {
         if (!data.success) throw new Error(data.error || 'Unlink failed');
         showToast(t('tickets.cmdb.unlinked_toast'), 'success');
         await loadCmdbObjects(ticketId);
+    } catch (err) {
+        showToast('Error: ' + err.message, 'error');
+    }
+}
+
+// ─── Linked assets (discussion #57) ──────────────────────────────────────────
+// Deliberately the same shape as the CMDB section above, with one difference in
+// the picker: it opens showing the REQUESTER'S own equipment before a single
+// key is pressed, because "my monitor is flickering" is nearly always their own
+// monitor. Typing then searches the whole estate, because sometimes it is the
+// TV in a meeting room that nobody owns.
+let assetsForTicket = [];
+let assetAcTimer = null;
+let assetAcHighlightedIdx = -1;
+
+async function loadTicketAssets(ticketId) {
+    const container = document.getElementById('ticketAssetsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    try {
+        const res = await fetch('../api/tickets/get_ticket_assets.php?ticket_id=' + ticketId);
+        const data = await res.json();
+        if (!data.success) return;
+        assetsForTicket = data.links || [];
+        renderTicketAssets(ticketId);
+    } catch (e) { /* silent — section will just stay empty */ }
+}
+
+/** The one-line name for an asset: hostname if it has one, else the tag. */
+function assetDisplayName(a) {
+    return a.hostname || a.asset_tag || t('tickets.assets.unnamed');
+}
+
+function renderTicketAssets(ticketId) {
+    const container = document.getElementById('ticketAssetsContainer');
+    if (!container) return;
+
+    const cards = assetsForTicket.map(link => {
+        const makeModel = [link.manufacturer, link.model].filter(Boolean).join(' ');
+        const bits = [];
+        if (makeModel)          bits.push(escapeHtml(makeModel));
+        if (link.service_tag)   bits.push(escapeHtml(t('tickets.assets.serial', { serial: link.service_tag })));
+        if (link.location_name) bits.push(escapeHtml(link.location_name));
+        return `
+        <a class="asset-link-card" href="../asset-management/index.php?asset_id=${link.asset_id}" title="${escapeHtml(t('tickets.assets.open_title'))}">
+            <div class="asset-link-card-body">
+                <div class="asset-link-card-name">${escapeHtml(assetDisplayName(link))}</div>
+                <div class="asset-link-card-meta">
+                    ${link.type_name ? `<span class="asset-type-badge">${escapeHtml(link.type_name)}</span>` : ''}
+                    ${bits.length ? `<span class="asset-link-detail">${bits.join(' &middot; ')}</span>` : ''}
+                </div>
+            </div>
+            <button class="asset-link-x" title="${escapeHtml(t('tickets.assets.unlink_title'))}" onclick="removeTicketAsset(event, ${link.link_id}, ${ticketId})">&times;</button>
+        </a>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="asset-section">
+            <div class="asset-section-head">
+                <h3>${escapeHtml(t('tickets.assets.section_title'))}</h3>
+                <button class="btn-link" onclick="openLinkAssetPicker(${ticketId})">${escapeHtml(t('tickets.assets.link_btn'))}</button>
+            </div>
+            ${assetsForTicket.length === 0
+                ? `<div class="asset-empty">${escapeHtml(t('tickets.assets.empty'))}</div>`
+                : `<div class="asset-link-list">${cards}</div>`}
+            <div class="asset-picker" id="assetPicker_${ticketId}" style="display:none;">
+                <input type="text" id="assetPickerInput_${ticketId}" placeholder="${escapeHtml(t('tickets.assets.search_placeholder'))}" autocomplete="off">
+                <div class="asset-picker-results" id="assetPickerResults_${ticketId}"></div>
+            </div>
+        </div>
+    `;
+}
+
+function openLinkAssetPicker(ticketId) {
+    const picker  = document.getElementById('assetPicker_' + ticketId);
+    const input   = document.getElementById('assetPickerInput_' + ticketId);
+    const results = document.getElementById('assetPickerResults_' + ticketId);
+    if (!picker || !input) return;
+    picker.style.display = 'block';
+    input.value = '';
+    results.classList.remove('active');
+    input.focus();
+
+    // `current` is the flat, keyboard-navigable list. `groups` only decides where
+    // the headings are drawn, so arrow keys never land on a heading.
+    let current = [];
+    let firstOtherIdx = -1;
+    assetAcHighlightedIdx = -1;
+
+    const renderResults = () => {
+        if (current.length === 0) {
+            results.innerHTML = `<div class="asset-picker-empty">${escapeHtml(
+                input.value.trim() === '' ? t('tickets.assets.type_to_search') : t('tickets.assets.no_matches')
+            )}</div>`;
+            results.classList.add('active');
+            return;
+        }
+        const rows = current.map((r, i) => {
+            const makeModel = [r.manufacturer, r.model].filter(Boolean).join(' ');
+            const detail = [makeModel, r.service_tag, r.location_name].filter(Boolean).join(' &middot; ');
+            const heading =
+                i === 0 && firstOtherIdx !== 0
+                    ? `<div class="asset-picker-group">${escapeHtml(t('tickets.assets.group_requester'))}</div>`
+                    : (i === firstOtherIdx
+                        ? `<div class="asset-picker-group">${escapeHtml(t('tickets.assets.group_all'))}</div>`
+                        : '');
+            return heading + `
+                <div class="asset-picker-result ${i === assetAcHighlightedIdx ? 'highlighted' : ''}" data-idx="${i}">
+                    <span>${escapeHtml(assetDisplayName(r))}</span>
+                    <span class="asset-picker-detail">${detail}</span>
+                </div>`;
+        }).join('');
+        results.innerHTML = rows;
+        results.classList.add('active');
+        results.querySelectorAll('.asset-picker-result').forEach(el => {
+            el.addEventListener('mousedown', e => {
+                e.preventDefault();
+                pick(current[parseInt(el.dataset.idx, 10)]);
+            });
+        });
+    };
+
+    const search = async (q) => {
+        try {
+            const url = '../api/tickets/search_linkable_assets.php?ticket_id=' + ticketId +
+                        '&q=' + encodeURIComponent(q);
+            const res  = await fetch(url);
+            const data = await res.json();
+            if (!data.success) { current = []; firstOtherIdx = -1; renderResults(); return; }
+            const mine   = data.requester || [];
+            const others = data.others || [];
+            current       = mine.concat(others);
+            firstOtherIdx = others.length ? mine.length : -1;
+            assetAcHighlightedIdx = -1;
+            renderResults();
+        } catch (e) { /* silent */ }
+    };
+
+    const pick = async (r) => {
+        try {
+            const res = await fetch('../api/tickets/save_ticket_asset.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticket_id: ticketId, asset_id: r.asset_id })
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || 'Link failed');
+            const name = assetDisplayName(r);
+            if (data.already_linked) {
+                showToast(t('tickets.assets.already_linked', { name }), 'error');
+            } else {
+                showToast(t('tickets.assets.linked_toast', { name }), 'success');
+            }
+            picker.style.display = 'none';
+            await loadTicketAssets(ticketId);
+        } catch (err) {
+            showToast('Error: ' + err.message, 'error');
+        }
+    };
+
+    input.oninput = () => {
+        if (assetAcTimer) clearTimeout(assetAcTimer);
+        assetAcTimer = setTimeout(() => search(input.value.trim()), 200);
+    };
+
+    input.onkeydown = e => {
+        if (!results.classList.contains('active')) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); assetAcHighlightedIdx = Math.min(current.length - 1, assetAcHighlightedIdx + 1); renderResults(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); assetAcHighlightedIdx = Math.max(0, assetAcHighlightedIdx - 1); renderResults(); }
+        else if (e.key === 'Enter' && assetAcHighlightedIdx >= 0) { e.preventDefault(); pick(current[assetAcHighlightedIdx]); }
+        else if (e.key === 'Escape') { picker.style.display = 'none'; }
+    };
+
+    // Show the requester's own equipment straight away, before anything is typed.
+    search('');
+}
+
+async function removeTicketAsset(ev, linkId, ticketId) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (!(await showConfirm({ title: 'Confirm', message: t('tickets.assets.unlink_confirm'), okLabel: 'OK', okClass: 'primary' }))) return;
+    try {
+        const res = await fetch('../api/tickets/delete_ticket_asset.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ link_id: linkId })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || 'Unlink failed');
+        showToast(t('tickets.assets.unlinked_toast'), 'success');
+        await loadTicketAssets(ticketId);
     } catch (err) {
         showToast('Error: ' + err.message, 'error');
     }

@@ -832,6 +832,60 @@ $translationNamespaces = ['common', 'asset-management'];
             color: #3f51b5;
         }
 
+        /* Tickets raised against this asset (discussion #57). Themed from real
+           tokens throughout so dark mode needs no override block. */
+        .asset-tickets-list { padding: 4px 0; }
+        .asset-tickets-empty {
+            padding: 24px 16px;
+            color: var(--text-faint, #9ca3af);
+            font-style: italic;
+            font-size: 13px;
+            text-align: center;
+        }
+        .asset-tickets-group {
+            padding: 10px 16px 4px;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            color: var(--text-faint, #9ca3af);
+        }
+        .asset-ticket-row {
+            display: grid;
+            grid-template-columns: minmax(90px, auto) 1fr auto auto;
+            gap: 12px;
+            align-items: center;
+            padding: 9px 16px;
+            border-bottom: 1px solid var(--border-soft, #f0f0f0);
+            text-decoration: none;
+            color: inherit;
+            font-size: 13px;
+        }
+        .asset-ticket-row:hover { background-color: var(--surface-hover, #f8f9fa); }
+        .asset-ticket-ref { color: var(--text-dim, #6b7280); font-family: monospace; font-size: 12px; }
+        .asset-ticket-subject {
+            color: var(--text, #111827);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .asset-ticket-status {
+            color: #fff;
+            padding: 2px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .asset-ticket-when { color: var(--text-faint, #9ca3af); font-size: 12px; white-space: nowrap; }
+
+        @media (max-width: 700px) {
+            /* Ref and date drop away first — the subject and its status are what
+               you are actually scanning for on a phone. */
+            .asset-ticket-row { grid-template-columns: 1fr auto; }
+            .asset-ticket-ref, .asset-ticket-when { display: none; }
+        }
+
         /* Detail Tabs */
         .detail-tabs {
             display: flex;
@@ -1449,6 +1503,7 @@ $translationNamespaces = ['common', 'asset-management'];
                         <button class="detail-tab active" onclick="switchDetailTab('keyinfo')" data-dtab="keyinfo">${window.t('asset-management.detail.tab_keyinfo')}</button>
                         <button class="detail-tab" onclick="switchDetailTab('devices')" data-dtab="devices">${window.t('asset-management.detail.tab_devices')} <span class="tab-count" id="devicesCountBadge">...</span></button>
                         <button class="detail-tab" onclick="switchDetailTab('software')" data-dtab="software">${window.t('asset-management.detail.tab_software')} <span class="tab-count" id="softwareCountBadge">...</span></button>
+                        <button class="detail-tab" onclick="switchDetailTab('tickets')" data-dtab="tickets">${window.t('asset-management.detail.tab_tickets')} <span class="tab-count" id="ticketsCountBadge">...</span></button>
                     </div>
                 </div>
                 <div class="asset-detail-body" id="detailBody">
@@ -1571,6 +1626,11 @@ $translationNamespaces = ['common', 'asset-management'];
                             <div class="loading"><div class="spinner"></div></div>
                         </div>
                     </div>
+                    <div class="detail-tab-panel detail-tab-panel--scroll" id="ticketsPanel" data-dtab-panel="tickets">
+                        <div class="asset-tickets-list" id="assetTicketsList">
+                            <div class="loading"><div class="spinner"></div></div>
+                        </div>
+                    </div>
                 </div>
             `;
 
@@ -1580,6 +1640,65 @@ $translationNamespaces = ['common', 'asset-management'];
             loadDevices(assetId);
             loadInstalledSoftware(assetId);
             loadIntuneDevice(assetId);
+            loadAssetTickets(assetId);
+        }
+
+        /**
+         * Tickets raised against this asset (discussion #57).
+         *
+         * The half of the feature that pays for the linking: the answer to "has
+         * this thing broken before?" is only visible from the asset's side.
+         * Open tickets first, then closed ones as history — the endpoint caps
+         * closed at 20 and returns the true total so a long-suffering monitor
+         * doesn't render five years of rows.
+         */
+        async function loadAssetTickets(assetId) {
+            const list  = document.getElementById('assetTicketsList');
+            const badge = document.getElementById('ticketsCountBadge');
+            if (!list) return;
+            try {
+                const response = await fetch(`${API_BASE}get_asset_tickets.php?id=${assetId}`);
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || 'failed');
+
+                const open   = data.open || [];
+                const closed = data.closed || [];
+                if (badge) badge.textContent = open.length + closed.length;
+
+                if (open.length === 0 && closed.length === 0) {
+                    list.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.tickets.empty'))}</div>`;
+                    return;
+                }
+
+                const row = tk => {
+                    const when = tk.status_is_closed ? tk.closed_datetime : tk.updated_datetime;
+                    return `
+                    <a class="asset-ticket-row" href="../tickets/index.php?ticket_id=${tk.id}" title="${escapeHtml(window.t('asset-management.tickets.open_title'))}">
+                        <span class="asset-ticket-ref">${escapeHtml(tk.ticket_number || '')}</span>
+                        <span class="asset-ticket-subject">${escapeHtml(tk.subject || '')}</span>
+                        <span class="asset-ticket-status" style="background:${escapeHtml(tk.status_colour || '#6b7280')}">${escapeHtml(tk.status || '')}</span>
+                        <span class="asset-ticket-when">${escapeHtml((when || '').substring(0, 10))}</span>
+                    </a>`;
+                };
+
+                let html = '';
+                if (open.length) {
+                    html += `<div class="asset-tickets-group">${escapeHtml(window.t('asset-management.tickets.group_open'))}</div>`;
+                    html += open.map(row).join('');
+                }
+                if (closed.length) {
+                    const total = data.total_closed || closed.length;
+                    const label = total > closed.length
+                        ? window.t('asset-management.tickets.group_closed_capped', { shown: closed.length, total: total })
+                        : window.t('asset-management.tickets.group_closed');
+                    html += `<div class="asset-tickets-group">${escapeHtml(label)}</div>`;
+                    html += closed.map(row).join('');
+                }
+                list.innerHTML = html;
+            } catch (e) {
+                if (badge) badge.textContent = '0';
+                list.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.tickets.empty'))}</div>`;
+            }
         }
 
         // Load assigned users for an asset

@@ -159,6 +159,7 @@ return [
         'tab_keyinfo'       => 'Key info',
         'tab_devices'       => 'Devices',
         'tab_software'      => 'Software',
+        'tab_tickets'       => 'Tickets',
     ],
 
     // Assign-user modal
@@ -194,6 +195,16 @@ return [
     ],
 
     // Software tab
+    // Tickets raised against an asset (discussion #57). Nested, because
+    // I18n::t() splits the key on every dot.
+    'tickets' => [
+        'empty'               => 'No tickets have been raised against this asset.',
+        'group_open'          => 'Open',
+        'group_closed'        => 'Previously',
+        'group_closed_capped' => 'Previously (showing {shown} of {total})',
+        'open_title'          => 'Open this ticket',
+    ],
+
     'software' => [
         'applications'   => 'Applications',
         'components'     => 'Components',

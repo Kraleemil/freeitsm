@@ -130,6 +130,13 @@ $pageStyles = <<<'CSS'
         .form-group {
             margin-bottom: 20px;
         }
+        /* Hint under a field — introduced for the equipment picker (#57). */
+        .field-hint {
+            margin-top: 5px;
+            font-size: 12px;
+            color: var(--text-faint, #9ca3af);
+        }
+
         .form-group label {
             display: block;
             margin-bottom: 6px;
@@ -355,6 +362,7 @@ let attachments = [];
 
     document.addEventListener('DOMContentLoaded', function() {
         loadMailboxes();
+        loadMyEquipment();
         initDropzone();
         initDeflection();
         initEditor();
@@ -593,6 +601,38 @@ let attachments = [];
 
     // -------------------- Mailbox loading --------------------
 
+    /**
+     * The equipment assigned to this user (discussion #57).
+     *
+     * The whole field stays hidden unless they hold something, so a requester
+     * with no assigned kit sees the form exactly as it was before. Failures are
+     * silent for the same reason: not being offered the field is a far better
+     * outcome than an error message about something they didn't ask for.
+     */
+    async function loadMyEquipment() {
+        const group  = document.getElementById('assetGroup');
+        const select = document.getElementById('assetSelect');
+        if (!group || !select) return;
+        try {
+            const resp = await fetch('../api/self-service/get_my_assets.php');
+            const data = await resp.json();
+            if (!data.success || !data.assets || data.assets.length === 0) return;
+
+            data.assets.forEach(a => {
+                const name  = a.hostname || a.asset_tag || a.model || '';
+                const extra = [a.type_name, [a.manufacturer, a.model].filter(Boolean).join(' ')]
+                                .filter(Boolean).join(' — ');
+                const opt = document.createElement('option');
+                opt.value = a.asset_id;
+                // textContent, never innerHTML: these strings come from an
+                // inventory agent, i.e. from the endpoint's own machines.
+                opt.textContent = extra ? `${name} (${extra})` : name;
+                select.appendChild(opt);
+            });
+            group.style.display = '';
+        } catch (e) { /* silent — the field simply stays hidden */ }
+    }
+
     async function loadMailboxes() {
         const select = document.getElementById('mailbox');
         try {
@@ -662,7 +702,14 @@ let attachments = [];
                     description: (window.ssEditor ? window.ssEditor.getContent()
                                                   : document.getElementById('description').value).trim(),
                     attachments: attachmentData,
-                    recording_ids: recordings.map(r => r.recording_id)
+                    recording_ids: recordings.map(r => r.recording_id),
+                    // Sent as a list even though the portal offers one choice: the
+                    // ticket can hold several, and an analyst may add more later.
+                    asset_ids: (function () {
+                        const el = document.getElementById('assetSelect');
+                        const v = el && el.value ? parseInt(el.value, 10) : 0;
+                        return v ? [v] : [];
+                    })()
                 })
             });
             const data = await resp.json();
@@ -756,6 +803,17 @@ require __DIR__ . '/includes/header.php';
                         <option value="<?php echo htmlspecialchars($p['name']); ?>"<?php echo $sel ? ' selected' : ''; ?>><?php echo htmlspecialchars($p['name']); ?></option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+                <?php /* Equipment (discussion #57). Hidden entirely unless the user
+                         actually holds something — an empty dropdown is a question the
+                         requester can't answer and shouldn't be asked. Populated from
+                         get_my_assets.php, which only ever returns their own kit. */ ?>
+                <div class="form-group" id="assetGroup" style="display:none;">
+                    <label for="assetSelect"><?php echo htmlspecialchars(t('self-service.new_ticket.equipment')); ?></label>
+                    <select id="assetSelect">
+                        <option value=""><?php echo htmlspecialchars(t('self-service.new_ticket.equipment_none')); ?></option>
+                    </select>
+                    <div class="field-hint"><?php echo htmlspecialchars(t('self-service.new_ticket.equipment_hint')); ?></div>
                 </div>
                 <div class="form-group">
                     <label><?php echo htmlspecialchars(t('self-service.new_ticket.attachments')); ?></label>

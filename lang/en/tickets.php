@@ -529,6 +529,28 @@ return [
         'already_linked'     => '{name} is already linked',
     ],
 
+    // Equipment linked to a ticket (discussion #57). Nested, like every other
+    // section here — I18n::t() splits the key on every dot, so a flat
+    // 'assets.section_title' key would never resolve.
+    'assets' => [
+        'section_title'      => 'Affected equipment',
+        'link_btn'           => '+ Link equipment',
+        'empty'              => 'No equipment linked yet.',
+        'search_placeholder' => 'Search by name, model, serial, tag or location…',
+        'type_to_search'     => 'Start typing to search all equipment.',
+        'no_matches'         => 'No matches.',
+        'group_requester'    => 'Assigned to the requester',
+        'group_all'          => 'All equipment',
+        'unnamed'            => 'Unnamed asset',
+        'serial'             => 'Serial {serial}',
+        'open_title'         => 'Open in Assets',
+        'unlink_title'       => 'Unlink',
+        'unlink_confirm'     => 'Unlink this equipment from the ticket?',
+        'unlinked_toast'     => 'Unlinked',
+        'linked_toast'       => 'Linked {name}',
+        'already_linked'     => '{name} is already linked',
+    ],
+
     // Time-tracking section in the reading pane.
     'time_entries' => [
         'section_title'        => 'Time Entries',
