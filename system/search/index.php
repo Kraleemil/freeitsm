@@ -154,6 +154,19 @@ if (!isset($_SESSION['analyst_id'])) {
             'rebuilding'   => t('system.search.rebuilding'),
             'rebuilt'      => t('system.search.rebuilt'),
             'failed'       => t('system.search.failed'),
+            'att_heading'  => t('system.search.att_heading'),
+            'att_outcome'  => t('system.search.att_outcome'),
+            'att_files'    => t('system.search.att_files'),
+            'att_unsupported_note' => t('system.search.att_unsupported_note'),
+        ], JSON_UNESCAPED_UNICODE); ?>;
+
+        var ATT_LABEL = <?php echo json_encode([
+            'extracted'   => t('system.search.att_extracted'),
+            'truncated'   => t('system.search.att_truncated'),
+            'too_large'   => t('system.search.att_too_large'),
+            'unsupported' => t('system.search.att_unsupported'),
+            'failed'      => t('system.search.att_failed'),
+            'pending'     => t('system.search.att_pending'),
         ], JSON_UNESCAPED_UNICODE); ?>;
 
         var SOURCE_LABEL = {
@@ -213,6 +226,26 @@ if (!isset($_SESSION['analyst_id'])) {
                     html += '<div class="srch-note">' +
                         esc(T.not_indexed.replace('{tickets}', n(missingT)).replace('{articles}', n(missingA))) +
                         '</div>';
+                }
+
+                // Attachment outcomes. Shown even when everything worked, because
+                // "unsupported" is the normal state for every PDF until an
+                // extraction service exists, and an administrator wondering why a
+                // PDF is not searchable should find the answer here rather than
+                // concluding search is broken.
+                var att = d.attachments || {};
+                var attKeys = Object.keys(att);
+                if (attKeys.length) {
+                    html += '<h3 style="margin-top:22px">' + esc(T.att_heading) + '</h3>';
+                    html += '<table class="srch-table"><thead><tr><th>' + esc(T.att_outcome) +
+                            '</th><th style="text-align:right">' + esc(T.att_files) + '</th></tr></thead><tbody>';
+                    attKeys.forEach(function (k) {
+                        html += '<tr><td>' + esc(ATT_LABEL[k] || k) + '</td><td class="num">' + n(att[k]) + '</td></tr>';
+                    });
+                    html += '</tbody></table>';
+                    if (att.unsupported) {
+                        html += '<div class="srch-status">' + esc(T.att_unsupported_note) + '</div>';
+                    }
                 }
 
                 html += '<div class="srch-status">' + esc(T.min_word.replace('{n}', d.min_word_length)) + '</div>';

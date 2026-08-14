@@ -333,6 +333,19 @@ return [
         'rebuilding'    => 'Rebuilding… {done} of {total} tickets.',
         'rebuilt'       => 'Done. Indexed {tickets} tickets, {messages} messages, {notes} notes and {articles} articles.',
         'failed'        => 'Could not read the search index.',
+
+        // Attachment extraction outcomes (#53 tier 1). Shown so nobody has to
+        // guess why a particular document is not turning up in search.
+        'att_heading'          => 'Attachments',
+        'att_outcome'          => 'Outcome',
+        'att_files'            => 'Files',
+        'att_extracted'        => 'Text read',
+        'att_truncated'        => 'Text read, very long file shortened',
+        'att_too_large'        => 'Too large to open',
+        'att_unsupported'      => 'Format cannot be read yet',
+        'att_failed'           => 'Could not be read',
+        'att_pending'          => 'Waiting to be read',
+        'att_unsupported_note' => 'PDFs and older Office formats need an extraction service, which is not part of FreeITSM yet. Word, Excel, PowerPoint and plain text files are read without one.',
     ],
 
     // Database verification page (system/db-verify/index.php)

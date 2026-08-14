@@ -831,6 +831,19 @@ return [
         'created_datetime'          => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Text pulled out of an attachment (discussion #53). The DURABLE record —
+    // search_documents holds a derived copy. See freeitsm.sql for why that
+    // distinction matters. ⚠️ Its PK is attachment_id, not `id`, so it must also
+    // be listed in $primaryKeys in api/system/db_verify.php.
+    'attachment_text' => [
+        'attachment_id'      => 'INT NOT NULL',
+        'status'             => 'VARCHAR(16) NOT NULL',
+        'extractor'          => 'VARCHAR(20) NULL',
+        'extracted_text'     => 'LONGTEXT NULL',
+        'chars'              => 'INT NOT NULL DEFAULT 0',
+        'extracted_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'ticket_recordings' => [
         'id'                  => 'INT NOT NULL AUTO_INCREMENT',
         'ticket_id'           => 'INT NULL',

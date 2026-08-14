@@ -68,9 +68,22 @@ try {
         if ($b['source_type'] === SEARCH_SOURCE_KB_ARTICLE) $articlesIndexed = $b['rows'];
     }
 
+    // Attachment extraction, by outcome. §3.4 of the design: the status is shown
+    // rather than kept internal, because a search that silently finds nothing —
+    // when the file was never readable in the first place — is worse than one
+    // that admits it could not read the file.
+    $attachments = [];
+    try {
+        $attachments = $conn->query(
+            "SELECT status, COUNT(*) AS n FROM attachment_text GROUP BY status"
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+        $attachments = array_map('intval', $attachments);
+    } catch (Exception $e) { /* table absent on a part-migrated install */ }
+
     echo json_encode([
         'success'          => true,
         'ready'            => true,
+        'attachments'      => $attachments,
         'total_rows'       => $total,
         'by_source'        => $bySource,
         'last_indexed'     => $lastIndexed ?: null,

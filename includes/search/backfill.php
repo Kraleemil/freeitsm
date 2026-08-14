@@ -2,10 +2,15 @@
 /**
  * Rebuild the search corpus from ticket content already in the database.
  *
- * TEXT ONLY. This reads `tickets.subject`, `emails.body_content` and
- * `ticket_notes.note_text` — all of which are already text. It never opens a
- * file, so no attachment is touched, no archive is unpacked and no extractor is
- * needed. Attachment text is a later, separate piece of work.
+ * Reads `tickets.subject`, `emails.body_content`, `ticket_notes.note_text` and
+ * `knowledge_articles.body` — all already text — and, since #53's tier 1, the
+ * text of attachments it can read without help (`.txt`, `.docx`, `.xlsx` and
+ * friends; see includes/search/extract.php).
+ *
+ * ⚠️ It does NOT re-open files it has read before. Extraction is cached in
+ * `attachment_text`, so a rebuild of the search index costs no file reads at
+ * all — which is the whole reason that table exists, and matters far more once
+ * tier 2 is doing OCR on PDFs.
  *
  * It is also not a one-off. The same code is the "rebuild the index" command a
  * grown installation needs after a schema change, after the full-text settings
@@ -41,7 +46,7 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
 
     // last_ticket_id is what makes the run resumable: the caller passes it back
     // as since_ticket_id to continue where this one stopped.
-    $counts    = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'articles' => 0,
+    $counts    = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'attachments' => 0, 'articles' => 0,
                   'skipped' => 0, 'last_ticket_id' => $sinceId, 'tickets_remaining' => 0];
 
     if (!searchCorpusReady($conn)) {
@@ -75,6 +80,7 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
         // undebuggable. The subject/message/note construction now lives there.
         $one = searchIndexTicket($conn, (int)$t['id'], $maxBody);
         $counts['tickets'] += $one['tickets'];
+        $counts['attachments'] += $one['attachments'];
         $counts['emails']  += $one['emails'];
         $counts['notes']   += $one['notes'];
         $counts['skipped'] += $one['skipped'];
@@ -89,11 +95,6 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
     $conn->commit();
     if ($progress) $progress('tickets', $done, $total);
 
-    // ── Knowledge articles ──────────────────────────────────────────────────
-    // A separate pass, not part of the ticket loop, because an article hangs off
-    // no ticket. Archived ones are skipped for the same reason trashed tickets
-    // are: the command palette has always excluded them, so indexing them would
-    // put results in one search that the rest of the product hides.
     // How many tickets a resuming caller still has to go. Counted after the pass
     // so a chunked rebuild can show honest progress and know when to stop.
     try {
@@ -108,6 +109,11 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
         return $counts;
     }
 
+    // ── Knowledge articles ──────────────────────────────────────────────────
+    // A separate pass, not part of the ticket loop, because an article hangs off
+    // no ticket. Archived ones are skipped for the same reason trashed tickets
+    // are: the command palette has always excluded them, so indexing them would
+    // put results in one search that the rest of the product hides.
     try {
         $aSel = $conn->query(
             "SELECT id FROM knowledge_articles

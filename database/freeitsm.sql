@@ -1016,6 +1016,42 @@ CREATE TABLE IF NOT EXISTS `email_attachments` (
     CONSTRAINT `fk_email_attachments_email` FOREIGN KEY (`email_id`) REFERENCES `emails` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Text pulled out of an attachment, so it can be searched (discussion #53).
+--
+-- ⚠️ THIS TABLE IS THE DURABLE RECORD, NOT THE INDEX. `search_documents` holds a
+-- derived copy that can be rebuilt from here at any time; this holds the result
+-- of actually opening the file. The distinction is what stops a future change of
+-- search engine — or a corpus rebuild — from turning into a re-extraction of
+-- every document ever received, which for PDFs and OCR would be hours of work
+-- and, with an external extractor, a bill.
+--
+-- One row per attachment, keyed on the attachment itself, so re-indexing a busy
+-- ticket does not re-open its files. `status` is carried as a FACT and shown in
+-- the UI: a search that silently finds nothing because a file was never readable
+-- is worse than one that admits the file could not be read.
+--
+--   extracted    text was read in full
+--   truncated    read, but longer than the cap
+--   too_large    the file itself is over the size limit; never opened
+--   unsupported  no extractor handles this format (a PDF, until tier 2 exists)
+--   failed       an extractor tried and could not
+--   pending      queued for an extractor that runs off the request thread
+CREATE TABLE IF NOT EXISTS `attachment_text` (
+    `attachment_id`      INT NOT NULL,
+    `status`             VARCHAR(16) NOT NULL,
+    -- Which extractor produced it: 'builtin' for the dependency-free formats,
+    -- later the name of an external service. Kept so a tier-2 install can find
+    -- and redo everything the built-in tier could only mark unsupported.
+    `extractor`          VARCHAR(20) NULL,
+    `extracted_text`     LONGTEXT NULL,
+    `chars`              INT NOT NULL DEFAULT 0,
+    `extracted_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`attachment_id`),
+    KEY `ix_attachment_text_status` (`status`),
+    CONSTRAINT `fk_attachment_text_attachment` FOREIGN KEY (`attachment_id`)
+        REFERENCES `email_attachments` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ----------------------------------------------------------
 -- Messaging channels (WhatsApp etc.)
 -- ----------------------------------------------------------

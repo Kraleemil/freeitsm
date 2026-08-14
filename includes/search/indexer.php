@@ -48,11 +48,11 @@ const SEARCH_INDEX_MAX_BODY = 200000;
  * a deleted ticket's words are removed rather than left sitting in a searchable
  * table.
  *
- * @return array{tickets:int,emails:int,notes:int,skipped:int}
+ * @return array{tickets:int,emails:int,notes:int,attachments:int,skipped:int}
  */
 function searchIndexTicket(PDO $conn, int $ticketId, int $maxBody = SEARCH_INDEX_MAX_BODY): array
 {
-    $counts = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'skipped' => 0];
+    $counts = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'attachments' => 0, 'skipped' => 0];
     if ($ticketId <= 0) return $counts;
 
     $tStmt = $conn->prepare(
@@ -131,7 +131,123 @@ function searchIndexTicket(PDO $conn, int $ticketId, int $maxBody = SEARCH_INDEX
         $counts['notes']++;
     }
 
+    // 4. text pulled out of attachments
+    $counts['attachments'] = searchIndexTicketAttachments($conn, $ticketId, $tenantId, $scope, $maxBody);
+
     return $counts;
+}
+
+/**
+ * Index the readable text of a ticket's attachments (discussion #53, tier 1).
+ *
+ * ⚠️ EXTRACTION IS CACHED IN `attachment_text`, WHICH IS THE POINT.
+ * searchIndexTicket() reindexes the WHOLE ticket on every event, so without a
+ * durable store a ticket with ten attachments would re-open and re-unzip all ten
+ * every time somebody added a note. The row also survives a corpus rebuild, so
+ * rebuilding the index never means re-reading a single file — which for tier 2's
+ * PDFs and OCR would be hours of work and, with a paid extractor, a bill.
+ *
+ * @return int corpus rows written
+ */
+function searchIndexTicketAttachments(PDO $conn, int $ticketId, ?int $tenantId, string $scope, int $maxBody): int
+{
+    require_once __DIR__ . '/extract.php';
+
+    // Inline images (the cid: ones in an HTML signature) are skipped: they are
+    // never documents, and a signature logo on every reply would otherwise be
+    // "extracted" hundreds of times to produce nothing.
+    $stmt = $conn->prepare(
+        "SELECT a.id, a.filename, a.file_path, a.file_size,
+                t.status AS text_status, t.extracted_text
+           FROM email_attachments a
+           JOIN emails e ON e.id = a.email_id
+      LEFT JOIN attachment_text t ON t.attachment_id = a.id
+          WHERE e.ticket_id = ? AND (a.is_inline = 0 OR a.is_inline IS NULL)"
+    );
+    $stmt->execute([$ticketId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$rows) return 0;
+
+    // Same base directory the download endpoint serves from.
+    $baseDir  = dirname(__DIR__, 2) . '/tickets/attachments';
+    $realBase = realpath($baseDir);
+    $written  = 0;
+
+    foreach ($rows as $r) {
+        $attId  = (int)$r['id'];
+        $status = $r['text_status'];
+        $text   = (string)($r['extracted_text'] ?? '');
+
+        if ($status === null) {
+            // Not extracted yet. Decide before opening anything.
+            if (!attTextSupports((string)$r['filename'])) {
+                $status = ATT_TEXT_UNSUPPORTED;
+                $text   = '';
+            } else {
+                // ⚠️ Containment, copied from api/tickets/get_attachment.php: the
+                // resolved file must sit INSIDE the attachments directory. The
+                // stored path is not attacker-supplied today, but a row written
+                // before the upload rules existed — or by anyone with a foothold
+                // in the database — must not be able to make the indexer read
+                // config.php and put it in a searchable table. realpath() both
+                // sides, because comparing a resolved path against an unresolved
+                // prefix fails on Windows.
+                $full     = $baseDir . '/' . $r['file_path'];
+                $realFile = realpath($full);
+                if ($realBase === false || $realFile === false
+                    || strncmp($realFile, $realBase . DIRECTORY_SEPARATOR, strlen($realBase) + 1) !== 0) {
+                    error_log('[searchIndexTicketAttachments] refused a path outside the attachments '
+                              . 'directory — attachment ' . $attId . ', stored path ' . (string)$r['file_path']);
+                    $status = ATT_TEXT_FAILED;
+                    $text   = '';
+                } else {
+                    $res    = attTextExtractFile($realFile, (string)$r['filename'], $maxBody);
+                    $status = $res['status'];
+                    $text   = $res['text'];
+                }
+            }
+
+            try {
+                $ins = $conn->prepare(
+                    "INSERT INTO attachment_text
+                       (attachment_id, status, extractor, extracted_text, chars, extracted_datetime)
+                     VALUES (?, ?, 'builtin', ?, ?, NOW())
+                     ON DUPLICATE KEY UPDATE
+                       status = VALUES(status), extractor = VALUES(extractor),
+                       extracted_text = VALUES(extracted_text), chars = VALUES(chars),
+                       extracted_datetime = NOW()"
+                );
+                $ins->execute([$attId, $status, $text, mb_strlen($text, 'UTF-8')]);
+            } catch (Exception $e) {
+                // No attachment_text table yet (Database Verification not run).
+                // Indexing the rest of the ticket still succeeded.
+                error_log('[searchIndexTicketAttachments] ' . $e->getMessage());
+                return $written;
+            }
+        }
+
+        // Only text we actually have goes in the corpus. unsupported / too_large
+        // / failed are recorded above and surfaced in the UI, but there is
+        // nothing to search.
+        if ($text === '') continue;
+
+        searchCorpusUpsert($conn, [
+            'source_type'     => SEARCH_SOURCE_ATTACHMENT,
+            'source_id'       => $attId,
+            'ticket_id'       => $ticketId,
+            'tenant_id'       => $tenantId,
+            'tenant_scope'    => $scope,
+            // An attachment is as visible as the ticket it hangs off. It is not a
+            // note, so it is not internal-only.
+            'is_internal'     => 0,
+            'title'           => (string)$r['filename'],
+            'body'            => $text,
+            'source_datetime' => null,
+        ]);
+        $written++;
+    }
+
+    return $written;
 }
 
 /**

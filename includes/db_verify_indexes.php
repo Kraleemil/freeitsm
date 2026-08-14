@@ -67,6 +67,7 @@ return [
     ['analyst_tenant_access', 'uq_analyst_tenant', 'unique', '(`analyst_id`,`tenant_id`)'],
     ['team_tenant_access', 'uq_team_tenant', 'unique', '(`team_id`,`tenant_id`)'],
     ['target_mailboxes', 'ix_target_mailboxes_tenant_id', 'key', '(`tenant_id`)'],
+    ['attachment_text', 'ix_attachment_text_status', 'key', '(`status`)'],
     ['messaging_channels', 'ix_messaging_channels_tenant_id', 'key', '(`tenant_id`)'],
     ['tenant_channel_senders', 'uq_tenant_channel_sender_identifier', 'unique', '(`identifier`)'],
     ['messaging_templates', 'ix_messaging_templates_tenant_id', 'key', '(`tenant_id`)'],

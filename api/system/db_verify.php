@@ -71,6 +71,7 @@ $schema = require __DIR__ . '/../../includes/db_verify_schema.php';
 
 // Primary key definitions: table => pk_column (defaults to 'id')
 $primaryKeys = [
+    'attachment_text'           => 'attachment_id',
     'system_settings'           => 'setting_key',
     'morningChecks_Checks'      => 'CheckID',
     'morningChecks_Results'     => 'ResultID',
@@ -2183,6 +2184,9 @@ try {
         ['ticket_cmdb_objects',         'fk_tco_ticket',           "ALTER TABLE ticket_cmdb_objects ADD CONSTRAINT fk_tco_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE"],
         ['ticket_cmdb_objects',         'fk_tco_cmdb_object',      "ALTER TABLE ticket_cmdb_objects ADD CONSTRAINT fk_tco_cmdb_object FOREIGN KEY (cmdb_object_id) REFERENCES cmdb_objects (id) ON DELETE CASCADE"],
         ['ticket_cmdb_objects',         'fk_tco_analyst',          "ALTER TABLE ticket_cmdb_objects ADD CONSTRAINT fk_tco_analyst FOREIGN KEY (created_by_analyst_id) REFERENCES analysts (id) ON DELETE SET NULL"],
+        // Attachment text (#53). CASCADE: the extracted text is meaningless once
+        // the attachment it came from has gone.
+        ['attachment_text',             'fk_attachment_text_attachment', "ALTER TABLE attachment_text ADD CONSTRAINT fk_attachment_text_attachment FOREIGN KEY (attachment_id) REFERENCES email_attachments (id) ON DELETE CASCADE"],
         // Tickets ↔ assets (#57)
         ['ticket_assets',               'fk_ta_ticket',            "ALTER TABLE ticket_assets ADD CONSTRAINT fk_ta_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE"],
         ['ticket_assets',               'fk_ta_asset',             "ALTER TABLE ticket_assets ADD CONSTRAINT fk_ta_asset FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE CASCADE"],
