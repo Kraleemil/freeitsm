@@ -14,6 +14,9 @@ return [
     ['analyst_sso_identities', 'uq_sso_provider_analyst', 'unique', '(`provider_id`,`analyst_id`)'],
     ['departments', 'uq_departments_name', 'unique', '(`name`)'],
     ['user_preferences', 'uq_user_pref', 'unique', '(`analyst_id`,`preference_key`)'],
+    ['asset_handover_templates', 'ix_aht_default', 'key', '(`is_default`,`is_active`)'],
+    ['notifications', 'ix_notif_unread', 'key', '(`analyst_id`,`read_datetime`,`updated_datetime`)'],
+    ['notifications', 'ix_notif_coalesce', 'key', '(`analyst_id`,`entity_type`,`entity_id`,`read_datetime`)'],
     ['analyst_teams', 'uq_analyst_team', 'unique', '(`analyst_id`,`team_id`)'],
     ['department_teams', 'uq_department_team', 'unique', '(`department_id`,`team_id`)'],
     ['analyst_modules', 'uq_analyst_module', 'unique', '(`analyst_id`,`module_key`)'],
@@ -139,19 +142,11 @@ return [
     ['ticket_links', 'uq_ticket_link', 'unique', '(`source_ticket_id`,`target_ticket_id`,`relation_type`)'],
     ['ticket_links', 'ix_ticket_links_target', 'key', '(`target_ticket_id`)'],
     ['problem_notes', 'ix_pnotes_problem', 'key', '(`problem_id`)'],
-    ['morningChecks_Results', 'uq_check_date', 'unique', '(`CheckID`,`CheckDate`)'],
-    // Grouping + routing (discussion #64). The dashboard joins on every one of
-    // these on each load, and the links table is read per result.
-    // Handover templates (discussion #56) — the render path looks up the default.
-    ['asset_handover_templates', 'ix_aht_default', 'key', '(`is_default`,`is_active`)'],
-    // Notifications (discussion #55). The unread index serves the badge, which is
-    // polled by every open tab; the coalesce index is hit on every event written.
-    ['notifications', 'ix_notif_unread', 'key', '(`analyst_id`,`read_datetime`,`updated_datetime`)'],
-    ['notifications', 'ix_notif_coalesce', 'key', '(`analyst_id`,`entity_type`,`entity_id`,`read_datetime`)'],
     ['morningChecks_Groups', 'ix_mcg_team', 'key', '(`AssignedTeamID`)'],
     ['morningChecks_Groups', 'ix_mcg_analyst', 'key', '(`AssignedAnalystID`)'],
     ['morningChecks_Checks', 'ix_mcc_group', 'key', '(`GroupID`)'],
     ['morningChecks_Checks', 'ix_mcc_analyst', 'key', '(`AssignedAnalystID`)'],
+    ['morningChecks_Results', 'uq_check_date', 'unique', '(`CheckID`,`CheckDate`)'],
     ['morningChecks_ResultLinks', 'ix_mcrl_result', 'key', '(`ResultID`)'],
     ['knowledge_articles', 'idx_knowledge_articles_tenant', 'key', '(`tenant_id`)'],
     ['knowledge_tags', 'uq_knowledge_tags_name', 'unique', '(`name`)'],
@@ -231,8 +226,6 @@ return [
     ['service_impact_levels', 'uq_service_impact_levels_name', 'unique', '(`name`)'],
     ['status_incidents', 'ix_status_incidents_status_id', 'key', '(`status_id`)'],
     ['status_incident_services', 'ix_sis_impact_level_id', 'key', '(`impact_level_id`)'],
-    // Incident update log (discussion #59, phase 2). Every read walks an
-    // incident's updates in time order, so both columns are indexed.
     ['status_incident_updates', 'ix_siu_incident_id', 'key', '(`incident_id`)'],
     ['status_incident_updates', 'ix_siu_created', 'key', '(`created_datetime`)'],
     ['status_incident_update_services', 'ix_sius_update_id', 'key', '(`update_id`)'],
@@ -254,6 +247,8 @@ return [
     ['cmdb_object_relationships', 'ix_cmdb_or_to_object_id', 'key', '(`to_object_id`)'],
     ['ticket_cmdb_objects', 'uq_ticket_cmdb_obj', 'unique', '(`ticket_id`,`cmdb_object_id`)'],
     ['ticket_cmdb_objects', 'ix_tco_cmdb_object_id', 'key', '(`cmdb_object_id`)'],
+    ['ticket_assets', 'uq_ticket_asset', 'unique', '(`ticket_id`,`asset_id`)'],
+    ['ticket_assets', 'ix_ta_asset_id', 'key', '(`asset_id`)'],
     ['network_diagrams', 'ix_net_diag_parent', 'key', '(`parent_diagram_id`)'],
     ['network_diagrams', 'ix_net_diag_author', 'key', '(`created_by_analyst_id`)'],
     ['network_diagram_nodes', 'ix_net_node_diag', 'key', '(`diagram_id`)'],

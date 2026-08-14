@@ -2960,6 +2960,18 @@ return [
         'created_by_analyst_id' => 'INT NULL',
     ],
 
+    // Tickets ↔ assets (discussion #57). Two nullable creator columns because a
+    // link can be made by an analyst or by a portal user, and they are different
+    // tables. See freeitsm.sql for the full reasoning.
+    'ticket_assets' => [
+        'id'                    => 'INT NOT NULL AUTO_INCREMENT',
+        'ticket_id'             => 'INT NOT NULL',
+        'asset_id'              => 'INT NOT NULL',
+        'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'created_by_analyst_id' => 'INT NULL',
+        'created_by_user_id'    => 'INT NULL',
+    ],
+
     // Network Mapper — visual diagrams over the CMDB graph (see freeitsm.sql header).
     'network_diagrams' => [
         'id'                    => 'INT NOT NULL AUTO_INCREMENT',

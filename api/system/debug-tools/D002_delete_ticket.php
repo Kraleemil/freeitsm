@@ -159,6 +159,7 @@ $relevant = [
     'ticket_recordings'   => ['id','ticket_id'],
     'ticket_csat_responses' => ['id','ticket_id'],
     'ticket_cmdb_objects' => ['id','ticket_id'],
+    'ticket_assets'       => ['id','ticket_id'],
     'sla_notifications_sent' => ['id','ticket_id'],
     'tasks'               => ['id','ticket_id'],
     'tickets'             => ['id','ticket_number'],
@@ -321,6 +322,7 @@ $counts = [
     'ticket_recordings (cascade)'    => ["SELECT COUNT(*) FROM ticket_recordings WHERE ticket_id = ?", [$ticketId]],
     'ticket_csat_responses (cascade)'=> ["SELECT COUNT(*) FROM ticket_csat_responses WHERE ticket_id = ?", [$ticketId]],
     'ticket_cmdb_objects (cascade)'  => ["SELECT COUNT(*) FROM ticket_cmdb_objects WHERE ticket_id = ?", [$ticketId]],
+    'ticket_assets (cascade)'        => ["SELECT COUNT(*) FROM ticket_assets WHERE ticket_id = ?", [$ticketId]],
     'sla_notifications_sent (cascade)'=> ["SELECT COUNT(*) FROM sla_notifications_sent WHERE ticket_id = ?", [$ticketId]],
     'tasks (set null)'               => ["SELECT COUNT(*) FROM tasks WHERE ticket_id = ?", [$ticketId]],
 ];

@@ -168,6 +168,7 @@ CREATE TABLE IF NOT EXISTS `asset_handover_templates` (
     `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    -- The render path looks up the default template on every document produced.
     KEY `ix_aht_default` (`is_default`, `is_active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -190,6 +191,8 @@ CREATE TABLE IF NOT EXISTS `notifications` (
     `updated_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `read_datetime`     DATETIME NULL,            -- NULL = unread; the badge counts these
     PRIMARY KEY (`id`),
+    -- The unread index serves the badge, which is polled by every open tab; the
+    -- coalesce index is hit on every event written.
     KEY `ix_notif_unread` (`analyst_id`, `read_datetime`, `updated_datetime`),
     KEY `ix_notif_coalesce` (`analyst_id`, `entity_type`, `entity_id`, `read_datetime`),
     CONSTRAINT `fk_notif_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
@@ -4052,6 +4055,7 @@ CREATE TABLE IF NOT EXISTS `status_incident_updates` (
     `created_by_id`     INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    -- Every read walks an incident's updates in time order, so both are indexed.
     KEY `ix_siu_incident_id` (`incident_id`),
     KEY `ix_siu_created` (`created_datetime`),
     CONSTRAINT `fk_siu_incident` FOREIGN KEY (`incident_id`) REFERENCES `status_incidents` (`id`) ON DELETE CASCADE
@@ -4242,6 +4246,36 @@ CREATE TABLE IF NOT EXISTS `ticket_cmdb_objects` (
     CONSTRAINT `fk_tco_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_tco_cmdb_object` FOREIGN KEY (`cmdb_object_id`) REFERENCES `cmdb_objects` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_tco_analyst` FOREIGN KEY (`created_by_analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Join table linking tickets to assets (M:N). Asked for in discussion #57.
+-- Drives the "Affected equipment" section on the ticket reading pane and the
+-- "Tickets" tab on the asset detail page.
+--
+-- Two nullable "created by" columns, not one: an analyst can attach any asset
+-- from the ticket screen, and a portal user can attach one of their own when
+-- raising a ticket. Analysts and end users live in different tables, so there is
+-- no single id that covers both. Exactly one is set on any given row; both are
+-- NULL only where the row was created by an automated path.
+--
+-- No tenant_id: the company is inherited from the ticket and the asset, both of
+-- which carry their own, and a link may only ever be made between two rows in
+-- the same company. That is enforced in application code, as it is for
+-- ticket_cmdb_objects.
+CREATE TABLE IF NOT EXISTS `ticket_assets` (
+    `id`                    INT NOT NULL AUTO_INCREMENT,
+    `ticket_id`             INT NOT NULL,
+    `asset_id`              INT NOT NULL,
+    `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `created_by_analyst_id` INT NULL,
+    `created_by_user_id`    INT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_ticket_asset` (`ticket_id`, `asset_id`),
+    KEY `ix_ta_asset_id` (`asset_id`),
+    CONSTRAINT `fk_ta_ticket`  FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ta_asset`   FOREIGN KEY (`asset_id`)  REFERENCES `assets` (`id`)  ON DELETE CASCADE,
+    CONSTRAINT `fk_ta_analyst` FOREIGN KEY (`created_by_analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_ta_user`    FOREIGN KEY (`created_by_user_id`)    REFERENCES `users` (`id`)    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

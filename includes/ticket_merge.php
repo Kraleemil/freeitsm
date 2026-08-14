@@ -49,8 +49,8 @@
  * THIS TICKET?" The first kind moves; the second kind would be falsified by moving.
  *
  *   MOVE   emails (attachments follow by email_id), ticket_notes, ticket_time_entries,
- *          ticket_recordings, ticket_cmdb_objects, tasks, problem_tickets,
- *          change_tickets, form_submissions, webchat_conversations
+ *          ticket_recordings, ticket_cmdb_objects, ticket_assets, tasks,
+ *          problem_tickets, change_tickets, form_submissions, webchat_conversations
  *
  *   STAY   ticket_audit          the source's own history. Moving it would rewrite
  *                                the past and make the source look like it never had one.
@@ -79,6 +79,7 @@ const MERGE_MOVE_TABLES = [
  */
 const MERGE_MOVE_DEDUPE = [
     'ticket_cmdb_objects' => 'cmdb_object_id',
+    'ticket_assets'       => 'asset_id',
     'problem_tickets'     => 'problem_id',
     'change_tickets'      => 'change_id',
 ];

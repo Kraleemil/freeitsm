@@ -10,8 +10,8 @@
  * deleted explicitly and in the right order — otherwise a ticket whose emails
  * carry attachments fails with "1451 Cannot delete or update a parent row".
  * The remaining children (ticket_recordings, ticket_csat_responses,
- * ticket_cmdb_objects, sla_notifications_sent, tasks) have CASCADE / SET NULL
- * rules and clean themselves up.
+ * ticket_cmdb_objects, ticket_assets, sla_notifications_sent, tasks) have
+ * CASCADE / SET NULL rules and clean themselves up.
  */
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
