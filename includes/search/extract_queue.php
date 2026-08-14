@@ -33,8 +33,12 @@ require_once __DIR__ . '/tika.php';
 const EXTRACT_SETTING_CRON          = 'attachment_extract_cron';
 const EXTRACT_SETTING_OPPORTUNISTIC = 'attachment_extract_opportunistic';
 
-/** How many pending items one opportunistic pass will take. Deliberately tiny. */
-const EXTRACT_OPPORTUNISTIC_BATCH = 3;
+/**
+ * ⚠️ ONE item, and a hard few seconds, because this runs inside a request an
+ * analyst is waiting on. The cron takes the slow ones; a page load must not.
+ */
+const EXTRACT_OPPORTUNISTIC_BATCH   = 1;
+const EXTRACT_OPPORTUNISTIC_SECONDS = 8;
 
 /** Read a boolean setting that defaults to ON when absent. */
 function extractQueueSettingOn(PDO $conn, string $key): bool {
@@ -72,7 +76,7 @@ function extractQueueDepth(PDO $conn): int {
  *
  * @return array{done:int,still_pending:int,skipped_reason:string}
  */
-function extractQueueDrain(PDO $conn, int $limit): array {
+function extractQueueDrain(PDO $conn, int $limit, float $deadline = 0): array {
     $out = ['done' => 0, 'still_pending' => 0, 'skipped_reason' => ''];
 
     try {
@@ -111,24 +115,76 @@ function extractQueueDrain(PDO $conn, int $limit): array {
             }
         } catch (Exception $e) { /* best effort */ }
 
+        // ⚠️ Return abandoned claims to the queue first. A worker that dies
+        // mid-file — a killed cron, a request that timed out — leaves rows in
+        // `extracting` where nothing would ever look at them again.
+        try {
+            $conn->prepare(
+                "UPDATE attachment_text SET status = ?
+                  WHERE status = ?
+                    AND extracted_datetime < DATE_SUB(NOW(), INTERVAL ? MINUTE)"
+            )->execute([ATT_TEXT_PENDING, ATT_TEXT_EXTRACTING, ATT_TEXT_CLAIM_STALE_MINUTES]);
+        } catch (Exception $e) { /* best effort */ }
+
         // Oldest first, so a backlog drains in the order it arrived.
         $sel = $conn->prepare(
-            "SELECT t.attachment_id, e.ticket_id
+            "SELECT t.attachment_id
                FROM attachment_text t
-               JOIN email_attachments a ON a.id = t.attachment_id
-               JOIN emails e            ON e.id = a.email_id
               WHERE t.status = ?
            ORDER BY t.extracted_datetime ASC
               LIMIT " . max(1, (int)$limit)
         );
         $sel->execute([ATT_TEXT_PENDING]);
-        $rows = $sel->fetchAll(PDO::FETCH_ASSOC);
+        $candidates = array_map('intval', $sel->fetchAll(PDO::FETCH_COLUMN));
+        if (!$candidates) { $out['still_pending'] = extractQueueDepth($conn); return $out; }
+
+        // ── THE CLAIM ───────────────────────────────────────────────────────
+        // ⚠️ This is what makes two workers safe. Without it, a cron run and an
+        // analyst opening a page select the SAME oldest rows and both send the
+        // same files to the extractor — one answer, paid for twice, and with OCR
+        // that is expensive.
+        //
+        // The UPDATE is atomic and conditional on the row still being `pending`,
+        // so of two racing workers exactly one wins each row. rowCount() is not
+        // enough to know WHICH were won, so the rows are re-read afterwards
+        // filtered on this worker's claim.
+        $in = implode(',', array_fill(0, count($candidates), '?'));
+        $claim = $conn->prepare(
+            "UPDATE attachment_text SET status = ?, extracted_datetime = NOW()
+              WHERE attachment_id IN ($in) AND status = ?"
+        );
+        $claim->execute(array_merge([ATT_TEXT_EXTRACTING], $candidates, [ATT_TEXT_PENDING]));
+        if ($claim->rowCount() === 0) {
+            // Another worker took all of them. Nothing to do, and no complaint:
+            // this is the mechanism working.
+            $out['skipped_reason'] = 'claimed by another worker';
+            $out['still_pending']  = extractQueueDepth($conn);
+            return $out;
+        }
+
+        $sel2 = $conn->prepare(
+            "SELECT t.attachment_id, e.ticket_id
+               FROM attachment_text t
+               JOIN email_attachments a ON a.id = t.attachment_id
+               JOIN emails e            ON e.id = a.email_id
+              WHERE t.attachment_id IN ($in) AND t.status = ?"
+        );
+        $sel2->execute(array_merge($candidates, [ATT_TEXT_EXTRACTING]));
+        $rows = $sel2->fetchAll(PDO::FETCH_ASSOC);
 
         // One ticket may own several pending attachments; reindexing it once
         // clears all of them.
         $tickets = array_values(array_unique(array_map(fn($r) => (int)$r['ticket_id'], $rows)));
 
         foreach ($tickets as $ticketId) {
+            // A wall-clock budget, checked BEFORE starting each ticket. One file
+            // cannot be interrupted once curl is waiting on it, which is why the
+            // opportunistic path also lowers the extractor timeout — the two
+            // together are what bound a page load.
+            if ($deadline > 0 && microtime(true) >= $deadline) {
+                $out['skipped_reason'] = 'time budget reached';
+                break;
+            }
             searchIndexTicket($conn, $ticketId);
             $out['done']++;
 
@@ -177,7 +233,22 @@ function extractQueueDrainOpportunistic(PDO $conn): void {
         if (!extractQueueSettingOn($conn, EXTRACT_SETTING_OPPORTUNISTIC)) return;
         if (!tikaConfigured($conn)) return;
         if (extractQueueDepth($conn) === 0) return;
-        extractQueueDrain($conn, EXTRACT_OPPORTUNISTIC_BATCH);
+
+        // Bound it twice over: a wall-clock deadline between items, and a much
+        // shorter extractor timeout so no single file can hold the page either.
+        // The configured timeout is sized for a scanned document on a cron.
+        tikaTimeoutOverride(EXTRACT_OPPORTUNISTIC_SECONDS);
+        try {
+            extractQueueDrain(
+                $conn,
+                EXTRACT_OPPORTUNISTIC_BATCH,
+                microtime(true) + EXTRACT_OPPORTUNISTIC_SECONDS
+            );
+        } finally {
+            // Always put it back: this process may go on to serve other work,
+            // and a stray short timeout would look like an unreliable extractor.
+            tikaTimeoutOverride(null);
+        }
     } catch (Throwable $e) {
         error_log('[extractQueueDrainOpportunistic] ' . $e->getMessage());
     }

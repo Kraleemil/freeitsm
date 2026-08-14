@@ -43,6 +43,23 @@ const ATT_TEXT_FAILED      = 'failed';
 /** Queued for an extractor that is configured but was not reachable. RETRIED. */
 const ATT_TEXT_PENDING     = 'pending';
 
+/**
+ * CLAIMED by a worker that is reading it right now.
+ *
+ * ⚠️ Transient, and never a resting state. Two workers — a cron run and an
+ * analyst opening a page — would otherwise both select the same oldest pending
+ * rows and send the same files to the extractor independently, which for OCR
+ * means paying two or three times for one answer.
+ *
+ * A worker that dies mid-file leaves its rows here, so anything older than
+ * ATT_TEXT_CLAIM_STALE_MINUTES is returned to `pending` by the next drain.
+ * A status nothing will ever act on is a leak.
+ */
+const ATT_TEXT_EXTRACTING  = 'extracting';
+
+/** How long a claim may sit before it is assumed abandoned. */
+const ATT_TEXT_CLAIM_STALE_MINUTES = 15;
+
 /** Files bigger than this are never opened. */
 const ATT_TEXT_MAX_FILE_BYTES = 20971520;   // 20 MB
 

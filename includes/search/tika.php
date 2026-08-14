@@ -64,7 +64,25 @@ function tikaUrl(PDO $conn): string {
     return $cached = rtrim(trim($v), '/');
 }
 
+/**
+ * Force a shorter timeout for the current process.
+ *
+ * ⚠️ Exists for the opportunistic drain, which runs INSIDE a request somebody is
+ * waiting on. The configured timeout is sized for a scanned document on a cron —
+ * a minute or more — and applying that to a page load means an analyst who
+ * happened to open the wrong screen waits a minute for it. Set low, do one item,
+ * set back.
+ */
+function tikaTimeoutOverride(?int $seconds = null): ?int {
+    static $override = null;
+    if (func_num_args() > 0) $override = $seconds;
+    return $override;
+}
+
 function tikaTimeout(PDO $conn): int {
+    $forced = tikaTimeoutOverride();
+    if ($forced !== null) return max(TIKA_TIMEOUT_MIN, min(TIKA_TIMEOUT_MAX, $forced));
+
     try {
         $st = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
         $st->execute([TIKA_SETTING_TIMEOUT]);

@@ -191,7 +191,11 @@ function searchIndexTicketAttachments(PDO $conn, int $ticketId, ?int $tenantId, 
         // queue look like it is working while clearing nothing: the drain
         // reindexes the ticket, the ticket declines to reconsider the row, and
         // the depth never moves.
-        $reconsider = in_array($status, [ATT_TEXT_UNSUPPORTED, ATT_TEXT_PENDING], true)
+        //   extracting   a worker has CLAIMED it and is about to read it — that
+        //                worker is the caller here, so this is where the work
+        //                actually happens. It must be in this list or a claimed
+        //                row would be skipped and never processed at all.
+        $reconsider = in_array($status, [ATT_TEXT_UNSUPPORTED, ATT_TEXT_PENDING, ATT_TEXT_EXTRACTING], true)
                       && tikaConfigured($conn)
                       && tikaHandles((string)$r['filename']);
 

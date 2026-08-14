@@ -158,6 +158,11 @@ if (!isset($_SESSION['analyst_id'])) {
             'att_outcome'  => t('system.search.att_outcome'),
             'att_files'    => t('system.search.att_files'),
             'att_unsupported_note' => t('system.search.att_unsupported_note'),
+            'prob_heading' => t('system.search.prob_heading'),
+            'prob_intro'   => t('system.search.prob_intro'),
+            'prob_file'    => t('system.search.prob_file'),
+            'prob_ticket'  => t('system.search.prob_ticket'),
+            'prob_why'     => t('system.search.prob_why'),
         ], JSON_UNESCAPED_UNICODE); ?>;
 
         var ATT_LABEL = <?php echo json_encode([
@@ -167,6 +172,7 @@ if (!isset($_SESSION['analyst_id'])) {
             'unsupported' => t('system.search.att_unsupported'),
             'failed'      => t('system.search.att_failed'),
             'pending'     => t('system.search.att_pending'),
+            'extracting'  => t('system.search.att_extracting'),
         ], JSON_UNESCAPED_UNICODE); ?>;
 
         var SOURCE_LABEL = {
@@ -246,6 +252,28 @@ if (!isset($_SESSION['analyst_id'])) {
                     if (att.unsupported) {
                         html += '<div class="srch-status">' + esc(T.att_unsupported_note) + '</div>';
                     }
+                }
+
+                // Named files, not just counts. "Something failed" is not an
+                // answer to "why can't I find this invoice"; the filename is.
+                var probs = d.problem_files || [];
+                if (probs.length) {
+                    html += '<h3 style="margin-top:22px">' + esc(T.prob_heading) + '</h3>';
+                    html += '<div class="srch-status" style="margin-top:0">' + esc(T.prob_intro) + '</div>';
+                    html += '<table class="srch-table"><thead><tr>' +
+                            '<th>' + esc(T.prob_file) + '</th>' +
+                            '<th>' + esc(T.prob_ticket) + '</th>' +
+                            '<th>' + esc(T.prob_why) + '</th>' +
+                            '</tr></thead><tbody>';
+                    probs.forEach(function (p) {
+                        var ticket = p.ticket_number
+                            ? '<a href="../../tickets/?ticket_id=' + p.ticket_id + '">' + esc(p.ticket_number) + '</a>'
+                            : '<span class="srch-muted">&mdash;</span>';
+                        html += '<tr><td>' + esc(p.filename) + '</td>' +
+                                '<td>' + ticket + '</td>' +
+                                '<td>' + esc(ATT_LABEL[p.status] || p.status) + '</td></tr>';
+                    });
+                    html += '</tbody></table>';
                 }
 
                 html += '<div class="srch-status">' + esc(T.min_word.replace('{n}', d.min_word_length)) + '</div>';

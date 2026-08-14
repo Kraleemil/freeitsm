@@ -373,6 +373,12 @@ return [
         'att_unsupported'      => 'Format cannot be read yet',
         'att_failed'           => 'Could not be read',
         'att_pending'          => 'Waiting to be read',
+        'att_extracting'       => 'Being read now',
+        'prob_heading'         => 'Attachments that are not searchable',
+        'prob_intro'           => 'These files are not in the search index. Anything shown as a format that cannot be read needs a document-reading service — see System → Integrations → Apache Tika.',
+        'prob_file'            => 'File',
+        'prob_ticket'          => 'Ticket',
+        'prob_why'             => 'Why not',
         'att_unsupported_note' => 'PDFs and older Office formats need an extraction service, which is not part of FreeITSM yet. Word, Excel, PowerPoint and plain text files are read without one.',
     ],
 

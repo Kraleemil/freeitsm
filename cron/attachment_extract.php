@@ -66,6 +66,34 @@ try {
         exit;
     }
 
+    // ⚠️ Overlap guard, same idea as cron/webhook_deliveries.php. A five-minute
+    // schedule with a run that takes ten gives you two workers on one queue.
+    // The claim in extractQueueDrain() makes that SAFE, but it is still two
+    // processes doing half the work each and competing for the extractor, so
+    // the second one is better off not starting.
+    $MIN_INTERVAL = 60;   // seconds
+    $lastRun = null;
+    try {
+        $st = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'attachment_extract_last_run'");
+        $st->execute();
+        $lastRun = $st->fetchColumn() ?: null;
+    } catch (Exception $e) { /* first run */ }
+
+    if ($lastRun) {
+        $age = $conn->prepare("SELECT TIMESTAMPDIFF(SECOND, ?, UTC_TIMESTAMP())");
+        $age->execute([$lastRun]);
+        $secs = (int)$age->fetchColumn();
+        if ($secs >= 0 && $secs < $MIN_INTERVAL) {
+            echo "Skipped: last run was {$secs}s ago (minimum {$MIN_INTERVAL}s).\n";
+            exit;
+        }
+    }
+    $conn->prepare(
+        "INSERT INTO system_settings (setting_key, setting_value)
+         VALUES ('attachment_extract_last_run', UTC_TIMESTAMP())
+         ON DUPLICATE KEY UPDATE setting_value = UTC_TIMESTAMP()"
+    )->execute();
+
     $waiting = extractQueueDepth($conn);
     if ($waiting === 0) {
         echo "Nothing pending.\n";

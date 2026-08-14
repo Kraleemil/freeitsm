@@ -13,6 +13,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/search/corpus.php';
+require_once '../../includes/search/extract.php';   // the status constants
 require_once '../../includes/search/search.php';
 require_once '../../includes/admin_api_guard.php';   // administrators only
 
@@ -89,10 +90,42 @@ try {
         $attachments = array_map('intval', $attachments);
     } catch (Exception $e) { /* table absent on a part-migrated install */ }
 
+    // The attachments that are NOT searchable, named. Counts alone answer "is
+    // something wrong" but not "why isn't THIS file coming up", which is the
+    // question an analyst actually arrives with. Capped, newest first.
+    $problems = [];
+    try {
+        $st = $conn->prepare(
+            "SELECT t.attachment_id, t.status, t.extractor, t.extracted_datetime,
+                    a.filename, a.file_size, e.ticket_id, tk.ticket_number
+               FROM attachment_text t
+               JOIN email_attachments a ON a.id = t.attachment_id
+               JOIN emails e            ON e.id = a.email_id
+          LEFT JOIN tickets tk          ON tk.id = e.ticket_id
+              WHERE t.status NOT IN (?, ?)
+                AND (tk.deleted_datetime IS NULL OR tk.id IS NULL)
+           ORDER BY t.extracted_datetime DESC
+              LIMIT 50"
+        );
+        $st->execute([ATT_TEXT_EXTRACTED, ATT_TEXT_TRUNCATED]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
+            $problems[] = [
+                'filename'      => $p['filename'],
+                'status'        => $p['status'],
+                'extractor'     => $p['extractor'],
+                'ticket_id'     => $p['ticket_id'] !== null ? (int)$p['ticket_id'] : null,
+                'ticket_number' => $p['ticket_number'],
+                'file_size'     => (int)$p['file_size'],
+                'when'          => $p['extracted_datetime'],
+            ];
+        }
+    } catch (Exception $e) { /* table absent */ }
+
     echo json_encode([
         'success'          => true,
         'ready'            => true,
         'attachments'      => $attachments,
+        'problem_files'    => $problems,
         'total_rows'       => $total,
         'by_source'        => $bySource,
         'last_indexed'     => $lastIndexed ?: null,
