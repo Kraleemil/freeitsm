@@ -3537,120 +3537,39 @@ body.ticket-popout .ticket-toolbar {
 .cmdb-picker-empty { padding: 10px; color: var(--text-faint, #9ca3af); font-size: 12px; text-align: center; }
 
 /* =========================================================
-   Linked assets on a ticket (discussion #57).
-   Structurally identical to the CMDB section above so the two read as one
-   family, but coloured from --accent rather than hardcoded pinks: that is the
-   Assets module's own colour, and using the token means dark mode is handled
-   by theme.css instead of needing an override block here.
+   Equipment and CMDB objects in the Links strip (discussion #57).
+
+   Both used to be full bordered cards stacked below the thread. They answer
+   the same question the strip already answers — "what else is this connected
+   to" — and six stacked cards cost most of a screen on a ticket where all of
+   them were empty. They are pills in the strip now, reusing .pm-ticket-badge
+   so a linked laptop looks like a linked problem.
+
+   Equipment and CIs stay VISIBLY separate (🖥️ vs 🗄️) because they are not the
+   same kind of thing: a broken mouse is an asset and will never be a CI, and
+   linking a CI is what feeds impact analysis. Shared row, separate identities.
    ========================================================= */
-.asset-section {
-    background: var(--surface, #fff);
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: 6px;
-    padding: 14px 16px;
-    margin: 16px 0;
-}
-.asset-section-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-.asset-section-head h3 {
-    font-size: 12px;
-    text-transform: uppercase;
-    color: var(--accent, #0078d4);
-    letter-spacing: 0.5px;
-    font-weight: 700;
-    margin: 0;
-}
-.asset-section-head .btn-link {
-    background: none;
-    border: none;
-    color: var(--accent, #0078d4);
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 0;
-}
-.asset-section-head .btn-link:hover { text-decoration: underline; }
-.asset-empty { color: var(--text-faint, #9ca3af); font-style: italic; font-size: 13px; padding: 4px 0; }
+.strip-pill-group { display: contents; }
+.links-strip-empty { color: var(--text-faint, #9ca3af); font-size: 13px; }
+.links-strip-empty[hidden] { display: none; }
 
-.asset-link-list { display: flex; flex-direction: column; gap: 6px; }
-.asset-link-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    padding: 10px 12px;
-    background: var(--accent-soft, #e8f4fc);
-    border: 1px solid var(--border, #e5e7eb);
-    border-radius: 4px;
-    text-decoration: none;
-    color: inherit;
-    transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, transform 0.12s ease-out;
-}
-.asset-link-card:hover {
-    border-color: var(--accent, #0078d4);
-    box-shadow: 0 4px 12px var(--shadow, rgba(0,0,0,0.08));
-    transform: translateY(-2px);
-}
-.asset-link-card-body { flex: 1; min-width: 0; }
-.asset-link-card-name {
-    color: var(--text, #111827);
-    font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 4px;
-}
-.asset-link-card-meta {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    color: var(--text-dim, #6b7280);
-    font-size: 12px;
-}
-.asset-type-badge {
-    background: var(--surface, #fff);
-    color: var(--accent, #0078d4);
-    padding: 1px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    border: 1px solid var(--border, #e5e7eb);
-    font-weight: 500;
-}
-.asset-link-detail { color: var(--text-dim, #6b7280); font-size: 12px; }
-.asset-link-x {
-    background: none;
-    border: none;
-    color: var(--text-faint, #d1d5db);
-    cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    padding: 0 4px;
-    flex-shrink: 0;
-}
-.asset-link-x:hover { color: #b91c1c; }
-
-/* Inline picker — opens already showing the requester's own equipment */
-.asset-picker {
-    margin-top: 10px;
-    padding: 10px;
-    background: var(--surface-2, #fafafa);
-    border-radius: 4px;
-    border: 1px solid var(--border, #e5e7eb);
-    position: relative;
-}
-.asset-picker input {
+/* Lives inside .problem-strip and takes a full row of its own, so the strip
+   stays one line until a picker is open. See openStripPicker() for why it is a
+   child rather than a sibling — mobile.js relocates the strip by selector. */
+.strip-picker-host { flex: 0 0 100%; margin-top: 8px; }
+.strip-picker-host[hidden] { display: none; }
+.strip-picker { position: relative; }
+.strip-picker input {
     width: 100%;
-    padding: 8px 12px;
+    padding: 7px 11px;
     border: 1px solid var(--border, #d1d5db);
     border-radius: 4px;
     font-size: 13px;
     background: var(--surface, #fff);
     color: var(--text, #111827);
 }
-.asset-picker input:focus { outline: none; border-color: var(--accent, #0078d4); }
-.asset-picker-results {
+.strip-picker input:focus { outline: none; border-color: var(--accent, #0078d4); }
+.strip-picker-results {
     margin-top: 6px;
     background: var(--surface, #fff);
     border: 1px solid var(--border, #e5e7eb);
@@ -3659,9 +3578,10 @@ body.ticket-popout .ticket-toolbar {
     overflow-y: auto;
     display: none;
 }
-.asset-picker-results.active { display: block; }
-/* Group heading — "Their equipment" / "All equipment". Not selectable, so the
-   arrow keys skip it: it is a sibling of the results, never one of them. */
+.strip-picker-results.active { display: block; }
+
+/* Equipment result rows. The CMDB picker keeps its own .cmdb-picker-* rows
+   above, so neither picker's appearance changed when they moved. */
 .asset-picker-group {
     padding: 6px 12px 3px;
     font-size: 10.5px;

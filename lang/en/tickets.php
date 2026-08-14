@@ -527,12 +527,14 @@ return [
         'unlinked_toast'     => 'Unlinked',
         'linked_toast'       => 'Linked {name}',
         'already_linked'     => '{name} is already linked',
+        'menu_item'          => 'CMDB object',
     ],
 
     // Equipment linked to a ticket (discussion #57). Nested, like every other
     // section here — I18n::t() splits the key on every dot, so a flat
     // 'assets.section_title' key would never resolve.
     'assets' => [
+        'menu_item'          => 'Equipment',
         'section_title'      => 'Affected equipment',
         'link_btn'           => '+ Link equipment',
         'empty'              => 'No equipment linked yet.',

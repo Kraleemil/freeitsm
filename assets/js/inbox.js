@@ -2226,8 +2226,6 @@ function displayEmail(email, recordings) {
             <div id="threadContainer">
                 ${emailBodyHost(email.body_content, 'email-body-content', email.body_type)}
             </div>
-            <div id="ticketAssetsContainer"></div>
-            <div id="cmdbObjectsContainer"></div>
             <div id="slaContainer"></div>
             <div id="timeEntriesContainer"></div>
             <div id="notesContainer"></div>
@@ -2632,23 +2630,80 @@ function buildLinksSection(email) {
         </a>`);
     });
 
+    // Equipment and CMDB pills can't be built here: unlike the rest of this
+    // strip they aren't on `email`, they need their own fetches. So the strip
+    // renders empty holders and loadTicketAssets/loadCmdbObjects fill them in.
+    //
+    // That is also why the "nothing yet" note carries an id — those loaders may
+    // arrive with pills a moment after it has already been drawn, and it has to
+    // get out of the way when they do.
     const body = pills.length
         ? pills.join('')
-        : `<span style="color:#9ca3af;font-size:13px;">Not linked to anything yet</span>`;
+        : `<span class="links-strip-empty" id="linksStripEmpty">Not linked to anything yet</span>`;
 
     return `<div class="problem-strip links-strip">
         <span class="problem-strip-label">Links</span>
         ${body}
+        <span class="strip-pill-group" id="stripAssetPills"></span>
+        <span class="strip-pill-group" id="stripCmdbPills"></span>
         <div class="link-add-wrap">
             <button class="problem-link-btn" onclick="toggleLinkAddMenu(event)">Link to… ▾</button>
             <div class="link-add-menu" id="linkAddMenu">
                 <button type="button" onclick="linkAddChoose('problem')">Problem</button>
                 <button type="button" onclick="linkAddChoose('change')">Change</button>
                 <button type="button" onclick="linkAddChoose('ticket')">Ticket</button>
+                <button type="button" onclick="linkAddChoose('equipment')">${escapeHtml(t('tickets.assets.menu_item'))}</button>
+                <button type="button" onclick="linkAddChoose('cmdb')">${escapeHtml(t('tickets.cmdb.menu_item'))}</button>
                 <button type="button" onclick="linkAddChoose('tracker')">${escapeHtml(t('tickets.tracker.menu_item'))}</button>
             </div>
         </div>
+        <div class="strip-picker-host" id="stripPickerHost" hidden></div>
     </div>`;
+}
+
+/**
+ * Hide the strip's "Not linked to anything yet" note once anything at all has
+ * been linked — including the pills that arrive after the strip was drawn.
+ * Called by both async loaders; safe to call when the note isn't there.
+ */
+function syncLinksStripEmpty() {
+    const note = document.getElementById('linksStripEmpty');
+    if (!note) return;
+    const a = document.getElementById('stripAssetPills');
+    const c = document.getElementById('stripCmdbPills');
+    const has = (a && a.children.length) || (c && c.children.length);
+    note.hidden = !!has;
+}
+
+/**
+ * Shared picker chrome for the Links strip.
+ *
+ * Equipment and CMDB objects are searched rather than chosen from a modal like
+ * problems and changes are, so they get an inline box under the strip instead.
+ * One host, reused — two pickers can never be open at once, which is the point:
+ * the strip is a single row and so is the thing hanging off it.
+ *
+ * ⚠️ The host lives INSIDE `.problem-strip`, not after it, and that is not a
+ * layout preference. On a phone, mobile.js relocates the whole strip into a
+ * full-screen "Links" sheet by selector. A sibling would be left behind in the
+ * reading pane, so opening the picker would render it somewhere the user cannot
+ * see. It wraps onto its own line because the strip is flex-wrap with a
+ * full-width basis on this child.
+ */
+function openStripPicker(placeholder) {
+    const host = document.getElementById('stripPickerHost');
+    if (!host) return null;
+    host.hidden = false;
+    host.innerHTML = `
+        <div class="strip-picker">
+            <input type="text" id="stripPickerInput" placeholder="${escapeHtml(placeholder)}" autocomplete="off">
+            <div class="strip-picker-results" id="stripPickerResults"></div>
+        </div>`;
+    const input   = document.getElementById('stripPickerInput');
+    const results = document.getElementById('stripPickerResults');
+    const close   = () => { host.hidden = true; host.innerHTML = ''; };
+    setTimeout(() => input.focus(), 0);
+    return { input, results, close };
 }
 
 // "Link to…" popover: pick Problem / Change / Ticket, then open its picker for
@@ -2671,6 +2726,8 @@ function linkAddChoose(kind) {
     if (kind === 'problem') openLinkProblemModal(id, ref, subj);
     else if (kind === 'change') openLinkChangeModal(id, ref, subj);
     else if (kind === 'tracker') openEscalateTrackerModal(id, ref);
+    else if (kind === 'equipment') openLinkAssetPicker(id);
+    else if (kind === 'cmdb') openLinkCmdbPicker(id);
     else openLinkTicketModal(id, ref, subj);
 }
 
@@ -3822,60 +3879,37 @@ let cmdbAcTimer = null;
 let cmdbAcHighlightedIdx = -1;
 
 async function loadCmdbObjects(ticketId) {
-    const container = document.getElementById('cmdbObjectsContainer');
-    if (!container) return;
-    container.innerHTML = '';
+    const host = document.getElementById('stripCmdbPills');
+    if (!host) return;
     try {
         const res = await fetch('../api/tickets/get_ticket_cmdb_objects.php?ticket_id=' + ticketId);
         const data = await res.json();
         if (!data.success) return;
         cmdbObjectsForTicket = data.links || [];
         renderCmdbObjects(ticketId);
-    } catch (e) { /* silent — section will just stay empty */ }
+    } catch (e) { /* silent — the strip simply shows no CI pills */ }
 }
 
 function renderCmdbObjects(ticketId) {
-    const container = document.getElementById('cmdbObjectsContainer');
-    if (!container) return;
-    const cards = cmdbObjectsForTicket.map(link => `
-        <a class="cmdb-link-card" href="../cmdb/object.php?id=${link.object_id}" title="Open in CMDB">
-            <div class="cmdb-link-card-body">
-                <div class="cmdb-link-card-name">${escapeHtml(link.name)}</div>
-                <div class="cmdb-link-card-meta">
-                    <span class="cmdb-class-badge">${escapeHtml(link.class_name)}</span>
-                    ${link.parent_name ? `<span class="cmdb-parent">in <strong>${escapeHtml(link.parent_name)}</strong> (${escapeHtml(link.parent_class_name || '')})</span>` : ''}
-                </div>
-            </div>
-            <button class="cmdb-link-x" title="${escapeHtml(t('tickets.cmdb.unlink_title'))}" onclick="removeCmdbObject(event, ${link.link_id}, ${ticketId})">×</button>
-        </a>
-    `).join('');
-
-    container.innerHTML = `
-        <div class="cmdb-section">
-            <div class="cmdb-section-head">
-                <h3>${escapeHtml(t('tickets.cmdb.section_title'))}</h3>
-                <button class="btn-link" onclick="openLinkCmdbPicker(${ticketId})">${escapeHtml(t('tickets.cmdb.link_btn'))}</button>
-            </div>
-            ${cmdbObjectsForTicket.length === 0
-                ? `<div class="cmdb-empty">${escapeHtml(t('tickets.cmdb.empty'))}</div>`
-                : `<div class="cmdb-link-list">${cards}</div>`}
-            <div class="cmdb-picker" id="cmdbPicker_${ticketId}" style="display:none;">
-                <input type="text" id="cmdbPickerInput_${ticketId}" placeholder="${escapeHtml(t('tickets.cmdb.search_placeholder'))}" autocomplete="off">
-                <div class="cmdb-picker-results" id="cmdbPickerResults_${ticketId}"></div>
-            </div>
-        </div>
-    `;
+    const host = document.getElementById('stripCmdbPills');
+    if (!host) return;
+    host.innerHTML = cmdbObjectsForTicket.map(link => {
+        const where = link.parent_name
+            ? `in ${link.parent_name}${link.parent_class_name ? ' (' + link.parent_class_name + ')' : ''}`
+            : '';
+        const title = [link.class_name, where].filter(Boolean).join(' · ');
+        return `<a class="pm-ticket-badge" href="../cmdb/object.php?id=${link.object_id}" title="${escapeHtml(title)}">
+            🗄️ ${escapeHtml(link.name)}
+            <span class="pm-ticket-unlink" title="${escapeHtml(t('tickets.cmdb.unlink_title'))}" onclick="event.preventDefault();event.stopPropagation();removeCmdbObject(event, ${link.link_id}, ${ticketId});">✕</span>
+        </a>`;
+    }).join('');
+    syncLinksStripEmpty();
 }
 
 function openLinkCmdbPicker(ticketId) {
-    const picker = document.getElementById('cmdbPicker_' + ticketId);
-    const input  = document.getElementById('cmdbPickerInput_' + ticketId);
-    const results = document.getElementById('cmdbPickerResults_' + ticketId);
-    if (!picker || !input) return;
-    picker.style.display = 'block';
-    input.value = '';
-    results.classList.remove('active');
-    input.focus();
+    const ui = openStripPicker(t('tickets.cmdb.search_placeholder'));
+    if (!ui) return;
+    const { input, results, close } = ui;
 
     let current = [];
     cmdbAcHighlightedIdx = -1;
@@ -3914,7 +3948,7 @@ function openLinkCmdbPicker(ticketId) {
             } else {
                 showToast(t('tickets.cmdb.linked_toast', { name: r.name }), 'success');
             }
-            picker.style.display = 'none';
+            close();
             await loadCmdbObjects(ticketId);
         } catch (err) {
             showToast('Error: ' + err.message, 'error');
@@ -3942,7 +3976,7 @@ function openLinkCmdbPicker(ticketId) {
         if (e.key === 'ArrowDown') { e.preventDefault(); cmdbAcHighlightedIdx = Math.min(current.length - 1, cmdbAcHighlightedIdx + 1); renderResults(); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); cmdbAcHighlightedIdx = Math.max(0, cmdbAcHighlightedIdx - 1); renderResults(); }
         else if (e.key === 'Enter' && cmdbAcHighlightedIdx >= 0) { e.preventDefault(); pick(current[cmdbAcHighlightedIdx]); }
-        else if (e.key === 'Escape') { picker.style.display = 'none'; }
+        else if (e.key === 'Escape') { close(); }
     };
 }
 
@@ -3976,16 +4010,15 @@ let assetAcTimer = null;
 let assetAcHighlightedIdx = -1;
 
 async function loadTicketAssets(ticketId) {
-    const container = document.getElementById('ticketAssetsContainer');
-    if (!container) return;
-    container.innerHTML = '';
+    const host = document.getElementById('stripAssetPills');
+    if (!host) return;
     try {
         const res = await fetch('../api/tickets/get_ticket_assets.php?ticket_id=' + ticketId);
         const data = await res.json();
         if (!data.success) return;
         assetsForTicket = data.links || [];
         renderTicketAssets(ticketId);
-    } catch (e) { /* silent — section will just stay empty */ }
+    } catch (e) { /* silent — the strip simply shows no equipment pills */ }
 }
 
 /** The one-line name for an asset: hostname if it has one, else the tag. */
@@ -3994,57 +4027,34 @@ function assetDisplayName(a) {
 }
 
 function renderTicketAssets(ticketId) {
-    const container = document.getElementById('ticketAssetsContainer');
-    if (!container) return;
+    const host = document.getElementById('stripAssetPills');
+    if (!host) return;
 
-    const cards = assetsForTicket.map(link => {
+    host.innerHTML = assetsForTicket.map(link => {
+        // Everything except the name goes in the tooltip. The strip is one line;
+        // the make, model, serial and location belong on the asset's own page,
+        // which is one click away on the pill itself.
         const makeModel = [link.manufacturer, link.model].filter(Boolean).join(' ');
         const bits = [];
-        if (makeModel)          bits.push(escapeHtml(makeModel));
-        if (link.service_tag)   bits.push(escapeHtml(t('tickets.assets.serial', { serial: link.service_tag })));
-        if (link.location_name) bits.push(escapeHtml(link.location_name));
-        return `
-        <a class="asset-link-card" href="../asset-management/index.php?asset_id=${link.asset_id}" title="${escapeHtml(t('tickets.assets.open_title'))}">
-            <div class="asset-link-card-body">
-                <div class="asset-link-card-name">${escapeHtml(assetDisplayName(link))}</div>
-                <div class="asset-link-card-meta">
-                    ${link.type_name ? `<span class="asset-type-badge">${escapeHtml(link.type_name)}</span>` : ''}
-                    ${bits.length ? `<span class="asset-link-detail">${bits.join(' &middot; ')}</span>` : ''}
-                </div>
-            </div>
-            <button class="asset-link-x" title="${escapeHtml(t('tickets.assets.unlink_title'))}" onclick="removeTicketAsset(event, ${link.link_id}, ${ticketId})">&times;</button>
+        if (link.type_name)     bits.push(link.type_name);
+        if (makeModel)          bits.push(makeModel);
+        if (link.service_tag)   bits.push(t('tickets.assets.serial', { serial: link.service_tag }));
+        if (link.location_name) bits.push(link.location_name);
+        return `<a class="pm-ticket-badge" href="../asset-management/index.php?asset_id=${link.asset_id}" title="${escapeHtml(bits.join(' · '))}">
+            🖥️ ${escapeHtml(assetDisplayName(link))}
+            <span class="pm-ticket-unlink" title="${escapeHtml(t('tickets.assets.unlink_title'))}" onclick="event.preventDefault();event.stopPropagation();removeTicketAsset(event, ${link.link_id}, ${ticketId});">✕</span>
         </a>`;
     }).join('');
-
-    container.innerHTML = `
-        <div class="asset-section">
-            <div class="asset-section-head">
-                <h3>${escapeHtml(t('tickets.assets.section_title'))}</h3>
-                <button class="btn-link" onclick="openLinkAssetPicker(${ticketId})">${escapeHtml(t('tickets.assets.link_btn'))}</button>
-            </div>
-            ${assetsForTicket.length === 0
-                ? `<div class="asset-empty">${escapeHtml(t('tickets.assets.empty'))}</div>`
-                : `<div class="asset-link-list">${cards}</div>`}
-            <div class="asset-picker" id="assetPicker_${ticketId}" style="display:none;">
-                <input type="text" id="assetPickerInput_${ticketId}" placeholder="${escapeHtml(t('tickets.assets.search_placeholder'))}" autocomplete="off">
-                <div class="asset-picker-results" id="assetPickerResults_${ticketId}"></div>
-            </div>
-        </div>
-    `;
+    syncLinksStripEmpty();
 }
 
 function openLinkAssetPicker(ticketId) {
-    const picker  = document.getElementById('assetPicker_' + ticketId);
-    const input   = document.getElementById('assetPickerInput_' + ticketId);
-    const results = document.getElementById('assetPickerResults_' + ticketId);
-    if (!picker || !input) return;
-    picker.style.display = 'block';
-    input.value = '';
-    results.classList.remove('active');
-    input.focus();
+    const ui = openStripPicker(t('tickets.assets.search_placeholder'));
+    if (!ui) return;
+    const { input, results, close } = ui;
 
-    // `current` is the flat, keyboard-navigable list. `groups` only decides where
-    // the headings are drawn, so arrow keys never land on a heading.
+    // `current` is the flat, keyboard-navigable list. `firstOtherIdx` only decides
+    // where the headings are drawn, so arrow keys never land on a heading.
     let current = [];
     let firstOtherIdx = -1;
     assetAcHighlightedIdx = -1;
@@ -4113,7 +4123,7 @@ function openLinkAssetPicker(ticketId) {
             } else {
                 showToast(t('tickets.assets.linked_toast', { name }), 'success');
             }
-            picker.style.display = 'none';
+            close();
             await loadTicketAssets(ticketId);
         } catch (err) {
             showToast('Error: ' + err.message, 'error');
@@ -4130,7 +4140,7 @@ function openLinkAssetPicker(ticketId) {
         if (e.key === 'ArrowDown') { e.preventDefault(); assetAcHighlightedIdx = Math.min(current.length - 1, assetAcHighlightedIdx + 1); renderResults(); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); assetAcHighlightedIdx = Math.max(0, assetAcHighlightedIdx - 1); renderResults(); }
         else if (e.key === 'Enter' && assetAcHighlightedIdx >= 0) { e.preventDefault(); pick(current[assetAcHighlightedIdx]); }
-        else if (e.key === 'Escape') { picker.style.display = 'none'; }
+        else if (e.key === 'Escape') { close(); }
     };
 
     // Show the requester's own equipment straight away, before anything is typed.
