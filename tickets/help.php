@@ -326,11 +326,11 @@ try {
 
                     <h4>Linking the equipment a ticket is about</h4>
 
-                    <p>The <strong>Affected equipment</strong> section on a ticket records which device the problem concerns. Click <strong>+ Link equipment</strong> and the picker opens already showing whatever is assigned to the person who raised the ticket &mdash; for &ldquo;my monitor is flickering&rdquo;, that is almost always the answer, and it is one click.</p>
+                    <p>Equipment is recorded in the <strong>Links</strong> bar at the top of the ticket, alongside problems, changes and related tickets &mdash; each item is a pill marked &#128187;. Choose <strong>Link to&hellip; &rarr; Equipment</strong> and the picker opens already showing whatever is assigned to the person who raised the ticket &mdash; for &ldquo;my monitor is flickering&rdquo;, that is almost always the answer, and it is one click.</p>
 
                     <p>Start typing and it searches the whole estate instead. As well as hostname, make, model, serial number and asset tag, <strong>it searches the location</strong>. That matters more than it sounds: when somebody reports the screen in a meeting room, nobody involved knows its hostname &mdash; they know where it is. Searching &ldquo;meeting room 3&rdquo; finds it, provided your assets have locations set.</p>
 
-                    <p>Each linked item shows its asset tag, make and model, serial number, type and location on the ticket, so the device is identified without a round of questions. Click one to open it in Assets, or use the &times; to unlink.</p>
+                    <p>Hover a pill to see the make, model, serial number and location, so the device is identified without a round of questions. Click it to open the asset, or use the &times; to unlink. CMDB objects sit in the same bar marked &#128451; and are attached the same way &mdash; they are kept visibly separate because they are different things: a broken mouse is an asset and will never be a configuration item.</p>
 
                     <p class="help-note">Requesters can link equipment themselves when raising a ticket in the self-service portal, but only equipment assigned to <em>them</em>. Shared items &mdash; meeting room screens, printers, anything nobody holds &mdash; can only be attached by an analyst, so expect to add those yourself when a ticket describes one.</p>
                 </div>

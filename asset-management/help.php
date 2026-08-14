@@ -498,7 +498,7 @@ $translationNamespaces = ['common', 'asset-management'];
 
                     <p>A long history is capped at the twenty most recent closed tickets, with the true total shown alongside, so an asset that has been in service for years still opens quickly.</p>
 
-                    <p class="help-note">Tickets appear here once somebody links the asset to them &mdash; from the <strong>Affected equipment</strong> section on the ticket, or by the requester choosing their device when raising it in the self-service portal. Nothing is linked automatically, so this tab stays empty on assets nobody has attached to a ticket.</p>
+                    <p class="help-note">Tickets appear here once somebody links the asset to them &mdash; from the <strong>Links</strong> bar on the ticket (<strong>Link to&hellip; &rarr; Equipment</strong>), or by the requester choosing their device when raising it in the self-service portal. Nothing is linked automatically, so this tab stays empty on assets nobody has attached to a ticket.</p>
                 </div>
 
                 <div class="help-section" id="tips">
