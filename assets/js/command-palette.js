@@ -40,10 +40,11 @@
     // a magnifying glass — the row's job is "here is a ticket", and the group
     // heading above it already says it was found by its text.
     ICONS.ticket_content = ICONS.ticket;
+    ICONS.article_content = ICONS.knowledge;
     var TYPE_LABEL = {
         ticket: 'Ticket', change: 'Change', problem: 'Problem',
         knowledge: 'Article', contract: 'Contract', ci: 'Config item', asset: 'Asset',
-        ticket_content: 'Ticket'
+        ticket_content: 'Ticket', article_content: 'Article'
     };
 
     // Static quick actions. Each has a matcher label and a run().
@@ -188,7 +189,7 @@
             // hostname, press Enter, you are there. A content hit is a different
             // intent, and putting it any higher means "LT-001" shows message
             // snippets above the asset actually called LT-001.
-            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci', 'ticket_content'].forEach(function (type) {
+            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci', 'ticket_content', 'article_content'].forEach(function (type) {
                 var group = serverResults.filter(function (r) { return r.type === type; });
                 if (!group.length) return;
                 html += '<div class="cmdp-group-label">' + esc(pluralType(type)) + '</div>';
@@ -232,7 +233,8 @@
             // same tickets as the group above, found by their text instead of
             // their name, and the label is the only thing that explains why a
             // ticket whose subject looks unrelated is in the list.
-            ticket_content: 'Found inside tickets'
+            ticket_content: 'Found inside tickets',
+            article_content: 'Found inside articles'
         }[type] || type;
     }
 

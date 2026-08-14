@@ -135,6 +135,68 @@ function searchIndexTicket(PDO $conn, int $ticketId, int $maxBody = SEARCH_INDEX
 }
 
 /**
+ * Index (or reindex) one knowledge article.
+ *
+ * ⚠️ WHY THIS IS CALLED DIRECTLY AND TICKETS ARE NOT
+ * Tickets use the dispatch seam because three separate paths create them and
+ * none of them shares code. Articles are the opposite: `KnowledgeService` is the
+ * only thing that writes `knowledge_articles`, so calling from there is both
+ * complete and obvious.
+ *
+ * The events would also be the wrong hook. A newly created DRAFT fires nothing
+ * at all — `knowledge.published` is deliberately withheld so a workflow does not
+ * announce a page nobody can open yet — but a draft still needs indexing,
+ * because the palette deliberately shows analysts their own work in progress.
+ * "The text changed" and "tell people about it" are different questions here.
+ *
+ * An archived or deleted article has its row removed rather than hidden: the
+ * command palette excludes archived articles, so leaving them searchable would
+ * disagree with the rest of the product.
+ */
+function searchIndexArticle(PDO $conn, int $articleId, int $maxBody = SEARCH_INDEX_MAX_BODY): bool
+{
+    if ($articleId <= 0) return false;
+
+    $stmt = $conn->prepare(
+        "SELECT id, title, body, tenant_id, audience, is_archived, modified_datetime
+           FROM knowledge_articles WHERE id = ?"
+    );
+    $stmt->execute([$articleId]);
+    $a = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$a || !empty($a['is_archived'])) {
+        searchCorpusDelete($conn, SEARCH_SOURCE_KB_ARTICLE, $articleId);
+        return false;
+    }
+
+    // ⚠️ NULL tenant_id means the OPPOSITE of what it means on a ticket: an
+    // article with no company is shared with EVERY company. That is the whole
+    // reason searchCorpusArticleScope() exists as a separate function.
+    [$tenantId, $scope] = searchCorpusArticleScope(
+        $a['tenant_id'] === null ? null : (int)$a['tenant_id']
+    );
+
+    // Map the audience ladder onto is_internal, failing CLOSED: anything not
+    // explicitly opened up to customers or the public is treated as internal, so
+    // a future portal-facing search cannot leak an internal article by default.
+    $audience   = (string)($a['audience'] ?? 'internal');
+    $isInternal = ($audience === 'internal') ? 1 : 0;
+
+    searchCorpusUpsert($conn, [
+        'source_type'     => SEARCH_SOURCE_KB_ARTICLE,
+        'source_id'       => (int)$a['id'],
+        'ticket_id'       => null,          // an article hangs off no ticket
+        'tenant_id'       => $tenantId,
+        'tenant_scope'    => $scope,
+        'is_internal'     => $isInternal,
+        'title'           => (string)$a['title'],
+        'body'            => searchCorpusPlainText((string)($a['body'] ?? ''), $maxBody),
+        'source_datetime' => $a['modified_datetime'],
+    ]);
+    return true;
+}
+
+/**
  * The dispatch subscriber. Called for EVERY workflow event, so it decides
  * quickly whether it cares and gets out of the way.
  *

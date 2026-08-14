@@ -276,9 +276,21 @@ try {
 
             if (!empty($res['ok']) && !empty($res['results'])) {
                 $ids = [];
+                $articleIds = [];
                 foreach ($res['results'] as $g) {
                     $tid = $g['ticket_id'] ?? null;
-                    if ($tid !== null && !isset($already[(int)$tid])) $ids[] = (int)$tid;
+                    if ($tid !== null) {
+                        if (!isset($already[(int)$tid])) $ids[] = (int)$tid;
+                        continue;
+                    }
+                    // No ticket_id means a source that hangs off no ticket. The
+                    // search groups those individually (COALESCE(ticket_id, -id)),
+                    // so each article arrives as its own result.
+                    foreach ($g['hits'] as $h) {
+                        if (($h['source_type'] ?? '') === SEARCH_SOURCE_KB_ARTICLE) {
+                            $articleIds[] = (int)$h['source_id'];
+                        }
+                    }
                 }
                 $ids = array_slice($ids, 0, $perType);
 
@@ -306,6 +318,44 @@ try {
                             'subtitle' => $m['ticket_number'],
                             'url'      => 'tickets/?ticket_id=' . $tid,
                         ];
+                    }
+                }
+
+                // Articles found by their TEXT rather than their title. Gated on
+                // the knowledge module separately — the corpus scope decides what
+                // this analyst may read, but module access decides whether they
+                // should be offered the module at all.
+                if ($articleIds && $can('knowledge')) {
+                    $already = [];
+                    foreach ($results as $r) {
+                        if (($r['type'] ?? '') === 'knowledge') $already[(int)$r['id']] = true;
+                    }
+                    $articleIds = array_values(array_diff(array_unique($articleIds), array_keys($already)));
+                    $articleIds = array_slice($articleIds, 0, $perType);
+
+                    if ($articleIds) {
+                        $in = implode(',', array_fill(0, count($articleIds), '?'));
+                        $st = $conn->prepare(
+                            "SELECT id, title FROM knowledge_articles
+                              WHERE id IN ($in) AND (is_archived = 0 OR is_archived IS NULL)"
+                        );
+                        $st->execute($articleIds);
+                        $ameta = [];
+                        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $ameta[(int)$r['id']] = $r;
+
+                        foreach ($articleIds as $aid) {
+                            if (!isset($ameta[$aid])) continue;
+                            $results[] = [
+                                'type'     => 'article_content',
+                                'module'   => 'knowledge',
+                                'id'       => $aid,
+                                'title'    => $ameta[$aid]['title'],
+                                'subtitle' => '',
+                                // Same URL shape as the title-matching knowledge
+                                // source above, not one invented here.
+                                'url'      => 'knowledge/?article=' . $aid,
+                            ];
+                        }
                     }
                 }
             }

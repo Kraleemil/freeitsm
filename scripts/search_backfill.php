@@ -51,7 +51,7 @@ function corpusStats(PDO $conn): void {
 if ($opt('stats')) { corpusStats($conn); exit(0); }
 
 $limit = (int)$opt('limit', 0);
-echo "Indexing ticket subjects, message bodies and notes"
+echo "Indexing ticket subjects, message bodies, notes and knowledge articles"
    . ($limit ? " (first $limit tickets)" : "")
    . ". Attachments are NOT touched.\n\n";
 
@@ -64,9 +64,10 @@ try {
     exit(1);
 }
 
-printf("\n\nindexed %s ticket subjects, %s messages, %s notes in %ss (%s empty rows skipped)\n",
+printf("\n\nindexed %s ticket subjects, %s messages, %s notes, %s articles in %ss (%s empty rows skipped)\n",
     number_format($res['tickets']), number_format($res['emails']),
-    number_format($res['notes']), $res['seconds'], number_format($res['skipped']));
+    number_format($res['notes']), number_format($res['articles'] ?? 0),
+    $res['seconds'], number_format($res['skipped']));
 
 if ($opt('prune')) {
     printf("pruned %s rows belonging to trashed tickets\n", number_format(searchBackfillPrune($conn)));

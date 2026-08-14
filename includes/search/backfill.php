@@ -26,7 +26,7 @@ require_once __DIR__ . '/indexer.php';   // the shared per-ticket document build
 
 /**
  * @param callable|null $progress fn(string $stage, int $done, int $total): void
- * @return array{tickets:int,emails:int,notes:int,skipped:int,seconds:float}
+ * @return array{tickets:int,emails:int,notes:int,articles:int,skipped:int,seconds:float}
  */
 function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = null): array {
     $batch     = max(50, min(2000, (int)($opts['batch'] ?? 500)));
@@ -34,7 +34,7 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
     $sinceId   = (int)($opts['since_ticket_id'] ?? 0);
     $limit     = (int)($opts['limit'] ?? 0);          // 0 = everything; used for a quick sample
     $started   = microtime(true);
-    $counts    = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'skipped' => 0];
+    $counts    = ['tickets' => 0, 'emails' => 0, 'notes' => 0, 'articles' => 0, 'skipped' => 0];
 
     if (!searchCorpusReady($conn)) {
         throw new RuntimeException('search_documents does not exist — run Database Verification first.');
@@ -79,6 +79,38 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
     }
     $conn->commit();
     if ($progress) $progress('tickets', $done, $total);
+
+    // ── Knowledge articles ──────────────────────────────────────────────────
+    // A separate pass, not part of the ticket loop, because an article hangs off
+    // no ticket. Archived ones are skipped for the same reason trashed tickets
+    // are: the command palette has always excluded them, so indexing them would
+    // put results in one search that the rest of the product hides.
+    try {
+        $aSel = $conn->query(
+            "SELECT id FROM knowledge_articles
+              WHERE is_archived = 0 OR is_archived IS NULL
+              ORDER BY id"
+        );
+        $articleIds = array_map('intval', $aSel->fetchAll(PDO::FETCH_COLUMN));
+
+        $aDone = 0;
+        $conn->beginTransaction();
+        foreach ($articleIds as $aid) {
+            if (searchIndexArticle($conn, $aid, $maxBody)) $counts['articles']++;
+            if (++$aDone % $batch === 0) {
+                $conn->commit();
+                $conn->beginTransaction();
+                if ($progress) $progress('articles', $aDone, count($articleIds));
+            }
+        }
+        $conn->commit();
+        if ($progress) $progress('articles', $aDone, count($articleIds));
+    } catch (Exception $e) {
+        // An install without the knowledge module, or a part-migrated one, simply
+        // contributes no articles. Tickets are already indexed and committed.
+        if ($conn->inTransaction()) $conn->commit();
+        error_log('[searchBackfillRun] articles: ' . $e->getMessage());
+    }
 
     $counts['seconds'] = round(microtime(true) - $started, 2);
     return $counts;

@@ -192,6 +192,7 @@ class KnowledgeService
                 throw $e;
             }
             $embGen = self::updateEmbedding($conn, $articleId, $newTitle, $newBody);
+            self::reindexForSearch($conn, $articleId);
             WorkflowEngine::dispatch('knowledge.updated', ['article' => ['id' => $articleId, 'title' => $newTitle]]);
             return ['id' => $articleId, 'created' => false, 'embedding_generated' => $embGen];
         }
@@ -245,6 +246,10 @@ class KnowledgeService
         }
         $embGen = self::updateEmbedding($conn, $articleId, $title, $bodyHtml);
 
+        // Indexed whether or not it is published, unlike the event below: an
+        // analyst is meant to find their own unfinished drafts.
+        self::reindexForSearch($conn, $articleId);
+
         // ⚠️ Only a genuinely published article fires knowledge.published. A draft
         // has not been published to anyone, and a workflow that announces new
         // articles would otherwise email the whole company about a page nobody
@@ -262,6 +267,29 @@ class KnowledgeService
         return ['id' => $articleId, 'created' => true, 'embedding_generated' => $embGen];
     }
 
+    /**
+     * Keep the search corpus in step with an article (discussion #53).
+     *
+     * Called from every path that writes `knowledge_articles`, which is only
+     * this service — see the note on searchIndexArticle() for why articles are
+     * indexed by direct call while tickets go through the dispatch seam.
+     *
+     * Never throws. An index that cannot be written must not cost somebody the
+     * article they just saved, and an install that has not run Database
+     * Verification has no corpus at all, which is a normal state rather than a
+     * fault.
+     */
+    private static function reindexForSearch(PDO $conn, int $articleId): void
+    {
+        try {
+            require_once __DIR__ . '/../search/indexer.php';
+            if (!searchCorpusReady($conn)) return;
+            searchIndexArticle($conn, $articleId);
+        } catch (Throwable $e) {
+            error_log('[KnowledgeService::reindexForSearch] ' . $e->getMessage());
+        }
+    }
+
     /** Soft-archive an article (move to recycle bin). 404 if gone, 409 if already archived. */
     public static function archiveArticle(PDO $conn, ActorContext $ctx, int $id): int
     {
@@ -276,6 +304,9 @@ class KnowledgeService
         if ($stmt->rowCount() === 0) {
             throw new ServiceError('conflict', 'conflict', 'Article is already in the recycle bin.');
         }
+        // Out of the recycle bin's way: an archived article drops out of search,
+        // matching the command palette, which has always excluded them.
+        self::reindexForSearch($conn, $id);
         WorkflowEngine::dispatch('knowledge.archived', ['article' => ['id' => $id, 'title' => $row['title'] ?? null]]);
         return $id;
     }
@@ -294,6 +325,7 @@ class KnowledgeService
         if ($stmt->rowCount() === 0) {
             throw new ServiceError('conflict', 'conflict', 'Article is not in the recycle bin.');
         }
+        self::reindexForSearch($conn, $id);   // back out of the bin, back into search
         return $id;
     }
 
@@ -310,6 +342,10 @@ class KnowledgeService
         $conn->prepare("DELETE FROM knowledge_article_tags WHERE article_id = ?")->execute([$id]);
         $conn->prepare("DELETE FROM knowledge_articles WHERE id = ? AND is_archived = 1")->execute([$id]);
         $conn->exec("DELETE FROM knowledge_tags WHERE id NOT IN (SELECT DISTINCT tag_id FROM knowledge_article_tags)");
+        // The article row has gone, so this removes the corpus row rather than
+        // rewriting it. There is no foreign key from search_documents to
+        // knowledge_articles to do it for us — the FK is on ticket_id only.
+        self::reindexForSearch($conn, $id);
         return $id;
     }
 
