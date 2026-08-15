@@ -299,24 +299,28 @@ function sla_send_breach_email(PDO $conn, int $ticketId, array $state, string $t
 
     $provider = $mailbox['provider'] ?? 'microsoft';
     $accessToken = null;
+    $graphBase = '/me';
     if ($provider === 'imap') {
         // Basic IMAP sends via SMTP — no OAuth token to validate/refresh.
         require_once __DIR__ . '/mailbox_imap.php';
-    } else {
+    } elseif ($provider === 'google') {
         $tokenData = json_decode(preg_replace('/[\x00-\x1F\x7F]/', '', $mailbox['token_data'] ?? ''), true);
         if (!$tokenData || !isset($tokenData['access_token'])) {
             throw new Exception("invalid token data on mailbox {$mailbox['id']}");
         }
-
-        if ($provider === 'google') {
-            require_once __DIR__ . '/gmail.php';
-            $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
-        } else {
-            $accessToken = templateGetValidAccessToken($conn, $mailbox, $tokenData);
-        }
+        require_once __DIR__ . '/gmail.php';
+        $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
         if (!$accessToken) {
             throw new Exception("failed to refresh access token for mailbox {$mailbox['id']}");
         }
+    } else {
+        // Microsoft: auth_mode decides both the token source and the send endpoint.
+        $graph = templateGraphContext($conn, $mailbox);
+        if (!$graph) {
+            throw new Exception("failed to obtain an access token for mailbox {$mailbox['id']}");
+        }
+        $accessToken = $graph['token'];
+        $graphBase   = $graph['base'];
     }
 
     $target = $state[$targetType];
@@ -351,7 +355,7 @@ function sla_send_breach_email(PDO $conn, int $ticketId, array $state, string $t
                 ],
                 'saveToSentItems' => false, // Internal notification, don't clutter sent items
             ];
-            templateSendViaGraph($accessToken, $message);
+            templateSendViaGraph($accessToken, $message, $graphBase);
         }
     }
 }

@@ -12,15 +12,13 @@ require_once __DIR__ . '/template_email.php';   // templateGetValidAccessToken, 
 
 /** First active, send-capable mailbox (has credentials), decrypted. Null if none. */
 function ssGetSendingMailbox(PDO $conn): ?array {
+    require_once __DIR__ . '/mailbox_graph.php';   // mailboxCanSend
     $rows = $conn->query("SELECT * FROM target_mailboxes WHERE is_active = 1 ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as $row) {
         $m = decryptMailboxRow($row);
-        $provider = $m['provider'] ?? 'microsoft';
-        if ($provider === 'imap') {
-            if (!empty($m['smtp_server']) && !empty($m['imap_username'])) return $m;
-        } elseif (!empty($m['token_data'])) {
-            return $m;
-        }
+        // mailboxCanSend() knows an app-only mailbox is sendable on its client secret
+        // alone; testing for stored token_data would skip one that hasn't polled yet.
+        if (mailboxCanSend($m)) return $m;
     }
     return null;
 }
@@ -40,10 +38,9 @@ function ssSendSystemEmail(PDO $conn, string $to, string $subject, string $htmlB
             imapSmtpSend($mailbox, $to, '', $subject, $htmlBody);
             return true;
         }
-        $tokenData = json_decode(preg_replace('/[\x00-\x1F\x7F]/', '', (string)$mailbox['token_data']), true);
-        if (!$tokenData || !isset($tokenData['access_token'])) return false;
-
         if ($provider === 'google') {
+            $tokenData = json_decode(preg_replace('/[\x00-\x1F\x7F]/', '', (string)$mailbox['token_data']), true);
+            if (!$tokenData || !isset($tokenData['access_token'])) return false;
             require_once __DIR__ . '/gmail.php';
             $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
             if (!$accessToken) return false;
@@ -51,17 +48,18 @@ function ssSendSystemEmail(PDO $conn, string $to, string $subject, string $htmlB
             return true;
         }
 
-        // microsoft (delegated or app-only) via Graph
-        $accessToken = templateGetValidAccessToken($conn, $mailbox, $tokenData);
-        if (!$accessToken) return false;
-        templateSendViaGraph($accessToken, [
+        // microsoft (delegated or app-only) via Graph — templateGraphContext() resolves
+        // both the token source and the /me vs /users/<addr> endpoint from auth_mode.
+        $graph = templateGraphContext($conn, $mailbox);
+        if (!$graph) return false;
+        templateSendViaGraph($graph['token'], [
             'message' => [
                 'subject'      => $subject,
                 'body'         => ['contentType' => 'HTML', 'content' => $htmlBody],
                 'toRecipients' => [['emailAddress' => ['address' => $to]]],
             ],
             'saveToSentItems' => true,
-        ]);
+        ], $graph['base']);
         return true;
     } catch (Exception $e) {
         error_log('ssSendSystemEmail failed: ' . $e->getMessage());

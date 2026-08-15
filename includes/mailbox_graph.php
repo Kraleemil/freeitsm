@@ -226,6 +226,11 @@ if (!function_exists('mailboxAppOnlyToken')) {
     /**
      * Per-request Graph base path: '/me' (delegated) or '/users/<addr>' (app-only).
      * Set once after the mailbox is loaded; the Graph helpers read it back.
+     *
+     * ⚠️ This is per-REQUEST state with a '/me' default, so a caller that forgets to
+     * resolve silently gets '/me', and a loop over several mailboxes keeps the previous
+     * one's base. Read the return value of mailboxResolveGraphBase() and pass it along
+     * explicitly rather than relying on this being set — see templateGraphContext().
      */
     function mailboxGraphBase($set = null) {
         static $base = '/me';
@@ -234,14 +239,46 @@ if (!function_exists('mailboxAppOnlyToken')) {
     }
 
     /**
+     * Is this a Microsoft mailbox authenticating as itself (client credentials)?
+     * There is no signed-in user in that mode, so '/me' is meaningless to Graph and
+     * every call has to name the mailbox: /users/<target_mailbox>.
+     * Google and IMAP mailboxes always behave as delegated.
+     */
+    function mailboxIsAppOnly($mailbox) {
+        return (($mailbox['provider'] ?? 'microsoft') === 'microsoft')
+            && (($mailbox['auth_mode'] ?? 'delegated') === 'app_only');
+    }
+
+    /**
      * Resolve the base path for a mailbox from its auth_mode (Microsoft only).
      * Google mailboxes always behave as delegated.
      */
     function mailboxResolveGraphBase($mailbox) {
-        $isAppOnly = (($mailbox['provider'] ?? 'microsoft') === 'microsoft')
-                  && (($mailbox['auth_mode'] ?? 'delegated') === 'app_only');
-        return mailboxGraphBase($isAppOnly
+        return mailboxGraphBase(mailboxIsAppOnly($mailbox)
             ? '/users/' . rawurlencode(trim((string) $mailbox['target_mailbox']))
             : '/me');
+    }
+
+    /**
+     * Is this mailbox capable of sending right now?
+     *
+     * "Has non-empty token_data" is the DELEGATED test and is wrong for app-only: a
+     * client-credentials mailbox that has never polled holds no cached token, but can
+     * mint one from its client secret on demand. Testing for a stored token therefore
+     * hides a perfectly working app-only mailbox — which is why a clean app-only
+     * install reported "no email mailbox is configured" when one plainly was.
+     */
+    function mailboxCanSend($mailbox) {
+        $provider = $mailbox['provider'] ?? 'microsoft';
+        if ($provider === 'imap') {
+            return !empty($mailbox['smtp_server']) && !empty($mailbox['imap_username']);
+        }
+        if (mailboxIsAppOnly($mailbox)) {
+            return !empty($mailbox['azure_tenant_id'])
+                && !empty($mailbox['azure_client_id'])
+                && !empty($mailbox['azure_client_secret'])
+                && !empty($mailbox['target_mailbox']);
+        }
+        return !empty($mailbox['token_data']);
     }
 }

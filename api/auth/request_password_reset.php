@@ -12,6 +12,8 @@ header('Content-Type: application/json');
 
 require_once '../../config.php';
 require_once '../../includes/encryption.php';
+require_once '../../includes/mailbox_graph.php';    // mailboxCanSend
+require_once '../../includes/template_email.php';   // templateGraphContext, templateSendViaGraph
 
 try {
     $input = json_decode(file_get_contents('php://input'), true);
@@ -39,18 +41,23 @@ try {
         exit;
     }
 
-    // Get the first active mailbox with token data to send the email
-    $mbStmt = $conn->prepare("SELECT * FROM target_mailboxes WHERE is_active = 1 AND token_data IS NOT NULL AND token_data != '' ORDER BY id ASC LIMIT 1");
+    // First active, send-capable mailbox. Deliberately NOT filtered on token_data in
+    // SQL: that is the delegated test, and it hides an app-only mailbox that has not
+    // minted its first token yet — which reported "no mailbox is configured" when one
+    // was configured perfectly well. mailboxCanSend() knows the difference.
+    $mbStmt = $conn->prepare("SELECT * FROM target_mailboxes WHERE is_active = 1 ORDER BY id ASC");
     $mbStmt->execute();
-    $mailbox = $mbStmt->fetch(PDO::FETCH_ASSOC);
+    $mailbox = null;
+    foreach ($mbStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $candidate = decryptMailboxRow($row);
+        if (mailboxCanSend($candidate)) { $mailbox = $candidate; break; }
+    }
 
     if (!$mailbox) {
         // No mailbox configured — can't send email
         echo json_encode(['success' => false, 'error' => 'Password reset is not available. No email mailbox is configured. Please contact your administrator.']);
         exit;
     }
-
-    $mailbox = decryptMailboxRow($mailbox);
 
     // Invalidate any existing unused tokens for this analyst
     $conn->prepare("UPDATE password_reset_tokens SET used = 1 WHERE analyst_id = ? AND used = 0")->execute([$analyst['id']]);
@@ -80,22 +87,23 @@ try {
         . '<p style="font-size: 13px; color: #999;">This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email.</p>'
         . '</div>';
 
-    // Parse token data
-    $provider = $mailbox['provider'] ?? 'microsoft';
-    $cleanedTokenData = preg_replace('/[\x00-\x1F\x7F]/', '', $mailbox['token_data']);
-    $tokenData = json_decode($cleanedTokenData, true);
+    $provider  = $mailbox['provider'] ?? 'microsoft';
+    $graphBase = '/me';
 
-    if (!$tokenData || !isset($tokenData['access_token'])) {
-        echo json_encode(['success' => false, 'error' => 'Password reset is not available. Email mailbox is not properly configured. Please contact your administrator.']);
-        exit;
-    }
-
-    // Refresh access token if needed
     if ($provider === 'google') {
+        $cleanedTokenData = preg_replace('/[\x00-\x1F\x7F]/', '', (string)$mailbox['token_data']);
+        $tokenData = json_decode($cleanedTokenData, true);
+        if (!$tokenData || !isset($tokenData['access_token'])) {
+            echo json_encode(['success' => false, 'error' => 'Password reset is not available. Email mailbox is not properly configured. Please contact your administrator.']);
+            exit;
+        }
         require_once dirname(dirname(__DIR__)) . '/includes/gmail.php';
         $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
     } else {
-        $accessToken = getValidAccessToken($conn, $mailbox, $tokenData);
+        // Microsoft: auth_mode decides both the token source and the send endpoint.
+        $graph = templateGraphContext($conn, $mailbox);
+        $accessToken = $graph['token'] ?? null;
+        $graphBase   = $graph['base']  ?? '/me';
     }
     if (!$accessToken) {
         echo json_encode(['success' => false, 'error' => 'Password reset is not available. Email authentication has expired. Please contact your administrator.']);
@@ -128,7 +136,7 @@ try {
         ];
 
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, 'https://graph.microsoft.com/v1.0/me/sendMail');
+        curl_setopt($ch, CURLOPT_URL, 'https://graph.microsoft.com/v1.0' . $graphBase . '/sendMail');
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -154,55 +162,4 @@ try {
 } catch (Exception $e) {
     error_log('Password reset request error: ' . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'An error occurred. Please try again.']);
-}
-
-/**
- * Get a valid access token, refreshing if expired.
- */
-function getValidAccessToken(PDO $conn, array $mailbox, array $tokenData): ?string {
-    if (isset($tokenData['expires_at']) && $tokenData['expires_at'] < (time() + 300)) {
-        if (!isset($tokenData['refresh_token'])) {
-            return null;
-        }
-
-        $tokenUrl = 'https://login.microsoftonline.com/' . $mailbox['azure_tenant_id'] . '/oauth2/v2.0/token';
-        $postData = [
-            'client_id' => $mailbox['azure_client_id'],
-            'client_secret' => $mailbox['azure_client_secret'],
-            'refresh_token' => $tokenData['refresh_token'],
-            'grant_type' => 'refresh_token',
-            'scope' => $mailbox['oauth_scopes']
-        ];
-
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $tokenUrl);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        sslApplyCurl($ch);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            return null;
-        }
-
-        $newToken = json_decode($response, true);
-        if (!isset($newToken['access_token'])) {
-            return null;
-        }
-
-        $tokenData['access_token'] = $newToken['access_token'];
-        $tokenData['refresh_token'] = $newToken['refresh_token'] ?? $tokenData['refresh_token'];
-        $tokenData['expires_at'] = time() + ($newToken['expires_in'] ?? 3600);
-
-        $saveSql = "UPDATE target_mailboxes SET token_data = ? WHERE id = ?";
-        $saveStmt = $conn->prepare($saveSql);
-        // Encrypted at rest — see ENCRYPTED_MAILBOX_COLUMNS; decryptMailboxRow() reverses it.
-        $saveStmt->execute([encryptValue(json_encode($tokenData)), $mailbox['id']]);
-    }
-
-    return $tokenData['access_token'];
 }

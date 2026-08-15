@@ -1751,18 +1751,24 @@ class WorkflowEngine
         $mailbox = templateGetMailboxForTicket($conn, $ticketId);
         if (!$mailbox) throw new Exception('Ticket has no associated mailbox — cannot send');
 
-        $tokenJson = preg_replace('/[\x00-\x1F\x7F]/', '', $mailbox['token_data'] ?? '');
-        $tokenData = $tokenJson ? json_decode($tokenJson, true) : null;
-        if (!$tokenData || !isset($tokenData['access_token'])) {
-            throw new Exception('Mailbox token is missing or invalid');
-        }
-
-        $provider = $mailbox['provider'] ?? 'microsoft';
+        $provider  = $mailbox['provider'] ?? 'microsoft';
+        $graphBase = '/me';
         if ($provider === 'google') {
+            $tokenJson = preg_replace('/[\x00-\x1F\x7F]/', '', $mailbox['token_data'] ?? '');
+            $tokenData = $tokenJson ? json_decode($tokenJson, true) : null;
+            if (!$tokenData || !isset($tokenData['access_token'])) {
+                throw new Exception('Mailbox token is missing or invalid');
+            }
             require_once dirname(dirname(__DIR__)) . '/includes/gmail.php';
             $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
         } else {
-            $accessToken = templateGetValidAccessToken($conn, $mailbox, $tokenData);
+            // Microsoft: templateGraphContext() picks the token source AND the send
+            // endpoint from auth_mode. An app-only mailbox has no stored token until it
+            // mints one, so there is deliberately no token_data check in front of this.
+            $graph = templateGraphContext($conn, $mailbox);
+            if (!$graph) throw new Exception('Failed to obtain a valid access token');
+            $accessToken = $graph['token'];
+            $graphBase   = $graph['base'];
         }
         if (!$accessToken) throw new Exception('Failed to obtain a valid access token');
 
@@ -1782,7 +1788,7 @@ class WorkflowEngine
                 ],
                 'saveToSentItems' => true,
             ];
-            templateSendViaGraph($accessToken, $message);
+            templateSendViaGraph($accessToken, $message, $graphBase);
         }
         templateSaveSentEmail($conn, $ticketId, $mailbox, $recipient, $fullSubject, $body);
         return ['ticket_id' => $ticketId, 'to' => $recipient, 'subject' => $subject];

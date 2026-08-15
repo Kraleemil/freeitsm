@@ -45,34 +45,38 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
 
         $provider = $mailbox['provider'] ?? 'microsoft';
         $accessToken = null;
+        $graphBase = '/me';
         if ($provider === 'imap') {
             // Basic IMAP sends via SMTP — no OAuth token to validate/refresh.
             require_once __DIR__ . '/mailbox_imap.php';
-        } else {
+        } elseif ($provider === 'google') {
             if (empty($mailbox['token_data'])) {
                 error_log("Template email: mailbox {$mailbox['id']} has no token data");
                 return;
             }
-
-            // Parse and validate token
             $cleanedTokenData = preg_replace('/[\x00-\x1F\x7F]/', '', $mailbox['token_data']);
             $tokenData = json_decode($cleanedTokenData, true);
             if (!$tokenData || !isset($tokenData['access_token'])) {
                 error_log("Template email: invalid token data for mailbox {$mailbox['id']}");
                 return;
             }
-
-            // Get valid access token (refresh if needed)
-            if ($provider === 'google') {
-                require_once __DIR__ . '/gmail.php';
-                $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
-            } else {
-                $accessToken = templateGetValidAccessToken($conn, $mailbox, $tokenData);
-            }
+            require_once __DIR__ . '/gmail.php';
+            $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
             if (!$accessToken) {
                 error_log("Template email: failed to get access token for mailbox {$mailbox['id']}");
                 return;
             }
+        } else {
+            // Microsoft: token source AND endpoint both depend on auth_mode, so don't
+            // test for stored token_data here — an app-only mailbox legitimately has
+            // none until it first mints one.
+            $graph = templateGraphContext($conn, $mailbox);
+            if (!$graph) {
+                error_log("Template email: failed to get access token for mailbox {$mailbox['id']}");
+                return;
+            }
+            $accessToken = $graph['token'];
+            $graphBase   = $graph['base'];
         }
 
         // Get recipient (the ticket requester)
@@ -110,7 +114,7 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
                 ],
                 'saveToSentItems' => true
             ];
-            templateSendViaGraph($accessToken, $message);
+            templateSendViaGraph($accessToken, $message, $graphBase);
         }
 
         // Save to emails table
@@ -286,11 +290,64 @@ function templateGetValidAccessToken(PDO $conn, array $mailbox, array $tokenData
 }
 
 /**
- * Send an email message via Microsoft Graph API.
+ * Everything a Microsoft send needs for one mailbox: a valid access token and the
+ * Graph base path to send from. Returns null if no usable token could be obtained.
+ *
+ * The two auth modes differ in BOTH halves, which is what made issue #67 subtle:
+ *
+ *   delegated : a user signed in. token_data carries a refresh_token, and calls go
+ *               to /me — Graph resolves "me" from the user inside the token.
+ *   app_only  : client credentials. There is no user, so /me is meaningless and Graph
+ *               rejects it with "/me request is only valid with delegated
+ *               authentication flow" (HTTP 400). Calls go to /users/<target>, and
+ *               there is no refresh_token either — the token is re-minted from the
+ *               client secret.
+ *
+ * Correcting only the path leaves a slower bug behind: templateGetValidAccessToken()
+ * returns null for an app-only mailbox the moment its cached token expires, because it
+ * looks for a refresh_token that client credentials never issue. That failure is masked
+ * in normal use because the mail poller re-mints the cached token as a side effect of
+ * reading — so sends work until polling stops or an hour passes, then fail with a
+ * misleading "failed to get access token".
  */
-function templateSendViaGraph(string $accessToken, array $message): void {
+function templateGraphContext(PDO $conn, array $mailbox): ?array {
+    require_once __DIR__ . '/mailbox_graph.php';
+
+    if (mailboxIsAppOnly($mailbox)) {
+        try {
+            // No refresh token exists for client credentials — mint (or reuse the
+            // cached) token. Throws on a bad secret / consent problem; that must not
+            // escape into callers that only expect a null.
+            $token = mailboxAppOnlyToken($conn, $mailbox);
+        } catch (Exception $e) {
+            error_log('Graph app-only token failed for mailbox '
+                . ($mailbox['id'] ?? '?') . ': ' . $e->getMessage());
+            return null;
+        }
+    } else {
+        $cleaned   = preg_replace('/[\x00-\x1F\x7F]/', '', (string)($mailbox['token_data'] ?? ''));
+        $tokenData = $cleaned !== '' ? json_decode($cleaned, true) : null;
+        if (!$tokenData || !isset($tokenData['access_token'])) {
+            return null;
+        }
+        $token = templateGetValidAccessToken($conn, $mailbox, $tokenData);
+    }
+
+    return $token ? ['token' => $token, 'base' => mailboxResolveGraphBase($mailbox)] : null;
+}
+
+/**
+ * Send an email message via Microsoft Graph API.
+ *
+ * $graphBase is '/me' (delegated) or '/users/<addr>' (app-only) — get it from
+ * templateGraphContext(). It is deliberately REQUIRED rather than defaulting to '/me':
+ * a default would reproduce exactly the silent wrong-endpoint bug this argument exists
+ * to fix, and a missed caller should fail loudly at development time instead of quietly
+ * sending from the wrong mailbox.
+ */
+function templateSendViaGraph(string $accessToken, array $message, string $graphBase): void {
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, 'https://graph.microsoft.com/v1.0/me/sendMail');
+    curl_setopt($ch, CURLOPT_URL, 'https://graph.microsoft.com/v1.0' . $graphBase . '/sendMail');
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
