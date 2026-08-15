@@ -1740,6 +1740,7 @@ class WorkflowEngine
         // to the emails table for the threading SDREF marker. We're sending
         // ad-hoc content (not an ITSM template), but the plumbing is the same.
         require_once dirname(dirname(__DIR__)) . '/includes/template_email.php';
+        require_once dirname(dirname(__DIR__)) . '/includes/email_log.php';
 
         $conn = connectToDatabase();
         $merge = buildTicketMergeData($conn, $ticketId);
@@ -1776,20 +1777,28 @@ class WorkflowEngine
         $fullSubject = $ticketRef !== '' ? "[SDREF:{$ticketRef}] {$subject}" : $subject;
         $fullBody    = buildTemplateEmailBody($body, $ticketRef);
 
-        if ($provider === 'google') {
-            $fromAddress = $mailbox['target_mailbox'] ?? '';
-            gmailSendEmail($accessToken, $recipient, $fullSubject, $fullBody, $fromAddress);
-        } else {
-            $message = [
-                'message' => [
-                    'subject'      => $fullSubject,
-                    'body'         => ['contentType' => 'HTML', 'content' => $fullBody],
-                    'toRecipients' => [['emailAddress' => ['address' => $recipient]]],
-                ],
-                'saveToSentItems' => true,
-            ];
-            templateSendViaGraph($accessToken, $message, $graphBase);
+        try {
+            if ($provider === 'google') {
+                $fromAddress = $mailbox['target_mailbox'] ?? '';
+                gmailSendEmail($accessToken, $recipient, $fullSubject, $fullBody, $fromAddress);
+            } else {
+                $message = [
+                    'message' => [
+                        'subject'      => $fullSubject,
+                        'body'         => ['contentType' => 'HTML', 'content' => $fullBody],
+                        'toRecipients' => [['emailAddress' => ['address' => $recipient]]],
+                    ],
+                    'saveToSentItems' => true,
+                ];
+                templateSendViaGraph($accessToken, $message, $graphBase);
+            }
+        } catch (Exception $e) {
+            // Log it, then rethrow so the workflow run is still marked failed —
+            // the email log records the attempt, it does not swallow the outcome.
+            emailLogFailed($conn, $mailbox, 'workflow', $recipient, $fullSubject, $e->getMessage(), $ticketId);
+            throw $e;
         }
+        emailLogSent($conn, $mailbox, 'workflow', $recipient, $fullSubject, $ticketId);
         templateSaveSentEmail($conn, $ticketId, $mailbox, $recipient, $fullSubject, $body);
         return ['ticket_id' => $ticketId, 'to' => $recipient, 'subject' => $subject];
     }

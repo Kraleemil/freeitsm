@@ -6,6 +6,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
+require_once '../../includes/email_log.php';
 
 header('Content-Type: application/json');
 
@@ -111,6 +112,18 @@ try {
         echo json_encode(['success' => false, 'error' => 'Invalid email method configured']);
         exit;
     }
+
+    // Every share send is logged, including the SMTP method, which has no configured
+    // mailbox behind it at all. A log that covered only the mailbox route would report
+    // "no failures" for a route it was never watching.
+    $mailboxRow = null;
+    if ($emailMethod === 'mailbox' && !empty($settings['mailbox_id'])) {
+        $mbStmt = $conn->prepare("SELECT * FROM target_mailboxes WHERE id = ?");
+        $mbStmt->execute([$settings['mailbox_id']]);
+        if ($mbRow = $mbStmt->fetch(PDO::FETCH_ASSOC)) $mailboxRow = decryptMailboxRow($mbRow);
+    }
+    emailLogRecord($conn, $mailboxRow, 'share_kb', $toEmail, $subject,
+        !empty($result['success']), $result['error'] ?? null);
 
     echo json_encode($result);
 

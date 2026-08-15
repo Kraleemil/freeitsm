@@ -7,6 +7,7 @@
  */
 
 require_once __DIR__ . '/encryption.php';
+require_once __DIR__ . '/email_log.php';
 
 /**
  * Main entry point — send a template email for a ticket event.
@@ -64,6 +65,8 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
             $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
             if (!$accessToken) {
                 error_log("Template email: failed to get access token for mailbox {$mailbox['id']}");
+                emailLogFailed($conn, $mailbox, 'template', $mergeData['requester_email'] ?? '',
+                    $subject, 'Could not obtain an access token for this mailbox', $ticketId);
                 return;
             }
         } else {
@@ -73,6 +76,10 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
             $graph = templateGraphContext($conn, $mailbox);
             if (!$graph) {
                 error_log("Template email: failed to get access token for mailbox {$mailbox['id']}");
+                emailLogFailed($conn, $mailbox, 'template', $mergeData['requester_email'] ?? '',
+                    $subject, 'Could not obtain an access token for this mailbox '
+                    . '(check the mailbox is authenticated, and that its authentication mode matches its stored token)',
+                    $ticketId);
                 return;
             }
             $accessToken = $graph['token'];
@@ -117,11 +124,20 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
             templateSendViaGraph($accessToken, $message, $graphBase);
         }
 
+        emailLogSent($conn, $mailbox, 'template', $recipientEmail, $fullSubject, $ticketId);
+
         // Save to emails table
         templateSaveSentEmail($conn, $ticketId, $mailbox, $recipientEmail, $fullSubject, $body);
 
     } catch (Exception $e) {
         error_log("Template email error ($eventTrigger, ticket $ticketId): " . $e->getMessage());
+        // The error log alone is what made this class of failure invisible: an
+        // acknowledgement that silently never sends looks identical to one nobody
+        // happened to trigger.
+        emailLogFailed(
+            $conn, $mailbox ?? null, 'template',
+            $recipientEmail ?? '', $fullSubject ?? '', $e->getMessage(), $ticketId
+        );
     }
 }
 

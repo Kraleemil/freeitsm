@@ -19,6 +19,7 @@ require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/mailbox_graph.php';
+require_once '../../includes/email_log.php';
 
 header('Content-Type: application/json');
 
@@ -139,21 +140,29 @@ try {
         $bodyForSending = buildFullEmailBody($conn, $ticketId, $body, $type);
     }
 
-    if ($provider === 'imap') {
-        // Send via SMTP (username/password). HTML body only — outbound attachments
-        // aren't supported on the basic-IMAP path (parity with the Gmail path).
-        imapSmtpSend($mailbox, $to, $cc, $subject, $bodyForSending);
-    } elseif ($provider === 'google') {
-        // Send via Gmail API
-        $fromAddress = $mailbox['target_mailbox'] ?? '';
-        gmailSendEmail($accessToken, $to, $subject, $bodyForSending, $fromAddress);
-    } else {
-        // Build the email message for Graph API (send assembled body with thread)
-        $message = buildEmailMessage($to, $cc, $subject, $bodyForSending, $attachments);
+    try {
+        if ($provider === 'imap') {
+            // Send via SMTP (username/password). HTML body only — outbound attachments
+            // aren't supported on the basic-IMAP path (parity with the Gmail path).
+            imapSmtpSend($mailbox, $to, $cc, $subject, $bodyForSending);
+        } elseif ($provider === 'google') {
+            // Send via Gmail API
+            $fromAddress = $mailbox['target_mailbox'] ?? '';
+            gmailSendEmail($accessToken, $to, $subject, $bodyForSending, $fromAddress);
+        } else {
+            // Build the email message for Graph API (send assembled body with thread)
+            $message = buildEmailMessage($to, $cc, $subject, $bodyForSending, $attachments);
 
-        // Send the email via Graph API
-        $result = sendEmailViaGraph($accessToken, $message);
+            // Send the email via Graph API
+            $result = sendEmailViaGraph($accessToken, $message);
+        }
+    } catch (Exception $sendEx) {
+        // Rethrown after logging: the analyst still gets told it failed, and the
+        // attempt is now on record rather than only in the server's error log.
+        emailLogFailed($conn, $mailbox, 'reply', $to, $subject, $sendEx->getMessage(), $ticketId ?: null);
+        throw $sendEx;
     }
+    emailLogSent($conn, $mailbox, 'reply', $to, $subject, $ticketId ?: null);
 
     // Save only the analyst's new content to DB (not the assembled thread)
     saveSentEmail($conn, $ticketId, $mailbox, $to, $cc, $subject, $body);

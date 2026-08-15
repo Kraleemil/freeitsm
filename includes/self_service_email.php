@@ -29,40 +29,58 @@ function ssGetSendingMailbox(PDO $conn): ?array {
  * verification flow fails closed rather than pretend it sent).
  */
 function ssSendSystemEmail(PDO $conn, string $to, string $subject, string $htmlBody): bool {
+    require_once __DIR__ . '/email_log.php';
+
     $mailbox = ssGetSendingMailbox($conn);
-    if (!$mailbox) return false;
+    if (!$mailbox) {
+        // Worth a row of its own: "no mailbox could send this" is a configuration
+        // problem, and it is invisible to the person who never got their email.
+        emailLogFailed($conn, null, 'portal', $to, $subject,
+            'No active mailbox is able to send (none configured, or none authenticated)');
+        return false;
+    }
     $provider = $mailbox['provider'] ?? 'microsoft';
     try {
         if ($provider === 'imap') {
             require_once __DIR__ . '/mailbox_imap.php';
             imapSmtpSend($mailbox, $to, '', $subject, $htmlBody);
-            return true;
-        }
-        if ($provider === 'google') {
+        } elseif ($provider === 'google') {
             $tokenData = json_decode(preg_replace('/[\x00-\x1F\x7F]/', '', (string)$mailbox['token_data']), true);
-            if (!$tokenData || !isset($tokenData['access_token'])) return false;
+            if (!$tokenData || !isset($tokenData['access_token'])) {
+                emailLogFailed($conn, $mailbox, 'portal', $to, $subject, 'Mailbox has no usable stored token');
+                return false;
+            }
             require_once __DIR__ . '/gmail.php';
             $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
-            if (!$accessToken) return false;
+            if (!$accessToken) {
+                emailLogFailed($conn, $mailbox, 'portal', $to, $subject, 'Could not obtain an access token for this mailbox');
+                return false;
+            }
             gmailSendEmail($accessToken, $to, $subject, $htmlBody, $mailbox['target_mailbox'] ?? '');
-            return true;
+        } else {
+            // microsoft (delegated or app-only) via Graph — templateGraphContext() resolves
+            // both the token source and the /me vs /users/<addr> endpoint from auth_mode.
+            $graph = templateGraphContext($conn, $mailbox);
+            if (!$graph) {
+                emailLogFailed($conn, $mailbox, 'portal', $to, $subject,
+                    'Could not obtain an access token for this mailbox '
+                    . '(check the mailbox is authenticated, and that its authentication mode matches its stored token)');
+                return false;
+            }
+            templateSendViaGraph($graph['token'], [
+                'message' => [
+                    'subject'      => $subject,
+                    'body'         => ['contentType' => 'HTML', 'content' => $htmlBody],
+                    'toRecipients' => [['emailAddress' => ['address' => $to]]],
+                ],
+                'saveToSentItems' => true,
+            ], $graph['base']);
         }
-
-        // microsoft (delegated or app-only) via Graph — templateGraphContext() resolves
-        // both the token source and the /me vs /users/<addr> endpoint from auth_mode.
-        $graph = templateGraphContext($conn, $mailbox);
-        if (!$graph) return false;
-        templateSendViaGraph($graph['token'], [
-            'message' => [
-                'subject'      => $subject,
-                'body'         => ['contentType' => 'HTML', 'content' => $htmlBody],
-                'toRecipients' => [['emailAddress' => ['address' => $to]]],
-            ],
-            'saveToSentItems' => true,
-        ], $graph['base']);
+        emailLogSent($conn, $mailbox, 'portal', $to, $subject);
         return true;
     } catch (Exception $e) {
         error_log('ssSendSystemEmail failed: ' . $e->getMessage());
+        emailLogFailed($conn, $mailbox, 'portal', $to, $subject, $e->getMessage());
         return false;
     }
 }

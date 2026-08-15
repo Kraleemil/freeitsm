@@ -117,9 +117,11 @@ try {
             gmailSendEmail($accessToken, $analyst['email'], 'Password Reset', $htmlBody, $fromAddress);
         } catch (Exception $sendEx) {
             error_log('Password reset email failed (Gmail): ' . $sendEx->getMessage());
+            emailLogFailed($conn, $mailbox, 'password_reset', $analyst['email'], 'Password Reset', $sendEx->getMessage());
             echo json_encode(['success' => false, 'error' => 'Failed to send reset email. Please try again or contact your administrator.']);
             exit;
         }
+        emailLogSent($conn, $mailbox, 'password_reset', $analyst['email'], 'Password Reset');
     } else {
         $message = [
             'message' => [
@@ -152,9 +154,12 @@ try {
 
         if ($httpCode !== 202 && $httpCode !== 200) {
             error_log('Password reset email failed: HTTP ' . $httpCode . ' - ' . $response);
+            $graphErr = json_decode((string)$response, true)['error']['message'] ?? ('HTTP ' . $httpCode);
+            emailLogFailed($conn, $mailbox, 'password_reset', $analyst['email'], 'Password Reset', $graphErr);
             echo json_encode(['success' => false, 'error' => 'Failed to send reset email. Please try again or contact your administrator.']);
             exit;
         }
+        emailLogSent($conn, $mailbox, 'password_reset', $analyst['email'], 'Password Reset');
     }
 
     echo json_encode(['success' => true, 'message' => $genericMessage]);

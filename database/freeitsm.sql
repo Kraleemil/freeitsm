@@ -1407,6 +1407,29 @@ CREATE TABLE IF NOT EXISTS `mailbox_activity_log` (
     CONSTRAINT `fk_mal_mailbox` FOREIGN KEY (`mailbox_id`) REFERENCES `target_mailboxes` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Outbound counterpart to mailbox_activity_log: one row per send ATTEMPT, so a
+-- failure is visible in the UI instead of only in the PHP error log. `route` says
+-- which part of FreeITSM asked for the send; provider/auth_mode are recorded on the
+-- row because they are what most sending faults turn out to hinge on.
+CREATE TABLE IF NOT EXISTS `email_send_log` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `mailbox_id`        INT NULL,
+    `ticket_id`         INT NULL,
+    `route`             VARCHAR(30) NOT NULL,
+    `provider`          VARCHAR(20) NULL,
+    `auth_mode`         VARCHAR(20) NULL,
+    `to_address`        VARCHAR(255) NOT NULL,
+    `subject`           VARCHAR(500) NULL,
+    `status`            VARCHAR(10) NOT NULL,
+    `error_message`     TEXT NULL,
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_esl_mailbox` (`mailbox_id`, `created_datetime`),
+    KEY `idx_esl_status` (`status`, `created_datetime`),
+    KEY `idx_esl_ticket` (`ticket_id`),
+    CONSTRAINT `fk_esl_mailbox` FOREIGN KEY (`mailbox_id`) REFERENCES `target_mailboxes` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `ticket_email_templates` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `name`              VARCHAR(100) NOT NULL,

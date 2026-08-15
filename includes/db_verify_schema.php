@@ -883,6 +883,20 @@ return [
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    'email_send_log' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'mailbox_id'        => 'INT NULL',
+        'ticket_id'         => 'INT NULL',
+        'route'             => 'VARCHAR(30) NOT NULL',
+        'provider'          => 'VARCHAR(20) NULL',
+        'auth_mode'         => 'VARCHAR(20) NULL',
+        'to_address'        => 'VARCHAR(255) NOT NULL',
+        'subject'           => 'VARCHAR(500) NULL',
+        'status'            => 'VARCHAR(10) NOT NULL',
+        'error_message'     => 'TEXT NULL',
+        'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'ticket_email_templates' => [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'name'              => 'VARCHAR(100) NOT NULL',

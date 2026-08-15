@@ -668,6 +668,9 @@ return [
         // tab-specific.
         'columns' => [
             'name'         => 'Name',
+            'to'           => 'To',
+            'sent_by'      => 'Sent by',
+            'result'       => 'Result',
             'description'  => 'Description',
             'teams'        => 'Teams',
             'departments'  => 'Departments',
@@ -825,6 +828,11 @@ return [
                 'title'              => 'Mailbox activity',
                 'search_placeholder' => 'Search by sender, name, or subject...',
                 'processing_log'     => 'Processing log',
+                'tab_inbound'        => 'Inbound',
+                'tab_outbound'       => 'Outbound',
+                'status_all'         => 'All results',
+                'status_failed'      => 'Failures only',
+                'status_sent'        => 'Sent only',
             ],
 
             // Analyst modal

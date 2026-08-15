@@ -360,6 +360,45 @@ $translationNamespaces = ['common', 'tickets'];
             font-family: Arial, sans-serif;
             line-height: 1.6;
         }
+
+        /* Inbound / Outbound tabs on the mailbox activity modal. Theme tokens only —
+           --border-color / --text-muted / --surface all exist in theme.css. */
+        .mbx-log-tab {
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted, #666);
+            cursor: pointer;
+        }
+        .mbx-log-tab:hover { color: var(--text-color, #333); }
+        .mbx-log-tab.active {
+            color: #0078d4;
+            border-bottom-color: #0078d4;
+        }
+        .mbx-fail-badge {
+            display: inline-block;
+            min-width: 18px;
+            padding: 1px 6px;
+            margin-left: 4px;
+            background: #d13438;
+            color: #fff;
+            border-radius: 9px;
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+        }
+        .mbx-result {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .mbx-result.sent   { background: #d4edda; color: #155724; }
+        .mbx-result.failed { background: #f8d7da; color: #721c24; }
     </style>
     <!-- Mobile: LAYER 15e (container, tab strip, fields, all tables scroll).
          data-mobile-shell="own" opts OUT of LAYER 2's flex body — this page
@@ -1935,11 +1974,23 @@ $translationNamespaces = ['common', 'tickets'];
         <div class="modal-content" style="max-width: 850px;">
             <div class="modal-header" id="activityModalTitle"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.title')); ?></div>
 
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <input type="text" id="activitySearch" placeholder="<?php echo htmlspecialchars(t('tickets.settings.modals.activity.search_placeholder')); ?>" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" oninput="debounceActivitySearch()">
+            <!-- Inbound / Outbound. The inbound log existed on its own for a long time,
+                 which meant you could see everything that arrived and nothing that left. -->
+            <div class="mbx-log-tabs" style="display:flex; gap:4px; border-bottom:1px solid var(--border-color,#e0e0e0); margin-bottom:15px;">
+                <button type="button" id="mbxTabInbound" class="mbx-log-tab active" onclick="switchMailboxLogTab('inbound')"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.tab_inbound')); ?></button>
+                <button type="button" id="mbxTabOutbound" class="mbx-log-tab" onclick="switchMailboxLogTab('outbound')"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.tab_outbound')); ?> <span id="mbxOutboundBadge" class="mbx-fail-badge" style="display:none;"></span></button>
             </div>
 
-            <div style="max-height: 450px; overflow-y: auto;">
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="activitySearch" placeholder="<?php echo htmlspecialchars(t('tickets.settings.modals.activity.search_placeholder')); ?>" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" oninput="debounceActivitySearch()">
+                <select id="outboundStatus" onchange="loadMailboxLog(1)" style="display:none; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                    <option value=""><?php echo htmlspecialchars(t('tickets.settings.modals.activity.status_all')); ?></option>
+                    <option value="failed"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.status_failed')); ?></option>
+                    <option value="sent"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.status_sent')); ?></option>
+                </select>
+            </div>
+
+            <div id="inboundPane" style="max-height: 450px; overflow-y: auto;">
                 <table>
                     <thead>
                         <tr>
@@ -1951,6 +2002,23 @@ $translationNamespaces = ['common', 'tickets'];
                         </tr>
                     </thead>
                     <tbody id="activityList">
+                        <tr><td colspan="5" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="outboundPane" style="display:none; max-height: 450px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><?php echo htmlspecialchars(t('tickets.settings.columns.date_time')); ?></th>
+                            <th><?php echo htmlspecialchars(t('tickets.settings.columns.to')); ?></th>
+                            <th><?php echo htmlspecialchars(t('tickets.settings.columns.subject')); ?></th>
+                            <th><?php echo htmlspecialchars(t('tickets.settings.columns.sent_by')); ?></th>
+                            <th><?php echo htmlspecialchars(t('tickets.settings.columns.result')); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody id="outboundList">
                         <tr><td colspan="5" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
                     </tbody>
                 </table>
@@ -4436,14 +4504,105 @@ $translationNamespaces = ['common', 'tickets'];
         let activityMailboxId = null;
         let activitySearchTimer = null;
 
+        let mailboxLogTab = 'inbound';
+
         function openActivityModal(mailboxId) {
             activityMailboxId = mailboxId;
             const mb = mailboxes.find(m => m.id == mailboxId);
             document.getElementById('activityModalTitle').textContent = 'Activity — ' + (mb ? mb.name : 'Mailbox');
             document.getElementById('activitySearch').value = '';
             closeProcessingLog();
-            loadActivity(mailboxId, '', 1);
+            switchMailboxLogTab('inbound');
+            // Fetch the outbound failure count straight away: the whole point is that a
+            // failed send is noticed without anybody going looking for it, so the badge
+            // has to be there before the tab is ever opened.
+            refreshOutboundBadge();
             document.getElementById('activityModal').classList.add('active');
+        }
+
+        function switchMailboxLogTab(tab) {
+            mailboxLogTab = tab;
+            const inbound = tab === 'inbound';
+            document.getElementById('mbxTabInbound').classList.toggle('active', inbound);
+            document.getElementById('mbxTabOutbound').classList.toggle('active', !inbound);
+            document.getElementById('inboundPane').style.display  = inbound ? '' : 'none';
+            document.getElementById('outboundPane').style.display = inbound ? 'none' : '';
+            document.getElementById('outboundStatus').style.display = inbound ? 'none' : '';
+            if (inbound) closeProcessingLog();
+            document.getElementById('activitySearch').value = '';
+            loadMailboxLog(1);
+        }
+
+        function loadMailboxLog(page) {
+            const search = document.getElementById('activitySearch').value;
+            if (mailboxLogTab === 'inbound') loadActivity(activityMailboxId, search, page);
+            else loadOutbound(activityMailboxId, search, page);
+        }
+
+        async function refreshOutboundBadge() {
+            const badge = document.getElementById('mbxOutboundBadge');
+            badge.style.display = 'none';
+            try {
+                const res = await fetch(API_BASE + 'get_mailbox_outbound.php?mailbox_id=' + activityMailboxId + '&page=1');
+                const data = await res.json();
+                if (data.success && data.failed > 0) {
+                    badge.textContent = data.failed;
+                    badge.style.display = '';
+                }
+            } catch (e) { /* a missing badge must never break the modal */ }
+        }
+
+        async function loadOutbound(mailboxId, search, page) {
+            const tbody = document.getElementById('outboundList');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Loading...</td></tr>';
+            try {
+                let url = API_BASE + 'get_mailbox_outbound.php?mailbox_id=' + mailboxId + '&page=' + page;
+                if (search) url += '&search=' + encodeURIComponent(search);
+                const status = document.getElementById('outboundStatus').value;
+                if (status) url += '&status=' + encodeURIComponent(status);
+
+                const res = await fetch(url);
+                const data = await res.json();
+                if (!data.success) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#d13438;">${escapeHtml(data.error || 'Could not load the send log')}</td></tr>`;
+                    return;
+                }
+                if (!data.entries.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted,#666);">Nothing sent from this mailbox yet.</td></tr>';
+                } else {
+                    tbody.innerHTML = data.entries.map(e => {
+                        const failed = e.status === 'failed';
+                        // The error is the reason anybody opens this tab, so it is shown
+                        // in the row rather than hidden behind another click.
+                        const err = failed && e.error_message
+                            ? `<div style="margin-top:4px; font-size:11px; color:#a4262c; white-space:normal;">${escapeHtml(e.error_message)}</div>` : '';
+                        const ticket = e.ticket_id
+                            ? ` <a href="../?ticket_id=${e.ticket_id}" style="font-size:11px;">#${e.ticket_id}</a>` : '';
+                        return `<tr>
+                            <td style="white-space:nowrap;">${new Date(e.created_datetime + 'Z').toLocaleString()}</td>
+                            <td>${escapeHtml(e.to_address || '')}${ticket}</td>
+                            <td>${escapeHtml(e.subject || '')}${err}</td>
+                            <td style="white-space:nowrap;">${escapeHtml(e.route_label || e.route)}</td>
+                            <td><span class="mbx-result ${failed ? 'failed' : 'sent'}">${failed ? 'Failed' : 'Sent'}</span></td>
+                        </tr>`;
+                    }).join('');
+                }
+                renderLogPagination(data, page, 'outbound');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#d13438;">${escapeHtml(e.message)}</td></tr>`;
+            }
+        }
+
+        function renderLogPagination(data, page, which) {
+            const pag = document.getElementById('activityPagination');
+            const totalPages = Math.max(1, Math.ceil(data.total / data.per_page));
+            const from = data.total === 0 ? 0 : ((page - 1) * data.per_page) + 1;
+            const to = Math.min(page * data.per_page, data.total);
+            pag.innerHTML = `<span>${from}-${to} of ${data.total}</span>
+                <span>
+                    <button type="button" class="btn btn-secondary" style="padding:3px 10px; font-size:12px;" ${page <= 1 ? 'disabled' : ''} onclick="loadMailboxLog(${page - 1})">Previous</button>
+                    <button type="button" class="btn btn-secondary" style="padding:3px 10px; font-size:12px;" ${page >= totalPages ? 'disabled' : ''} onclick="loadMailboxLog(${page + 1})">Next</button>
+                </span>`;
         }
 
         function closeActivityModal() {

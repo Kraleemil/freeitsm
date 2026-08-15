@@ -341,21 +341,29 @@ function sla_send_breach_email(PDO $conn, int $ticketId, array $state, string $t
     $body = sla_build_breach_email_body($merge, $target, $targetLabel, $headline, $trigger);
 
     foreach ($recipients as $to) {
-        if ($provider === 'imap') {
-            imapSmtpSend($mailbox, $to, '', $subject, $body);
-        } elseif ($provider === 'google') {
-            $from = $mailbox['target_mailbox'] ?? '';
-            gmailSendEmail($accessToken, $to, $subject, $body, $from);
-        } else {
-            $message = [
-                'message' => [
-                    'subject' => $subject,
-                    'body' => ['contentType' => 'HTML', 'content' => $body],
-                    'toRecipients' => [['emailAddress' => ['address' => $to]]],
-                ],
-                'saveToSentItems' => false, // Internal notification, don't clutter sent items
-            ];
-            templateSendViaGraph($accessToken, $message, $graphBase);
+        // Logged per recipient: one address failing (a typo in an escalation list,
+        // say) should not read as the whole alert having failed, or vice versa.
+        try {
+            if ($provider === 'imap') {
+                imapSmtpSend($mailbox, $to, '', $subject, $body);
+            } elseif ($provider === 'google') {
+                $from = $mailbox['target_mailbox'] ?? '';
+                gmailSendEmail($accessToken, $to, $subject, $body, $from);
+            } else {
+                $message = [
+                    'message' => [
+                        'subject' => $subject,
+                        'body' => ['contentType' => 'HTML', 'content' => $body],
+                        'toRecipients' => [['emailAddress' => ['address' => $to]]],
+                    ],
+                    'saveToSentItems' => false, // Internal notification, don't clutter sent items
+                ];
+                templateSendViaGraph($accessToken, $message, $graphBase);
+            }
+            emailLogSent($conn, $mailbox, 'sla', $to, $subject, $ticketId);
+        } catch (Exception $e) {
+            emailLogFailed($conn, $mailbox, 'sla', $to, $subject, $e->getMessage(), $ticketId);
+            throw $e;
         }
     }
 }
