@@ -373,7 +373,7 @@ $translationNamespaces = ['common', 'tickets'];
             color: var(--text-muted, #666);
             cursor: pointer;
         }
-        .mbx-log-tab:hover { color: var(--text-color, #333); }
+        .mbx-log-tab:hover { color: var(--text, #333); }
         .mbx-log-tab.active {
             color: #0078d4;
             border-bottom-color: #0078d4;
@@ -399,6 +399,66 @@ $translationNamespaces = ['common', 'tickets'];
         }
         .mbx-result.sent   { background: #d4edda; color: #155724; }
         .mbx-result.failed { background: #f8d7da; color: #721c24; }
+
+        /* The log panes size to the window rather than a fixed 450px, so a tall screen
+           shows far more rows than a laptop instead of both showing the same handful.
+           The subtracted 300px is the modal chrome above and below (header, tabs,
+           search row, pagination, actions); min-height keeps it usable if that
+           arithmetic is ever wrong on an unusual screen. */
+        .activity-log-pane {
+            max-height: calc(100vh - 300px);
+            min-height: 260px;
+            overflow-y: auto;
+        }
+        .activity-modal-content { max-height: 94vh; overflow-y: auto; }
+
+        /* The log tables carry an address and a subject that both want to be long, so
+           left to themselves the browser spreads five columns across 1500px and the
+           date ends up touching the sender. Fixed layout + explicit widths keeps them
+           readable at any modal width; widening the modal without this made it worse,
+           not better. */
+        .activity-log-pane table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .activity-log-pane th,
+        .activity-log-pane td {
+            padding: 8px 14px;
+            text-align: left;
+            vertical-align: top;
+            border-bottom: 1px solid var(--border, #e6e6e6);
+        }
+        .activity-log-pane th {
+            position: sticky;      /* headings stay put while a long log scrolls */
+            top: 0;
+            z-index: 1;
+            background: var(--surface, #fff);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .activity-log-pane tbody tr:hover td { background: var(--surface-hover, rgba(127,127,127,0.07)); }
+        /* Long unbroken addresses (microsoftexchange329e…@) must wrap rather than
+           force the column wider than its share. */
+        .activity-log-pane td { overflow-wrap: anywhere; }
+
+        /* Date/time · From/To · Subject · Action/Sent by · Reason/Result */
+        #inboundPane  th:nth-child(1), #inboundPane  td:nth-child(1),
+        #outboundPane th:nth-child(1), #outboundPane td:nth-child(1) { width: 150px; white-space: nowrap; }
+        #inboundPane  th:nth-child(2), #inboundPane  td:nth-child(2) { width: 27%; }
+        #outboundPane th:nth-child(2), #outboundPane td:nth-child(2) { width: 22%; }
+        #inboundPane  th:nth-child(4), #inboundPane  td:nth-child(4) { width: 110px; }
+        #outboundPane th:nth-child(4), #outboundPane td:nth-child(4) { width: 150px; }
+        #inboundPane  th:nth-child(5), #inboundPane  td:nth-child(5) { width: 150px; }
+        #outboundPane th:nth-child(5), #outboundPane td:nth-child(5) { width: 90px; }
+
+        /* On a phone the modal is the screen; the width cap and the tall pane both
+           get out of the way and the table scrolls sideways as it already does. */
+        @media (max-width: 768px) {
+            .activity-modal-content { width: 100%; max-width: none; }
+            .activity-log-pane { max-height: calc(100vh - 260px); }
+        }
     </style>
     <!-- Mobile: LAYER 15e (container, tab strip, fields, all tables scroll).
          data-mobile-shell="own" opts OUT of LAYER 2's flex body — this page
@@ -1971,7 +2031,11 @@ $translationNamespaces = ['common', 'tickets'];
 
     <!-- Activity Log Modal -->
     <div class="modal" id="activityModal">
-        <div class="modal-content" style="max-width: 850px;">
+        <!-- Deliberately the widest modal in Settings: these are log tables with a
+             subject, an address and an error message competing for the same row, and
+             at 850px the error wrapped onto four lines. Viewport units rather than a
+             fixed size so it still fits a laptop and a phone. -->
+        <div class="modal-content activity-modal-content" style="max-width: 1500px; width: 94vw;">
             <div class="modal-header" id="activityModalTitle"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.title')); ?></div>
 
             <!-- Inbound / Outbound. The inbound log existed on its own for a long time,
@@ -1990,7 +2054,7 @@ $translationNamespaces = ['common', 'tickets'];
                 </select>
             </div>
 
-            <div id="inboundPane" style="max-height: 450px; overflow-y: auto;">
+            <div id="inboundPane" class="activity-log-pane">
                 <table>
                     <thead>
                         <tr>
@@ -2007,7 +2071,7 @@ $translationNamespaces = ['common', 'tickets'];
                 </table>
             </div>
 
-            <div id="outboundPane" style="display:none; max-height: 450px; overflow-y: auto;">
+            <div id="outboundPane" class="activity-log-pane" style="display:none;">
                 <table>
                     <thead>
                         <tr>
