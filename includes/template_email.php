@@ -330,6 +330,16 @@ function templateGraphContext(PDO $conn, array $mailbox): ?array {
         if (!$tokenData || !isset($tokenData['access_token'])) {
             return null;
         }
+        // A token minted for app-only is NOT usable here. Switching a mailbox from
+        // app-only back to delegated used to leave the old token in place, and it is
+        // refused at /me with the very error this function exists to prevent — while
+        // looking like the original bug had come back. Refuse it and make the mailbox
+        // report itself unauthenticated, which prompts a real sign-in.
+        if (!empty($tokenData['app_only'])) {
+            error_log('Graph: mailbox ' . ($mailbox['id'] ?? '?')
+                . ' is delegated but holds an app-only token — re-authentication needed');
+            return null;
+        }
         $token = templateGetValidAccessToken($conn, $mailbox, $tokenData);
     }
 

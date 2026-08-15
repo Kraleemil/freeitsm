@@ -279,6 +279,11 @@ if (!function_exists('mailboxAppOnlyToken')) {
                 && !empty($mailbox['azure_client_secret'])
                 && !empty($mailbox['target_mailbox']);
         }
-        return !empty($mailbox['token_data']);
+        // Delegated needs a stored token that is actually a DELEGATED one. A leftover
+        // app-only token from a mode switch would pass a bare "is it empty" test and
+        // then be refused by Graph at /me.
+        if (empty($mailbox['token_data'])) return false;
+        $td = json_decode(preg_replace('/[\x00-\x1F\x7F]/', '', (string) $mailbox['token_data']), true);
+        return is_array($td) && !empty($td['access_token']) && empty($td['app_only']);
     }
 }

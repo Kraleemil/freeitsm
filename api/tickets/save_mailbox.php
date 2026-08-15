@@ -194,8 +194,20 @@ try {
         $stmt->execute($params);
 
         // Drop the stale authenticated identity if the address / auth mode changed.
+        //
+        // The TOKEN has to go too, not just the identity. Delegated and app-only tokens
+        // are not interchangeable: an app-only token presented at /me is refused by
+        // Graph ("/me request is only valid with delegated authentication flow"), and a
+        // delegated token cannot act on /users/<addr>. Leaving the old one behind means
+        // the mailbox looks authenticated, so nothing prompts for a fresh sign-in, and
+        // every send fails with an error describing the wrong problem entirely.
+        //
+        // Clearing it is safe in both directions: app-only simply mints a new one on
+        // its next use, and delegated correctly reports "not authenticated" until
+        // somebody signs in — which is exactly what a mode change should require.
         if ($invalidateAuth) {
-            $conn->prepare("UPDATE target_mailboxes SET authenticated_as = NULL WHERE id = ?")->execute([$id]);
+            $conn->prepare("UPDATE target_mailboxes SET authenticated_as = NULL, authenticated_addresses = NULL, token_data = NULL WHERE id = ?")
+                 ->execute([$id]);
         }
 
         echo json_encode([
