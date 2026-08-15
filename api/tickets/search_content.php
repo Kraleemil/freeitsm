@@ -42,7 +42,17 @@ try {
 
     // The scope is a data structure. Company scoping mirrors ticketTenantFilter();
     // internal notes are included because this is the analyst-facing search.
-    $scope = searchScopeForAnalyst($conn, $analystId, ['include_internal' => true]);
+    //
+    // require_ticket keeps the count and the list telling the same story. This
+    // endpoint renders ticket rows only, so anything in the corpus that is not
+    // attached to a ticket — a knowledge article, say — was being counted in the
+    // total and then dropped when the rows were built, producing "4 tickets found"
+    // above three of them. It also stopped those documents consuming result slots
+    // that a matching ticket could have had.
+    $scope = searchScopeForAnalyst($conn, $analystId, [
+        'include_internal' => true,
+        'require_ticket'   => true,
+    ]);
 
     $res = searchCorpusQuery($conn, $query, $scope, ['limit' => $limit]);
 

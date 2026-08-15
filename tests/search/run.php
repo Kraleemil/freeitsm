@@ -213,6 +213,21 @@ try {
     $r = searchCorpusQuery($conn, 'battery', array_merge($all, ['source_types' => [$T.'_article']]));
     ok("can search JUST one kind of source", $r['total'] === 1 && $r['results'][0]['ticket_id'] === null);
 
+    // --- scope: require_ticket -------------------------------------------------
+    // The search-inside-tickets endpoint renders ticket rows and nothing else, so a
+    // match with no ticket (an article) was counted in the total and then dropped
+    // when the rows were built: "4 tickets found" printed above three of them.
+    // The count and the list have to be answering the same question.
+    $r = searchCorpusQuery($conn, 'battery', $all);
+    $withoutTicket = count(array_filter($r['results'], fn($g) => $g['ticket_id'] === null));
+    ok("CONTROL — unfiltered, a non-ticket match IS returned", $withoutTicket >= 1);
+
+    $r = searchCorpusQuery($conn, 'battery', array_merge($all, ['require_ticket' => true]));
+    $withoutTicket = count(array_filter($r['results'], fn($g) => $g['ticket_id'] === null));
+    ok("require_ticket drops matches that belong to no ticket", $withoutTicket === 0);
+    ok("require_ticket keeps the total and the row count in step",
+       $r['total'] === count($r['results']));
+
     // --- query handling ---
     $r = searchCorpusQuery($conn, 'a', $all);
     ok("a query of only unusable terms says so rather than returning 'no results'",

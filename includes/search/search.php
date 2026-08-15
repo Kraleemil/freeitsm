@@ -115,6 +115,7 @@ function searchScopeForAnalyst(PDO $conn, int $analystId, array $overrides = [])
         'include_deleted'   => false,  // trashed tickets stay out
         'source_types'      => null,   // null = every kind
         'ticket_ids'        => null,   // null = no restriction
+        'require_ticket'    => false,  // true = only documents attached to a ticket
     ];
 
     if (function_exists('isMultiTenant') && isMultiTenant($conn)) {
@@ -151,6 +152,18 @@ function searchScopeToSql(array $scope, string $alias = 'sd'): array {
     if (!empty($scope['source_types']) && is_array($scope['source_types'])) {
         $sql .= " AND $alias.source_type IN (" . implode(',', array_fill(0, count($scope['source_types']), '?')) . ")";
         foreach ($scope['source_types'] as $t) $params[] = (string)$t;
+    }
+
+    // "Only things that belong to a ticket." Used by the search-inside-tickets
+    // endpoint, which renders ticket rows and nothing else: a knowledge article
+    // matches with ticket_id NULL, and was counted in the total and then silently
+    // dropped from the list — "4 tickets found" above three rows.
+    //
+    // Deliberately NOT expressed as a source_types list. Enumerating the types that
+    // happen to hang off a ticket today means a new one added later is silently
+    // excluded, which hides real results instead of merely miscounting them.
+    if (!empty($scope['require_ticket'])) {
+        $sql .= " AND $alias.ticket_id IS NOT NULL";
     }
 
     if (!empty($scope['ticket_ids']) && is_array($scope['ticket_ids'])) {
