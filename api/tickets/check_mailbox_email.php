@@ -1191,6 +1191,33 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
                 $updateStmt = $conn->prepare($updateSql);
                 $updateStmt->execute([$rewrittenBody, !empty($savedAttachments) ? 1 : 0, $dbEmailId]);
             }
+            // Re-index now the attachments exist on disk and in the database.
+            //
+            // ticket.created is dispatched further up, deliberately, so the ticket and
+            // its opening message both exist when the indexer runs. Attachments are
+            // saved down HERE, dozens of lines later — so at index time there were no
+            // attachment rows to find, searchIndexTicketAttachments() matched nothing,
+            // and an emailed PDF was never queued for text extraction at all. It was
+            // not pending and not failed; it simply had no extraction row, which is
+            // the one state no status screen can report on.
+            //
+            // Indexing a whole ticket is an idempotent upsert, so doing it twice is
+            // cheap and ordering-immune: whichever of the two runs happens last sees
+            // the complete picture. That is preferable to moving the dispatch, which
+            // would delay the notification bell and every workflow on ticket.created
+            // behind an attachment download.
+            if (!empty($savedAttachments) && $ticketId) {
+                try {
+                    require_once __DIR__ . '/../../includes/search/indexer.php';
+                    if (searchCorpusReady($conn)) {
+                        searchIndexTicket($conn, (int)$ticketId);
+                    }
+                } catch (Throwable $e) {
+                    // Never let indexing failure lose an email that arrived fine.
+                    error_log('[search] re-index after attachments failed for ticket '
+                        . $ticketId . ': ' . $e->getMessage());
+                }
+            }
         } catch (Exception $e) {
             error_log('Failed to process attachments for email ' . $emailId . ': ' . $e->getMessage());
         }
