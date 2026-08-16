@@ -105,6 +105,13 @@ return [
         // everybody, so they exist before anyone signs in.
         'sync_enabled'           => 'TINYINT(1) NOT NULL DEFAULT 0',
         'sync_base_dn'           => 'VARCHAR(255) NULL',
+        // Ticked branches, one DN per line, and the carve-outs within them.
+        // TEXT rather than a child table: this is a setting belonging to one
+        // provider, never queried across providers and never joined to.
+        // ⚠️ Both NULL is the ONLY state an upgraded install can be in, so it
+        // must keep meaning exactly what sync_base_dn alone used to mean.
+        'sync_ou_includes'       => 'TEXT NULL',
+        'sync_ou_excludes'       => 'TEXT NULL',
         'sync_filter'            => 'VARCHAR(500) NULL',
         // adopt | flag — see the note in freeitsm.sql: adopting stops their
         // local portal password working, which is why it is a choice.

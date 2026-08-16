@@ -212,6 +212,28 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
         .pill.ok { background: #e8f5e9; color: #2e7d32; }
         .pill.stopped { background: #fff4ce; color: #6b5900; }
         .pill.failed, .pill.running { background: #ffebee; color: #c62828; }
+        /* The OU tree. Scrolls in its own box: a directory with 200 OUs must not
+           make the settings page itself thousands of pixels tall. */
+        .ou-tree { border: 1px solid var(--border, #ddd); border-radius: 6px; background: var(--surface, #fff);
+            max-height: 420px; overflow: auto; padding: 6px 0; }
+        .ou-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px; font-size: 13px; color: var(--text, #333); }
+        .ou-row:hover { background: var(--surface-hover, rgba(127,127,127,0.06)); }
+        .ou-row input[type=checkbox] { flex: 0 0 auto; margin: 0; cursor: pointer; }
+        /* The twisty is a button-shaped span, fixed width so names line up
+           whether or not a node has children. */
+        .ou-twisty { flex: 0 0 14px; width: 14px; text-align: center; cursor: pointer; color: var(--text-dim, #999); font-size: 10px; user-select: none; }
+        .ou-twisty.leaf { cursor: default; opacity: 0; }
+        .ou-name { flex: 1 1 auto; }
+        /* Two numbers, because they answer different questions: how many sit
+           here, and how many ticking this branch would bring in. */
+        .ou-count { flex: 0 0 auto; font-size: 11.5px; color: var(--text-dim, #999); white-space: nowrap; }
+        .ou-count b { color: var(--text-muted, #666); font-weight: 600; }
+        .ou-row.excluded .ou-name { text-decoration: line-through; color: var(--text-dim, #999); }
+        .ou-kids.collapsed { display: none; }
+        .ou-manual { margin-top: 12px; }
+        .ou-ignored { background: #fff4ce; color: #6b5900; padding: 7px 10px; border-radius: 5px; margin: 8px 0 0; font-weight: 600; }
+        [data-theme-mode="dark"] .ou-ignored { background: #3a3218; color: #fde68a; }
+        .ou-manual summary { cursor: pointer; font-size: 12.5px; color: var(--sys-accent, #546e7a); font-weight: 600; }
         /* The run detail modal. Namespaced `sso-` for the same reason index.php
            namespaces its own: inbox.css carries a global .modal framework that
            defaults to opacity:0/visibility:hidden, and an un-namespaced modal
@@ -390,11 +412,34 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
                 <label class="chk"><input type="checkbox" id="fSyncEnabled"<?php echo (int)$p['sync_enabled'] === 1 ? ' checked' : ''; ?>> <?php echo htmlspecialchars(t('system.sso.sync_enabled')); ?></label>
             </div>
             <div id="syncFields">
-                <div class="fld">
+                <!-- Which parts of the directory to import. A DN typed into a
+                     box is a guess you find out about at run time; a tree with
+                     head counts on it is a choice you can check before running
+                     anything. The typed box survives underneath, because a
+                     directory the bind account cannot enumerate still has to be
+                     configurable. -->
+                <div class="fld wide">
                     <label><?php echo htmlspecialchars(t('system.sso.sync_scope')); ?></label>
-                    <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_base_dn_hint')); ?></div>
-                    <input type="text" id="fSyncBaseDn" value="<?php echo v($p, 'sync_base_dn'); ?>" placeholder="<?php echo htmlspecialchars(t('system.sso.sync_base_dn_placeholder')); ?>">
-                    <div class="hint" style="margin-top:8px;"><?php echo htmlspecialchars(t('system.sso.sync_filter_hint')); ?></div>
+                    <div class="hint"><?php echo htmlspecialchars(t('system.sso.ou_tree_hint')); ?></div>
+                    <div class="btn-row" style="margin-bottom:10px;">
+                        <button class="btn btn-test" id="browseBtn" type="button"><?php echo htmlspecialchars(t('system.sso.ou_browse')); ?></button>
+                        <span class="hint" id="ouSummary" style="align-self:center;"></span>
+                    </div>
+                    <div class="ou-tree" id="ouTree" style="display:none;"></div>
+                    <div class="result" id="ouResult"></div>
+                    <input type="hidden" id="fOuIncludes" value="<?php echo v($p, 'sync_ou_includes'); ?>">
+                    <input type="hidden" id="fOuExcludes" value="<?php echo v($p, 'sync_ou_excludes'); ?>">
+                    <!-- Kept, and honest about when it applies: the engine falls
+                         back to it only when nothing is ticked, so an install
+                         that predates the browser goes on importing exactly who
+                         it imported yesterday. -->
+                    <details class="ou-manual"<?php echo trim((string)($p['sync_ou_includes'] ?? '')) === '' ? ' open' : ''; ?>>
+                        <summary><?php echo htmlspecialchars(t('system.sso.ou_manual')); ?></summary>
+                        <div class="hint ou-ignored" id="ouManualNote" style="display:none;"></div>
+                        <div class="hint" style="margin:8px 0 6px;"><?php echo htmlspecialchars(t('system.sso.sync_base_dn_hint')); ?></div>
+                        <input type="text" id="fSyncBaseDn" value="<?php echo v($p, 'sync_base_dn'); ?>" placeholder="<?php echo htmlspecialchars(t('system.sso.sync_base_dn_placeholder')); ?>">
+                    </details>
+                    <div class="hint" style="margin-top:14px;"><?php echo htmlspecialchars(t('system.sso.sync_filter_hint')); ?></div>
                     <input type="text" id="fSyncFilter" value="<?php echo v($p, 'sync_filter'); ?>" placeholder="(&(objectClass=user)(objectCategory=person))">
                 </div>
                 <div class="fld">
@@ -594,6 +639,11 @@ function payload() {
         ldap_user_group: $('fUserGroup').value.trim(),
         sync_enabled: $('fSyncEnabled').checked ? 1 : 0,
         sync_base_dn: $('fSyncBaseDn').value.trim(),
+        // The ticked branches and the carve-outs. Sent as text, one DN per
+        // line, which is exactly how they are stored — no shape to get wrong
+        // between here and the engine.
+        sync_ou_includes: $('fOuIncludes').value,
+        sync_ou_excludes: $('fOuExcludes').value,
         sync_filter: $('fSyncFilter').value.trim(),
         sync_on_conflict: $('fSyncOnConflict').value,
         sync_deactivate_after: parseInt($('fSyncDeactivateAfter').value, 10) || 0,
@@ -755,6 +805,168 @@ function renderAvailable(list) {
         + '</div></details>';
 }
 
+/* ---------------- The OU browser ----------------
+   Two sets decide everything: branches ticked IN, and branches carved OUT of
+   them. A node's state is decided by the NEAREST of its ancestors-or-self that
+   appears in either set — so ticking a parent covers children that do not
+   appear in either list, which is what makes an OU created next year import on
+   its own.
+
+   Storing the exceptions rather than the members is the whole point. A list of
+   every OU would freeze the selection at today's shape of the directory, and
+   nothing would tell you when it went stale. */
+let ouNodes = [];              // flat, parents before children
+let ouInc = new Set();
+let ouExc = new Set();
+let ouCollapsed = new Set();
+
+const dnParent = dn => { const i = dn.search(/(?<!\\),/); return i === -1 ? '' : dn.slice(i + 1).trim(); };
+
+/** Is this node in scope, and was it decided here or inherited? */
+function ouState(dn) {
+    let walk = dn;
+    while (walk !== '') {
+        if (ouExc.has(walk)) return { in: false, self: walk === dn };
+        if (ouInc.has(walk)) return { in: true,  self: walk === dn };
+        walk = dnParent(walk);
+    }
+    return { in: false, self: false };
+}
+
+/* A box is indeterminate when the branch is not uniformly in or out — which is
+   exactly the case a carve-out creates, and the only visible sign that one
+   exists further down a collapsed branch. */
+function ouBranchState(dn) {
+    const self = ouState(dn).in;
+    let anyIn = self, anyOut = !self;
+    for (const n of ouNodes) {
+        if (n.dn !== dn && isUnder(n.dn, dn)) {
+            if (ouState(n.dn).in) anyIn = true; else anyOut = true;
+        }
+    }
+    return anyIn && anyOut ? 'partial' : (anyIn ? 'on' : 'off');
+}
+
+// ⚠️ The comma is not optional. Without it "ou=sales,dc=x" tests true against
+// "ou=wholesalesales,dc=x" and a carve-out swallows an unrelated OU.
+const isUnder = (dn, anc) => dn === anc || dn.endsWith(',' + anc);
+
+function ouToggle(dn) {
+    const on = ouBranchState(dn) === 'on';
+    // Whatever happens, anything said about this branch's interior is now moot.
+    [...ouInc].forEach(d => { if (d !== dn && isUnder(d, dn)) ouInc.delete(d); });
+    [...ouExc].forEach(d => { if (isUnder(d, dn)) ouExc.delete(d); });
+
+    if (on) {
+        // Turning off: if an ancestor brings us in, the only way to opt out is
+        // a carve-out. Otherwise simply stop being included.
+        ouInc.delete(dn);
+        if (ouState(dn).in) ouExc.add(dn);
+    } else {
+        ouInc.add(dn);
+        // An include under an include is redundant; keep the stored list as
+        // small as the selection actually is.
+        [...ouInc].forEach(d => { if (d !== dn && isUnder(dn, d)) ouInc.delete(dn); });
+    }
+    renderOuTree();
+    syncOuHidden();
+}
+
+function syncOuHidden() {
+    $('fOuIncludes').value = [...ouInc].join('\n');
+    $('fOuExcludes').value = [...ouExc].join('\n');
+    // How many people the current ticks would import. The tree exists to make
+    // this number visible BEFORE a run, so it must react to every click.
+    let n = 0;
+    for (const node of ouNodes) if (ouState(node.dn).in) n += node.people;
+    $('ouSummary').textContent = ouInc.size
+        ? window.t('system.sso.ou_selected', { n: n })
+        : window.t('system.sso.ou_none_selected');
+    ouManualNote();
+}
+
+/* The typed starting point still exists and is still saved, but the engine only
+   consults it when nothing is ticked. A box showing OU=Staff while the tree
+   says otherwise is a trap: it reads as the setting in force when it is not. */
+function ouManualNote() {
+    const note = $('ouManualNote');
+    if (!note) return;
+    const overridden = $('fOuIncludes').value.trim() !== '';
+    note.textContent = overridden ? window.t('system.sso.ou_manual_ignored') : '';
+    note.style.display = overridden ? '' : 'none';
+}
+
+function renderOuTree() {
+    const box = $('ouTree');
+    const kids = {};
+    ouNodes.forEach(n => { (kids[n.parent] = kids[n.parent] || []).push(n); });
+
+    const rowFor = (n, depth) => {
+        const st = ouBranchState(n.dn);
+        const carved = ouExc.has(n.dn);
+        const children = kids[n.dn] || [];
+        const collapsed = ouCollapsed.has(n.dn);
+        return `<div class="ou-row${carved ? ' excluded' : ''}" style="padding-left:${12 + depth * 20}px">
+            <span class="ou-twisty${children.length ? '' : ' leaf'}" data-twisty="${esc(n.dn)}">${children.length ? (collapsed ? '▶' : '▼') : '▶'}</span>
+            <input type="checkbox" data-dn="${esc(n.dn)}" ${st === 'on' ? 'checked' : ''}>
+            <span class="ou-name">${esc(n.name)}</span>
+            <span class="ou-count">${n.total ? window.t('system.sso.ou_count', { here: n.people, total: n.total }) : window.t('system.sso.ou_count_empty')}</span>
+        </div>`
+        + (children.length ? `<div class="ou-kids${collapsed ? ' collapsed' : ''}">`
+            + children.map(c => rowFor(c, depth + 1)).join('') + '</div>' : '');
+    };
+
+    const roots = ouNodes.filter(n => !ouNodes.some(o => o.dn === n.parent));
+    box.innerHTML = roots.map(r => rowFor(r, 0)).join('');
+    box.style.display = '';
+
+    // Indeterminate is a property, not an attribute — it cannot be set in the
+    // markup above and has to be applied after the nodes exist.
+    box.querySelectorAll('input[type=checkbox]').forEach(cb => {
+        cb.indeterminate = ouBranchState(cb.dataset.dn) === 'partial';
+        cb.addEventListener('change', () => ouToggle(cb.dataset.dn));
+    });
+    box.querySelectorAll('.ou-twisty').forEach(t => t.addEventListener('click', () => {
+        const dn = t.dataset.twisty;
+        if (ouCollapsed.has(dn)) ouCollapsed.delete(dn); else ouCollapsed.add(dn);
+        renderOuTree();
+    }));
+}
+
+$('browseBtn').addEventListener('click', async function () {
+    const box = $('ouResult');
+    box.className = 'result ok';
+    box.textContent = window.t('system.sso.ou_reading');
+    this.disabled = true;
+    try {
+        const d = await (await fetch(API + 'browse_directory_ous.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign(payload(), { provider_id: PROVIDER_ID }))
+        })).json();
+        if (!d.success) { box.className = 'result err'; box.textContent = d.error || 'Failed'; return; }
+        ouNodes = d.ous || [];
+        if (!ouNodes.length) {
+            box.className = 'result warn';
+            box.textContent = window.t('system.sso.ou_none_found');
+            return;
+        }
+        // Seed from what is stored, NOT from what the tree shows: the stored
+        // selection is the truth, and includes may name an OU that has since
+        // been renamed or deleted. Those simply do not draw, and the engine
+        // finds nothing under them, which is the honest outcome.
+        ouInc = new Set(d.includes || []);
+        ouExc = new Set(d.excludes || []);
+        renderOuTree();
+        syncOuHidden();
+        box.className = 'result ' + (d.capped ? 'warn' : 'ok');
+        box.textContent = d.capped
+            ? window.t('system.sso.ou_capped', { n: d.counted })
+            : window.t('system.sso.ou_read', { n: ouNodes.length, people: d.counted });
+    } catch (e) {
+        box.className = 'result err'; box.textContent = String(e.message || e);
+    } finally { this.disabled = false; }
+});
+
 /* ---------------- What one run did, person by person ---------------- */
 
 /* Every action the engine records, in the order somebody cares about them:
@@ -900,6 +1112,8 @@ async function loadRuns() {
 }
 
 if (<?php echo json_encode($activeTab); ?> === 'history') loadRuns();
+// The typed-DN warning must be right on arrival, not only after a click.
+ouManualNote();
 </script>
 </body>
 </html>

@@ -854,6 +854,20 @@ return [
         'sync_created'         => '{n} added',
         'sync_updated'         => '{n} updated',
         'sync_left'            => '{n} marked as left',
+        // --- the OU browser ---
+        'ou_tree_hint'         => 'Tick the parts of the directory to import from. Ticking a branch takes everything in it, including anything added to it later — so a department created next year arrives on its own. Untick something inside a ticked branch to leave it out.',
+        'ou_browse'            => 'Browse directory',
+        'ou_reading'           => 'Reading the directory…',
+        'ou_read'              => 'Found {n} places and {people} people.',
+        'ou_capped'            => 'This directory is large. Counting stopped at {n} people, so the numbers below are a floor rather than a total. The import itself is not affected.',
+        'ou_none_found'        => 'The bind account can reach the directory but found nothing to list beneath the base DN. Check the base DN on the Signing in tab.',
+        'ou_selected'          => '{n} people ticked.',
+        'ou_none_selected'     => 'Nothing ticked yet.',
+        'ou_count'             => '{here} here · {total} in branch',
+        'ou_count_empty'       => 'empty',
+        'ou_manual'            => 'Type a starting point instead',
+        'ou_manual_ignored'    => 'Not in use: you have places ticked above, and those win. Untick everything to go back to using this box.',
+
         // --- what one run did, person by person ---
         // A preview describes what WOULD happen; an import describes what did.
         // Labelling a preview row "Added" would state as fact something nobody

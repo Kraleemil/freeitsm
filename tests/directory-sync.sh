@@ -85,6 +85,39 @@ chk "directory ids are stored (survives renames)" "1" \
 chk "non-ASCII names survive intact"     "1" \
     "$(MY "SELECT COUNT(*) FROM users WHERE directory_username='j.muller' AND display_name='Jürgen Müller'")"
 
+# --- the OU browser's selection, end to end -----------------------------------
+# The unit tests in directory-sync-scopes.php prove the DN arithmetic. These
+# prove the engine acts on it: a count alone would be satisfied by excluding the
+# WRONG two people, so both checks name who must and must not be there.
+ROOT='ou=northwind,dc=ad,dc=freeitsm,dc=test'
+SAVED_INC=$(MY "SELECT COALESCE(sync_ou_includes,'') FROM auth_providers WHERE id=$PROVIDER")
+SAVED_EXC=$(MY "SELECT COALESCE(sync_ou_excludes,'') FROM auth_providers WHERE id=$PROVIDER")
+
+MY "UPDATE auth_providers SET sync_ou_includes='$ROOT', sync_ou_excludes=NULL, sync_brake_percent=0 WHERE id=$PROVIDER" >/dev/null
+run --preview
+WHOLE=$(MY "SELECT id FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")
+chk "CONTROL: ticking the whole tree finds the contractors" "2" \
+    "$(MY "SELECT COUNT(*) FROM directory_sync_entries WHERE run_id=$WHOLE AND directory_username IN ('z.contractor','w.vendor')")"
+
+MY "UPDATE auth_providers SET sync_ou_excludes='ou=contractors,$ROOT' WHERE id=$PROVIDER" >/dev/null
+run --preview
+CARVED=$(MY "SELECT id FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")
+chk "a carved-out branch drops exactly those people" "0" \
+    "$(MY "SELECT COUNT(*) FROM directory_sync_entries WHERE run_id=$CARVED AND directory_username IN ('z.contractor','w.vendor')")"
+chk "...and nobody else: the carve-out costs exactly 2" "2" \
+    "$(MY "SELECT (SELECT seen_count FROM directory_sync_runs WHERE id=$WHOLE)
+               - (SELECT seen_count FROM directory_sync_runs WHERE id=$CARVED)")"
+
+# Ticking a parent AND a child must not count the overlap twice — the brake
+# compares counts, so an inflated one is not merely cosmetic.
+MY "UPDATE auth_providers SET sync_ou_includes='$ROOT\nou=staff,$ROOT', sync_ou_excludes=NULL WHERE id=$PROVIDER" >/dev/null
+run --preview
+chk "overlapping ticks do not double-count" \
+    "$(MY "SELECT seen_count FROM directory_sync_runs WHERE id=$WHOLE")" \
+    "$(MY "SELECT seen_count FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")"
+
+MY "UPDATE auth_providers SET sync_ou_includes=NULLIF('$SAVED_INC',''), sync_ou_excludes=NULLIF('$SAVED_EXC',''), sync_brake_percent=20 WHERE id=$PROVIDER" >/dev/null
+
 # --- the log ------------------------------------------------------------------
 chk "the run log records per-person detail" "1" \
     "$(MY "SELECT COUNT(*)>0 FROM directory_sync_entries e JOIN directory_sync_runs r ON r.id=e.run_id WHERE r.provider_id=$PROVIDER")"

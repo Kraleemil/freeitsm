@@ -124,11 +124,79 @@ function dsyncAttr(array $provider, string $field): string
  *
  * @return array<int,array> raw entries, one per person
  */
+/**
+ * Split a stored DN list into an array. One per line, blanks dropped.
+ *
+ * Lower-cased, because a DN is case-insensitive but string comparison is not,
+ * and every comparison in this file (is X under Y?) is a string comparison.
+ */
+function dsyncDnList(?string $raw): array
+{
+    $out = [];
+    foreach (preg_split('/\R/', (string)$raw) as $line) {
+        $line = strtolower(trim($line));
+        if ($line !== '') $out[$line] = true;   // keyed: a DN listed twice is once
+    }
+    return array_keys($out);
+}
+
+/**
+ * Where this provider imports from: which branches, minus which carve-outs.
+ *
+ * A ticked branch means the whole branch, now and in future — so an OU created
+ * under it next year is picked up without anybody remembering to come back
+ * here. That is the behaviour that makes this worth having, and it is also why
+ * carve-outs exist: "everybody in Staff except Contractors" cannot be said with
+ * includes alone once you want new departments to arrive on their own.
+ *
+ * ⚠️ Falls back to sync_base_dn, then ldap_base_dn. An install upgraded from
+ * before the OU browser has neither column set, and MUST go on importing
+ * exactly who it imported yesterday.
+ */
+function dsyncScopes(array $provider): array
+{
+    $includes = dsyncDnList($provider['sync_ou_includes'] ?? null);
+    if (!$includes) {
+        $fallback = strtolower(trim((string)($provider['sync_base_dn'] ?? '')))
+            ?: strtolower(trim((string)($provider['ldap_base_dn'] ?? '')));
+        $includes = $fallback !== '' ? [$fallback] : [];
+    }
+
+    // Ticking a parent AND its child is not a mistake, it is what a tree lets
+    // you do by accident. Dropping the child means one search instead of two
+    // over the same people, and no double counting.
+    $roots = [];
+    foreach ($includes as $dn) {
+        $covered = false;
+        foreach ($includes as $other) {
+            if ($other !== $dn && dsyncDnIsUnder($dn, $other)) { $covered = true; break; }
+        }
+        if (!$covered) $roots[] = $dn;
+    }
+
+    return ['includes' => $roots, 'excludes' => dsyncDnList($provider['sync_ou_excludes'] ?? null)];
+}
+
+/**
+ * Is $dn inside the subtree rooted at $ancestor (or the ancestor itself)?
+ *
+ * ⚠️ The comma matters. Without it "OU=Sales,DC=x" tests true against
+ * "OU=WholesaleSales,DC=x", and a carve-out would silently swallow an OU whose
+ * name merely ends the same way.
+ */
+function dsyncDnIsUnder(string $dn, string $ancestor): bool
+{
+    $dn = strtolower(trim($dn));
+    $ancestor = strtolower(trim($ancestor));
+    if ($ancestor === '') return false;
+    return $dn === $ancestor || str_ends_with($dn, ',' . $ancestor);
+}
+
 function dsyncFetchPeople($ds, array $provider): array
 {
-    $baseDn = trim((string)($provider['sync_base_dn'] ?? '')) ?: trim((string)($provider['ldap_base_dn'] ?? ''));
-    if ($baseDn === '') {
-        throw new Exception('This provider has no base DN to enumerate from.');
+    $scopes = dsyncScopes($provider);
+    if (!$scopes['includes']) {
+        throw new Exception('This provider has nowhere to import from. Tick at least one part of the directory.');
     }
     $filter = trim((string)($provider['sync_filter'] ?? ''))
         ?: '(&(objectClass=user)(objectCategory=person))';
@@ -144,33 +212,58 @@ function dsyncFetchPeople($ds, array $provider): array
         'userAccountControl',   // AD's disabled flag
     ])));
 
-    $people = [];
-    $cookie = '';
-    do {
-        $controls = [[
-            'oid'   => LDAP_CONTROL_PAGEDRESULTS,
-            'value' => ['size' => DSYNC_PAGE_SIZE, 'cookie' => $cookie],
-        ]];
-        $res = @ldap_search($ds, $baseDn, $filter, $attrs, 0, 0, 0, LDAP_DEREF_NEVER, $controls);
-        if ($res === false) {
-            throw new Exception('Directory search failed: ' . ldap_error($ds));
-        }
-        $entries = @ldap_get_entries($ds, $res) ?: ['count' => 0];
-        for ($i = 0; $i < ($entries['count'] ?? 0); $i++) {
-            $people[] = $entries[$i];
-            if (count($people) >= DSYNC_MAX_PEOPLE) {
-                throw new Exception('More than ' . DSYNC_MAX_PEOPLE
-                    . ' people matched. Narrow the base DN or the filter — this is almost'
-                    . ' certainly enumerating more of the directory than you meant.');
-            }
-        }
+    // Keyed by DN so the same person found under two ticked branches is one
+    // person. Overlapping ticks are pruned in dsyncScopes(), but a directory
+    // with aliases or referrals can still hand the same entry back twice, and
+    // a duplicate would be counted twice by the brake as well as processed
+    // twice — the brake comparing an inflated count is the dangerous half.
+    $byDn = [];
+    foreach ($scopes['includes'] as $baseDn) {
         $cookie = '';
-        if (@ldap_parse_result($ds, $res, $errcode, $matcheddn, $errmsg, $referrals, $ctrls)) {
-            $cookie = $ctrls[LDAP_CONTROL_PAGEDRESULTS]['value']['cookie'] ?? '';
-        }
-    } while ($cookie !== null && $cookie !== '');
+        do {
+            $controls = [[
+                'oid'   => LDAP_CONTROL_PAGEDRESULTS,
+                'value' => ['size' => DSYNC_PAGE_SIZE, 'cookie' => $cookie],
+            ]];
+            $res = @ldap_search($ds, $baseDn, $filter, $attrs, 0, 0, 0, LDAP_DEREF_NEVER, $controls);
+            if ($res === false) {
+                // Name the branch. "Directory search failed" over five ticked
+                // OUs leaves you guessing which one you cannot read.
+                throw new Exception('Directory search failed under ' . $baseDn . ': ' . ldap_error($ds));
+            }
+            $entries = @ldap_get_entries($ds, $res) ?: ['count' => 0];
+            for ($i = 0; $i < ($entries['count'] ?? 0); $i++) {
+                $entry = $entries[$i];
+                $dn    = strtolower((string)($entry['dn'] ?? ''));
+                // A carve-out is applied here rather than in the LDAP filter:
+                // "not under this subtree" is not something an LDAP filter can
+                // express at all, since a filter tests attributes and this
+                // tests position in the tree.
+                if (dsyncDnIsExcluded($dn, $scopes['excludes'])) continue;
+                $byDn[$dn] = $entry;
+                if (count($byDn) >= DSYNC_MAX_PEOPLE) {
+                    throw new Exception('More than ' . DSYNC_MAX_PEOPLE
+                        . ' people matched. Narrow what you have ticked, or the filter — this is almost'
+                        . ' certainly enumerating more of the directory than you meant.');
+                }
+            }
+            $cookie = '';
+            if (@ldap_parse_result($ds, $res, $errcode, $matcheddn, $errmsg, $referrals, $ctrls)) {
+                $cookie = $ctrls[LDAP_CONTROL_PAGEDRESULTS]['value']['cookie'] ?? '';
+            }
+        } while ($cookie !== null && $cookie !== '');
+    }
 
-    return $people;
+    return array_values($byDn);
+}
+
+/** Does this DN sit inside any carved-out branch? */
+function dsyncDnIsExcluded(string $dn, array $excludes): bool
+{
+    foreach ($excludes as $ex) {
+        if (dsyncDnIsUnder($dn, $ex)) return true;
+    }
+    return false;
 }
 
 /** One attribute off a raw entry, as a plain string ('' when absent). */

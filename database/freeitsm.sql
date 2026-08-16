@@ -105,6 +105,15 @@ CREATE TABLE IF NOT EXISTS `auth_providers` (
     -- subtree is usually the right one, but not always — you may authenticate
     -- against the whole directory and only want to IMPORT one OU.
     `sync_base_dn`           VARCHAR(255) NULL,
+    -- The OU browser writes these: the branches ticked, and the branches
+    -- carved back out of them. One DN per line. A ticked branch means the
+    -- whole branch INCLUDING anything created under it later, which is the
+    -- behaviour that makes a new department import on its own.
+    -- ⚠️ Both NULL means "use sync_base_dn", which is the only state an
+    -- upgraded install can be in — the fallback is not a nicety, it is what
+    -- stops an upgrade silently importing nobody.
+    `sync_ou_includes`       TEXT NULL,
+    `sync_ou_excludes`       TEXT NULL,
     `sync_filter`            VARCHAR(500) NULL,
     -- What to do when somebody already exists here. 'adopt' attaches the
     -- directory identity to the existing record; 'flag' leaves them alone and

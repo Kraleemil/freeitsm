@@ -38,6 +38,38 @@ function bail(string $msg): void {
     exit;
 }
 
+/**
+ * Normalise a list of DNs (an array, or newline-separated text) for storage.
+ *
+ * ⚠️ These strings are handed to ldap_search() as the SEARCH BASE, which is a
+ * position in the tree rather than a filter — so filter escaping does not apply
+ * and would not help. What matters is that nothing but a DN is ever stored:
+ *
+ *  - control characters and newlines are stripped, since a newline is the
+ *    record separator here and one embedded in a value would forge an entry;
+ *  - anything without an '=' is not a DN and is dropped rather than stored and
+ *    failed at run time, when the message would be far from the cause;
+ *  - the list is deduplicated and capped, because it comes from a browser and
+ *    a browser is not a promise.
+ *
+ * Whether the base is one the bind account may read is the DIRECTORY's decision,
+ * not ours: an unreadable base returns nothing, and a base outside the tree
+ * errors. Neither leaks anything the bind account could not already read.
+ */
+function ssoDnLines($value): ?string
+{
+    $lines = is_array($value) ? $value : preg_split('/\R/', (string)$value);
+    $out = [];
+    foreach ($lines as $line) {
+        $line = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', (string)$line));
+        if ($line === '' || strpos($line, '=') === false) continue;
+        if (mb_strlen($line) > 512) continue;
+        $out[strtolower($line)] = $line;
+        if (count($out) >= 200) break;
+    }
+    return $out ? implode("\n", array_values($out)) : null;
+}
+
 $protocol    = ($data['protocol'] ?? 'oidc') === 'ldap' ? 'ldap' : 'oidc';
 $displayName = trim($data['display_name'] ?? '');
 if ($displayName === '') bail('Display name is required');
@@ -76,6 +108,7 @@ if ($protocol === 'oidc') {
         'group_base_dn' => null, 'group_filter' => null, 'analyst_group' => null, 'user_group' => null,
         // Directory sync is LDAP-only; an OIDC provider stores the column defaults.
         'sync_enabled' => 0, 'sync_base_dn' => null, 'sync_filter' => null,
+        'sync_ou_includes' => null, 'sync_ou_excludes' => null,
         'sync_on_conflict' => 'adopt', 'sync_deactivate_after' => 3, 'sync_brake_percent' => 20,
         'attr_job_title' => null, 'attr_department' => null, 'attr_office' => null,
         'attr_phone' => null, 'attr_mobile' => null, 'attr_employee_id' => null, 'attr_manager' => null,
@@ -140,6 +173,11 @@ if ($protocol === 'oidc') {
         // Blank falls back to the sign-in base DN at run time, so an install that
         // syncs the same subtree it authenticates against configures nothing.
         'sync_base_dn'  => trim($data['sync_base_dn'] ?? '') ?: null,
+        // The OU browser writes these: ticked branches, and carve-outs within
+        // them. Normalised to one DN per line so the engine can split on it and
+        // so two saves of the same selection produce the same stored text.
+        'sync_ou_includes' => ssoDnLines($data['sync_ou_includes'] ?? null),
+        'sync_ou_excludes' => ssoDnLines($data['sync_ou_excludes'] ?? null),
         'sync_filter'   => trim($data['sync_filter'] ?? '') ?: null,
         'sync_on_conflict' => (($data['sync_on_conflict'] ?? 'adopt') === 'flag') ? 'flag' : 'adopt',
         // 0 disables automatic deactivation entirely; negatives would be nonsense.
@@ -168,7 +206,7 @@ try {
              'ldap_base_dn', 'ldap_user_filter', 'ldap_attr_username',
              'ldap_attr_email', 'ldap_attr_name', 'ldap_attr_guid',
              'ldap_group_base_dn', 'ldap_group_filter', 'ldap_analyst_group', 'ldap_user_group',
-             'sync_enabled', 'sync_base_dn', 'sync_filter', 'sync_on_conflict',
+             'sync_enabled', 'sync_base_dn', 'sync_ou_includes', 'sync_ou_excludes', 'sync_filter', 'sync_on_conflict',
              'sync_deactivate_after', 'sync_brake_percent',
              'ldap_attr_job_title', 'ldap_attr_department', 'ldap_attr_office',
              'ldap_attr_phone', 'ldap_attr_mobile', 'ldap_attr_employee_id', 'ldap_attr_manager'];
@@ -179,7 +217,7 @@ try {
              $ldap['base_dn'], $ldap['user_filter'], $ldap['attr_username'],
              $ldap['attr_email'], $ldap['attr_name'], $ldap['attr_guid'],
              $ldap['group_base_dn'], $ldap['group_filter'], $ldap['analyst_group'], $ldap['user_group'],
-             $ldap['sync_enabled'], $ldap['sync_base_dn'], $ldap['sync_filter'], $ldap['sync_on_conflict'],
+             $ldap['sync_enabled'], $ldap['sync_base_dn'], $ldap['sync_ou_includes'], $ldap['sync_ou_excludes'], $ldap['sync_filter'], $ldap['sync_on_conflict'],
              $ldap['sync_deactivate_after'], $ldap['sync_brake_percent'],
              $ldap['attr_job_title'], $ldap['attr_department'], $ldap['attr_office'],
              $ldap['attr_phone'], $ldap['attr_mobile'], $ldap['attr_employee_id'], $ldap['attr_manager']];
