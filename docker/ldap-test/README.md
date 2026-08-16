@@ -37,10 +37,42 @@ docker exec freeitsm-ldap ldapadd -x -H ldap://localhost \
 docker cp docker/ldap-test/acl.ldif freeitsm-ldap:/tmp/acl.ldif
 docker exec freeitsm-ldap ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/acl.ldif
 
-# Samba AD: simple users, then a realistic company
+# Samba AD: simple users, then a realistic company, then a population to sync
 bash docker/ldap-test/seed-ad.sh
 bash docker/ldap-test/seed-ad-company.sh
+bash docker/ldap-test/seed-ad-people.sh
 ```
+
+The three build on each other:
+
+| Script | Gives you | For testing |
+|---|---|---|
+| `seed-ad.sh` | 4 users, 3 groups, one nested | sign-in, group gating |
+| `seed-ad-company.sh` | Northwind Ltd — 10 staff in per-department OUs, a disabled leaver, an account with no mailbox | realistic sign-in journeys |
+| `seed-ad-people.sh` | Grows it to **~30 people across 8 OUs**, all carrying `manager`, `physicalDeliveryOfficeName`, `telephoneNumber`, `mobile` and `employeeID` | **directory sync** |
+
+`seed-ad-people.sh` exists because sync is a different problem from sign-in and
+needs a fixture that is awkward on purpose:
+
+- **`OU=Contractors` must NOT be synced** — so "which OUs" is a real question
+- **two different people with the same display name** (`j.smith` and `j.smith2`,
+  both "John Smith") — matching must not fall back to names
+- **`a.hall-jones`'s email is another person's username** — a near miss for any
+  sloppy matching rule
+- **three people with no `mail` attribute at all** — the warehouse case
+- **`q.deleon` is disabled but still in Sales**, while `y.tanaka` is disabled and
+  moved to Leavers — "disabled" and "moved" are different states
+- **a manager chain three deep**, and Amy Chen (IT) reporting to Ciara Doherty
+  (Finance) — a sync that assumes managers share a department gets it wrong
+- non-ASCII names, an apostrophe, a double-barrelled surname, a deeply nested OU
+
+⚠️ Two flags that look interchangeable and are not: **`samba-tool ou create`
+takes a FULL DN**, while **`user create --userou` takes a RELATIVE one**. Getting
+them the wrong way round fails silently per user and creates nobody.
+
+⚠️ On Git Bash, prefix any `docker exec` that names a container path with
+`MSYS_NO_PATHCONV=1`, or `/var/lib/samba/private/sam.ldb` is rewritten to
+`C:/Program Files/Git/var/lib/...` before the container ever sees it.
 
 The containers have **no restart policy** and **no volumes** — they survive
 `docker stop`/`start` but a `docker rm` loses everything. Re-seed with the above.
