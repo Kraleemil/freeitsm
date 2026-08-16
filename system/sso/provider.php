@@ -212,6 +212,59 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
         .pill.ok { background: #e8f5e9; color: #2e7d32; }
         .pill.stopped { background: #fff4ce; color: #6b5900; }
         .pill.failed, .pill.running { background: #ffebee; color: #c62828; }
+        /* The run detail modal. Namespaced `sso-` for the same reason index.php
+           namespaces its own: inbox.css carries a global .modal framework that
+           defaults to opacity:0/visibility:hidden, and an un-namespaced modal
+           here would open invisibly. */
+        .sso-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 2100; align-items: center; justify-content: center; }
+        .sso-modal-overlay.open { display: flex; }
+        /* Wider and taller than the config modal on the list page: this one holds
+           a table of people, and a cramped list of names is the thing it exists
+           to replace. Flex column so the table body scrolls and the header,
+           filters and footer stay put. */
+        /* height:auto with a cap, NOT a fixed 82vh: a preview with three rows in
+           it should be three rows tall. A fixed height left most of the dialog
+           as empty grey, which reads as "something failed to load". */
+        .sso-modal { background: var(--surface, #fff); border-radius: 10px; width: 1100px; max-width: 94vw; height: auto; max-height: 86vh;
+            display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.25); }
+        .sso-modal-header { padding: 18px 24px 14px; border-bottom: 1px solid var(--border-soft, #eee); }
+        .sso-modal-header h2 { margin: 0; font-size: 16px; font-weight: 600; color: var(--text, #333); }
+        .sso-modal-header .sub { font-size: 12.5px; color: var(--text-dim, #888); margin-top: 3px; }
+        .sso-modal-body { padding: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+        .sso-modal-footer { padding: 14px 24px; border-top: 1px solid var(--border-soft, #eee); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .run-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 12px 24px; border-bottom: 1px solid var(--border-soft, #f0f0f0); position: sticky; top: 0; background: var(--surface, #fff); z-index: 2; }
+        /* A filter chip carries its own count, so "nothing to see here" is
+           readable without clicking into each one in turn. */
+        .chip { border: 1px solid var(--border, #ddd); background: var(--surface, #fff); color: var(--text-muted, #555);
+            border-radius: 20px; padding: 5px 13px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .chip.on { background: var(--sys-accent, #546e7a); color: var(--sys-on-accent, #fff); border-color: var(--sys-accent, #546e7a); }
+        .chip .n { opacity: .7; margin-left: 5px; font-weight: 400; }
+        .run-search { margin-left: auto; flex: 0 1 240px; padding: 7px 11px; font-size: 12.5px; border: 1px solid var(--border, #ddd);
+            border-radius: 6px; background: var(--surface, #fff); color: var(--text, #333); }
+        table.people { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        table.people th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim, #888);
+            font-weight: 600; padding: 10px 24px; border-bottom: 1px solid var(--border, #e6e6e6); }
+        table.people td { padding: 9px 24px; border-bottom: 1px solid var(--border-soft, #f4f4f4); color: var(--text, #444); vertical-align: top; word-break: break-word; }
+        table.people tr.hide { display: none; }
+        .who { font-weight: 600; }
+        .who small { display: block; font-weight: 400; font-size: 11.5px; color: var(--text-dim, #999); font-family: ui-monospace, Consolas, monospace; }
+        /* Colour carries the meaning at a glance: green arrives, amber changes,
+           grey leaves, red needs you. */
+        .act { display: inline-block; padding: 2px 10px; border-radius: 11px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+        .act.create { background: #e8f5e9; color: #2e7d32; }
+        .act.update, .act.adopt { background: #fff4ce; color: #6b5900; }
+        .act.deactivate, .act.skip, .act.unchanged { background: var(--app-bg, #eee); color: var(--text-dim, #777); }
+        .act.conflict, .act.error { background: #ffebee; color: #c62828; }
+        [data-theme-mode="dark"] .act.create { background: #16331f; color: #86efac; }
+        [data-theme-mode="dark"] .act.update, [data-theme-mode="dark"] .act.adopt { background: #3a3218; color: #fde68a; }
+        [data-theme-mode="dark"] .act.conflict, [data-theme-mode="dark"] .act.error { background: #3a1b1e; color: #fca5a5; }
+        .run-empty { padding: 40px 24px; text-align: center; color: var(--text-dim, #999); font-size: 13px; }
+        /* A preview changed nothing. Say so where it cannot be missed, because
+           the table below reads exactly like a record of things that happened. */
+        .preview-banner { background: #fff4ce; color: #6b5900; padding: 10px 24px; font-size: 12.5px; font-weight: 600; }
+        [data-theme-mode="dark"] .preview-banner { background: #3a3218; color: #fde68a; }
+        table.runs tbody tr.clickable { cursor: pointer; }
+        table.runs tbody tr.clickable:hover td { background: var(--surface-hover, rgba(127,127,127,0.07)); }
         .back-link { font-size: 13px; color: var(--sys-accent, #546e7a); text-decoration: none; }
         .back-link:hover { text-decoration: underline; }
         @media (max-width: 700px) { .prov-wrap { padding: 14px 12px 50px; } }
@@ -449,18 +502,48 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
         </div>
 
         <!-- ================= History ================= -->
+        <!-- ⚠️ Both children are .wide. Without it the wide-screen two-column
+             rule applies here too, and a nine-column table does not belong in
+             half a screen: the heading wrapped to one word per line and the
+             table ran off the right edge of the page. -->
         <div class="tab-pane<?php echo $activeTab === 'history' ? ' active' : ''; ?>" id="history-pane">
-            <div class="fld">
+            <div class="fld wide">
                 <label><?php echo htmlspecialchars(t('system.sso.history_heading')); ?></label>
                 <div class="hint"><?php echo htmlspecialchars(t('system.sso.history_hint')); ?></div>
             </div>
-            <div id="runsBox"></div>
+            <!-- The table scrolls inside its own box rather than widening the
+                 page — a horizontally scrolling body is the worse of the two. -->
+            <div id="runsBox" class="wide" style="overflow-x:auto;"></div>
         </div>
     </div>
 
     <div class="save-bar">
         <button class="btn btn-primary" id="saveBtn" type="button"><?php echo htmlspecialchars(t('common.save')); ?></button>
         <span id="saveMsg" style="font-size:13px;color:var(--text-dim,#888);"></span>
+    </div>
+</div>
+
+<!-- ================= What one run did, person by person =================
+     The counts alone ("31 found, 4 added") are not something anybody can act
+     on, and a preview that only produces a number is asking to be trusted
+     rather than checked. The entries have been recorded since the engine was
+     written; nothing ever displayed them. This is that display, opened
+     automatically after a preview and from any row of the history. -->
+<div class="sso-modal-overlay" id="runModal">
+    <div class="sso-modal">
+        <div class="sso-modal-header">
+            <h2 id="runModalTitle"></h2>
+            <div class="sub" id="runModalSub"></div>
+        </div>
+        <div class="preview-banner" id="runPreviewBanner" style="display:none;"><?php echo htmlspecialchars(t('system.sso.sync_preview_prefix')); ?></div>
+        <div class="sso-modal-body">
+            <div class="run-filters" id="runFilters"></div>
+            <div id="runPeople"></div>
+        </div>
+        <div class="sso-modal-footer">
+            <span class="hint" id="runFooterNote"></span>
+            <button class="btn btn-primary" type="button" onclick="closeRunModal()"><?php echo htmlspecialchars(t('common.close')); ?></button>
+        </div>
     </div>
 </div>
 
@@ -592,6 +675,10 @@ async function runSync(mode) {
         box.textContent = (mode === 'preview' ? window.t('system.sso.sync_preview_prefix') + '\n' : '')
                         + line + (r.message ? '\n\n' + r.message : '');
         loadRuns();
+        // Open the detail straight away. A preview whose entire output is four
+        // numbers asks to be trusted; this asks to be read. The summary line
+        // above stays put, so closing the modal does not lose the result.
+        if (r.id) openRunDetail(r.id, mode, r.started_datetime, r.status);
     } catch (e) {
         box.className = 'result err'; box.textContent = String(e.message || e);
     }
@@ -668,6 +755,117 @@ function renderAvailable(list) {
         + '</div></details>';
 }
 
+/* ---------------- What one run did, person by person ---------------- */
+
+/* Every action the engine records, in the order somebody cares about them:
+   the things that need attention first, the 400 rows saying "nothing happened"
+   last. `on` is whether the filter starts selected — 'unchanged' does not,
+   because on a healthy run it is nearly everything and says nothing. */
+const RUN_ACTIONS = [
+    { key: 'error',      on: true  },
+    { key: 'conflict',   on: true  },
+    { key: 'create',     on: true  },
+    { key: 'update',     on: true  },
+    { key: 'adopt',      on: true  },
+    { key: 'deactivate', on: true  },
+    { key: 'skip',       on: true  },
+    { key: 'unchanged',  on: false }
+];
+let runShown = new Set();
+
+/* A preview describes the future and an import describes the past. Labelling a
+   preview row "Added" would be a plain lie about something nobody has agreed
+   to yet, so the tense follows the mode. */
+function actionLabel(action, mode) {
+    return window.t('system.sso.act_' + (mode === 'preview' ? 'will_' : 'did_') + action) || action;
+}
+
+async function openRunDetail(runId, mode, startedAt, status) {
+    $('runModalTitle').textContent = window.t('system.sso.run_modal_' + (mode === 'preview' ? 'preview' : 'live'));
+    $('runModalSub').textContent = startedAt
+        ? new Date(String(startedAt).replace(' ', 'T') + 'Z').toLocaleString()
+        : '';
+    $('runPreviewBanner').style.display = mode === 'preview' ? '' : 'none';
+    $('runFilters').innerHTML = '';
+    $('runPeople').innerHTML = '<div class="run-empty">' + esc(window.t('system.sso.run_loading')) + '</div>';
+    $('runFooterNote').textContent = '';
+    $('runModal').classList.add('open');
+
+    try {
+        const d = await (await fetch(API + 'get_directory_sync_log.php?run_id=' + runId + '&action=all')).json();
+        if (!d.success) {
+            $('runPeople').innerHTML = '<div class="run-empty">' + esc(d.error || 'Failed') + '</div>';
+            return;
+        }
+        const counts = d.by_action || {};
+        // A run the brake stopped has counts of zero and no entries at all —
+        // which is correct and needs saying, not an empty table.
+        if (!(d.entries || []).length) {
+            $('runPeople').innerHTML = '<div class="run-empty">' + esc(window.t(
+                status === 'stopped' ? 'system.sso.run_none_stopped' : 'system.sso.run_none')) + '</div>';
+            return;
+        }
+
+        runShown = new Set(RUN_ACTIONS.filter(a => a.on && counts[a.key]).map(a => a.key));
+        $('runFilters').innerHTML = RUN_ACTIONS.filter(a => counts[a.key]).map(a =>
+            '<button type="button" class="chip' + (runShown.has(a.key) ? ' on' : '') + '" data-act="' + a.key + '">'
+            + esc(actionLabel(a.key, mode)) + '<span class="n">' + counts[a.key] + '</span></button>'
+        ).join('') + '<input type="text" class="run-search" id="runSearch" placeholder="'
+            + esc(window.t('system.sso.run_search')) + '">';
+
+        $('runPeople').innerHTML = '<table class="people"><thead><tr>'
+            + '<th style="width:30%;">' + esc(window.t('system.sso.run_col_person')) + '</th>'
+            + '<th style="width:20%;">' + esc(window.t('system.sso.run_col_what')) + '</th>'
+            + '<th>' + esc(window.t('system.sso.run_col_detail')) + '</th>'
+            + '</tr></thead><tbody>'
+            + d.entries.map(e => `<tr data-act="${esc(e.action)}" data-name="${esc(((e.display_name || '') + ' ' + (e.directory_username || '')).toLowerCase())}">
+                <td class="who">${esc(e.display_name || '—')}${e.directory_username ? '<small>' + esc(e.directory_username) + '</small>' : ''}</td>
+                <td><span class="act ${esc(e.action)}">${esc(actionLabel(e.action, mode))}</span></td>
+                <td>${esc(e.detail || '')}</td>
+            </tr>`).join('') + '</tbody></table>';
+
+        $('runFilters').querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+            const k = c.dataset.act;
+            if (runShown.has(k)) runShown.delete(k); else runShown.add(k);
+            c.classList.toggle('on');
+            applyRunFilter();
+        }));
+        $('runSearch').addEventListener('input', applyRunFilter);
+        applyRunFilter();
+
+        // The API caps at 1000 rows. A bigger directory would otherwise show a
+        // truncated list that looks complete — say so rather than mislead.
+        if (d.entries.length >= 1000) {
+            $('runFooterNote').textContent = window.t('system.sso.run_capped');
+        }
+    } catch (e) {
+        $('runPeople').innerHTML = '<div class="run-empty">' + esc(String(e.message || e)) + '</div>';
+    }
+}
+
+function applyRunFilter() {
+    const q = ($('runSearch') ? $('runSearch').value : '').trim().toLowerCase();
+    let visible = 0;
+    document.querySelectorAll('#runPeople tbody tr').forEach(tr => {
+        const show = runShown.has(tr.dataset.act) && (!q || tr.dataset.name.includes(q));
+        tr.classList.toggle('hide', !show);
+        if (show) visible++;
+    });
+    const empty = $('runPeople').querySelector('.run-empty-filter');
+    if (!visible && !empty) {
+        $('runPeople').insertAdjacentHTML('beforeend',
+            '<div class="run-empty run-empty-filter">' + esc(window.t('system.sso.run_none_shown')) + '</div>');
+    } else if (visible && empty) {
+        empty.remove();
+    }
+}
+
+function closeRunModal() { $('runModal').classList.remove('open'); }
+$('runModal').addEventListener('click', e => { if (e.target === $('runModal')) closeRunModal(); });
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && $('runModal').classList.contains('open')) closeRunModal();
+});
+
 async function loadRuns() {
     const box = $('runsBox');
     box.innerHTML = '';
@@ -682,7 +880,10 @@ async function loadRuns() {
                 .map(h => '<th>' + esc(window.t('system.sso.hist_' + h) || h) + '</th>').join('')
             + '</tr></thead><tbody>' + d.runs.map(r => {
                 const cls = r.status === 'ok' ? 'ok' : (r.status === 'stopped' ? 'stopped' : 'failed');
-                return `<tr>
+                // Every row opens the same modal the preview does. The history
+                // has listed counts since it was built and never let you see
+                // behind them, which is the half that answers "updated how?".
+                return `<tr class="clickable" onclick="openRunDetail(${Number(r.id)}, '${esc(r.mode)}', '${esc(r.started_datetime)}', '${esc(r.status)}')">
                     <td>${esc(new Date(String(r.started_datetime).replace(' ','T') + 'Z').toLocaleString())}</td>
                     <td>${esc(r.mode)}</td>
                     <td><span class="pill ${cls}">${esc(r.status)}</span></td>

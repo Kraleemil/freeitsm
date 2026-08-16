@@ -416,8 +416,10 @@ function directorySyncRun(PDO $conn, array $provider, string $mode = 'live', ?in
                 $counts['created']++;
                 if ($newId > 0) $seenUserIds[] = $newId;
                 if ($newId > 0 && $p['dn'] !== '') $dnToUserId[$p['dn']] = $newId;
-                dsyncLogEntry($conn, $runId, 'create', $newId ?: null, $p,
-                    $preview ? 'Would be created.' : 'Created.');
+                // "Would be created." says nothing you can check. A preview is
+                // for deciding whether to go ahead, and the decision turns on
+                // WHO is arriving — so list what the new record will hold.
+                dsyncLogEntry($conn, $runId, 'create', $newId ?: null, $p, dsyncNewPersonSummary($p));
             }
         }
 
@@ -448,6 +450,48 @@ function directorySyncRun(PDO $conn, array $provider, string $mode = 'live', ?in
 }
 
 /** Update an existing person, returning a human summary of what changed. */
+/**
+ * A readable name for a person column, for the run log.
+ *
+ * The log is written once and read later, so it holds English prose rather than
+ * translation keys — the same choice the rest of the detail text already makes.
+ * A column with no entry here falls back to itself, so adding a field to the
+ * sync can never make the log throw.
+ */
+function dsyncFieldLabel(string $col): string
+{
+    static $labels = [
+        'display_name' => 'Name',
+        'job_title'    => 'Job title',
+        'department'   => 'Department',
+        'office'       => 'Office',
+        'phone'        => 'Phone',
+        'mobile'       => 'Mobile',
+        'employee_id'  => 'Employee number',
+        'email'        => 'Email',
+    ];
+    return $labels[$col] ?? $col;
+}
+
+/**
+ * What a person arriving for the first time will actually hold.
+ *
+ * Only the details that are present are listed: padding the line with
+ * "Office: (empty)" for everybody who has no office would bury the fields that
+ * do carry something. An account with nothing but a name says so plainly, which
+ * is itself worth seeing before an import.
+ */
+function dsyncNewPersonSummary(array $p): string
+{
+    $bits = [];
+    foreach (['email', 'job_title', 'department', 'office', 'employee_id'] as $col) {
+        if (($p[$col] ?? null) !== null && $p[$col] !== '') {
+            $bits[] = dsyncFieldLabel($col) . ': ' . $p[$col];
+        }
+    }
+    return $bits ? implode('; ', $bits) : 'No details beyond a name.';
+}
+
 function dsyncApplyToExisting(PDO $conn, array $provider, array $existing, array $p, bool $preview): string
 {
     $changes = [];
@@ -474,7 +518,9 @@ function dsyncApplyToExisting(PDO $conn, array $provider, array $existing, array
         if ($col === 'email' && $new === null) continue;
         $sets[] = "$col = ?";
         $args[] = $new;
-        $changes[] = $col . ': ' . (($old === null || $old === '') ? '(empty)' : $old)
+        // A person reading the run detail should not have to know the database
+        // column names. `job_title: … → …` was leaking straight onto the screen.
+        $changes[] = dsyncFieldLabel($col) . ': ' . (($old === null || $old === '') ? '(empty)' : $old)
                    . ' → ' . (($new === null || $new === '') ? '(empty)' : $new);
     }
 

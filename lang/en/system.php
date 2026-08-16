@@ -854,6 +854,38 @@ return [
         'sync_created'         => '{n} added',
         'sync_updated'         => '{n} updated',
         'sync_left'            => '{n} marked as left',
+        // --- what one run did, person by person ---
+        // A preview describes what WOULD happen; an import describes what did.
+        // Labelling a preview row "Added" would state as fact something nobody
+        // has agreed to yet, so both tenses exist and the mode picks.
+        'run_modal_preview'    => 'What this import would do',
+        'run_modal_live'       => 'What this import did',
+        'run_loading'          => 'Reading…',
+        'run_search'           => 'Search by name',
+        'run_col_person'       => 'Person',
+        'run_col_what'         => 'What happens',
+        'run_col_detail'       => 'Detail',
+        'run_none'             => 'This run recorded nothing.',
+        'run_none_stopped'     => 'The safety brake stopped this run before it changed anything, so there is nothing to show. The result on the Importing people tab says what it objected to.',
+        'run_none_shown'       => 'Nothing matches. Try turning a filter back on.',
+        'run_capped'           => 'Showing the first 1,000 people.',
+        'act_will_create'      => 'Will be added',
+        'act_will_update'      => 'Will be updated',
+        'act_will_adopt'       => 'Will be linked',
+        'act_will_deactivate'  => 'Will be marked as left',
+        'act_will_conflict'    => 'Needs a decision',
+        'act_will_skip'        => 'Will be skipped',
+        'act_will_unchanged'   => 'No change',
+        'act_will_error'       => 'Problem',
+        'act_did_create'       => 'Added',
+        'act_did_update'       => 'Updated',
+        'act_did_adopt'        => 'Linked',
+        'act_did_deactivate'   => 'Marked as left',
+        'act_did_conflict'     => 'Needs a decision',
+        'act_did_skip'         => 'Skipped',
+        'act_did_unchanged'    => 'No change',
+        'act_did_error'        => 'Problem',
+
         // --- field mapping (its own tab) ---
         'map_desc'             => 'Which detail in the directory becomes which detail in FreeITSM. Leave a box blank to use the standard name for your directory type, or clear it to stop importing that detail altogether.',
         'map_col_ours'         => 'FreeITSM field',
