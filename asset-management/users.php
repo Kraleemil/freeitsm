@@ -196,13 +196,18 @@ $translationNamespaces = ['common', 'asset-management'];
         </div>
         <div class="au-search">
             <input type="search" id="auSearch" placeholder="<?php echo htmlspecialchars(t('asset-management.users.search_placeholder')); ?>" autocomplete="off">
-            <!-- Everyone is the DEFAULT, not "holding equipment". You cannot issue a
+            <!-- Current is the DEFAULT, not "holding equipment": you cannot issue a
                  laptop to somebody the list refuses to show you, and a new starter
-                 holds nothing by definition. -->
+                 holds nothing by definition.
+                 ⚠️ "Everyone" genuinely means everyone, leavers included. It used to
+                 be the default AND exclude leavers, which is a contradiction — and
+                 a filter that says Everyone while hiding people teaches you not to
+                 trust any of the others either. -->
             <select id="auScope" onchange="loadPeople(document.getElementById('auSearch').value.trim())">
-                <option value="all"><?php echo htmlspecialchars(t('asset-management.users.scope_all')); ?></option>
+                <option value="current"><?php echo htmlspecialchars(t('asset-management.users.scope_current')); ?></option>
+                <option value="leavers"><?php echo htmlspecialchars(t('asset-management.users.scope_leavers')); ?></option>
+                <option value="everyone"><?php echo htmlspecialchars(t('asset-management.users.scope_everyone')); ?></option>
                 <option value="holding"><?php echo htmlspecialchars(t('asset-management.users.scope_holding')); ?></option>
-                <option value="inactive"><?php echo htmlspecialchars(t('asset-management.users.scope_inactive')); ?></option>
             </select>
         </div>
         <div class="au-list" id="auList"></div>

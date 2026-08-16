@@ -66,10 +66,19 @@ chk "managed record still allows a NON-directory field" "1" "$(echo "$E" | grep 
 MY "UPDATE users SET is_managed=0 WHERE id=$ID" > /dev/null
 
 # --- the directory list shows people holding nothing ------------------------
-N=$(curl -s -b "PHPSESSID=$SID" "$BASE/api/assets/get_people.php?scope=all&search=Slice1" | grep -o '"id":' | wc -l)
-chk "directory lists people with no equipment" "2" "$N"
-N=$(curl -s -b "PHPSESSID=$SID" "$BASE/api/assets/get_people.php?scope=holding&search=Slice1" | grep -o '"id":' | wc -l)
-chk "CONTROL: 'holding' scope excludes them" "0" "$N"
+count() { curl -s -b "PHPSESSID=$SID" "$BASE/api/assets/get_people.php?scope=$1&search=Slice1" | grep -o '"id":' | wc -l; }
+chk "directory lists people with no equipment" "2" "$(count current)"
+chk "CONTROL: 'holding' excludes people with none" "0" "$(count holding)"
+
+# --- the four scopes mean what they say -------------------------------------
+# 'everyone' has to include leavers, or the label is a lie. It originally did
+# not, which is the bug this block exists to stop coming back.
+MY "UPDATE users SET is_active=0 WHERE id=$ID" > /dev/null
+chk "a leaver disappears from 'current'"        "1" "$(count current)"
+chk "a leaver appears under 'leavers'"          "1" "$(count leavers)"
+chk "'everyone' MEANS everyone (leaver + current)" "2" "$(count everyone)"
+MY "UPDATE users SET is_active=1 WHERE id=$ID" > /dev/null
+chk "CONTROL: reactivated, 'leavers' is empty"  "0" "$(count leavers)"
 
 # --- clean up ---------------------------------------------------------------
 MY "DELETE FROM users WHERE id IN ($ID,$MGR)" > /dev/null

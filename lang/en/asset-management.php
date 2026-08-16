@@ -32,9 +32,13 @@ return [
         'search_placeholder' => 'Search name, email, department…',
 
         // --- people directory (directory sync slice 1) ---
-        'scope_all'          => 'Everyone',
+        'scope_current'      => 'Current people',
+        'scope_leavers'      => 'Leavers',
+        // Genuinely everyone, leavers included — see the comment on the select.
+        'scope_everyone'     => 'Everyone',
+        // Includes leavers on purpose: a leaver still holding a laptop is the
+        // most actionable row on this screen.
         'scope_holding'      => 'Holding equipment',
-        'scope_inactive'     => 'Left / inactive',
         'add'                => 'Add',
         'edit'               => 'Edit',
         'deactivate'         => 'Mark as left',

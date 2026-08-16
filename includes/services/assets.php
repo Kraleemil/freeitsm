@@ -523,16 +523,25 @@ class AssetsService
      * directory that only lists current holders is unusable for the one job it
      * most needs to do — issuing kit to a new starter.
      *
-     * $scope: 'all' (active people), 'holding' (the old behaviour), 'inactive'.
-     * Inactive people are hidden by default and never merged into 'all': a
-     * leaver appearing in a picker is how equipment gets issued to somebody who
-     * is not there any more.
+     * $scope:
+     *   'current'  — people who are still here. The default: a leaver in a
+     *                picker is how equipment gets issued to somebody who left.
+     *   'leavers'  — only those marked as having left.
+     *   'everyone' — genuinely everyone, both of the above.
+     *   'holding'  — anybody holding equipment, INCLUDING leavers. A leaver who
+     *                still has a laptop is the single most actionable row on
+     *                this screen, so a filter about equipment must not hide them
+     *                behind a filter about employment.
+     *
+     * ⚠️ 'everyone' means everyone. It was originally the default and excluded
+     * leavers, which is a contradiction — a filter that says Everyone and hides
+     * people teaches you not to trust the others either.
      *
      * Tenancy is applied to the PERSON (users.tenant_id), not to their assets —
      * otherwise somebody who holds nothing would fall outside the filter and
      * silently vanish from the directory.
      */
-    public static function people(PDO $conn, ActorContext $ctx, string $search = '', string $scope = 'all', int $limit = 500): array
+    public static function people(PDO $conn, ActorContext $ctx, string $search = '', string $scope = 'current', int $limit = 500): array
     {
         [$tenantSql, $tenantArgs] = activeTenantFilter($conn, $ctx->actorId, 'u');
 
@@ -545,8 +554,10 @@ class AssetsService
             for ($i = 0; $i < 6; $i++) $args[] = '%' . $search . '%';
         }
 
-        if ($scope === 'inactive')     $where .= " AND u.is_active = 0";
-        else                           $where .= " AND u.is_active = 1";
+        // 'everyone' and 'holding' apply no employment filter at all — see the
+        // docblock. Only 'current' and 'leavers' narrow by is_active.
+        if ($scope === 'leavers')      $where .= " AND u.is_active = 0";
+        elseif ($scope === 'current')  $where .= " AND u.is_active = 1";
         if ($scope === 'holding')      $where .= " AND EXISTS (SELECT 1 FROM users_assets ua WHERE ua.user_id = u.id)";
 
         $limit = max(1, min($limit, 1000));

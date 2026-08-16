@@ -2,7 +2,7 @@
 /**
  * API: the people directory (directory sync slice 1).
  *
- * GET ?search=<text>&scope=all|holding|inactive
+ * GET ?search=<text>&scope=current|leavers|everyone|holding
  *
  * The companion to get_users_with_assets.php, which lists only current asset
  * holders. That is the right answer to "who has equipment" and the wrong one to
@@ -26,8 +26,8 @@ if (!isset($_SESSION['analyst_id'])) {
 }
 requireModuleAccessJson('assets');
 
-$scope = (string)($_GET['scope'] ?? 'all');
-if (!in_array($scope, ['all', 'holding', 'inactive'], true)) $scope = 'all';
+$scope = (string)($_GET['scope'] ?? 'current');
+if (!in_array($scope, ['current', 'leavers', 'everyone', 'holding'], true)) $scope = 'current';
 
 try {
     $conn = connectToDatabase();
