@@ -211,7 +211,7 @@ $analyst_name = $_SESSION['analyst_name'] ?? 'Analyst';
             if (data.success) {
                 msgEl.className = 'msg success';
                 msgEl.textContent = 'Password changed successfully. Redirecting...';
-                setTimeout(() => { window.location.href = 'index.php'; }, 1500);
+                setTimeout(() => { window.location.href = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>index.php'; }, 1500);
             } else {
                 msgEl.className = 'msg error';
                 msgEl.textContent = data.error;

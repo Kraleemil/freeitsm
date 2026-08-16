@@ -86,7 +86,7 @@ function logLoginAttempt($conn, $analystId, $username, $success) {
 
 // If already logged in, redirect to inbox
 if (isset($_SESSION['analyst_id'])) {
-    header('Location: index.php');
+    header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'index.php');
     exit;
 }
 
@@ -97,7 +97,7 @@ if (isset($_GET['cancel_mfa'])) {
     unset($_SESSION['mfa_pending_name']);
     unset($_SESSION['mfa_pending_email']);
     unset($_SESSION['mfa_pending_allowed_modules']);
-    header('Location: login.php');
+    header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'auth/login.php');
     exit;
 }
 
@@ -357,9 +357,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // Must this password change before anything else?
                         if (loginRequiresPasswordChange($conn, $analyst, $skipPasswordExpiry)) {
                             $_SESSION['password_expired'] = true;
-                            header('Location: force_password_change.php');
+                            header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'auth/force_password_change.php');
                         } else {
-                            header('Location: index.php');
+                            header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'index.php');
                         }
                         exit;
                     }
@@ -401,9 +401,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Must this password change before anything else?
                     if (loginRequiresPasswordChange($conn, $analyst, $skipPasswordExpiry)) {
                         $_SESSION['password_expired'] = true;
-                        header('Location: force_password_change.php');
+                        header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'auth/force_password_change.php');
                     } else {
-                        header('Location: index.php');
+                        header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'index.php');
                     }
                     exit;
                 }
@@ -719,7 +719,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     });
                     const data = await resp.json();
                     if (data.success) {
-                        window.location.href = data.redirect || 'index.php';
+                        window.location.href = data.redirect || '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>index.php';
                     } else {
                         errEl.textContent = data.error;
                         errEl.style.display = 'block';

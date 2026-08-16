@@ -96,7 +96,7 @@ try {
     // This is the Gmail refresh token: durable mailbox access on its own.
     $stmt->execute([encryptValue(json_encode($tokens)), $mailboxId]);
 
-    header('Location: tickets/settings/index.php?oauth=success&mailbox_id=' . $mailboxId);
+    header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'tickets/settings/index.php?oauth=success&mailbox_id=' . $mailboxId);
     exit;
 
 } catch (Exception $e) {

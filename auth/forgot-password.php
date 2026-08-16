@@ -7,7 +7,7 @@ session_start();
 
 // Already logged in
 if (isset($_SESSION['analyst_id'])) {
-    header('Location: index.php');
+    header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'index.php');
     exit;
 }
 ?>

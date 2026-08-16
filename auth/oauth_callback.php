@@ -61,7 +61,7 @@ try {
         $mismatch = ($addresses && $target && !in_array($target, $addresses, true)) ? 1 : 0;
 
         // Redirect back to settings page with success message
-        header('Location: tickets/settings/index.php?oauth=success&mailbox_id=' . $mailboxId
+        header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'tickets/settings/index.php?oauth=success&mailbox_id=' . $mailboxId
             . ($mismatch ? '&auth_mismatch=1' : ''));
         exit;
     } else {

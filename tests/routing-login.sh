@@ -42,6 +42,24 @@ run_suite() {
   # The logo on the login page must load from wherever the page is served.
   chk "login page logo loads"              "200" "$(code "$BASE/assets/images/CompanyLogo.png")"
 
+  # Where the login page sends you AFTER signing in. This is the one that bit:
+  # auth/login.php redirected to a relative "index.php", which resolved to the
+  # root while the page was served at /login, and to /auth/index.php (404) once
+  # the app started linking to the real path. Every redirect out of auth/ must be
+  # absolute, because these pages are reachable at two different URL depths.
+  local sid="routetest$$"
+  printf 'analyst_id|i:1;analyst_name|s:13:"Administrator";username|s:5:"admin";is_admin|i:1;' \
+    > "c:/wamp64/tmp/sess_$sid"
+  local after; after=$(curl -s -o /dev/null -b "PHPSESSID=$sid" -w "%{redirect_url}" "$BASE/auth/login.php")
+  # Follow it WITH the session, or index.php quite rightly bounces us back to login.
+  chk "post-login redirect resolves"       "200" \
+      "$(curl -s -o /dev/null -b "PHPSESSID=$sid" -w '%{http_code}' "$after")"
+  case "$after" in
+    */auth/index.php) printf "  FAIL  %-46s %s\n" "post-login target is not inside auth/" "$after"; fail=$((fail+1));;
+    *) printf "  ok    %-46s %s\n" "post-login target is not inside auth/" "$after"; pass=$((pass+1));;
+  esac
+  rm -f "c:/wamp64/tmp/sess_$sid"
+
   echo "  $pass passed, $fail failed"
   return $fail
 }
