@@ -192,6 +192,57 @@ function dsyncDnIsUnder(string $dn, string $ancestor): bool
     return $dn === $ancestor || str_ends_with($dn, ',' . $ancestor);
 }
 
+/**
+ * Which of the stored branches no longer exist in the directory.
+ *
+ * Returns [['dn' => …, 'kind' => 'include'|'exclude'], …].
+ *
+ * ⚠️ Only checked when the selection came from the OU browser. An install
+ * falling back to sync_base_dn has always behaved this way and an unreadable
+ * base already surfaces as a search failure — warning about it here would
+ * report a "problem" on every run of a perfectly working setup.
+ *
+ * A base search returning nothing is treated as gone. That conflates "deleted"
+ * with "the bind account can no longer read it", which is the right call: the
+ * consequence for the import is identical, and so is the thing to go and look at.
+ */
+function dsyncMissingScopes($ds, array $provider): array
+{
+    if (trim((string)($provider['sync_ou_includes'] ?? '')) === '') return [];
+
+    $scopes  = dsyncScopes($provider);
+    $missing = [];
+    foreach (['include' => $scopes['includes'], 'exclude' => $scopes['excludes']] as $kind => $dns) {
+        foreach ($dns as $dn) {
+            // LDAP_SCOPE_BASE: does this exact entry exist, nothing more.
+            $res = @ldap_read($ds, $dn, '(objectClass=*)', ['1.1']);
+            if ($res === false || (int)(@ldap_count_entries($ds, $res) ?: 0) === 0) {
+                $missing[] = ['dn' => $dn, 'kind' => $kind];
+            }
+        }
+    }
+    return $missing;
+}
+
+/** Say which branches are gone, and lead with the one that changes who gets in. */
+function dsyncMissingScopeMessage(array $gone): string
+{
+    $ex = array_values(array_filter($gone, fn($g) => $g['kind'] === 'exclude'));
+    $in = array_values(array_filter($gone, fn($g) => $g['kind'] === 'include'));
+    $bits = [];
+    if ($ex) {
+        $bits[] = count($ex) . ' branch(es) you had left out no longer exist, so the people in them are being imported: '
+                . implode(', ', array_column($ex, 'dn'))
+                . '. This usually means somebody renamed or moved that part of the directory.';
+    }
+    if ($in) {
+        $bits[] = count($in) . ' branch(es) you selected no longer exist, so nobody is being imported from them: '
+                . implode(', ', array_column($in, 'dn')) . '.';
+    }
+    $bits[] = 'Open Browse directory and tick again to fix it.';
+    return implode(' ', $bits);
+}
+
 function dsyncFetchPeople($ds, array $provider): array
 {
     $scopes = dsyncScopes($provider);
@@ -437,6 +488,43 @@ function directorySyncRun(PDO $conn, array $provider, string $mode = 'live', ?in
     try {
         $ds = ldapOpen($provider);
         ldapBindService($ds, $provider);
+
+        // A ticked branch is stored as a DN, and a DN changes when somebody
+        // renames or moves an OU. Both directions fail SILENTLY otherwise:
+        //
+        //   a missing include — that branch imports nobody, and everyone in it
+        //     starts counting towards being marked as left;
+        //   a missing exclude — WORSE. The carve-out stops applying and the
+        //     people it was keeping out start being imported. The sanity brake
+        //     guards against a sudden DROP, so it cannot see this at all.
+        //
+        // Cheap to check (one existence test per stored branch, and there are
+        // usually one or two), and it turns both into something you are told
+        // about rather than something you notice months later.
+        // The two halves get different treatment, because their failures are
+        // not equally bad:
+        //
+        //   a missing INCLUDE means everybody in that branch looks like they
+        //     have left, and after enough runs they are marked as such. That
+        //     is destructive, so REFUSE THE WHOLE RUN — importing the branches
+        //     that do still exist is exactly how the damage would happen.
+        //
+        //   a missing EXCLUDE means people you deliberately left out start
+        //     arriving. Unwanted, but additive and undoable, so the run goes
+        //     ahead and says loudly what it did.
+        $gone = dsyncMissingScopes($ds, $provider);
+        $goneIn = array_values(array_filter($gone, fn($g) => $g['kind'] === 'include'));
+        if ($goneIn) {
+            throw new Exception(dsyncMissingScopeMessage($goneIn) . ' Nothing was changed.');
+        }
+        foreach ($gone as $g) {
+            $message = dsyncMissingScopeMessage($gone);
+            dsyncLogEntry($conn, $runId, 'error', null,
+                ['username' => '', 'name' => 'Missing carve-out'],
+                $g['dn'] . ' is no longer in the directory, so the people it was keeping out are being imported.');
+            $counts['error']++;
+        }
+
         $raw = dsyncFetchPeople($ds, $provider);
 
         // Map first, so a person with no usable identity is counted as skipped
@@ -458,7 +546,11 @@ function directorySyncRun(PDO $conn, array $provider, string $mode = 'live', ?in
         $brake = syncBrakeTripped($provider, $counts['seen']);
         if ($brake !== null) {
             $status  = 'stopped';
-            $message = $brake;
+            // Prepend, do not replace: a branch that has vanished is very often
+            // WHY the count dropped, and losing the cause to report the effect
+            // leaves somebody staring at "far fewer people than last time" with
+            // the explanation already discarded.
+            $message = $message !== '' ? $brake . "\n\n" . $message : $brake;
             dsyncFinishRun($conn, $runId, $status, $counts, $message);
             return dsyncGetRun($conn, $runId);
         }

@@ -116,6 +116,28 @@ chk "overlapping ticks do not double-count" \
     "$(MY "SELECT seen_count FROM directory_sync_runs WHERE id=$WHOLE")" \
     "$(MY "SELECT seen_count FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")"
 
+# A ticked branch is stored as a DN, and a DN changes when an OU is renamed.
+# Both directions failed silently before this; neither may again.
+MY "UPDATE auth_providers SET sync_ou_includes='ou=staff,$ROOT\nou=nowhere,$ROOT', sync_ou_excludes=NULL WHERE id=$PROVIDER" >/dev/null
+run --preview
+chk "a vanished branch REFUSES the run (never a partial import)" "failed" \
+    "$(MY "SELECT status FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")"
+chk "...naming the branch, not just 'no such object'" "1" \
+    "$(MY "SELECT message LIKE '%ou=nowhere%Browse directory%' FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")"
+
+# A vanished carve-out is additive, not destructive: run, but say so loudly.
+MY "UPDATE auth_providers SET sync_ou_includes='$ROOT', sync_ou_excludes='ou=gone,$ROOT' WHERE id=$PROVIDER" >/dev/null
+run --preview
+chk "a vanished carve-out still runs" "ok" \
+    "$(MY "SELECT status FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")"
+chk "...but warns that excluded people are now coming in" "1" \
+    "$(MY "SELECT message LIKE '%are being imported%' FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")"
+
+MY "UPDATE auth_providers SET sync_ou_includes='$ROOT', sync_ou_excludes='ou=contractors,$ROOT' WHERE id=$PROVIDER" >/dev/null
+run --preview
+chk "CONTROL: real branches produce no warning at all" "" \
+    "$(MY "SELECT COALESCE(message,'') FROM directory_sync_runs WHERE provider_id=$PROVIDER ORDER BY id DESC LIMIT 1")"
+
 MY "UPDATE auth_providers SET sync_ou_includes=NULLIF('$SAVED_INC',''), sync_ou_excludes=NULLIF('$SAVED_EXC',''), sync_brake_percent=20 WHERE id=$PROVIDER" >/dev/null
 
 # --- the log ------------------------------------------------------------------
