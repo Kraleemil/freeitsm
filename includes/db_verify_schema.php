@@ -100,6 +100,28 @@ return [
         'ldap_group_filter'      => 'VARCHAR(500) NULL',
         'ldap_analyst_group'     => 'VARCHAR(255) NULL',
         'ldap_user_group'        => 'VARCHAR(255) NULL',
+        // --- directory sync (slice 2) ---
+        // Sign-in asks about ONE person who is standing there; sync enumerates
+        // everybody, so they exist before anyone signs in.
+        'sync_enabled'           => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'sync_base_dn'           => 'VARCHAR(255) NULL',
+        'sync_filter'            => 'VARCHAR(500) NULL',
+        // adopt | flag — see the note in freeitsm.sql: adopting stops their
+        // local portal password working, which is why it is a choice.
+        'sync_on_conflict'       => 'VARCHAR(20) NOT NULL DEFAULT \'adopt\'',
+        'sync_deactivate_after'  => 'INT NOT NULL DEFAULT 3',
+        // The sanity brake. A run finding this many percent fewer people than
+        // the last good one stops and changes nothing.
+        'sync_brake_percent'     => 'INT NOT NULL DEFAULT 20',
+        'ldap_attr_job_title'    => 'VARCHAR(64) NULL',
+        'ldap_attr_department'   => 'VARCHAR(64) NULL',
+        'ldap_attr_office'       => 'VARCHAR(64) NULL',
+        'ldap_attr_phone'        => 'VARCHAR(64) NULL',
+        'ldap_attr_mobile'       => 'VARCHAR(64) NULL',
+        'ldap_attr_employee_id'  => 'VARCHAR(64) NULL',
+        'ldap_attr_manager'      => 'VARCHAR(64) NULL',
+        'sync_last_run_datetime' => 'DATETIME NULL',
+        'sync_last_count'        => 'INT NULL',
         'enabled'                => 'TINYINT(1) NOT NULL DEFAULT 1',
         'auto_create_users'      => 'TINYINT(1) NOT NULL DEFAULT 0',
         'require_verified_email' => 'TINYINT(1) NOT NULL DEFAULT 0',
@@ -334,6 +356,9 @@ return [
         // latter should make its fields read-only.
         'is_managed'      => 'TINYINT(1) NOT NULL DEFAULT 0',
         'last_seen_in_source' => 'DATETIME NULL',
+        // Consecutive runs that failed to find this person. Missing once is
+        // noise; missing repeatedly is a fact. Any sighting resets it to 0.
+        'sync_missed_count' => 'INT NOT NULL DEFAULT 0',
     ],
 
     'user_sso_identities' => [
@@ -914,6 +939,42 @@ return [
         'ticket_id'         => 'INT NULL',
         'processing_log'    => 'TEXT NULL',
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // One row per directory sync RUN — the attempt, not just the success. A sync
+    // that did nothing and a sync that never ran are otherwise indistinguishable.
+    'directory_sync_runs' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'provider_id'       => 'INT NOT NULL',
+        'mode'              => 'VARCHAR(10) NOT NULL DEFAULT \'live\'',
+        // running | ok | stopped | failed. 'stopped' is the sanity brake: a
+        // refusal, not an error, and kept distinct so protecting somebody never
+        // reads as breaking.
+        'status'            => 'VARCHAR(12) NOT NULL DEFAULT \'running\'',
+        'started_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'finished_datetime' => 'DATETIME NULL',
+        'seen_count'        => 'INT NOT NULL DEFAULT 0',
+        'created_count'     => 'INT NOT NULL DEFAULT 0',
+        'updated_count'     => 'INT NOT NULL DEFAULT 0',
+        'adopted_count'     => 'INT NOT NULL DEFAULT 0',
+        'deactivated_count' => 'INT NOT NULL DEFAULT 0',
+        'conflict_count'    => 'INT NOT NULL DEFAULT 0',
+        'error_count'       => 'INT NOT NULL DEFAULT 0',
+        'message'           => 'TEXT NULL',
+        'triggered_by_analyst_id' => 'INT NULL',
+    ],
+
+    // What a run did to each PERSON. "47 updated" is a number; this is the
+    // answer to "updated how, and who", which is the only actionable version.
+    'directory_sync_entries' => [
+        'id'                 => 'INT NOT NULL AUTO_INCREMENT',
+        'run_id'             => 'INT NOT NULL',
+        'action'             => 'VARCHAR(16) NOT NULL',
+        'user_id'            => 'INT NULL',
+        'directory_username' => 'VARCHAR(255) NULL',
+        'display_name'       => 'VARCHAR(255) NULL',
+        'detail'             => 'VARCHAR(1000) NULL',
+        'created_datetime'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
     'email_send_log' => [

@@ -74,6 +74,11 @@ if ($protocol === 'oidc') {
         'base_dn' => null, 'user_filter' => null,
         'attr_username' => null, 'attr_email' => null, 'attr_name' => null, 'attr_guid' => null,
         'group_base_dn' => null, 'group_filter' => null, 'analyst_group' => null, 'user_group' => null,
+        // Directory sync is LDAP-only; an OIDC provider stores the column defaults.
+        'sync_enabled' => 0, 'sync_base_dn' => null, 'sync_filter' => null,
+        'sync_on_conflict' => 'adopt', 'sync_deactivate_after' => 3, 'sync_brake_percent' => 20,
+        'attr_job_title' => null, 'attr_department' => null, 'attr_office' => null,
+        'attr_phone' => null, 'attr_mobile' => null, 'attr_employee_id' => null, 'attr_manager' => null,
     ];
     $ldapSecretInput = '';
 
@@ -130,6 +135,25 @@ if ($protocol === 'oidc') {
         'group_filter'  => $groupFilter ?: null,
         'analyst_group' => $analystGroup ?: null,
         'user_group'    => $userGroup ?: null,
+        // --- directory sync ---
+        'sync_enabled'  => !empty($data['sync_enabled']) ? 1 : 0,
+        // Blank falls back to the sign-in base DN at run time, so an install that
+        // syncs the same subtree it authenticates against configures nothing.
+        'sync_base_dn'  => trim($data['sync_base_dn'] ?? '') ?: null,
+        'sync_filter'   => trim($data['sync_filter'] ?? '') ?: null,
+        'sync_on_conflict' => (($data['sync_on_conflict'] ?? 'adopt') === 'flag') ? 'flag' : 'adopt',
+        // 0 disables automatic deactivation entirely; negatives would be nonsense.
+        'sync_deactivate_after' => max(0, (int)($data['sync_deactivate_after'] ?? 3)),
+        // Clamped 0-100. ⚠️ 0 turns THE SAFETY BRAKE OFF, which somebody should
+        // have to type deliberately rather than arrive at by accident.
+        'sync_brake_percent'    => max(0, min(100, (int)($data['sync_brake_percent'] ?? 20))),
+        'attr_job_title'   => trim($data['ldap_attr_job_title'] ?? '') ?: null,
+        'attr_department'  => trim($data['ldap_attr_department'] ?? '') ?: null,
+        'attr_office'      => trim($data['ldap_attr_office'] ?? '') ?: null,
+        'attr_phone'       => trim($data['ldap_attr_phone'] ?? '') ?: null,
+        'attr_mobile'      => trim($data['ldap_attr_mobile'] ?? '') ?: null,
+        'attr_employee_id' => trim($data['ldap_attr_employee_id'] ?? '') ?: null,
+        'attr_manager'     => trim($data['ldap_attr_manager'] ?? '') ?: null,
     ];
 }
 
@@ -143,14 +167,22 @@ try {
              'ldap_host', 'ldap_port', 'ldap_encryption', 'ldap_bind_dn',
              'ldap_base_dn', 'ldap_user_filter', 'ldap_attr_username',
              'ldap_attr_email', 'ldap_attr_name', 'ldap_attr_guid',
-             'ldap_group_base_dn', 'ldap_group_filter', 'ldap_analyst_group', 'ldap_user_group'];
+             'ldap_group_base_dn', 'ldap_group_filter', 'ldap_analyst_group', 'ldap_user_group',
+             'sync_enabled', 'sync_base_dn', 'sync_filter', 'sync_on_conflict',
+             'sync_deactivate_after', 'sync_brake_percent',
+             'ldap_attr_job_title', 'ldap_attr_department', 'ldap_attr_office',
+             'ldap_attr_phone', 'ldap_attr_mobile', 'ldap_attr_employee_id', 'ldap_attr_manager'];
     $vals = [$displayName, $protocol, $issuerUrl, $clientId, $scopes,
              $enabled, $autoCreate, $requireVerified,
              $defaultModules, $sortOrder, $tenantId,
              $ldap['host'], $ldap['port'], $ldap['encryption'], $ldap['bind_dn'],
              $ldap['base_dn'], $ldap['user_filter'], $ldap['attr_username'],
              $ldap['attr_email'], $ldap['attr_name'], $ldap['attr_guid'],
-             $ldap['group_base_dn'], $ldap['group_filter'], $ldap['analyst_group'], $ldap['user_group']];
+             $ldap['group_base_dn'], $ldap['group_filter'], $ldap['analyst_group'], $ldap['user_group'],
+             $ldap['sync_enabled'], $ldap['sync_base_dn'], $ldap['sync_filter'], $ldap['sync_on_conflict'],
+             $ldap['sync_deactivate_after'], $ldap['sync_brake_percent'],
+             $ldap['attr_job_title'], $ldap['attr_department'], $ldap['attr_office'],
+             $ldap['attr_phone'], $ldap['attr_mobile'], $ldap['attr_employee_id'], $ldap['attr_manager']];
 
     // A blank/masked secret on update = keep what is stored.
     $writeSecret     = !isMaskedNoChangeValue($secretInput);

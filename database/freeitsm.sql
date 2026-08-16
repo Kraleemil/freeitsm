@@ -92,6 +92,50 @@ CREATE TABLE IF NOT EXISTS `auth_providers` (
     `ldap_group_filter`      VARCHAR(500) NULL,
     `ldap_analyst_group`     VARCHAR(255) NULL,
     `ldap_user_group`        VARCHAR(255) NULL,
+
+    -- ---------------------------------------------------------------------
+    -- Directory SYNC (slice 2). Distinct from sign-in above: sign-in asks the
+    -- directory about ONE person who is standing there; sync enumerates
+    -- everybody so they exist before anyone signs in — which is the entire
+    -- point, since the people who hold equipment are largely the people who
+    -- never log in.
+    -- ---------------------------------------------------------------------
+    `sync_enabled`           TINYINT(1) NOT NULL DEFAULT 0,
+    -- Where to enumerate from. NULL falls back to ldap_base_dn: the sign-in
+    -- subtree is usually the right one, but not always — you may authenticate
+    -- against the whole directory and only want to IMPORT one OU.
+    `sync_base_dn`           VARCHAR(255) NULL,
+    `sync_filter`            VARCHAR(500) NULL,
+    -- What to do when somebody already exists here. 'adopt' attaches the
+    -- directory identity to the existing record; 'flag' leaves them alone and
+    -- records a conflict. ⚠️ Adopting sets auth_provider_id, which means their
+    -- local portal password STOPS WORKING — that is why this is a choice.
+    `sync_on_conflict`       VARCHAR(20) NOT NULL DEFAULT 'adopt',
+    -- Consecutive misses before somebody is marked as left. 0 disables
+    -- deactivation entirely, for installs that would rather do it by hand.
+    `sync_deactivate_after`  INT NOT NULL DEFAULT 3,
+    -- THE SANITY BRAKE. If a run finds this many percent fewer people than the
+    -- last good run, it stops and changes nothing. A typo in a base DN, a
+    -- service account quietly losing read rights, or a directory being slow
+    -- would otherwise deactivate an entire company in one pass. 0 disables it,
+    -- which is a decision somebody should have to make deliberately.
+    `sync_brake_percent`     INT NOT NULL DEFAULT 20,
+    -- Attribute names for the person fields. Defaults are Active Directory's;
+    -- OpenLDAP and others differ, which is why these are configurable at all.
+    `ldap_attr_job_title`    VARCHAR(64) NULL,
+    `ldap_attr_department`   VARCHAR(64) NULL,
+    `ldap_attr_office`       VARCHAR(64) NULL,
+    `ldap_attr_phone`        VARCHAR(64) NULL,
+    `ldap_attr_mobile`       VARCHAR(64) NULL,
+    `ldap_attr_employee_id`  VARCHAR(64) NULL,
+    -- The manager attribute holds a DN, not a name, so it is resolved to a
+    -- person in a second pass once everybody exists.
+    `ldap_attr_manager`      VARCHAR(64) NULL,
+    `sync_last_run_datetime` DATETIME NULL,
+    -- People found by the last SUCCESSFUL run. The number the brake compares
+    -- against; NULL means "no baseline yet", so a first run is never braked.
+    `sync_last_count`        INT NULL,
+
     `enabled`                TINYINT(1) NOT NULL DEFAULT 1,
     `auto_create_users`      TINYINT(1) NOT NULL DEFAULT 0,
     `require_verified_email` TINYINT(1) NOT NULL DEFAULT 0,
@@ -451,6 +495,11 @@ CREATE TABLE IF NOT EXISTS `users` (
     -- Last time a sync actually saw this person in the source. The basis for
     -- "missing for N runs" — a single absence is noise, three is a fact.
     `last_seen_in_source` DATETIME NULL,
+    -- How many CONSECUTIVE sync runs have failed to find this person. Missing
+    -- once is noise -- a slow directory, a filter being edited, a replica that
+    -- had not caught up. Missing repeatedly is a fact. Nobody is deactivated
+    -- until this passes the provider's threshold, and any sighting resets it.
+    `sync_missed_count` INT NOT NULL DEFAULT 0,
 
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_users_email` (`email`),
@@ -1465,6 +1514,59 @@ CREATE TABLE IF NOT EXISTS `mailbox_activity_log` (
     `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_mal_mailbox` FOREIGN KEY (`mailbox_id`) REFERENCES `target_mailboxes` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per directory sync RUN. Follows email_send_log's principle: record the
+-- attempt, not just the success, because a sync that did nothing and a sync that
+-- never ran look identical afterwards otherwise.
+--
+-- `mode` distinguishes a preview from a real run. Previews are logged too — what
+-- somebody was shown before they pressed the button is worth being able to check
+-- when the result surprises them.
+CREATE TABLE IF NOT EXISTS `directory_sync_runs` (
+    `id`                 INT NOT NULL AUTO_INCREMENT,
+    `provider_id`        INT NOT NULL,
+    `mode`               VARCHAR(10) NOT NULL DEFAULT 'live',      -- live | preview
+    -- running | ok | stopped | failed.  'stopped' is the sanity brake: not an
+    -- error, a refusal. Kept distinct so "we protected you" never reads as
+    -- "something broke".
+    `status`             VARCHAR(12) NOT NULL DEFAULT 'running',
+    `started_datetime`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `finished_datetime`  DATETIME NULL,
+    `seen_count`         INT NOT NULL DEFAULT 0,
+    `created_count`      INT NOT NULL DEFAULT 0,
+    `updated_count`      INT NOT NULL DEFAULT 0,
+    `adopted_count`      INT NOT NULL DEFAULT 0,
+    `deactivated_count`  INT NOT NULL DEFAULT 0,
+    `conflict_count`     INT NOT NULL DEFAULT 0,
+    `error_count`        INT NOT NULL DEFAULT 0,
+    `message`            TEXT NULL,
+    `triggered_by_analyst_id` INT NULL,
+    PRIMARY KEY (`id`),
+    KEY `idx_dsr_provider` (`provider_id`, `started_datetime`),
+    KEY `idx_dsr_status` (`status`),
+    CONSTRAINT `fk_dsr_provider` FOREIGN KEY (`provider_id`) REFERENCES `auth_providers` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What a run did to each PERSON. "47 updated" is a number; this is the answer to
+-- "updated how, and who?", which is the only version anybody can act on.
+CREATE TABLE IF NOT EXISTS `directory_sync_entries` (
+    `id`                 INT NOT NULL AUTO_INCREMENT,
+    `run_id`             INT NOT NULL,
+    -- create | update | adopt | deactivate | conflict | skip | error | unchanged
+    `action`             VARCHAR(16) NOT NULL,
+    -- NULL on a preview (nobody was created yet) and on a skip.
+    `user_id`            INT NULL,
+    `directory_username` VARCHAR(255) NULL,
+    `display_name`       VARCHAR(255) NULL,
+    -- Human-readable: which fields changed, or why nothing happened.
+    `detail`             VARCHAR(1000) NULL,
+    `created_datetime`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_dse_run` (`run_id`, `action`),
+    KEY `idx_dse_user` (`user_id`),
+    -- The run owns its entries; deleting the provider takes both with it.
+    CONSTRAINT `fk_dse_run` FOREIGN KEY (`run_id`) REFERENCES `directory_sync_runs` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Outbound counterpart to mailbox_activity_log: one row per send ATTEMPT, so a
