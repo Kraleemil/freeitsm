@@ -361,65 +361,9 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
                         <div class="test-result" id="ldapTestResult"></div>
                     </div>
 
-                    <!-- ===== Directory sync =====
-                         Sign-in above asks about ONE person who is standing there.
-                         This brings EVERYBODY in, so they exist before anyone signs
-                         in — which is the point, since the people who hold equipment
-                         are largely the people who never log in. -->
-                    <div class="form-field" style="border-top:1px solid var(--border,#e0e0e0); padding-top:16px; margin-top:4px;">
-                        <label><?php echo htmlspecialchars(t('system.sso.sync_heading')); ?></label>
-                        <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_desc')); ?></div>
-                        <label class="chk" style="margin-top:8px;">
-                            <input type="checkbox" id="fSyncEnabled">
-                            <?php echo htmlspecialchars(t('system.sso.sync_enabled')); ?>
-                        </label>
-                    </div>
-                    <div id="syncFields">
-                        <div class="form-field">
-                            <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_base_dn_hint')); ?></div>
-                            <input type="text" id="fSyncBaseDn" placeholder="<?php echo htmlspecialchars(t('system.sso.sync_base_dn_placeholder')); ?>">
-                            <div class="hint" style="margin-top:8px;"><?php echo htmlspecialchars(t('system.sso.sync_filter_hint')); ?></div>
-                            <input type="text" id="fSyncFilter" placeholder="(&amp;(objectClass=user)(objectCategory=person))">
-                        </div>
-                        <div class="form-field">
-                            <label><?php echo htmlspecialchars(t('system.sso.sync_conflict')); ?></label>
-                            <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_conflict_hint')); ?></div>
-                            <select id="fSyncOnConflict">
-                                <option value="adopt"><?php echo htmlspecialchars(t('system.sso.sync_conflict_adopt')); ?></option>
-                                <option value="flag"><?php echo htmlspecialchars(t('system.sso.sync_conflict_flag')); ?></option>
-                            </select>
-                        </div>
-                        <div class="form-field">
-                            <label><?php echo htmlspecialchars(t('system.sso.sync_safety')); ?></label>
-                            <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_deactivate_hint')); ?></div>
-                            <input type="number" id="fSyncDeactivateAfter" min="0" max="50" style="max-width:120px;">
-                            <div class="hint" style="margin-top:8px;"><?php echo htmlspecialchars(t('system.sso.sync_brake_hint')); ?></div>
-                            <input type="number" id="fSyncBrakePercent" min="0" max="100" style="max-width:120px;">
-                        </div>
-                        <div class="form-field">
-                            <label><?php echo htmlspecialchars(t('system.sso.sync_attrs')); ?></label>
-                            <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_attrs_hint')); ?></div>
-                            <div class="issuer-row" style="flex-wrap:wrap; gap:6px;">
-                                <input type="text" id="fLdapAttrJobTitle"   placeholder="title" style="max-width:150px;">
-                                <input type="text" id="fLdapAttrDepartment" placeholder="department" style="max-width:150px;">
-                                <input type="text" id="fLdapAttrOffice"     placeholder="physicalDeliveryOfficeName" style="max-width:190px;">
-                                <input type="text" id="fLdapAttrPhone"      placeholder="telephoneNumber" style="max-width:150px;">
-                                <input type="text" id="fLdapAttrMobile"     placeholder="mobile" style="max-width:120px;">
-                                <input type="text" id="fLdapAttrEmployeeId" placeholder="employeeID" style="max-width:140px;">
-                                <input type="text" id="fLdapAttrManager"    placeholder="manager" style="max-width:120px;">
-                            </div>
-                        </div>
-                        <div class="form-field">
-                            <label><?php echo htmlspecialchars(t('system.sso.sync_run_heading')); ?></label>
-                            <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_run_hint')); ?></div>
-                            <div class="issuer-row">
-                                <button class="btn btn-test" id="syncPreviewBtn" type="button"><?php echo htmlspecialchars(t('system.sso.sync_preview')); ?></button>
-                                <button class="btn btn-test" id="syncRunBtn" type="button"><?php echo htmlspecialchars(t('system.sso.sync_run')); ?></button>
-                            </div>
-                            <div class="test-result" id="syncResult"></div>
-                            <div id="syncRuns" style="margin-top:10px;"></div>
-                        </div>
-                    </div>
+                    <!-- Directory sync lives on provider.php now: it needs a page,
+                         not the bottom of a scrolling dialog. This modal is reached
+                         only for OIDC providers, which have none of it. -->
                 </div>
 
                 <!-- ===== OpenID Connect ===== -->
@@ -564,7 +508,15 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
                 <td><span class="status-badge ${p.enabled ? 'on' : 'off'}">${p.enabled ? window.t('system.sso.enabled') : window.t('system.sso.disabled')}</span></td>
                 <td>${p.auto_create_users ? '<span class="badge-jit">' + window.t('system.sso.jit_on') + '</span>' : '<span class="jit-off">' + window.t('system.sso.jit_off') + '</span>'}</td>
                 <td style="text-align:right;">
-                    <button class="table-action-btn" data-edit="${p.id}">${window.t('system.sso.edit')}</button>
+                    ${isLdap
+                        /* A directory has a connection, a sign-in scope, group gating, an
+                           import scope, attribute mapping, safety settings and a run
+                           history. That is a page, not a dialog — the import section
+                           ended up below the fold in the modal and people reasonably
+                           concluded it was not there. OIDC keeps the dialog: an issuer,
+                           a client id and a secret genuinely is a dialog's worth. */
+                        ? `<a class="table-action-btn" href="provider.php?id=${p.id}">${window.t('system.sso.configure')}</a>`
+                        : `<button class="table-action-btn" data-edit="${p.id}">${window.t('system.sso.edit')}</button>`}
                     <button class="table-action-btn danger" data-del="${p.id}">${window.t('system.sso.delete')}</button>
                 </td>
             </tr>`;
@@ -642,26 +594,7 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
         $('fLdapUserGroup').value = p ? (p.ldap_user_group || '') : '';
         $('fLdapGroupFilter').value = p ? (p.ldap_group_filter || '') : '';
         $('fLdapGroupBaseDn').value = p ? (p.ldap_group_base_dn || '') : '';
-        // --- directory sync ---
-        $('fSyncEnabled').checked = !!(p && Number(p.sync_enabled) === 1);
-        $('fSyncBaseDn').value = p ? (p.sync_base_dn || '') : '';
-        $('fSyncFilter').value = p ? (p.sync_filter || '') : '';
-        $('fSyncOnConflict').value = p ? (p.sync_on_conflict || 'adopt') : 'adopt';
-        // Defaults matter here: a blank safety threshold would read as 0, and 0
-        // means "no brake at all". Never leave these empty.
-        $('fSyncDeactivateAfter').value = p && p.sync_deactivate_after !== null ? p.sync_deactivate_after : 3;
-        $('fSyncBrakePercent').value    = p && p.sync_brake_percent !== null ? p.sync_brake_percent : 20;
-        $('fLdapAttrJobTitle').value   = p ? (p.ldap_attr_job_title || '') : '';
-        $('fLdapAttrDepartment').value = p ? (p.ldap_attr_department || '') : '';
-        $('fLdapAttrOffice').value     = p ? (p.ldap_attr_office || '') : '';
-        $('fLdapAttrPhone').value      = p ? (p.ldap_attr_phone || '') : '';
-        $('fLdapAttrMobile').value     = p ? (p.ldap_attr_mobile || '') : '';
-        $('fLdapAttrEmployeeId').value = p ? (p.ldap_attr_employee_id || '') : '';
-        $('fLdapAttrManager').value    = p ? (p.ldap_attr_manager || '') : '';
-        syncToggleFields();
-        $('syncResult').textContent = '';
-        $('syncResult').className = 'test-result';
-        if (p && p.id) loadSyncRuns(p.id); else $('syncRuns').innerHTML = '';
+        // Directory sync fields live on provider.php, not in this dialog.
         $('fLdapTestUser').value = '';
         $('fLdapTestPass').value = '';
         const bindPw = $('fLdapBindPassword');
@@ -755,110 +688,11 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
             ldap_group_filter: $('fLdapGroupFilter').value.trim(),
             ldap_analyst_group: $('fLdapAnalystGroup').value.trim(),
             ldap_user_group: $('fLdapUserGroup').value.trim(),
-            sync_enabled: $('fSyncEnabled').checked ? 1 : 0,
-            sync_base_dn: $('fSyncBaseDn').value.trim(),
-            sync_filter: $('fSyncFilter').value.trim(),
-            sync_on_conflict: $('fSyncOnConflict').value,
-            sync_deactivate_after: parseInt($('fSyncDeactivateAfter').value, 10) || 0,
-            sync_brake_percent: parseInt($('fSyncBrakePercent').value, 10) || 0,
-            ldap_attr_job_title: $('fLdapAttrJobTitle').value.trim(),
-            ldap_attr_department: $('fLdapAttrDepartment').value.trim(),
-            ldap_attr_office: $('fLdapAttrOffice').value.trim(),
-            ldap_attr_phone: $('fLdapAttrPhone').value.trim(),
-            ldap_attr_mobile: $('fLdapAttrMobile').value.trim(),
-            ldap_attr_employee_id: $('fLdapAttrEmployeeId').value.trim(),
-            ldap_attr_manager: $('fLdapAttrManager').value.trim()
+            ldap_user_group: $('fLdapUserGroup').value.trim()
         };
     }
 
-    /* ---------------- directory sync ---------------- */
 
-    // This page has no shared escaper, and the sync message is built from an
-    // LDAP error string — i.e. text from outside. Escaped before it goes near
-    // innerHTML.
-    const syncEsc = s => String(s ?? '').replace(/[&<>"']/g, c =>
-        ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-
-    function syncToggleFields() {
-        $('syncFields').style.display = $('fSyncEnabled').checked ? '' : 'none';
-    }
-    $('fSyncEnabled').addEventListener('change', syncToggleFields);
-
-    /** Recent runs, so somebody can see what happened before they were watching. */
-    async function loadSyncRuns(providerId) {
-        const box = $('syncRuns');
-        box.innerHTML = '';
-        try {
-            const d = await (await fetch('../../api/system/get_directory_sync_log.php?provider_id=' + providerId)).json();
-            if (!d.success || !(d.runs || []).length) return;
-            box.innerHTML = '<table class="sync-runs"><thead><tr>'
-                + ['when', 'mode', 'result', 'found', 'new', 'changed', 'left', 'issues']
-                    .map(h => '<th>' + h + '</th>').join('')
-                + '</tr></thead><tbody>' + d.runs.map(r => {
-                    const cls = r.status === 'ok' ? 'ok' : (r.status === 'stopped' ? 'stopped' : 'bad');
-                    return `<tr class="${cls}">
-                        <td>${new Date(String(r.started_datetime).replace(' ', 'T') + 'Z').toLocaleString()}</td>
-                        <td>${r.mode}</td>
-                        <td><span class="sync-pill ${cls}">${r.status}</span></td>
-                        <td>${r.seen_count}</td>
-                        <td>${r.created_count}</td>
-                        <td>${Number(r.updated_count) + Number(r.adopted_count)}</td>
-                        <td>${r.deactivated_count}</td>
-                        <td>${Number(r.conflict_count) + Number(r.error_count)}</td>
-                    </tr>` + (r.message ? `<tr class="${cls}"><td colspan="8" class="sync-msg">${syncEsc(r.message)}</td></tr>` : '');
-                }).join('') + '</tbody></table>';
-        } catch (e) { /* the log is informational; never block the form on it */ }
-    }
-
-    async function runSync(mode) {
-        const box = $('syncResult');
-        const id  = document.getElementById('providerId').value;
-        if (!id) {
-            box.className = 'test-result err';
-            box.textContent = window.t('system.sso.sync_save_first');
-            return;
-        }
-        // A live run creates and deactivates people wholesale. Asking first is
-        // cheap; explaining afterwards is not.
-        if (mode === 'live') {
-            const ok = await showConfirm({
-                title:   window.t('system.sso.sync_run'),
-                message: window.t('system.sso.sync_confirm'),
-                okLabel: window.t('system.sso.sync_run')
-            });
-            if (!ok) return;
-        }
-        box.className = 'test-result';
-        box.textContent = window.t('system.sso.sync_running');
-        try {
-            const r = await fetch('../../api/system/run_directory_sync.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ provider_id: parseInt(id, 10), mode: mode })
-            });
-            const d = await r.json();
-            if (!d.success) { box.className = 'test-result err'; box.textContent = d.error || 'Failed'; return; }
-            const run = d.run || {};
-            const parts = [
-                window.t('system.sso.sync_found',   { n: run.seen_count }),
-                window.t('system.sso.sync_created', { n: run.created_count }),
-                window.t('system.sso.sync_updated', { n: Number(run.updated_count) + Number(run.adopted_count) }),
-                window.t('system.sso.sync_left',    { n: run.deactivated_count })
-            ];
-            // 'stopped' is the safety brake: a refusal, not a failure. Shown as a
-            // warning rather than an error, because nothing is broken — we
-            // declined to act on something that looked wrong.
-            box.className = 'test-result ' + (run.status === 'ok' ? 'ok' : (run.status === 'stopped' ? 'warn' : 'err'));
-            box.textContent = (mode === 'preview' ? window.t('system.sso.sync_preview_prefix') + ' ' : '')
-                            + parts.join(' · ') + (run.message ? '\n\n' + run.message : '');
-            loadSyncRuns(parseInt(id, 10));
-        } catch (e) {
-            box.className = 'test-result err';
-            box.textContent = String(e.message || e);
-        }
-    }
-    $('syncPreviewBtn').addEventListener('click', () => runSync('preview'));
-    $('syncRunBtn').addEventListener('click',   () => runSync('live'));
 
     $('testLdapBtn').addEventListener('click', async function () {
         const box = $('ldapTestResult');
