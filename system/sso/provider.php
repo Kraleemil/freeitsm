@@ -86,8 +86,41 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
     <script src="../../assets/js/toast.js"></script>
     <script src="../../assets/js/confirm.js"></script>
     <style>
-        body { --accent: var(--sys-accent, #546e7a); --accent-hover: var(--sys-accent-hover, #37474f); --on-accent: var(--sys-on-accent, #fff); margin: 0; background: var(--app-bg, #f5f5f5); }
-        .prov-wrap { padding: 24px 20px 60px; max-width: 980px; margin: 0 auto; }
+        body {
+            --accent: var(--sys-accent, #546e7a);
+            --accent-hover: var(--sys-accent-hover, #37474f);
+            --on-accent: var(--sys-on-accent, #fff);
+            margin: 0; background: var(--app-bg, #f5f5f5);
+            /* A flex column, so the scrolling area is "whatever is left below the
+               header" and nothing has to know how tall the header is.
+               ⚠️ It was calc(100vh - 48px) first. The header is 58px, so the
+               wrapper hung 10px past the bottom of the window and took the Save
+               button with it. Measuring found that; the CSS read as correct. */
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        /* Full width, edge to edge. ⚠️ `max-width: none` alone is not enough
+           elsewhere in this app — an inherited `margin: … auto` inside a flex
+           parent cancels the stretch and re-centres the column. Belt (width) and
+           braces (margin: 0) both stated so this cannot regress into a narrow
+           centred page that looks exactly like the cap is still there. */
+        .prov-wrap {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            box-sizing: border-box;
+            /* No bottom padding: the sticky save bar is the last element and
+               provides the end-of-page spacing itself. With padding here AND a
+               negative margin on the bar to cancel it, the bar ended up sitting
+               over the final field and clipping it. */
+            padding: 24px 32px 0;
+            /* ⚠️ THIS is what scrolls, not the document. Without it the content
+               below the fold is simply unreachable — there is nothing to scroll.
+               flex:1 + min-height:0 takes exactly the space the header leaves,
+               with no hardcoded header height to get wrong. */
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+        }
         .prov-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
         .prov-title { font-size: 22px; font-weight: 600; color: var(--text, #333); margin: 0; }
         .prov-sub { font-size: 13px; color: var(--text-dim, #888); margin: 2px 0 18px; }
@@ -119,9 +152,31 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
         .btn-test { background: var(--surface, #fff); color: var(--sys-accent, #546e7a); border: 1px solid var(--border, #cfd8dc); }
         .btn:disabled { opacity: .5; cursor: not-allowed; }
         .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
-        .save-bar { position: sticky; bottom: 0; margin-top: 20px; padding: 14px 0; background: var(--app-bg, #f5f5f5); display: flex; gap: 10px; align-items: center; }
+        /* Sticky to the bottom of the SCROLLING wrapper, so Save is reachable
+           without scrolling to the end of a long tab. The negative margins let
+           its background span the wrapper's padding rather than leaving a
+           transparent gutter each side that the content shows through. */
+        .save-bar {
+            position: sticky; bottom: 0; z-index: 5;
+            margin: 20px -32px 0; padding: 14px 32px;
+            background: var(--app-bg, #f5f5f5);
+            border-top: 1px solid var(--border, #e0e0e0);
+            display: flex; gap: 10px; align-items: center;
+        }
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
+        /* Using the width is not the same as stretching ONE text box across it.
+           On a wide screen the field blocks flow into two columns; anything that
+           genuinely wants the full run (the attribute grids, the test and run
+           buttons) opts out with .wide.
+           ⚠️ MUST come after `.tab-pane.active { display: block }` — same
+           specificity, so the later rule wins. Placed above it first, and the
+           measured display stayed `block` while the CSS read as though it were
+           grid. */
+        @media (min-width: 1250px) {
+            .tab-pane.active { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; align-items: start; }
+            .tab-pane.active > .wide { grid-column: 1 / -1; }
+        }
         table.runs { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         table.runs th { text-align: left; padding: 7px 9px; color: var(--text-dim, #888); font-weight: 600; border-bottom: 1px solid var(--border-soft, #eee); white-space: nowrap; }
         table.runs td { padding: 7px 9px; border-bottom: 1px solid var(--border-soft, #f4f4f4); color: var(--text, #444); white-space: nowrap; }
@@ -199,7 +254,7 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
             <div class="fld">
                 <label class="chk"><input type="checkbox" id="fEnabled"<?php echo (int)$p['enabled'] === 1 ? ' checked' : ''; ?>> <?php echo htmlspecialchars(t('system.sso.field_enabled')); ?></label>
             </div>
-            <div class="fld">
+            <div class="fld wide">
                 <label><?php echo htmlspecialchars(t('system.sso.ldap_test_heading')); ?></label>
                 <div class="hint"><?php echo htmlspecialchars(t('system.sso.ldap_test_desc')); ?></div>
                 <div class="fld-row">
@@ -222,7 +277,7 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
                 <label><?php echo htmlspecialchars(t('system.sso.field_ldap_user_filter')); ?></label>
                 <input type="text" id="fUserFilter" value="<?php echo v($p, 'ldap_user_filter'); ?>">
             </div>
-            <div class="fld">
+            <div class="fld wide">
                 <label><?php echo htmlspecialchars(t('system.sso.field_ldap_attrs')); ?></label>
                 <div class="hint"><?php echo htmlspecialchars(t('system.sso.field_ldap_attrs_hint')); ?></div>
                 <div class="attr-grid">
@@ -280,7 +335,7 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
                     <div class="hint" style="margin-top:10px;"><?php echo htmlspecialchars(t('system.sso.sync_brake_hint')); ?></div>
                     <input type="number" id="fSyncBrakePercent" min="0" max="100" style="max-width:130px;" value="<?php echo (int)$p['sync_brake_percent']; ?>">
                 </div>
-                <div class="fld">
+                <div class="fld wide">
                     <label><?php echo htmlspecialchars(t('system.sso.sync_attrs')); ?></label>
                     <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_attrs_hint')); ?></div>
                     <div class="attr-grid">
@@ -293,7 +348,7 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
                         <input type="text" id="fAttrManager"    value="<?php echo v($p, 'ldap_attr_manager'); ?>"    placeholder="manager">
                     </div>
                 </div>
-                <div class="fld">
+                <div class="fld wide">
                     <label><?php echo htmlspecialchars(t('system.sso.sync_run_heading')); ?></label>
                     <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_run_hint')); ?></div>
                     <div class="btn-row">
