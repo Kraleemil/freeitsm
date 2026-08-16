@@ -30,6 +30,11 @@ $translationNamespaces = ['common', 'asset-management'];
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <!-- Neither was loaded here before: the page had no action that could fail,
+         so it needed neither a toast nor a confirmation. Both self-guard against
+         being loaded twice. -->
+    <script src="../assets/js/toast.js"></script>
+    <script src="../assets/js/confirm.js"></script>
     <style>
         /* ⚠️ --app-bg, not --bg. There is no --bg token in theme.css, so the
            fallback applied on every theme and the page kept a light background
@@ -121,6 +126,55 @@ $translationNamespaces = ['common', 'asset-management'];
         .au-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
         .au-empty { padding: 44px 20px; text-align: center; color: var(--text-muted, #666); }
         .au-empty-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; color: var(--text, #333); }
+        /* --- people directory (directory sync slice 1) --- */
+        .au-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .au-head-btn { padding: 4px 12px; font-size: 12px; }
+        .au-search { display: flex; gap: 8px; }
+        .au-search input[type=search] { flex: 1; }
+        .au-search select {
+            padding: 7px 10px; border: 1px solid var(--border, #ddd); border-radius: 6px;
+            background: var(--surface, #fff); color: var(--text, #333); font-size: 13px;
+        }
+        .au-person.inactive .au-person-name { color: var(--text-muted, #888); }
+        .au-flag {
+            display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 8px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+        }
+        .au-flag.left    { background: #f8d7da; color: #721c24; }
+        .au-flag.managed { background: #dbeafe; color: #1e40af; }
+        /* The person's own details, above their equipment. */
+        .au-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 20px; padding: 16px 20px; border-bottom: 1px solid var(--border-soft, #f0f0f0); }
+        .au-fact-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted, #888); margin-bottom: 2px; }
+        .au-fact-value { font-size: 13px; color: var(--text, #333); }
+        .au-managed-note {
+            margin: 0 20px 14px; padding: 8px 12px; border-radius: 6px; font-size: 12px;
+            background: var(--surface-hover, #eef4ff); color: var(--text-muted, #555);
+        }
+        /* Person editor */
+        .au-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+        .au-form label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--text, #333); }
+        .au-form input, .au-form select {
+            width: 100%; padding: 8px 10px; border: 1px solid var(--border, #ddd);
+            border-radius: 6px; background: var(--surface, #fff); color: var(--text, #333); font-size: 13px;
+        }
+        .au-form input:disabled, .au-form select:disabled { background: var(--surface-hover, #f4f4f4); color: var(--text-muted, #888); }
+        .au-form .full { grid-column: 1 / -1; }
+        .au-form-err { grid-column: 1 / -1; color: #a4262c; font-size: 13px; min-height: 18px; }
+        @media (max-width: 700px) { .au-form { grid-template-columns: 1fr; } }
+        .au-modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,.45);
+            display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+        }
+        .au-modal-backdrop[hidden] { display: none; }
+        .au-modal {
+            background: var(--surface, #fff); border-radius: 10px; width: 100%; max-width: 640px;
+            max-height: 90vh; display: flex; flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,.3);
+        }
+        .au-modal-head { padding: 18px 20px; font-size: 17px; font-weight: 600; color: var(--text, #333); }
+        .au-modal-body { padding: 0 20px; overflow-y: auto; }
+        .au-modal-foot { padding: 16px 20px; display: flex; justify-content: flex-end; gap: 8px; }
+
         @media (max-width: 900px) {
             /* One column below tablet — a 330px sidebar beside a table does not
                fit, and a horizontally scrolling page is worse than stacking. */
@@ -134,9 +188,22 @@ $translationNamespaces = ['common', 'asset-management'];
 
 <div class="au-wrap">
     <div class="au-panel">
-        <div class="au-panel-head"><?php echo htmlspecialchars(t('asset-management.users.list_title')); ?></div>
+        <div class="au-panel-head">
+            <?php echo htmlspecialchars(t('asset-management.users.list_title')); ?>
+            <button type="button" class="au-btn primary au-head-btn" onclick="openPerson(null)">
+                <?php echo htmlspecialchars(t('asset-management.users.add')); ?>
+            </button>
+        </div>
         <div class="au-search">
             <input type="search" id="auSearch" placeholder="<?php echo htmlspecialchars(t('asset-management.users.search_placeholder')); ?>" autocomplete="off">
+            <!-- Everyone is the DEFAULT, not "holding equipment". You cannot issue a
+                 laptop to somebody the list refuses to show you, and a new starter
+                 holds nothing by definition. -->
+            <select id="auScope" onchange="loadPeople(document.getElementById('auSearch').value.trim())">
+                <option value="all"><?php echo htmlspecialchars(t('asset-management.users.scope_all')); ?></option>
+                <option value="holding"><?php echo htmlspecialchars(t('asset-management.users.scope_holding')); ?></option>
+                <option value="inactive"><?php echo htmlspecialchars(t('asset-management.users.scope_inactive')); ?></option>
+            </select>
         </div>
         <div class="au-list" id="auList"></div>
     </div>
@@ -145,6 +212,21 @@ $translationNamespaces = ['common', 'asset-management'];
         <div class="au-empty">
             <div class="au-empty-title"><?php echo htmlspecialchars(t('asset-management.users.select_title')); ?></div>
             <div><?php echo htmlspecialchars(t('asset-management.users.select_hint')); ?></div>
+        </div>
+    </div>
+</div>
+
+<!-- Person editor. Built here rather than reaching for a shared showModal(),
+     because there isn't one — confirm.js and toast.js are the only global UI
+     helpers, and inventing a third here would be a fourth modal implementation
+     rather than a shared one. -->
+<div class="au-modal-backdrop" id="auModal" hidden>
+    <div class="au-modal" role="dialog" aria-modal="true" aria-labelledby="auModalTitle">
+        <div class="au-modal-head" id="auModalTitle"></div>
+        <div class="au-modal-body" id="auModalBody"></div>
+        <div class="au-modal-foot">
+            <button type="button" class="au-btn" onclick="closeModal()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+            <button type="button" class="au-btn primary" id="auModalOk"><?php echo htmlspecialchars(t('common.save')); ?></button>
         </div>
     </div>
 </div>
@@ -169,7 +251,9 @@ async function loadPeople(search) {
     const list = document.getElementById('auList');
     list.innerHTML = '<div class="au-empty">' + esc(window.t('asset-management.users.loading')) + '</div>';
     try {
-        const url = API + 'get_users_with_assets.php' + (search ? '?search=' + encodeURIComponent(search) : '');
+        const scope = document.getElementById('auScope').value;
+        const url = API + 'get_people.php?scope=' + encodeURIComponent(scope)
+                  + (search ? '&search=' + encodeURIComponent(search) : '');
         const d = await (await fetch(url)).json();
         if (!d.success) throw new Error(d.error || 'error');
         people = d.users || [];
@@ -186,14 +270,22 @@ function renderPeople() {
         return;
     }
     list.innerHTML = people.map(p => `
-        <div class="au-person ${selectedId === p.id ? 'selected' : ''}" onclick="selectPerson(${p.id})">
+        <div class="au-person ${selectedId === p.id ? 'selected' : ''} ${p.is_active ? '' : 'inactive'}" onclick="selectPerson(${p.id})">
             <div>
-                <div class="au-person-name">${esc(p.name)}</div>
-                <div class="au-person-email">${esc(p.email || '')}</div>
+                <div class="au-person-name">${esc(p.name)}${
+                    p.is_active ? '' : '<span class="au-flag left">' + esc(window.t('asset-management.users.flag_left')) + '</span>'
+                }${
+                    p.is_managed ? '<span class="au-flag managed">' + esc(window.t('asset-management.users.flag_managed')) + '</span>' : ''
+                }</div>
+                <div class="au-person-email">${esc(p.email || p.username || p.directory_username || '')}</div>
             </div>
             <span class="au-count">${p.asset_count}</span>
         </div>`).join('');
 }
+
+/** The row we already hold for a person, so the editor and detail panel do not
+ *  each need their own round trip for facts the list already fetched. */
+function personById(id) { return people.find(p => p.id === id) || null; }
 
 async function selectPerson(id) {
     selectedId = id;
@@ -223,19 +315,50 @@ function renderDetail(user, assets) {
         : `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted,#666);">
              ${esc(window.t('asset-management.users.no_assets'))}</td></tr>`;
 
+    // The list row carries the person fields; the assets endpoint carries the
+    // equipment. Merged here rather than fetched twice.
+    const p = personById(user.id) || {};
+    const fact = (labelKey, value) => value
+        ? `<div><div class="au-fact-label">${esc(window.t(labelKey))}</div>
+                <div class="au-fact-value">${esc(value)}</div></div>` : '';
+    const facts = [
+        fact('asset-management.users.f_job_title',  p.job_title),
+        fact('asset-management.users.f_department', p.department),
+        fact('asset-management.users.f_office',     p.office),
+        fact('asset-management.users.f_manager',    p.manager_name),
+        fact('asset-management.users.f_phone',      p.phone),
+        fact('asset-management.users.f_mobile',     p.mobile),
+        fact('asset-management.users.f_employee_id',p.employee_id),
+        fact('asset-management.users.f_username',   p.username || p.directory_username),
+    ].join('');
+
     panel.innerHTML = `
         <div class="au-detail-head">
             <div>
-                <div class="au-detail-name">${esc(user.name)}</div>
+                <div class="au-detail-name">${esc(user.name)}${
+                    p.is_active === false ? '<span class="au-flag left">' + esc(window.t('asset-management.users.flag_left')) + '</span>' : ''
+                }</div>
                 <div class="au-detail-sub">${esc(user.email || '')}</div>
                 <div class="au-detail-sub">${esc(window.t('asset-management.users.holding', { n: assets.length }))}</div>
             </div>
             <div class="au-actions">
+                <button type="button" class="au-btn" onclick="openPerson(${user.id})">
+                    ${esc(window.t('asset-management.users.edit'))}
+                </button>
+                <button type="button" class="au-btn" onclick="toggleActive(${user.id})">
+                    ${esc(window.t(p.is_active === false ? 'asset-management.users.reactivate' : 'asset-management.users.deactivate'))}
+                </button>
                 <a class="au-btn primary" href="handover.php?user_id=${user.id}" target="_blank" rel="noopener">
                     ${esc(window.t('asset-management.users.handover'))}
                 </a>
             </div>
         </div>
+        ${facts ? '<div class="au-facts">' + facts + '</div>' : ''}
+        ${p.is_managed ? '<div class="au-managed-note">' + esc(window.t('asset-management.users.managed_note')) + '</div>' : ''}
+        ${(p.is_active === false && assets.length)
+            ? '<div class="au-managed-note" style="background:#fff4ce;color:#6b5900;">'
+              + esc(window.t('asset-management.users.leaver_holding', { n: assets.length })) + '</div>'
+            : ''}
         <table class="au-table">
             <thead><tr>
                 <th>${esc(window.t('asset-management.users.col_type'))}</th>
@@ -247,6 +370,166 @@ function renderDetail(user, assets) {
             </tr></thead>
             <tbody>${rows}</tbody>
         </table>`;
+}
+
+/* ------------------------------------------------------------------
+   Person editor
+   ------------------------------------------------------------------ */
+
+/**
+ * Minimal modal. onOk returns true to close, false to stay open with an error
+ * showing — a save that fails validation must not throw away what was typed.
+ */
+let modalOk = null;
+function openModal(title, html, onOk) {
+    document.getElementById('auModalTitle').textContent = title;
+    document.getElementById('auModalBody').innerHTML = html;
+    modalOk = onOk;
+    document.getElementById('auModal').hidden = false;
+    const first = document.querySelector('#auModalBody input:not([disabled])');
+    if (first) first.focus();
+}
+function closeModal() {
+    document.getElementById('auModal').hidden = true;
+    modalOk = null;
+}
+document.getElementById('auModalOk').addEventListener('click', async function () {
+    if (!modalOk) return closeModal();
+    this.disabled = true;
+    try { if (await modalOk()) closeModal(); } finally { this.disabled = false; }
+});
+// Escape closes, and a click on the backdrop (but not inside the dialog) closes.
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !document.getElementById('auModal').hidden) closeModal();
+});
+document.getElementById('auModal').addEventListener('click', e => {
+    if (e.target.id === 'auModal') closeModal();
+});
+
+// Fields a directory owns. On a managed record these are shown, disabled, with
+// an explanation — rather than editable and then silently reverted by the next
+// sync, which is how somebody concludes FreeITSM lost their change.
+const DIRECTORY_OWNED = ['job_title','department','office','phone','mobile','employee_id','manager_id'];
+
+function openPerson(id) {
+    const p = id ? (personById(id) || {}) : {};
+    const managed = !!p.is_managed;
+    const dis = f => (managed && DIRECTORY_OWNED.includes(f)) ? ' disabled' : '';
+
+    // Manager options come from the people already loaded. Somebody cannot be
+    // their own manager, so they are left out of their own list.
+    const mgrOpts = ['<option value="">' + esc(window.t('asset-management.users.no_manager')) + '</option>']
+        .concat(people.filter(o => o.id !== id && o.is_active)
+                      .map(o => `<option value="${o.id}"${o.id === p.manager_id ? ' selected' : ''}>${esc(o.name)}</option>`))
+        .join('');
+
+    const field = (f, labelKey, type) => `
+        <div>
+            <label for="pf_${f}">${esc(window.t(labelKey))}</label>
+            <input id="pf_${f}" type="${type || 'text'}" value="${esc(p[f] || '')}"${dis(f)}>
+        </div>`;
+
+    openModal(
+        window.t(id ? 'asset-management.users.edit_title' : 'asset-management.users.add_title'),
+        `<div class="au-form">
+            ${field('display_name', 'asset-management.users.f_name')}
+            ${field('email',        'asset-management.users.f_email', 'email')}
+            ${field('job_title',    'asset-management.users.f_job_title')}
+            ${field('department',   'asset-management.users.f_department')}
+            ${field('office',       'asset-management.users.f_office')}
+            ${field('employee_id',  'asset-management.users.f_employee_id')}
+            ${field('phone',        'asset-management.users.f_phone')}
+            ${field('mobile',       'asset-management.users.f_mobile')}
+            <div class="full">
+                <label for="pf_manager_id">${esc(window.t('asset-management.users.f_manager'))}</label>
+                <select id="pf_manager_id"${dis('manager_id')}>${mgrOpts}</select>
+            </div>
+            ${managed ? '<div class="full au-managed-note" style="margin:0;">'
+                        + esc(window.t('asset-management.users.managed_note')) + '</div>' : ''}
+            <div class="au-form-err" id="pfErr"></div>
+        </div>`,
+        () => savePerson(id, managed)
+    );
+}
+
+async function savePerson(id, managed) {
+    const err = document.getElementById('pfErr');
+    err.textContent = '';
+
+    const val = f => {
+        const el = document.getElementById('pf_' + f);
+        return el ? el.value.trim() : '';
+    };
+    const body = { display_name: val('display_name'), email: val('email') };
+    if (id) body.id = id;
+    // Only send what this record is allowed to change. Sending a disabled field
+    // would be rejected by the API anyway — not sending it is the honest request.
+    for (const f of ['job_title','department','office','phone','mobile','employee_id','manager_id']) {
+        if (managed && DIRECTORY_OWNED.includes(f)) continue;
+        body[f] = val(f);
+    }
+
+    if (!body.display_name && !body.email) {
+        err.textContent = window.t('asset-management.users.need_name_or_email');
+        return false;   // keep the modal open
+    }
+
+    try {
+        const r = await fetch('../api/tickets/save_user.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        if (!d.success) { err.textContent = d.error || 'Save failed'; return false; }
+        await loadPeople(document.getElementById('auSearch').value.trim());
+        if (d.id) selectPerson(d.id);
+        showToast(window.t('asset-management.users.saved'), 'success');
+        return true;
+    } catch (e) {
+        err.textContent = String(e.message || e);
+        return false;
+    }
+}
+
+async function toggleActive(id) {
+    const p = personById(id);
+    if (!p) return;
+    const goingInactive = p.is_active !== false;
+
+    // Holding equipment is the whole reason deactivation matters here, so it is
+    // said out loud rather than discovered later in a report.
+    const msg = goingInactive
+        ? window.t(p.asset_count
+            ? 'asset-management.users.confirm_deactivate_holding'
+            : 'asset-management.users.confirm_deactivate', { name: p.name, n: p.asset_count })
+        : window.t('asset-management.users.confirm_reactivate', { name: p.name });
+
+    // showConfirm takes an OPTIONS OBJECT, not a string — passing a string
+    // silently produces an empty dialog with a default title.
+    const confirmed = await showConfirm({
+        title:    window.t(goingInactive ? 'asset-management.users.deactivate' : 'asset-management.users.reactivate'),
+        message:  msg,
+        okLabel:  window.t(goingInactive ? 'asset-management.users.deactivate' : 'asset-management.users.reactivate'),
+        okClass:  goingInactive ? 'danger' : 'primary'
+    });
+    if (!confirmed) return;
+
+    try {
+        const r = await fetch('../api/tickets/save_user.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, is_active: goingInactive ? 0 : 1 })
+        });
+        const d = await r.json();
+        if (!d.success) { showToast(d.error || 'Failed', 'error'); return; }
+        await loadPeople(document.getElementById('auSearch').value.trim());
+        selectPerson(id);
+        showToast(window.t(goingInactive ? 'asset-management.users.deactivated'
+                                         : 'asset-management.users.reactivated'), 'success');
+    } catch (e) {
+        showToast(String(e.message || e), 'error');
+    }
 }
 
 // Debounced so typing does not fire a request per keystroke.

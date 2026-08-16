@@ -10,6 +10,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/users.php';   // USER_PERSON_FIELDS, manager-loop guard
 
 header('Content-Type: application/json');
 
@@ -127,6 +128,38 @@ try {
         exit;
     }
 
+    // Is this record owned by a directory? Decides whether the directory-owned
+    // person fields may be edited at all. Read once, here, so the update block
+    // below does not have to go back to the database per field.
+    $isManaged = false;
+    if ($id) {
+        $mStmt = $conn->prepare("SELECT is_managed FROM users WHERE id = ?");
+        $mStmt->execute([$id]);
+        $isManaged = (int)($mStmt->fetchColumn() ?: 0) === 1;
+    }
+
+    // A manager chain that loops would make any code walking it to find an
+    // approver walk forever. The database cannot express this, so it is checked
+    // here — on create too, where $id is 0 and only a self-reference is possible.
+    if (array_key_exists('manager_id', $data)) {
+        $mgr = userPersonFieldValue('manager_id', $data['manager_id']);
+        if ($mgr !== null) {
+            $exists = $conn->prepare("SELECT id FROM users WHERE id = ?");
+            $exists->execute([$mgr]);
+            if (!$exists->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'That manager does not exist']);
+                exit;
+            }
+            if (!userManagerIsSafe($conn, (int)($id ?? 0), (int)$mgr)) {
+                echo json_encode([
+                    'success' => false,
+                    'error'   => 'That would make the reporting line loop back on itself',
+                ]);
+                exit;
+            }
+        }
+    }
+
     if ($id) {
         // ⚠️ An UPDATE used to write email, display_name and preferred_name
         // unconditionally, so a request that simply did not mention a field WIPED it —
@@ -143,6 +176,31 @@ try {
         if ($password !== '')                          { $sets[] = 'password_hash = ?';  $args[] = password_hash($password, PASSWORD_BCRYPT); }
         if ($tenantSent)                               { $sets[] = 'tenant_id = ?';      $args[] = $tenantId; }
 
+        // The person fields, same "absent means don't touch" rule as above.
+        // ⚠️ Directory-owned ones are refused outright on a MANAGED record rather
+        // than accepted and then overwritten by the next sync — a save that
+        // silently does nothing is worse than one that says no.
+        foreach (USER_PERSON_FIELDS as $f) {
+            if (!array_key_exists($f, $data)) continue;
+            if ($isManaged && in_array($f, USER_DIRECTORY_OWNED, true)) {
+                echo json_encode([
+                    'success' => false,
+                    'error'   => 'This person is kept up to date from a directory, so ' . $f
+                               . ' cannot be edited here. Change it in the directory instead.',
+                ]);
+                exit;
+            }
+            $sets[] = "$f = ?";
+            $args[] = userPersonFieldValue($f, $data[$f]);
+        }
+        // Active/inactive. Stamps deactivated_datetime in the same statement so
+        // "who left this month" is answerable without a second write to miss.
+        if (array_key_exists('is_active', $data)) {
+            $active = !empty($data['is_active']) ? 1 : 0;
+            $sets[] = 'is_active = ?';            $args[] = $active;
+            $sets[] = 'deactivated_datetime = ' . ($active ? 'NULL' : 'UTC_TIMESTAMP()');
+        }
+
         if ($sets) {
             $args[] = $id;
             $conn->prepare("UPDATE users SET " . implode(', ', $sets) . " WHERE id = ?")->execute($args);
@@ -153,8 +211,17 @@ try {
         // Not told a company → pre-filled from the address so a new install doesn't
         // start with every requester blank. Freemail stays blank by design. Resolved
         // once, above, so the value written here is the same one that was authorised.
-        $stmt = $conn->prepare("INSERT INTO users (email, display_name, preferred_name, password_hash, tenant_id, created_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())");
-        $stmt->execute([$emailOrNull, $displayName ?: null, $preferredName ?: null, $hash, $destinationTenantId]);
+        $cols = ['email', 'display_name', 'preferred_name', 'password_hash', 'tenant_id'];
+        $vals = [$emailOrNull, $displayName ?: null, $preferredName ?: null, $hash, $destinationTenantId];
+        foreach (USER_PERSON_FIELDS as $f) {
+            if (!array_key_exists($f, $data)) continue;
+            $cols[] = $f;
+            $vals[] = userPersonFieldValue($f, $data[$f]);
+        }
+        // is_active defaults to 1 in the schema; a create is never a deactivation.
+        $ph = implode(', ', array_fill(0, count($cols), '?'));
+        $stmt = $conn->prepare("INSERT INTO users (" . implode(', ', $cols) . ", created_at) VALUES ($ph, UTC_TIMESTAMP())");
+        $stmt->execute($vals);
         echo json_encode(['success' => true, 'id' => (int)$conn->lastInsertId(), 'message' => 'User created']);
     }
 

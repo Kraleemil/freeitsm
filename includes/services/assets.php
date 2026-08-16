@@ -515,6 +515,70 @@ class AssetsService
     }
 
     /**
+     * Everyone, whether or not they hold anything.
+     *
+     * The companion to usersHoldingAssets(), and a different question: that one
+     * answers "who has equipment", this one answers "who is there". You cannot
+     * assign a laptop to somebody the list will not show you, so a people
+     * directory that only lists current holders is unusable for the one job it
+     * most needs to do — issuing kit to a new starter.
+     *
+     * $scope: 'all' (active people), 'holding' (the old behaviour), 'inactive'.
+     * Inactive people are hidden by default and never merged into 'all': a
+     * leaver appearing in a picker is how equipment gets issued to somebody who
+     * is not there any more.
+     *
+     * Tenancy is applied to the PERSON (users.tenant_id), not to their assets —
+     * otherwise somebody who holds nothing would fall outside the filter and
+     * silently vanish from the directory.
+     */
+    public static function people(PDO $conn, ActorContext $ctx, string $search = '', string $scope = 'all', int $limit = 500): array
+    {
+        [$tenantSql, $tenantArgs] = activeTenantFilter($conn, $ctx->actorId, 'u');
+
+        $where = '';
+        $args  = [];
+        $search = trim($search);
+        if ($search !== '') {
+            $where .= " AND (u.display_name LIKE ? OR u.email LIKE ? OR u.username LIKE ?
+                             OR u.department LIKE ? OR u.job_title LIKE ? OR u.employee_id LIKE ?)";
+            for ($i = 0; $i < 6; $i++) $args[] = '%' . $search . '%';
+        }
+
+        if ($scope === 'inactive')     $where .= " AND u.is_active = 0";
+        else                           $where .= " AND u.is_active = 1";
+        if ($scope === 'holding')      $where .= " AND EXISTS (SELECT 1 FROM users_assets ua WHERE ua.user_id = u.id)";
+
+        $limit = max(1, min($limit, 1000));
+        $sql = "SELECT u.id, u.email, u.username, u.display_name, u.preferred_name,
+                       u.job_title, u.department, u.office, u.phone, u.mobile,
+                       u.employee_id, u.manager_id, u.is_active, u.is_managed,
+                       u.directory_username, u.last_seen_in_source, u.deactivated_datetime,
+                       u.tenant_id,
+                       m.display_name AS manager_name,
+                       (SELECT COUNT(*) FROM users_assets ua2 WHERE ua2.user_id = u.id) AS asset_count
+                  FROM users u
+             LEFT JOIN users m ON m.id = u.manager_id
+                 WHERE 1=1 $tenantSql $where
+                 ORDER BY (u.display_name IS NULL OR u.display_name = ''), u.display_name, u.email
+                 LIMIT $limit";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->execute(array_merge($tenantArgs, $args));
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as &$r) {
+            $r['id']          = (int)$r['id'];
+            $r['asset_count'] = (int)$r['asset_count'];
+            $r['is_active']   = (int)$r['is_active'] === 1;
+            $r['is_managed']  = (int)$r['is_managed'] === 1;
+            $r['manager_id']  = $r['manager_id'] !== null ? (int)$r['manager_id'] : null;
+            $r['name']        = self::personName($r);
+        }
+        return $rows;
+    }
+
+    /**
      * One person, and everything currently assigned to them.
      *
      * Returns ['user' => …, 'assets' => […]] or null when the person does not

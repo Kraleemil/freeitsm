@@ -275,7 +275,8 @@ return [
         //
         // ⚠️ ABSENT MUST BE NULL, NEVER ''. The analyst side gets away with ''
         // (#872) only because analysts.email is NOT unique; here the second
-        // empty string collides. See usersIdentityMatch() in includes/users.php.
+        // empty string collides. Enforced in api/tickets/save_user.php, which
+        // converts a blank address to NULL before it ever reaches this column.
         'email'           => 'VARCHAR(255) NULL',
         // What a directory user types to sign in when they have no email.
         // NULL for every local/registered account, which is why it is nullable
@@ -301,6 +302,38 @@ return [
         // shape, not config: NULL is "not yet known", never "shared".
         'tenant_id'       => 'INT NULL',
         'created_at'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+
+        // --- the person, as opposed to the login (directory sync slice 1) ---
+        // Everything above describes how somebody authenticates; these describe
+        // who they are, which is what an asset register and an approval chain
+        // need. Filled in by hand today, by a directory sync later.
+        //
+        // DEFAULT 1 matters on an upgrade: every existing row becomes active
+        // without a data migration, which is the only sane reading of a column
+        // that did not exist yesterday.
+        'is_active'       => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'deactivated_datetime' => 'DATETIME NULL',
+        'job_title'       => 'VARCHAR(150) NULL',
+        'department'      => 'VARCHAR(150) NULL',
+        // The ticket asset-picker searches an asset's location and almost nobody
+        // sets one by hand; a directory knows this and never forgets it.
+        'office'          => 'VARCHAR(150) NULL',
+        'phone'           => 'VARCHAR(50) NULL',
+        'mobile'          => 'VARCHAR(50) NULL',
+        'employee_id'     => 'VARCHAR(64) NULL',
+        // Self-referencing manager. FK is ON DELETE SET NULL — deleting a
+        // manager must never delete their reports.
+        'manager_id'      => 'INT NULL',
+        // What the DIRECTORY calls them, which is a different fact from what
+        // they type into the portal: sAMAccountName is unique per directory,
+        // `username` is unique per install. Keeping them apart is what stops a
+        // sync ever having to mangle somebody's name into `smithj2`.
+        'directory_username' => 'VARCHAR(255) NULL',
+        // Explicit, not inferred from auth_provider_id: an account may be pinned
+        // to a provider for SIGN-IN without being owned by a sync, and only the
+        // latter should make its fields read-only.
+        'is_managed'      => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'last_seen_in_source' => 'DATETIME NULL',
     ],
 
     'user_sso_identities' => [

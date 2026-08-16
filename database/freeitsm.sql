@@ -400,13 +400,73 @@ CREATE TABLE IF NOT EXISTS `users` (
     -- a company's domains never silently re-files an existing person.
     `tenant_id`       INT NULL,
     `created_at`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- ---------------------------------------------------------------------
+    -- The person, as opposed to the login (directory sync slice 1).
+    --
+    -- Everything above this line describes how somebody authenticates. These
+    -- describe who they are, which is what an asset register, an approval chain
+    -- and a service desk actually need. They are filled in by hand today and by
+    -- a directory sync later, so none of them is required.
+    -- ---------------------------------------------------------------------
+
+    -- Has this person left? NEVER delete somebody who has: assets, tickets and
+    -- handover documents all hang off users.id, and deleting the row takes the
+    -- history of who had what with it. Defaults to 1 so every existing row —
+    -- and every future self-registration — is active without a migration step.
+    `is_active`       TINYINT(1) NOT NULL DEFAULT 1,
+    -- When they were deactivated, so "who left this month, and what are they
+    -- still holding" is answerable. NULL while active.
+    `deactivated_datetime` DATETIME NULL,
+
+    `job_title`       VARCHAR(150) NULL,
+    `department`      VARCHAR(150) NULL,
+    -- Where they sit. Worth more than it looks: the ticket asset-picker searches
+    -- on an asset's location, and almost nobody fills that in by hand. A
+    -- directory usually knows (physicalDeliveryOfficeName) and never forgets.
+    `office`          VARCHAR(150) NULL,
+    `phone`           VARCHAR(50) NULL,
+    `mobile`          VARCHAR(50) NULL,
+    -- Payroll/HR number. The join key when somebody reconciles against a system
+    -- that has never heard of an email address.
+    `employee_id`     VARCHAR(64) NULL,
+    -- Self-referencing: this person's manager, as another row in this table.
+    -- Wanted before sync existed — catalogue-request approvals need a chain to
+    -- route along, and a directory hands you the org chart for free.
+    `manager_id`      INT NULL,
+
+    -- What the DIRECTORY calls them, which is not the same fact as what they
+    -- type into the portal. sAMAccountName is unique only within one directory,
+    -- while `username` above is unique across the whole install — so two
+    -- companies can each legitimately have a `smithj`. Keeping them apart means
+    -- sync stores the real directory name faithfully and never has to mangle it;
+    -- `username` is only populated for people who actually sign in, which most
+    -- mailbox-less asset holders never do.
+    `directory_username` VARCHAR(255) NULL,
+    -- Is this record maintained by a directory? Deliberately explicit rather
+    -- than inferred from auth_provider_id: an account can be pinned to a
+    -- provider for SIGN-IN without being owned by a sync, and the difference
+    -- decides whether a field is editable in the UI.
+    `is_managed`      TINYINT(1) NOT NULL DEFAULT 0,
+    -- Last time a sync actually saw this person in the source. The basis for
+    -- "missing for N runs" — a single absence is noise, three is a fact.
+    `last_seen_in_source` DATETIME NULL,
+
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_users_email` (`email`),
     -- Same rationale as the email index: UNIQUE so two directory users can't
     -- share a sign-in name, nullable so the many local accounts that have no
     -- username don't fight over a single NULL.
     UNIQUE KEY `uq_users_username` (`username`),
-    KEY `idx_users_tenant` (`tenant_id`)
+    -- Per PROVIDER, not global — that is the whole point of the column. Two
+    -- directories may each contain a `smithj`; the same directory may not.
+    UNIQUE KEY `uq_users_dir_username` (`auth_provider_id`, `directory_username`),
+    KEY `idx_users_tenant` (`tenant_id`),
+    KEY `idx_users_manager` (`manager_id`),
+    KEY `idx_users_active` (`is_active`),
+    KEY `idx_users_department` (`department`),
+    -- SET NULL, not CASCADE: deleting a manager must never delete their reports.
+    CONSTRAINT `fk_users_manager` FOREIGN KEY (`manager_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Links a self-service requester to their identity at a given provider (the IdP
