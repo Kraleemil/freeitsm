@@ -212,6 +212,28 @@ function getDebugTools() {
             'duration' => '~1 second',
             'persists' => 'Nothing. The end-to-end test runs inside a transaction and is rolled back, so nothing ever appears in somebody\'s open war room, and the tool checks afterwards that the probe really did disappear. (D007 cannot do this because a full-text search cannot see uncommitted rows; nothing here has that problem.) Everything else is read-only.',
         ],
+        [
+            'id'       => 'D009',
+            'slug'     => 'd009',
+            'file'     => 'D009_guarded_paths.php',
+            'title'    => 'Guarded paths — are uploads really unreachable?',
+            'category' => 'Security',
+            'icon'     => 'shield',
+            'desc'     => 'Check that files people upload cannot be fetched straight from their web address, by actually trying it.',
+            'keywords' => 'security attachments uploads htaccess nginx apache allowoverride exposed public leak recordings branding lms rfp guarded deny 403 404 d009',
+            'when'     => 'Run it after installing, after any web server change, and after moving host. This is the failure that announces itself least: a missing rewrite rule gives you a 404 within seconds, but a missing deny rule gives you a service desk that works perfectly and quietly publishes every attachment. Nothing looks wrong, nothing is logged, and the first sign of trouble is somebody finding a document they should never have seen. Especially important on nginx, which does not read .htaccess at all, and on Apache configured with AllowOverride None, where the .htaccess files are present and completely ignored.',
+            'checks'   => [
+                'A POSITIVE CONTROL first — that this tool can fetch something from its own site that definitely should be served. Without it, a firewall or an unreachable hostname would make every folder look beautifully protected, which is the most dangerous wrong answer available. If the control fails the tool reports INCONCLUSIVE and stops, rather than reporting all-clear',
+                'Ticket, change and war room attachments, RFP uploads and screen recordings — each tested by writing a harmless probe file and asking the web server for it over HTTP, exactly as a stranger with the URL would',
+                'Course content and branding uploads, which ARE served but must never execute — probed with a .php file',
+                'The CSAT survey page, reachable only through its /csat address',
+                'Whether a .git folder is exposed, which leaks your history and often your credentials. Present only if the install was deployed with git clone — and Apache does not block it either',
+                'Which web server is answering, and what that implies: on nginx the protection comes only from the shipped config, on Apache only if AllowOverride permits .htaccess',
+                'A plain-English verdict naming any folder that served the probe, what that means, and what to do about it',
+            ],
+            'duration' => '~2 seconds',
+            'persists' => 'Nothing. It writes one small probe file per folder, fetches it, and deletes it again in a finally block — then counts what is left and tells you if any survived. The probes have unpredictable names and contain a single harmless line, because if a folder turns out to be unguarded the file is briefly fetchable, which is the very thing being measured. It reads .htaccess files nowhere: the question is not whether they exist, it is whether the server is reading them, and only a real HTTP request can answer that.',
+        ],
     ];
 }
 

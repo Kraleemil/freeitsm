@@ -1,0 +1,5 @@
+<?php
+// Debug tool D009 — guarded paths. Detail + metadata live in the registry
+// (system/debug-tools/includes/tools.php); rendering is shared.
+$DEBUG_TOOL_SLUG = 'd009';
+require __DIR__ . '/../includes/tool-page.php';

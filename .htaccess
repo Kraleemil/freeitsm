@@ -18,6 +18,21 @@
 # directory listings while we're here.
 Options -MultiViews -Indexes
 
+# Dotfiles and version-control metadata are never served.
+#
+# An install deployed with `git clone` into the web root leaves a .git folder
+# there, and it is served like any other directory: /.git/config gives up the
+# remote URL and often the credentials in it, and the object store gives up the
+# entire history. Nothing in FreeITSM blocked this until D009 was written and
+# immediately found it on the development machine.
+#
+# .well-known is excluded because ACME/Let's Encrypt needs it to issue
+# certificates, and it is the one dotfile path that must stay reachable.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule (^|/)\.(?!well-known)[^/]* - [R=404,L]
+</IfModule>
+
 # ------------------------------------------------------------------
 # Session cookie hardening — the Apache/mod_php copy.
 #
