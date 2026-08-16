@@ -64,9 +64,10 @@ $tabs = [
     ['id' => 'connection', 'cap' => null, 'label' => t('system.sso.tab_connection')],
     ['id' => 'signin',     'cap' => null, 'label' => t('system.sso.tab_signin')],
     ['id' => 'import',     'cap' => null, 'label' => t('system.sso.tab_import')],
+    ['id' => 'mapping',    'cap' => null, 'label' => t('system.sso.tab_mapping')],
     ['id' => 'history',    'cap' => null, 'label' => t('system.sso.tab_history')],
 ];
-$activeTab = in_array($_GET['tab'] ?? '', ['connection','signin','import','history'], true)
+$activeTab = in_array($_GET['tab'] ?? '', ['connection','signin','import','mapping','history'], true)
     ? $_GET['tab'] : 'connection';
 
 /** Print a value into an input safely. */
@@ -177,6 +178,32 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
             .tab-pane.active { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; align-items: start; }
             .tab-pane.active > .wide { grid-column: 1 / -1; }
         }
+        /* The mapping table. Fixed layout so the three columns stay put as
+           example values of wildly different lengths arrive — a distinguished
+           name in the manager row is enormous and would otherwise shove the
+           attribute column into a sliver. */
+        table.map { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        table.map th, table.map td { text-align: left; padding: 8px 10px; vertical-align: top; border-bottom: 1px solid var(--border-soft, #f0f0f0); }
+        table.map thead th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim, #888); border-bottom: 1px solid var(--border, #e0e0e0); }
+        table.map tbody th { font-weight: 600; color: var(--text, #333); }
+        table.map .map-hint { display: block; font-weight: 400; font-size: 11.5px; color: var(--text-dim, #888); margin-top: 2px; line-height: 1.45; }
+        table.map input { width: 100%; box-sizing: border-box; padding: 7px 9px; font-size: 12.5px; font-family: ui-monospace, Consolas, monospace;
+            border: 1px solid var(--border, #ddd); border-radius: 5px; background: var(--surface, #fff); color: var(--text, #333); }
+        tr.map-group td { background: var(--app-bg, #f7f7f7); font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .04em; color: var(--text-dim, #888); padding: 7px 10px; border-bottom: 1px solid var(--border, #e6e6e6); }
+        /* The example column. Before a test it is a dash, not an empty cell —
+           an empty cell reads as "this field imports nothing", which is exactly
+           the thing the test exists to tell you. */
+        td.map-sample { font-size: 12.5px; color: var(--text-muted, #555); word-break: break-word; }
+        td.map-sample.filled { color: var(--text, #2e7d32); }
+        td.map-sample.missing { color: #c62828; font-style: italic; }
+        [data-theme-mode="dark"] td.map-sample.filled { color: #86efac; }
+        [data-theme-mode="dark"] td.map-sample.missing { color: #fca5a5; }
+        .avail { margin-top: 12px; font-size: 12px; color: var(--text-dim, #888); }
+        .avail summary { cursor: pointer; font-weight: 600; color: var(--sys-accent, #546e7a); }
+        .avail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 3px 18px; margin-top: 10px; }
+        .avail-grid code { font-family: ui-monospace, Consolas, monospace; color: var(--text, #444); }
+        .avail-grid span { color: var(--text-dim, #999); }
         table.runs { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         table.runs th { text-align: left; padding: 7px 9px; color: var(--text-dim, #888); font-weight: 600; border-bottom: 1px solid var(--border-soft, #eee); white-space: nowrap; }
         table.runs td { padding: 7px 9px; border-bottom: 1px solid var(--border-soft, #f4f4f4); color: var(--text, #444); white-space: nowrap; }
@@ -277,15 +304,12 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
                 <label><?php echo htmlspecialchars(t('system.sso.field_ldap_user_filter')); ?></label>
                 <input type="text" id="fUserFilter" value="<?php echo v($p, 'ldap_user_filter'); ?>">
             </div>
-            <div class="fld wide">
-                <label><?php echo htmlspecialchars(t('system.sso.field_ldap_attrs')); ?></label>
-                <div class="hint"><?php echo htmlspecialchars(t('system.sso.field_ldap_attrs_hint')); ?></div>
-                <div class="attr-grid">
-                    <input type="text" id="fAttrUsername" value="<?php echo v($p, 'ldap_attr_username'); ?>" placeholder="sAMAccountName">
-                    <input type="text" id="fAttrEmail"    value="<?php echo v($p, 'ldap_attr_email'); ?>"    placeholder="mail">
-                    <input type="text" id="fAttrName"     value="<?php echo v($p, 'ldap_attr_name'); ?>"     placeholder="displayName">
-                    <input type="text" id="fAttrGuid"     value="<?php echo v($p, 'ldap_attr_guid'); ?>"     placeholder="objectGUID">
-                </div>
+            <!-- The attribute boxes used to sit here. Leaving a pointer rather
+                 than nothing: somebody who knew where they were will otherwise
+                 conclude they have been removed. -->
+            <div class="fld">
+                <div class="hint"><?php echo htmlspecialchars(t('system.sso.attrs_moved')); ?>
+                    <a href="#" onclick="switchProvTab('mapping');return false;"><?php echo htmlspecialchars(t('system.sso.tab_mapping')); ?></a>.</div>
             </div>
             <div class="fld">
                 <label><?php echo htmlspecialchars(t('system.sso.field_ldap_groups')); ?></label>
@@ -335,18 +359,9 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
                     <div class="hint" style="margin-top:10px;"><?php echo htmlspecialchars(t('system.sso.sync_brake_hint')); ?></div>
                     <input type="number" id="fSyncBrakePercent" min="0" max="100" style="max-width:130px;" value="<?php echo (int)$p['sync_brake_percent']; ?>">
                 </div>
-                <div class="fld wide">
-                    <label><?php echo htmlspecialchars(t('system.sso.sync_attrs')); ?></label>
-                    <div class="hint"><?php echo htmlspecialchars(t('system.sso.sync_attrs_hint')); ?></div>
-                    <div class="attr-grid">
-                        <input type="text" id="fAttrJobTitle"   value="<?php echo v($p, 'ldap_attr_job_title'); ?>"   placeholder="title">
-                        <input type="text" id="fAttrDepartment" value="<?php echo v($p, 'ldap_attr_department'); ?>" placeholder="department">
-                        <input type="text" id="fAttrOffice"     value="<?php echo v($p, 'ldap_attr_office'); ?>"     placeholder="physicalDeliveryOfficeName">
-                        <input type="text" id="fAttrPhone"      value="<?php echo v($p, 'ldap_attr_phone'); ?>"      placeholder="telephoneNumber">
-                        <input type="text" id="fAttrMobile"     value="<?php echo v($p, 'ldap_attr_mobile'); ?>"     placeholder="mobile">
-                        <input type="text" id="fAttrEmployeeId" value="<?php echo v($p, 'ldap_attr_employee_id'); ?>" placeholder="employeeID">
-                        <input type="text" id="fAttrManager"    value="<?php echo v($p, 'ldap_attr_manager'); ?>"    placeholder="manager">
-                    </div>
+                <div class="fld">
+                    <div class="hint"><?php echo htmlspecialchars(t('system.sso.attrs_moved')); ?>
+                        <a href="#" onclick="switchProvTab('mapping');return false;"><?php echo htmlspecialchars(t('system.sso.tab_mapping')); ?></a>.</div>
                 </div>
                 <div class="fld wide">
                     <label><?php echo htmlspecialchars(t('system.sso.sync_run_heading')); ?></label>
@@ -357,6 +372,79 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
                     </div>
                     <div class="result" id="syncResult"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- ================= Field mapping =================
+             Every attribute box on one screen, FreeITSM's field on the left and
+             the directory's on the right, because that IS the sentence being
+             written: "put THIS of theirs into THAT of ours". They were split
+             across two tabs before — four on Signing in, seven on Importing
+             people — which read as two unrelated settings rather than one map.
+
+             The identity rows are separated out because they are the ones
+             sign-in also depends on: changing `Unique id` after people have
+             been imported re-identifies everybody, so it is worth knowing which
+             four carry that weight. -->
+        <div class="tab-pane<?php echo $activeTab === 'mapping' ? ' active' : ''; ?>" id="mapping-pane">
+            <?php
+            // key => [input id, column, placeholder, whether it is an identity field]
+            $mapRows = [
+                'name'        => ['fAttrName',       'ldap_attr_name',        'displayName',                true],
+                'username'    => ['fAttrUsername',   'ldap_attr_username',    'sAMAccountName',             true],
+                'email'       => ['fAttrEmail',      'ldap_attr_email',       'mail',                       true],
+                'guid'        => ['fAttrGuid',       'ldap_attr_guid',        'objectGUID',                 true],
+                'job_title'   => ['fAttrJobTitle',   'ldap_attr_job_title',   'title',                      false],
+                'department'  => ['fAttrDepartment', 'ldap_attr_department',  'department',                 false],
+                'office'      => ['fAttrOffice',     'ldap_attr_office',      'physicalDeliveryOfficeName', false],
+                'phone'       => ['fAttrPhone',      'ldap_attr_phone',       'telephoneNumber',            false],
+                'mobile'      => ['fAttrMobile',     'ldap_attr_mobile',      'mobile',                     false],
+                'employee_id' => ['fAttrEmployeeId', 'ldap_attr_employee_id', 'employeeID',                 false],
+                'manager'     => ['fAttrManager',    'ldap_attr_manager',     'manager',                    false],
+            ];
+            $renderMapRows = function (bool $identity) use ($mapRows, $p) {
+                foreach ($mapRows as $key => [$inputId, $col, $ph, $isIdentity]) {
+                    if ($isIdentity !== $identity) continue;
+                    ?>
+                    <tr data-field="<?php echo $key; ?>">
+                        <th scope="row">
+                            <?php echo htmlspecialchars(t('system.sso.map_field_' . $key)); ?>
+                            <span class="map-hint"><?php echo htmlspecialchars(t('system.sso.map_hint_' . $key)); ?></span>
+                        </th>
+                        <td><input type="text" id="<?php echo $inputId; ?>" value="<?php echo v($p, $col); ?>" placeholder="<?php echo $ph; ?>"></td>
+                        <td class="map-sample">&mdash;</td>
+                    </tr>
+                    <?php
+                }
+            };
+            ?>
+            <div class="fld wide">
+                <div class="hint" style="margin-bottom:14px;"><?php echo htmlspecialchars(t('system.sso.map_desc')); ?></div>
+                <table class="map">
+                    <thead>
+                        <tr>
+                            <th style="width:32%;"><?php echo htmlspecialchars(t('system.sso.map_col_ours')); ?></th>
+                            <th style="width:30%;"><?php echo htmlspecialchars(t('system.sso.map_col_theirs')); ?></th>
+                            <th><?php echo htmlspecialchars(t('system.sso.map_col_example')); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="map-group"><td colspan="3"><?php echo htmlspecialchars(t('system.sso.map_group_identity')); ?></td></tr>
+                        <?php $renderMapRows(true); ?>
+                        <tr class="map-group"><td colspan="3"><?php echo htmlspecialchars(t('system.sso.map_group_details')); ?></td></tr>
+                        <?php $renderMapRows(false); ?>
+                    </tbody>
+                </table>
+            </div>
+            <div class="fld wide">
+                <label><?php echo htmlspecialchars(t('system.sso.map_test_heading')); ?></label>
+                <div class="hint"><?php echo htmlspecialchars(t('system.sso.map_test_hint')); ?></div>
+                <div class="fld-row">
+                    <input type="text" id="fMapSample" placeholder="<?php echo htmlspecialchars(t('system.sso.map_test_sample')); ?>">
+                    <button class="btn btn-test" id="mapTestBtn" type="button" style="flex:0 0 auto;"><?php echo htmlspecialchars(t('system.sso.map_test')); ?></button>
+                </div>
+                <div class="result" id="mapResult"></div>
+                <div id="mapAvailable"></div>
             </div>
         </div>
 
@@ -510,6 +598,75 @@ async function runSync(mode) {
 }
 $('previewBtn').addEventListener('click', () => runSync('preview'));
 $('runBtn').addEventListener('click',   () => runSync('live'));
+
+/* Fill the example column from one real person.
+   Sends the values ON THE FORM, so you can check a mapping before committing to
+   it. Testing the saved values would only ever confirm the last thing saved. */
+$('mapTestBtn').addEventListener('click', async function () {
+    const box = $('mapResult');
+    box.className = 'result ok';
+    box.textContent = window.t('system.sso.map_testing');
+    this.disabled = true;
+    try {
+        const body = Object.assign(payload(), { provider_id: PROVIDER_ID, sample: $('fMapSample').value.trim() });
+        const d = await (await fetch(API + 'test_directory_mapping.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        })).json();
+        if (!d.success) {
+            box.className = 'result err';
+            box.textContent = d.error || 'Failed';
+            clearSamples();
+            return;
+        }
+        (d.rows || []).forEach(r => {
+            const cell = document.querySelector('tr[data-field="' + r.key + '"] .map-sample');
+            if (!cell) return;
+            if (!r.attribute) {
+                // Not mapped at all: neither a success nor a problem.
+                cell.className = 'map-sample';
+                cell.textContent = window.t('system.sso.map_not_mapped');
+            } else if (r.missing) {
+                cell.className = 'map-sample missing';
+                cell.textContent = window.t('system.sso.map_empty');
+            } else {
+                cell.className = 'map-sample filled';
+                cell.textContent = r.value;
+            }
+        });
+        const bad = (d.rows || []).filter(r => r.attribute && r.missing).length;
+        if (d.skipped) {
+            // Neither sign-in name nor unique id resolved: the importer would
+            // pass this person over. Red, because it is not a gap, it is a miss.
+            box.className = 'result err';
+            box.textContent = window.t('system.sso.map_result_skipped', { name: d.sample });
+        } else {
+            box.className = 'result ' + (bad ? 'warn' : 'ok');
+            box.textContent = bad
+                ? window.t('system.sso.map_result_gaps', { name: d.sample, n: bad })
+                : window.t('system.sso.map_result_ok',   { name: d.sample });
+        }
+        renderAvailable(d.available || []);
+    } catch (e) {
+        box.className = 'result err'; box.textContent = String(e.message || e);
+    } finally { this.disabled = false; }
+});
+
+function clearSamples() {
+    document.querySelectorAll('td.map-sample').forEach(c => { c.className = 'map-sample'; c.textContent = '—'; });
+}
+
+/* Everything the sample person actually carries. An empty example is ambiguous
+   on its own — the attribute might be misspelt, or the directory might simply
+   not hold that detail. This list is what tells the two apart. */
+function renderAvailable(list) {
+    const box = $('mapAvailable');
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<details class="avail"><summary>'
+        + esc(window.t('system.sso.map_available', { n: list.length }))
+        + '</summary><div class="avail-grid">'
+        + list.map(a => '<div><code>' + esc(a.name) + '</code> <span>' + esc(a.value) + '</span></div>').join('')
+        + '</div></details>';
+}
 
 async function loadRuns() {
     const box = $('runsBox');
