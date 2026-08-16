@@ -119,7 +119,7 @@ Everything lives in the **[Documentation Wiki](https://github.com/edmozley/freei
 
 There are also long-form **[deep-dive articles](https://freeitsm.co.uk/deep-dive/)** on the website covering individual features, and a **[release history](https://freeitsm.co.uk/updates.php)**.
 
-**Technology stack:** PHP 7.4–8.4 · MySQL 8.0+ · vanilla JavaScript (no frameworks) · TinyMCE · Apache or any PHP-capable server.
+**Technology stack:** PHP 7.4–8.4 · MySQL 8.0+ · vanilla JavaScript (no frameworks) · TinyMCE · Apache, or nginx using the [config it ships with](https://github.com/edmozley/freeitsm/wiki/Running-on-nginx).
 
 ## 👋 From the maintainer
 

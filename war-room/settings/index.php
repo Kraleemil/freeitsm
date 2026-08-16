@@ -19,7 +19,7 @@ require_once '../../includes/ai_settings_panel.php';
 require_once '../../includes/warroom.php';
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ../../login.php');
+    header('Location: ../../auth/login.php');
     exit;
 }
 

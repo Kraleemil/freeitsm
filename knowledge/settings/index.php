@@ -14,7 +14,7 @@ Tz::init();
 
 // Check if user is logged in
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ../../login.php');
+    header('Location: ../../auth/login.php');
     exit;
 }
 require_once '../../includes/settings_manifest.php';

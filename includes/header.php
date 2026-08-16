@@ -12,7 +12,7 @@ $path_prefix = $path_prefix ?? '';
 
 // Ensure user is logged in
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ' . $path_prefix . 'login.php');
+    header('Location: ' . $path_prefix . 'auth/login.php');
     exit;
 }
 

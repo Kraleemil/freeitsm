@@ -17,7 +17,11 @@ if (!isset($_SESSION['analyst_id'])) {
     try {
         $target = landingResolve(connectToDatabase());
     } catch (Exception $e) {
-        $target = 'login.php';   // never let a database blip lock people out
+        // Never let a database blip lock people out. The real path, not the rewritten
+        // one: this is the branch that runs when the database is unreachable, which is
+        // exactly the state a brand new install is in before db_config.php is filled
+        // in — so it must not depend on a rewrite rule being read. (#68)
+        $target = 'auth/login.php';
     }
     header('Location: ' . $target);
     exit;

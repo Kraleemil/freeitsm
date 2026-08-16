@@ -19,7 +19,7 @@ require_once '../includes/timezone.php';
 I18n::initFromSession();
 Tz::init();
 
-if (!isset($_SESSION['analyst_id'])) { header('Location: ../login.php'); exit; }
+if (!isset($_SESSION['analyst_id'])) { header('Location: ../auth/login.php'); exit; }
 
 requireModuleAccess('workflow');
 

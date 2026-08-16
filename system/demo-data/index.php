@@ -16,7 +16,7 @@ $path_prefix = '../../';
 $translationNamespaces = ['common', 'system'];
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ' . $path_prefix . 'login.php');
+    header('Location: ' . $path_prefix . 'auth/login.php');
     exit;
 }
 ?>

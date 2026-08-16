@@ -37,7 +37,13 @@ const LANDING_SETTING_KEY = 'default_landing_page';
 function landingTargets(): array
 {
     return [
-        'analyst' => 'login.php',
+        // Real file paths, resolvable with no URL rewriting of any kind. `login.php`
+        // used to sit in the root; it moved to auth/ in the root-folder tidy, and this
+        // still named the old location. It only appeared to work because the root
+        // .htaccess rewrites /login.php onto auth/login.php — so on any server that
+        // does not read .htaccess (nginx, or Apache with AllowOverride None) a fresh
+        // install redirected every logged-out visitor to a 404. See issue #68.
+        'analyst' => 'auth/login.php',
         'portal'  => 'self-service/login.php',
     ];
 }

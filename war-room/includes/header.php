@@ -10,7 +10,7 @@ $current_module = 'war-room';
 $module_title   = function_exists('t') ? t('war-room.title') : 'War room';
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ' . BASE_URL . 'login.php');
+    header('Location: ' . BASE_URL . 'auth/login.php');
     exit;
 }
 

@@ -106,7 +106,7 @@ function analystHasCapability(PDO $conn, int $analystId, string $capability): bo
  */
 function requireCapability(string $capability, ?PDO $conn = null): void {
     if (!isset($_SESSION['analyst_id'])) {
-        header('Location: ' . BASE_URL . 'login.php');
+        header('Location: ' . BASE_URL . 'auth/login.php');
         exit;
     }
     try {

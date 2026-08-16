@@ -13,7 +13,7 @@ I18n::initFromSession();
 Tz::init();
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ../../login.php');
+    header('Location: ../../auth/login.php');
     exit;
 }
 require_once '../../includes/settings_manifest.php';

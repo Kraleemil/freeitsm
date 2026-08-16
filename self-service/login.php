@@ -273,7 +273,7 @@ $localAllowed = $localOn || $forceLocal;
                 <a href="register.php"><?php echo htmlspecialchars(t('self-service.login.create_account')); ?></a>
                 <span class="divider">|</span>
                 <?php endif; ?>
-                <a href="../login.php"><?php echo htmlspecialchars(t('self-service.login.analyst_login')); ?></a>
+                <a href="../auth/login.php"><?php echo htmlspecialchars(t('self-service.login.analyst_login')); ?></a>
             </div>
         </div>
 

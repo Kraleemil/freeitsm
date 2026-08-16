@@ -12,7 +12,7 @@ $current_module = 'workflow';
 $module_title = function_exists('t') ? t('workflow.title') : 'Workflows';
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ' . BASE_URL . 'login.php');
+    header('Location: ' . BASE_URL . 'auth/login.php');
     exit;
 }
 

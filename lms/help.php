@@ -16,7 +16,7 @@ Tz::init();
 require_once '../includes/functions.php';
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ../login.php');
+    header('Location: ../auth/login.php');
     exit;
 }
 

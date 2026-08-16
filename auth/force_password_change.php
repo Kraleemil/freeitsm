@@ -8,7 +8,7 @@ require_once __DIR__ . '/../config.php';
 
 // Must be logged in with expired password flag
 if (!isset($_SESSION['analyst_id']) || empty($_SESSION['password_expired'])) {
-    header('Location: login.php');
+    header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'auth/login.php');
     exit;
 }
 

@@ -8,7 +8,7 @@ $current_module = 'lms';
 $module_title = function_exists('t') ? t('lms.title') : 'LMS';
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ' . BASE_URL . 'login.php');
+    header('Location: ' . BASE_URL . 'auth/login.php');
     exit;
 }
 

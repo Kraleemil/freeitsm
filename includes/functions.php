@@ -256,7 +256,7 @@ function analystCanAccessModule(PDO $conn, int $analystId, string $moduleKey): b
  */
 function requireModuleAccess(string $moduleKey, ?PDO $conn = null): void {
     if (!isset($_SESSION['analyst_id'])) {
-        header('Location: ' . BASE_URL . 'login.php');
+        header('Location: ' . BASE_URL . 'auth/login.php');
         exit;
     }
     try {

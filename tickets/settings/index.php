@@ -12,7 +12,7 @@ I18n::initFromSession();
 
 // Check if user is logged in
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ../../login.php');
+    header('Location: ../../auth/login.php');
     exit;
 }
 

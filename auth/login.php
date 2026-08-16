@@ -664,7 +664,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="login-container">
         <div class="login-header">
-            <img src="assets/images/CompanyLogo.png" alt="Company Logo">
+            <img src="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>assets/images/CompanyLogo.png" alt="Company Logo">
             <?php if ($mfa_required): ?>
                 <h1>Verification</h1>
             <?php else: ?>
@@ -685,7 +685,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="text" id="otpCode" class="otp-input-field" maxlength="6" inputmode="numeric" autocomplete="one-time-code" autofocus placeholder="------">
             </div>
             <button type="button" class="login-button" id="verifyBtn" onclick="verifyOtp()">Verify</button>
-            <a href="login.php?cancel_mfa=1" class="mfa-cancel">Cancel and return to login</a>
+            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php?cancel_mfa=1" class="mfa-cancel">Cancel and return to login</a>
 
             <script>
             // Auto-submit when 6 digits entered
@@ -823,7 +823,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <button type="submit" class="login-button">Sign In</button>
                         </form>
-                        <a href="forgot-password.php" class="forgot-link">Forgot password?</a>
+                        <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="forgot-link">Forgot password?</a>
                     </div>
                 </div>
 
@@ -899,7 +899,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <button type="submit" class="login-button">Sign In</button>
                 </form>
-                <a href="forgot-password.php" class="forgot-link">Forgot password?</a>
+                <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="forgot-link">Forgot password?</a>
             <?php endif; ?>
         <?php endif; ?>
     </div>

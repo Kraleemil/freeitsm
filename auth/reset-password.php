@@ -158,7 +158,7 @@ $token = $_GET['token'] ?? '';
 
         <?php if (empty($token)): ?>
             <div class="msg error">Invalid or missing reset link. Please request a new one.</div>
-            <a href="forgot-password.php" class="back-link">Request a new reset link</a>
+            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="back-link">Request a new reset link</a>
         <?php else: ?>
             <div id="formFields">
                 <div class="form-group">
@@ -173,7 +173,7 @@ $token = $_GET['token'] ?? '';
 
                 <button type="button" class="submit-btn" id="submitBtn" onclick="resetPassword()">Reset Password</button>
             </div>
-            <a href="login.php" class="back-link">Back to login</a>
+            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php" class="back-link">Back to login</a>
 
             <script>
             document.querySelectorAll('input').forEach(input => {
@@ -228,7 +228,7 @@ $token = $_GET['token'] ?? '';
                         msgEl.className = 'msg success';
                         msgEl.textContent = 'Password reset successfully. Redirecting to login...';
                         document.getElementById('formFields').style.display = 'none';
-                        setTimeout(() => { window.location.href = 'login.php'; }, 2000);
+                        setTimeout(() => { window.location.href = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php'; }, 2000);
                     } else {
                         msgEl.className = 'msg error';
                         msgEl.textContent = data.error;

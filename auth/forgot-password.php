@@ -163,7 +163,7 @@ if (isset($_SESSION['analyst_id'])) {
             <button type="button" class="submit-btn" id="submitBtn" onclick="requestReset()">Send Reset Link</button>
         </div>
 
-        <a href="login.php" class="back-link">Back to login</a>
+        <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php" class="back-link">Back to login</a>
     </div>
 
     <script>

@@ -8,7 +8,7 @@ $current_module = 'problems';
 $module_title = 'Problem Management';
 
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ' . BASE_URL . 'login.php');
+    header('Location: ' . BASE_URL . 'auth/login.php');
     exit;
 }
 $analyst_name = $_SESSION['analyst_name'] ?? 'Analyst';

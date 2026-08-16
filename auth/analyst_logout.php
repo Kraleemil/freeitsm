@@ -48,6 +48,6 @@ if ($ssoProviderId) {
 }
 
 // Redirect to login page
-header('Location: login.php');
+header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'auth/login.php');
 exit;
 ?>

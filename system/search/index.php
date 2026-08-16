@@ -30,7 +30,7 @@ $translationNamespaces = ['common', 'system'];
 
 // Auth before any output, so a redirect never hits "headers already sent".
 if (!isset($_SESSION['analyst_id'])) {
-    header('Location: ' . $path_prefix . 'login.php');
+    header('Location: ' . $path_prefix . 'auth/login.php');
     exit;
 }
 ?>
