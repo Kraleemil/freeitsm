@@ -65,6 +65,24 @@ E=$(post "{\"id\":$ID,\"display_name\":\"Renamed Locally\"}")
 chk "managed record still allows a NON-directory field" "1" "$(echo "$E" | grep -c '"success":true')"
 MY "UPDATE users SET is_managed=0 WHERE id=$ID" > /dev/null
 
+# --- the reporting line, read in BOTH directions ----------------------------
+# manager_id is stored once, pointing upwards, so "who does she manage" can only
+# be answered by looking for everybody pointing at her. Easy to add one way and
+# forget the other, hence a test for each.
+post "{\"id\":$ID,\"manager_id\":$MGR}" > /dev/null
+detail() { curl -s -b "PHPSESSID=$SID" "$BASE/api/assets/get_user_assets.php?user_id=$1"; }
+chk "the report knows their manager"  "1" "$(detail $ID | grep -c '"manager_name":"Slice1 Manager"')"
+# Matched on ID, not name: an earlier test in this script renames this person,
+# and an assertion that depends on a name set 40 lines earlier is a test that
+# breaks for reasons unrelated to what it is testing.
+chk "the manager lists their report"  "1" "$(detail $MGR | grep -c "\"reports\":\[{\"id\":$ID,")"
+chk "a person with nobody under them lists none" "1" "$(detail $ID | grep -c '"reports":\[\]')"
+
+# The detail panel must be complete for somebody OUTSIDE the current list too —
+# it used to read the person fields from the loaded rows, so following a link to
+# anyone filtered out produced a panel with no details in it.
+chk "detail carries the person fields, not just a name" "1" "$(detail $ID | grep -c '"department":"QA"')"
+
 # --- the directory list shows people holding nothing ------------------------
 count() { curl -s -b "PHPSESSID=$SID" "$BASE/api/assets/get_people.php?scope=$1&search=Slice1" | grep -o '"id":' | wc -l; }
 chk "directory lists people with no equipment" "2" "$(count current)"

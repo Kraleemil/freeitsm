@@ -146,6 +146,17 @@ $translationNamespaces = ['common', 'asset-management'];
         .au-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 20px; padding: 16px 20px; border-bottom: 1px solid var(--border-soft, #f0f0f0); }
         .au-fact-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted, #888); margin-bottom: 2px; }
         .au-fact-value { font-size: 13px; color: var(--text, #333); }
+        .au-link { color: var(--accent, #0078d4); text-decoration: none; }
+        .au-link:hover { text-decoration: underline; }
+        .au-reports { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+        .au-report {
+            display: inline-flex; align-items: center;
+            padding: 3px 10px; border-radius: 12px;
+            background: var(--surface-hover, #eef1f4); color: var(--text, #333);
+            font-size: 12px; text-decoration: none;
+        }
+        .au-report:hover { background: var(--accent, #0078d4); color: #fff; }
+        .au-report.inactive { opacity: .65; }
         .au-managed-note {
             margin: 0 20px 14px; padding: 8px 12px; border-radius: 6px; font-size: 12px;
             background: var(--surface-hover, #eef4ff); color: var(--text-muted, #555);
@@ -320,22 +331,43 @@ function renderDetail(user, assets) {
         : `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted,#666);">
              ${esc(window.t('asset-management.users.no_assets'))}</td></tr>`;
 
-    // The list row carries the person fields; the assets endpoint carries the
-    // equipment. Merged here rather than fetched twice.
-    const p = personById(user.id) || {};
+    // The endpoint now returns the whole person, so the panel is complete however
+    // you got here — including by clicking somebody who is not in the current
+    // filter, which used to give a detail panel with no details.
+    const p = user;
     const fact = (labelKey, value) => value
         ? `<div><div class="au-fact-label">${esc(window.t(labelKey))}</div>
                 <div class="au-fact-value">${esc(value)}</div></div>` : '';
+    // The manager is a link, not text: the reporting line is only useful if you
+    // can walk it, in both directions.
+    const managerFact = p.manager_name
+        ? `<div><div class="au-fact-label">${esc(window.t('asset-management.users.f_manager'))}</div>
+                <div class="au-fact-value"><a href="#" class="au-link" onclick="selectPerson(${p.manager_id});return false;">${esc(p.manager_name)}</a></div>
+           </div>` : '';
     const facts = [
         fact('asset-management.users.f_job_title',  p.job_title),
         fact('asset-management.users.f_department', p.department),
         fact('asset-management.users.f_office',     p.office),
-        fact('asset-management.users.f_manager',    p.manager_name),
+        managerFact,
         fact('asset-management.users.f_phone',      p.phone),
         fact('asset-management.users.f_mobile',     p.mobile),
         fact('asset-management.users.f_employee_id',p.employee_id),
         fact('asset-management.users.f_username',   p.username || p.directory_username),
     ].join('');
+
+    // Who reports to them. Stored once pointing upwards, so this is the only
+    // place the downward view exists.
+    const reports = (p.reports || []);
+    const reportsBlock = reports.length ? `
+        <div class="au-facts" style="padding-top:0;">
+            <div style="grid-column:1/-1;">
+                <div class="au-fact-label">${esc(window.t('asset-management.users.manages', { n: reports.length }))}</div>
+                <div class="au-reports">${reports.map(r =>
+                    `<a href="#" class="au-report ${r.is_active ? '' : 'inactive'}" onclick="selectPerson(${r.id});return false;">${esc(r.name)}${
+                        r.is_active ? '' : ' <span class="au-flag left">' + esc(window.t('asset-management.users.flag_left')) + '</span>'
+                    }</a>`).join('')}</div>
+            </div>
+        </div>` : '';
 
     panel.innerHTML = `
         <div class="au-detail-head">
@@ -359,6 +391,7 @@ function renderDetail(user, assets) {
             </div>
         </div>
         ${facts ? '<div class="au-facts">' + facts + '</div>' : ''}
+        ${reportsBlock}
         ${p.is_managed ? '<div class="au-managed-note">' + esc(window.t('asset-management.users.managed_note')) + '</div>' : ''}
         ${(p.is_active === false && assets.length)
             ? '<div class="au-managed-note" style="background:#fff4ce;color:#6b5900;">'

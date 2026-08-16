@@ -66,6 +66,7 @@ return [
         'f_mobile'           => 'Mobile',
         'f_employee_id'      => 'Employee number',
         'f_manager'          => 'Manager',
+        'manages'            => 'Manages ({n})',
         'f_username'         => 'Sign-in name',
         'select_title'       => 'Select a person',
         'select_hint'        => 'Choose somebody on the left to see everything assigned to them.',

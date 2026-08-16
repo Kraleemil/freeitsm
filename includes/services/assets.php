@@ -599,14 +599,52 @@ class AssetsService
      */
     public static function assetsForUser(PDO $conn, ActorContext $ctx, int $userId): ?array
     {
-        $u = $conn->prepare("SELECT id, email, display_name, preferred_name FROM users WHERE id = ?");
+        // The whole person, not just the name. The screen used to take these from
+        // the row it already had in the list, which silently produced a detail
+        // panel with no details whenever the person was not IN that list — after
+        // a search, or when following a link to somebody outside the current
+        // filter. Reading them here means the panel is complete however you
+        // arrived at it.
+        $u = $conn->prepare(
+            "SELECT u.id, u.email, u.username, u.display_name, u.preferred_name,
+                    u.job_title, u.department, u.office, u.phone, u.mobile,
+                    u.employee_id, u.manager_id, u.is_active, u.is_managed,
+                    u.directory_username, u.deactivated_datetime,
+                    m.display_name AS manager_name
+               FROM users u
+          LEFT JOIN users m ON m.id = u.manager_id
+              WHERE u.id = ?"
+        );
         $u->execute([$userId]);
         $user = $u->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
             return null;
         }
-        $user['id']   = (int)$user['id'];
-        $user['name'] = self::personName($user);
+        $user['id']         = (int)$user['id'];
+        $user['name']       = self::personName($user);
+        $user['is_active']  = (int)$user['is_active'] === 1;
+        $user['is_managed'] = (int)$user['is_managed'] === 1;
+        $user['manager_id'] = $user['manager_id'] !== null ? (int)$user['manager_id'] : null;
+
+        // Who reports to this person. The relationship is stored once, pointing
+        // upwards, so the only way to answer "who does she manage" is to look for
+        // everybody pointing at her. Leavers are included and flagged rather than
+        // hidden: a manager whose reports have all left is worth seeing, and so is
+        // a leaver who still has people pointed at them.
+        $r = $conn->prepare(
+            "SELECT id, display_name, email, is_active
+               FROM users
+              WHERE manager_id = ?
+              ORDER BY (display_name IS NULL OR display_name = ''), display_name, email"
+        );
+        $r->execute([$userId]);
+        $user['reports'] = array_map(static function (array $row): array {
+            return [
+                'id'        => (int)$row['id'],
+                'name'      => self::personName($row),
+                'is_active' => (int)$row['is_active'] === 1,
+            ];
+        }, $r->fetchAll(PDO::FETCH_ASSOC));
 
         [$tenantSql, $tenantArgs] = activeTenantFilter($conn, $ctx->actorId, 'a');
 
