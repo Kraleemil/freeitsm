@@ -286,4 +286,127 @@ if (!function_exists('mailboxAppOnlyToken')) {
         $td = json_decode(preg_replace('/[\x00-\x1F\x7F]/', '', (string) $mailbox['token_data']), true);
         return is_array($td) && !empty($td['access_token']) && empty($td['app_only']);
     }
+
+    /**
+     * An authenticated Graph GET, shaped for mailboxResolveFolderId().
+     * Every caller was writing the same twelve lines of curl.
+     */
+    function mailboxGraphGet($accessToken, $url) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        sslApplyCurl($ch);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $accessToken,
+            'Content-Type: application/json',
+        ]);
+        $response = curl_exec($ch);
+        $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err      = curl_errno($ch) ? curl_error($ch) : null;
+        curl_close($ch);
+        if ($err !== null) {
+            throw new Exception('cURL error talking to Graph: ' . $err);
+        }
+        return ['code' => (int) $code, 'body' => json_decode($response, true)];
+    }
+
+    /**
+     * Turn a folder a human typed into the id Graph actually wants (GH #77).
+     *
+     * ⚠️ THE WHOLE POINT. `/mailFolders/<something>` does NOT accept folder names.
+     * Graph accepts a short list of WELL-KNOWN aliases there — inbox, archive,
+     * sentitems and the few below — and treats anything else as an opaque folder
+     * ID. So reading from a folder called "freeitsm" produced:
+     *
+     *     400  ErrorInvalidIdMalformed — "Id is malformed."
+     *
+     * "INBOX" had always worked for exactly one reason: it is on the alias list.
+     * Reading a folder BY NAME had never worked at all, for any name off that list.
+     *
+     * Nested folders are supported with a slash — "Inbox/freeitsm" — because
+     * putting the intake folder under Inbox is the first thing most people try, and
+     * a flat lookup answers "not found" for a folder they can plainly see. Each
+     * segment after the first is resolved through childFolders, since
+     * /mailFolders lists TOP-LEVEL folders only.
+     *
+     * @param  callable $get  fn(string $url): array — performs an authenticated GET
+     *                        and returns ['code' => int, 'body' => array|null]. Passed
+     *                        in so this has no opinion about how callers do HTTP.
+     * @return string   The folder id, or a well-known alias (also valid in a path).
+     * @throws Exception with a message naming the segment that could not be found.
+     */
+    function mailboxResolveFolderId($folderName, callable $get) {
+        static $cache = [];
+
+        $folderName = trim((string) $folderName);
+        if ($folderName === '') {
+            throw new Exception('No mail folder configured.');
+        }
+        $cacheKey = mailboxGraphBase() . '|' . $folderName;   // ids differ per mailbox
+        if (isset($cache[$cacheKey])) {
+            return $cache[$cacheKey];
+        }
+
+        // Display name -> the alias Graph accepts directly in a path.
+        $wellKnown = [
+            'inbox'         => 'inbox',
+            'drafts'        => 'drafts',
+            'sent items'    => 'sentitems',
+            'sentitems'     => 'sentitems',
+            'deleted items' => 'deleteditems',
+            'deleteditems'  => 'deleteditems',
+            'junk email'    => 'junkemail',
+            'junkemail'     => 'junkemail',
+            'archive'       => 'archive',
+            'outbox'        => 'outbox',
+            'clutter'       => 'clutter',
+            'conversationhistory' => 'conversationhistory',
+        ];
+
+        $segments = array_values(array_filter(array_map('trim', explode('/', $folderName)), 'strlen'));
+        $current  = null;   // null until the first segment is resolved
+
+        foreach ($segments as $i => $segment) {
+            if ($i === 0 && isset($wellKnown[strtolower($segment)])) {
+                $current = $wellKnown[strtolower($segment)];
+                continue;
+            }
+
+            // Top-level folders come from /mailFolders; anything deeper from the
+            // parent's /childFolders. /mailFolders never returns nested folders.
+            $base = 'https://graph.microsoft.com/v1.0' . mailboxGraphBase();
+            $url  = $current === null
+                ? $base . '/mailFolders'
+                : $base . '/mailFolders/' . rawurlencode($current) . '/childFolders';
+
+            // Ask for the name we want, but page through rather than trusting a
+            // filter: displayName filtering is case-sensitive in Graph, and a folder
+            // typed "Freeitsm" would otherwise read as missing.
+            $url .= '?' . http_build_query(['$top' => 200, '$select' => 'id,displayName']);
+
+            $res = $get($url);
+            if (($res['code'] ?? 0) !== 200) {
+                throw new Exception('Could not list mail folders while looking for "'
+                    . $segment . '" (HTTP ' . ($res['code'] ?? '?') . ').');
+            }
+
+            $match = null;
+            foreach (($res['body']['value'] ?? []) as $f) {
+                if (isset($f['displayName']) && strcasecmp($f['displayName'], $segment) === 0) {
+                    $match = $f['id'];
+                    break;
+                }
+            }
+            if ($match === null) {
+                throw new Exception('Mail folder "' . $segment . '" was not found'
+                    . ($current === null ? ' in the mailbox.' : ' inside "' . $segments[$i - 1] . '".')
+                    . ' Check the spelling, and use a slash for a folder inside another'
+                    . ' (for example "Inbox/' . $segment . '").');
+            }
+            $current = $match;
+        }
+
+        $cache[$cacheKey] = $current;
+        return $current;
+    }
 }

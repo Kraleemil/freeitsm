@@ -1700,7 +1700,14 @@ $translationNamespaces = ['common', 'tickets'];
 
                     <div class="form-group">
                         <label for="mailboxFolder"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.email_folder')); ?></label>
-                        <input type="text" id="mailboxFolder" value="INBOX">
+                        <!-- The folder mail is READ from had no Verify, while the folder
+                             mail is MOVED to did — so the screen could confirm a folder
+                             directly below the field that could not use it (GH #77). -->
+                        <div style="display: flex; gap: 8px; align-items: start;">
+                            <input type="text" id="mailboxFolder" value="INBOX" style="flex: 1;">
+                            <button type="button" class="btn btn-secondary" id="verifyIntakeFolderBtn" onclick="verifyIntakeFolder()" style="padding: 8px 12px; white-space: nowrap;"><?php echo htmlspecialchars(t('tickets.settings.buttons.verify')); ?></button>
+                        </div>
+                        <small id="verifyIntakeFolderResult" style="display: none; margin-top: 5px;"></small>
                     </div>
 
                     <div class="form-group">
@@ -4058,6 +4065,7 @@ $translationNamespaces = ['common', 'tickets'];
             document.getElementById('mailboxImportedFolder').value = mailbox ? (mailbox.imported_folder || '') : '';
             toggleImportedFolder();
             document.getElementById('verifyFolderResult').style.display = 'none';
+            document.getElementById('verifyIntakeFolderResult').style.display = 'none';
             document.getElementById('mailboxActive').checked = mailbox ? mailbox.is_active : true;
             await populateMailboxCompanies(mailbox ? (mailbox.tenant_id ?? null) : null);
 
@@ -4191,11 +4199,20 @@ $translationNamespaces = ['common', 'tickets'];
             document.getElementById('importedFolderGroup').style.display = action === 'move_to_folder' ? '' : 'none';
         }
 
-        async function verifyFolder() {
-            const folderName = document.getElementById('mailboxImportedFolder').value.trim();
+        // Both folder fields verify through one function. Two copies is what let the
+        // move-to folder and the read-from folder disagree in the first place (GH #77).
+        function verifyFolder() {
+            return runFolderVerify('mailboxImportedFolder', 'verifyFolderResult', 'verifyFolderBtn');
+        }
+        function verifyIntakeFolder() {
+            return runFolderVerify('mailboxFolder', 'verifyIntakeFolderResult', 'verifyIntakeFolderBtn');
+        }
+
+        async function runFolderVerify(inputId, resultId, btnId) {
+            const folderName = document.getElementById(inputId).value.trim();
             const mailboxId = document.getElementById('mailboxId').value;
-            const resultEl = document.getElementById('verifyFolderResult');
-            const btn = document.getElementById('verifyFolderBtn');
+            const resultEl = document.getElementById(resultId);
+            const btn = document.getElementById(btnId);
 
             if (!folderName) {
                 resultEl.style.display = '';

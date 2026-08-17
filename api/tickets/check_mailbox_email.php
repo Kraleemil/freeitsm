@@ -447,7 +447,15 @@ function updateLastChecked($conn, $mailboxId) {
  * Retrieve emails from Microsoft Graph API
  */
 function getEmails($accessToken, $mailbox) {
-    $graphUrl = 'https://graph.microsoft.com/v1.0' . mailboxGraphBase() . '/mailFolders/' . $mailbox['email_folder'] . '/messages';
+    // The configured folder is a NAME a person typed. Graph wants an id (or one of
+    // its handful of well-known aliases) in this path, so anything else came back
+    // as "400 ErrorInvalidIdMalformed" — GH #77. INBOX only ever worked because it
+    // is on the alias list; reading any other folder by name had never worked.
+    $folderId = mailboxResolveFolderId($mailbox['email_folder'] ?? 'inbox',
+        function ($url) use ($accessToken) { return mailboxGraphGet($accessToken, $url); });
+
+    $graphUrl = 'https://graph.microsoft.com/v1.0' . mailboxGraphBase()
+        . '/mailFolders/' . rawurlencode($folderId) . '/messages';
 
     $params = [
         '$top' => $mailbox['max_emails_per_check'],
@@ -516,77 +524,17 @@ function deleteEmailFromMailbox($accessToken, $messageId) {
 }
 
 /**
- * Resolve a folder display name to a Graph API folder ID.
- * Maps well-known display names first, then queries Graph API.
- * Results are cached within the same request.
+ * Resolve a folder name to what Graph will accept in a path.
+ *
+ * Delegates to mailboxResolveFolderId() in includes/mailbox_graph.php. It used to
+ * be implemented here AND again in verify_mailbox_folder.php — which is how the
+ * two disagreed: Verify resolved "freeitsm" happily while the code that actually
+ * READ the mailbox never called either of them (GH #77). One implementation now,
+ * so the button and the fetch can no longer answer differently.
  */
 function resolveMailFolderId($accessToken, $folderName) {
-    static $cache = [];
-    if (isset($cache[$folderName])) {
-        return $cache[$folderName];
-    }
-
-    // Well-known folder display names -> Graph API names
-    $wellKnown = [
-        'Inbox'         => 'inbox',
-        'Drafts'        => 'drafts',
-        'Sent Items'    => 'sentitems',
-        'Deleted Items' => 'deleteditems',
-        'Junk Email'    => 'junkemail',
-        'Archive'       => 'archive',
-        'Outbox'        => 'outbox',
-    ];
-
-    foreach ($wellKnown as $displayName => $apiName) {
-        if (strcasecmp($folderName, $displayName) === 0) {
-            $cache[$folderName] = $apiName;
-            return $apiName;
-        }
-    }
-
-    // Check if already a well-known API name
-    if (in_array(strtolower($folderName), array_values($wellKnown))) {
-        $cache[$folderName] = strtolower($folderName);
-        return strtolower($folderName);
-    }
-
-    // Query Graph API by displayName
-    $graphUrl = 'https://graph.microsoft.com/v1.0' . mailboxGraphBase() . '/mailFolders?'
-        . http_build_query(['$filter' => "displayName eq '" . str_replace("'", "''", $folderName) . "'"]);
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $graphUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    sslApplyCurl($ch);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken,
-        'Content-Type: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-    if (curl_errno($ch)) {
-        curl_close($ch);
-        throw new Exception('cURL error resolving folder: ' . curl_error($ch));
-    }
-
-    curl_close($ch);
-
-    if ($httpCode !== 200) {
-        throw new Exception('Failed to resolve folder "' . $folderName . '". HTTP ' . $httpCode);
-    }
-
-    $data = json_decode($response, true);
-    $folders = $data['value'] ?? [];
-
-    if (empty($folders)) {
-        throw new Exception('Folder "' . $folderName . '" not found in mailbox');
-    }
-
-    $folderId = $folders[0]['id'];
-    $cache[$folderName] = $folderId;
-    return $folderId;
+    return mailboxResolveFolderId($folderName,
+        function ($url) use ($accessToken) { return mailboxGraphGet($accessToken, $url); });
 }
 
 /**

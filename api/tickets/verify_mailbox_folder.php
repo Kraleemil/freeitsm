@@ -126,55 +126,43 @@ try {
         $accessToken = $tokenData['access_token'];
     }
 
-    // Query Graph API for the folder
-    $graphUrl = 'https://graph.microsoft.com/v1.0' . mailboxGraphBase() . '/mailFolders?'
-        . http_build_query(['$filter' => "displayName eq '" . str_replace("'", "''", $folderName) . "'"]);
+    // Resolve through the SAME helper the mail fetch uses. This endpoint used to
+    // run its own displayName query, which is how Verify could report a folder
+    // "found" that reading the mailbox then rejected outright (GH #77).
+    $get = function ($url) use ($accessToken) { return mailboxGraphGet($accessToken, $url); };
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $graphUrl);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    sslApplyCurl($ch);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $accessToken,
-        'Content-Type: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-    if (curl_errno($ch)) {
-        curl_close($ch);
-        echo json_encode(['success' => false, 'error' => 'cURL error: ' . curl_error($ch)]);
+    try {
+        $folderId = mailboxResolveFolderId($folderName, $get);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
     }
 
-    curl_close($ch);
+    // Read it back by id, so what is reported is the folder that will actually be
+    // used — and confirm the id works in a path, which is the thing that failed.
+    $res = $get('https://graph.microsoft.com/v1.0' . mailboxGraphBase()
+        . '/mailFolders/' . rawurlencode($folderId)
+        . '?' . http_build_query(['$select' => 'id,displayName,totalItemCount,unreadItemCount']));
 
-    if ($httpCode !== 200) {
-        echo json_encode(['success' => false, 'error' => 'Graph API error. HTTP ' . $httpCode]);
-        exit;
-    }
-
-    $result = json_decode($response, true);
-    $folders = $result['value'] ?? [];
-
-    if (empty($folders)) {
+    if (($res['code'] ?? 0) !== 200) {
         echo json_encode([
             'success' => false,
-            'error' => 'Folder "' . $folderName . '" not found in mailbox'
+            'error' => 'Folder "' . $folderName . '" resolved but could not be opened (HTTP '
+                     . ($res['code'] ?? '?') . ').'
         ]);
-    } else {
-        $folder = $folders[0];
-        echo json_encode([
-            'success' => true,
-            'folder' => [
-                'id' => $folder['id'],
-                'displayName' => $folder['displayName'],
-                'totalItemCount' => $folder['totalItemCount'] ?? null,
-                'unreadItemCount' => $folder['unreadItemCount'] ?? null,
-            ]
-        ]);
+        exit;
     }
+
+    $folder = $res['body'] ?? [];
+    echo json_encode([
+        'success' => true,
+        'folder' => [
+            'id' => $folder['id'] ?? $folderId,
+            'displayName' => $folder['displayName'] ?? $folderName,
+            'totalItemCount' => $folder['totalItemCount'] ?? null,
+            'unreadItemCount' => $folder['unreadItemCount'] ?? null,
+        ]
+    ]);
 
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
