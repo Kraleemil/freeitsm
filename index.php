@@ -31,6 +31,13 @@ require_once 'includes/waffle-menu.php';
 
 $analyst_name = $_SESSION['analyst_name'] ?? 'Analyst';
 $allowed_modules = $_SESSION['allowed_modules'] ?? null;
+
+// This page is already translated server-side, but it was the ONE page that
+// never shipped the client-side half — so window.t did not exist here, and the
+// notification bell (rendered from renderHeaderRight on every page, this one
+// included) threw on its first line and never made its request. GH #78.
+// 'common' is what the shared header needs; the page's own strings live there too.
+$translationNamespaces = ['common'];
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
@@ -39,6 +46,8 @@ $allowed_modules = $_SESSION['allowed_modules'] ?? null;
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(t('common.home.browser_title')); ?></title>
+    <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
+    <script src="assets/js/i18n.js?v=2"></script>
     <link rel="stylesheet" href="assets/css/theme.css?v=23">
     <link rel="stylesheet" href="assets/css/inbox.css">
     <style>

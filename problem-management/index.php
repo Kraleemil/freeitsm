@@ -7,11 +7,18 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/theme.php';
 require_once __DIR__ . '/../includes/timezone.php';
+require_once __DIR__ . '/../includes/i18n.php';
 requireModuleAccess('problems');
 Tz::init();
+I18n::initFromSession();
 
 $current_page = 'problems';
 $path_prefix = '../';
+
+// This module's own strings are still English-only, but the SHARED header it
+// draws is not: without window.t the notification bell threw before it could
+// fetch anything (GH #78). 'common' is what the header needs.
+$translationNamespaces = ['common'];
 ?>
 <!DOCTYPE html>
 <html lang="en" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
@@ -20,6 +27,8 @@ $path_prefix = '../';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Service Desk - Problem Management</title>
+    <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
+    <script src="<?php echo BASE_URL; ?>assets/js/i18n.js?v=2"></script>
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/theme.css?v=23">
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/inbox.css?v=37">
     <style>
