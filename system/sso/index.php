@@ -65,8 +65,22 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
         .settings-card h3 { font-size: 15px; font-weight: 600; color: var(--text, #333); margin: 0 0 4px 0; }
         .settings-card .card-desc { font-size: 13px; color: var(--text-dim, #888); margin: 0 0 20px 0; line-height: 1.5; }
 
+        /* Shown when the switches could not be read. Uses the real danger tokens —
+           var(--danger) alone does not exist in theme.css, only --danger-bg/-text/-border. */
+        .load-error { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 18px;
+                      padding: 11px 14px; border-radius: 6px; font-size: 13px; line-height: 1.5;
+                      background: var(--danger-bg, #fee2e2); color: var(--danger-text, #991b1b);
+                      border: 1px solid var(--danger-border, #f0c2c2); }
+        .load-error[hidden] { display: none; }
+        .load-error strong { font-weight: 600; }
+        .load-error span { flex: 1; min-width: 220px; }
+        .load-error .btn { padding: 5px 12px; font-size: 12px; border-radius: 5px; cursor: pointer;
+                           background: var(--surface, #fff); color: var(--danger-text, #991b1b);
+                           border: 1px solid var(--danger-border, #f0c2c2); }
+
         .setting-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
         .setting-row:last-child { margin-bottom: 0; }
+        .switch input:disabled + .slider { opacity: .5; cursor: not-allowed; }
         .setting-label { flex: 1; font-size: 13px; color: var(--text-muted, #555); }
         .setting-label strong { display: block; color: var(--text, #333); margin-bottom: 2px; }
 
@@ -192,6 +206,11 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
         <div class="settings-card">
             <h3><?php echo htmlspecialchars(t('system.sso.global_heading')); ?></h3>
             <p class="card-desc"><?php echo htmlspecialchars(t('system.sso.global_desc')); ?></p>
+            <div class="load-error" id="globalLoadError" hidden>
+                <strong><?php echo htmlspecialchars(t('system.sso.global_load_failed')); ?></strong>
+                <span><?php echo htmlspecialchars(t('system.sso.global_load_failed_desc')); ?></span>
+                <button type="button" class="btn" id="retryGlobalBtn"><?php echo htmlspecialchars(t('system.sso.retry')); ?></button>
+            </div>
             <div class="setting-row">
                 <div class="setting-label">
                     <strong><?php echo htmlspecialchars(t('system.sso.enable_sso')); ?></strong>
@@ -442,17 +461,38 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
     let providers = [];
 
     // ---------- Global switches ----------
+    /* Both switches are plain unchecked in the markup, so a failed load looked
+       EXACTLY like "single sign-on off, local login off" — and one of those is a
+       lock-out. Worse, Save would then have written that guess back as fact.
+       So: a failure says so, and Save refuses until the real values have arrived. */
+    let globalLoaded = false;
+
+    function setGlobalLoadFailed(failed) {
+        globalLoaded = !failed;
+        document.getElementById('globalLoadError').hidden = !failed;
+        document.getElementById('ssoEnabled').disabled = failed;
+        document.getElementById('localLoginEnabled').disabled = failed;
+        document.getElementById('saveGlobalBtn').disabled = failed;
+    }
+
     async function loadGlobal() {
         try {
             const r = await fetch(API + 'settings/get_system_settings.php');
             const d = await r.json();
-            if (d.success) {
-                document.getElementById('ssoEnabled').checked = d.settings.sso_enabled === '1';
-                document.getElementById('localLoginEnabled').checked = d.settings.local_login_enabled !== '0';
-            }
-        } catch (e) { console.error(e); }
+            if (!d.success) throw new Error(d.error || 'unsuccessful response');
+            document.getElementById('ssoEnabled').checked = d.settings.sso_enabled === '1';
+            // Absent means ON — never leave the fallback login looking switched off.
+            document.getElementById('localLoginEnabled').checked = d.settings.local_login_enabled !== '0';
+            setGlobalLoadFailed(false);
+        } catch (e) {
+            console.error(e);
+            setGlobalLoadFailed(true);
+        }
     }
+    document.getElementById('retryGlobalBtn').addEventListener('click', loadGlobal);
+
     document.getElementById('saveGlobalBtn').addEventListener('click', async function () {
+        if (!globalLoaded) return;              // never save a state we never read
         this.disabled = true;
         const settings = {
             sso_enabled: document.getElementById('ssoEnabled').checked ? '1' : '0',
@@ -466,7 +506,7 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
             const d = await r.json();
             showToast(d.success ? window.t('system.sso.global_saved') : window.t('system.sso.error', { error: d.error }), d.success ? 'success' : 'error');
         } catch (e) { showToast(window.t('system.sso.save_failed'), 'error'); }
-        this.disabled = false;
+        this.disabled = !globalLoaded;
     });
 
     // ---------- Redirect URI copy ----------

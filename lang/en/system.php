@@ -678,6 +678,9 @@ return [
         'enable_sso_desc'=> 'Show the configured provider buttons on the login page. Turn off to instantly fall back to local logins everywhere (break-glass).',
         'allow_local'    => 'Allow local login',
         'allow_local_desc' => 'Keep the username + password form available. Leave on so a misconfigured or down provider can never lock everyone out.',
+        'global_load_failed'      => 'These settings could not be read.',
+        'global_load_failed_desc' => 'The switches below are NOT showing your real settings, so they are locked to stop a wrong value being saved over the top. Nothing has changed.',
+        'retry'          => 'Retry',
         'save'           => 'Save',
 
         'redirect_heading' => 'Redirect URI',

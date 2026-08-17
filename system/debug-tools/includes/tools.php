@@ -234,6 +234,52 @@ function getDebugTools() {
             'duration' => '~2 seconds',
             'persists' => 'Nothing. It writes one small probe file per folder, fetches it, and deletes it again in a finally block — then counts what is left and tells you if any survived. The probes have unpredictable names and contain a single harmless line, because if a folder turns out to be unguarded the file is briefly fetchable, which is the very thing being measured. It reads .htaccess files nowhere: the question is not whether they exist, it is whether the server is reading them, and only a real HTTP request can answer that.',
         ],
+        [
+            'id'       => 'D010',
+            'slug'     => 'd010',
+            'file'     => 'D010_signin_methods.php',
+            'title'    => 'Sign-in methods, and how you are signed in',
+            'category' => 'Login',
+            'icon'     => 'people',
+            'desc'     => 'List every sign-in method and its state, what the login page will actually offer, and the route you personally used to get in.',
+            'keywords' => 'sign in methods sso ldap oidc provider login local password locked out lockout break glass authentication who how signed in masked share d010',
+            'when'     => 'Run this when sign-in is behaving unexpectedly, when you are unsure what a login page is offering people, or before changing anything on the Authentication screen. It is also the report to ask somebody else to send you: an administrator looking at that screen has, by definition, already signed in, so "nobody can get in" and "everything is fine" look identical from where they are sitting. Naming the route they personally used settles it. Every username, email address, bind account and DN is masked so the output can be sent on as-is.',
+            'checks'   => [
+                'Schema readiness — auth_providers and its columns, user_sso_identities, and whether this build even has the directory-sync columns',
+                'HOW YOU ARE SIGNED IN — your session, your analyst record, whether a local password exists on it, and therefore which route you actually used',
+                'The two master switches as STORED, not as rendered — including the important asymmetry that an absent local_login_enabled means ON',
+                'What the login page will therefore offer a visitor: password form, provider buttons, or nothing at all — with the ?local=1 break-glass named if it is nothing',
+                'Every sign-in method: protocol, enabled, company, JIT, host or issuer, encryption, bind account, base DN, group gating and attributes (secrets present/absent only)',
+                'Per method, a plain CAN PEOPLE SIGN IN WITH IT NOW? line naming every blocker',
+                'Counts of who is positioned to use each route — analysts and self-service users with local passwords, linked SSO identities, or imported from a directory',
+                'A verdict that distinguishes a genuine lock-out from the perfectly normal "directory is here to import people, not to sign them in" setup',
+            ],
+            'duration' => '~1 second',
+            'persists' => 'None. Read-only, makes no network calls, and writes nothing. Built to be shared: usernames, email local-parts, bind accounts and every DN value are masked (attribute names and the shape of the tree are kept, because that is the diagnostic half), and client secrets, bind passwords and password hashes are reported only as present or absent.',
+        ],
+        [
+            'id'       => 'D011',
+            'slug'     => 'd011',
+            'file'     => 'D011_directory_sync_readiness.php',
+            'title'    => 'Directory sync readiness — what is blocking each method',
+            'category' => 'Login',
+            'icon'     => 'sync',
+            'desc'     => 'For every sign-in method, say whether it could import people from the directory — and if not, name the one thing in the way.',
+            'keywords' => 'ldap active directory ad import sync users people readiness blocked ou base dn bind scope schedule cron enabled assets staff d011',
+            'when'     => 'Run this when a directory will not import people, when the Importing people tab is missing or refuses to run, or when an import works by hand but nothing seems to happen on a schedule. It asks a different question of the same rows than D010 does: not "can anybody sign in with this" but "could this bring people in". The two are genuinely independent — a directory can exist purely as a source of staff to issue equipment to, with single sign-on switched off entirely, because nothing in the import path consults the global SSO switch.',
+            'checks'   => [
+                'Install-wide prerequisites that block every method at once — the PHP ldap extension, the sync columns on auth_providers, the run-history table, users.is_managed, and the importer files themselves (which is how an installation older than the feature identifies itself)',
+                'How an import is actually triggered, by hand versus scheduled, and the fact that FreeITSM does not schedule it for you yet',
+                'THE TRAP: running an import from the interface ignores the provider\'s Enabled flag but the scheduled run requires it, so a directory that imports perfectly when you press the button can be skipped every night with no error',
+                'Per method, the gates in the order the code applies them: protocol is LDAP, host set, bind account (anonymous bind flagged, since AD almost always refuses to enumerate anonymously), directory sync switched on',
+                'Whether an import scope resolves at all — ticked branches, then the import base DN, then the inherited sign-in base DN — and which of those three it came from',
+                'Which attributes resolve for sign-in name, unique id and email, including the flavour defaults used when a field is left blank',
+                'The safety settings that shape a run: conflict handling, how many missed runs deactivate somebody, and the percentage drop that trips the brake',
+                'A single BLOCKER line per method naming the one thing to fix, rather than a list of everything that happens to be unset',
+            ],
+            'duration' => '~1 second',
+            'persists' => 'None. Read-only, and deliberately does NOT contact the directory — this is a question about configuration, and a tool that hangs for thirty seconds on an unreachable host answers nothing useful. DNs, bind accounts and filters are masked so the report can be sent on.',
+        ],
     ];
 }
 
@@ -256,6 +302,8 @@ function debugToolIcon($key) {
         'sso'    => '<path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line>',
         'key'    => '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"></path>',
         'shield' => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>',
+        'people' => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
+        'sync'   => '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
     ];
     $inner = $icons[$key] ?? '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>';
     return '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' . $inner . '</svg>';
