@@ -48,6 +48,12 @@ try {
         exit;
     }
 
+    // Opportunistic tidy-up, bounded and cheap. Links whose parent was deleted are
+    // invisible either way, so this is housekeeping rather than a safety measure —
+    // but doing it where documents are being looked at means an install with no
+    // cron still collects its litter. See documentsCollectOrphans().
+    try { documentsCollectOrphans($conn, 25); } catch (Throwable $e) { /* never fail a list */ }
+
     $countSt = $conn->prepare(
         "SELECT COUNT(*) FROM document_links dl
            JOIN documents d ON d.id = dl.document_id

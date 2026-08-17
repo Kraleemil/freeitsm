@@ -351,6 +351,117 @@ function documentVisibleParents(PDO $conn, int $analystId, ?array $allowedModule
 }
 
 /**
+ * Detach everything from a record that is being deleted.
+ *
+ * Call this from a module's delete path when you have one. It is the tidy answer:
+ * the links go at the moment the parent does.
+ *
+ * @return int links removed
+ */
+function documentsDetachParent(PDO $conn, string $parentType, int $parentId): int
+{
+    if (!documentEntityDef($parentType) || $parentId <= 0) return 0;
+    try {
+        $st = $conn->prepare("DELETE FROM document_links WHERE parent_type = ? AND parent_id = ?");
+        $st->execute([$parentType, $parentId]);
+        return $st->rowCount();
+    } catch (Throwable $e) {
+        error_log('[documentsDetachParent] ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Remove links whose parent no longer exists, then collect what that orphans.
+ *
+ * ⚠️ WHY A SWEEP AND NOT ONLY A HOOK. document_links.parent_id is POLYMORPHIC — it
+ * points at whichever table parent_type names — so no foreign key can protect it.
+ * Delete a contract and its links survive; nothing in the database can object.
+ * The document is invisible from that moment (every permission check verifies the
+ * parent still exists, which is why nothing leaks) but it is never collected: the
+ * file sits on disk for ever and the row never orphans.
+ *
+ * A hook on every module's delete would be the tidy answer, and documentsDetachParent()
+ * is there for the ones that have one. It cannot be the ONLY answer: twelve delete
+ * paths, plus bulk deletes, plus anything that ever removes a row by SQL, is twelve
+ * chances to forget — and forgetting is silent. So this is the net, and it is
+ * correct on its own.
+ *
+ * Bounded so it can run opportunistically without becoming the cost of a page load.
+ *
+ * @return array{links_removed:int,documents_orphaned:int,files_removed:int,errors:string[]}
+ */
+function documentsCollectOrphans(PDO $conn, int $limit = 200): array
+{
+    $out = ['links_removed' => 0, 'documents_orphaned' => 0, 'files_removed' => 0, 'errors' => []];
+
+    try {
+        // 1. Links whose parent is gone. Asked per entity type, because each one
+        //    lives in a different table — the price of a polymorphic link.
+        foreach (documentEntityRegistry() as $type => $def) {
+            // ⚠️ SINGLE-TABLE DELETE, deliberately. The obvious form —
+            // `DELETE dl FROM document_links dl WHERE … LIMIT n` — is a multi-table
+            // delete, and MySQL does not accept LIMIT on one. It fails as a syntax
+            // error, which the catch below then swallows, and the sweep reports
+            // "0 removed" while doing nothing at all. Found by running it.
+            $sql = "DELETE FROM document_links
+                     WHERE parent_type = ?
+                       AND NOT EXISTS (SELECT 1 FROM `" . $def['table'] . "` p WHERE p.id = document_links.parent_id)
+                     LIMIT " . max(1, (int) $limit);
+            try {
+                $st = $conn->prepare($sql);
+                $st->execute([$type]);
+                $out['links_removed'] += $st->rowCount();
+            } catch (Throwable $e) {
+                // A module whose table is absent on this install must not stop the
+                // others being tidied — but the caller has to be able to tell that
+                // apart from "there was nothing to do", or a broken sweep looks
+                // exactly like a clean one.
+                $out['errors'][] = $type . ': ' . $e->getMessage();
+                error_log('[documentsCollectOrphans] ' . $type . ': ' . $e->getMessage());
+            }
+        }
+
+        // 2. Documents nothing points at any more.
+        $st = $conn->prepare(
+            "SELECT d.id, d.storage_key FROM documents d
+              WHERE d.deleted_datetime IS NULL
+                AND NOT EXISTS (SELECT 1 FROM document_links dl WHERE dl.document_id = d.id)
+              LIMIT " . max(1, (int) $limit)
+        );
+        $st->execute();
+        $orphans = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($orphans as $o) {
+            $id = (int) $o['id'];
+            $conn->prepare("UPDATE documents SET deleted_datetime = UTC_TIMESTAMP() WHERE id = ?")->execute([$id]);
+            $out['documents_orphaned']++;
+
+            // Out of the search index, or a deleted document stays findable by title.
+            if (function_exists('searchUnindexDocument')) {
+                searchUnindexDocument($conn, $id);
+            }
+
+            // The file last, and only if no live row still uses the same key.
+            $key = (string) ($o['storage_key'] ?? '');
+            if ($key !== '') {
+                $chk = $conn->prepare("SELECT COUNT(*) FROM documents WHERE storage_key = ? AND deleted_datetime IS NULL");
+                $chk->execute([$key]);
+                if ((int) $chk->fetchColumn() === 0) {
+                    $path = documentStoragePath($key);
+                    if (is_file($path) && @unlink($path)) $out['files_removed']++;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        $out['errors'][] = $e->getMessage();
+        error_log('[documentsCollectOrphans] ' . $e->getMessage());
+    }
+
+    return $out;
+}
+
+/**
  * Absolute path for a stored document.
  *
  * 🔑 The database stores an opaque KEY, never a path. A path baked into a row is

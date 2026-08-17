@@ -124,6 +124,40 @@ try {
     check('an unregistered parent type grants nothing',
         documentCanViewParent($conn, $analyst, null, 'not_a_real_type', 1), false);
 
+    // ⚠️ document_links.parent_id is POLYMORPHIC, so no foreign key can protect
+    // it. Deleting a contract leaves the link behind and nothing objects. The
+    // document is invisible from that instant, but without a sweep it is never
+    // collected and its file stays on disk for ever.
+    echo "\nA deleted PARENT must not leave the document stranded\n";
+    $conn->prepare("INSERT INTO contracts (title) VALUES ('ZZ orphan-sweep')")->execute();
+    $cid2 = (int) $conn->lastInsertId();
+    $conn->prepare("INSERT INTO documents (kind,title,uploaded_by_id) VALUES ('link','ZZ orphan-sweep-doc',?)")
+         ->execute([$analyst]);
+    $did2 = (int) $conn->lastInsertId();
+    $conn->prepare("INSERT INTO document_links (document_id,parent_type,parent_id,linked_by_id) VALUES (?,'contract',?,?)")
+         ->execute([$did2, $cid2, $analyst]);
+    $conn->prepare("DELETE FROM contracts WHERE id = ?")->execute([$cid2]);
+
+    $st = $conn->prepare("SELECT COUNT(*) FROM document_links WHERE document_id = ?");
+    $st->execute([$did2]);
+    check('the link survives the parent — nothing in the database stops it',
+        (int) $st->fetchColumn(), 1);
+    check('  ...but the document is already invisible, so nothing leaks',
+        setSees($conn, $analyst, null, $did2), false);
+
+    $swept = documentsCollectOrphans($conn, 100);
+    // ⚠️ The first version of the sweep used a multi-table DELETE with LIMIT,
+    // which MySQL rejects. The error was caught and logged, and it reported
+    // "0 removed" — a broken sweep that looked exactly like a clean one. Assert
+    // there were no errors, not merely that the counts came back.
+    check('the sweep reports no errors', empty($swept['errors']), true);
+
+    $st->execute([$did2]);
+    check('the dead link is removed', (int) $st->fetchColumn(), 0);
+    $g = $conn->prepare("SELECT deleted_datetime IS NOT NULL FROM documents WHERE id = ?");
+    $g->execute([$did2]);
+    check('the document is collected', (bool) $g->fetchColumn(), true);
+
     $conn->rollBack();
 } catch (Throwable $e) {
     if ($conn->inTransaction()) $conn->rollBack();
