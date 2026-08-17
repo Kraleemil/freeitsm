@@ -428,6 +428,96 @@ try {
         } catch (Exception $e) { /* corpus absent or not verified — no content results */ }
     }
 
+    // --- Inside attached documents (discussion #76) ----------------------
+    //
+    // The text INSIDE a file — the PDF that mentions a serial number, the
+    // contract that mentions a clause. Everything above matches a document's
+    // name; this matches what is in it.
+    //
+    // ⚠️ ITS OWN CORPUS QUERY, not folded into the block above, and the reason
+    // is a leak. That block is gated on $can('tickets') because the corpus does
+    // not know about module access — a corpus row is judged on tenancy and an
+    // internal flag alone. Loosening that gate so a contracts-only analyst could
+    // reach document content would have handed them ticket content too. So this
+    // asks a question restricted to source_type='document', which the scope's
+    // document clause then filters to what they may actually see.
+    if (documentAccessibleTypes($allowed)) {
+        try {
+            require_once '../../includes/search/search.php';
+            require_once '../../includes/search/documents_index.php';
+
+            // A document already listed by NAME above is not a second thing to
+            // offer; the name match is the better row.
+            $already = [];
+            foreach ($results as $r) {
+                if (($r['type'] ?? '') === 'document') $already[(int) $r['id']] = true;
+            }
+
+            $scope = searchScopeForAnalyst($conn, $analystId, [
+                'source_types'   => [SEARCH_SOURCE_DOCUMENT],
+                'require_ticket' => false,
+            ]);
+            $res = searchCorpusQuery($conn, $q, $scope, ['limit' => $perType + count($already)]);
+
+            if (!empty($res['ok']) && !empty($res['results'])) {
+                $docIds = [];
+                foreach ($res['results'] as $g) {
+                    foreach (($g['hits'] ?? []) as $h) {
+                        if (($h['source_type'] ?? '') !== SEARCH_SOURCE_DOCUMENT) continue;
+                        $did = (int) $h['source_id'];
+                        if (!isset($already[$did])) $docIds[$did] = true;
+                    }
+                }
+                $docIds = array_slice(array_keys($docIds), 0, $perType);
+
+                if ($docIds) {
+                    // Display fields from `documents`, not from the corpus — the
+                    // corpus is a search index, not a second documents table.
+                    $in = implode(',', array_fill(0, count($docIds), '?'));
+                    $st = $conn->prepare(
+                        "SELECT id, title, original_name FROM documents
+                          WHERE id IN ($in) AND deleted_datetime IS NULL"
+                    );
+                    $st->execute($docIds);
+                    $meta = [];
+                    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $meta[(int) $r['id']] = $r;
+
+                    $linkStmt = $conn->prepare(
+                        "SELECT parent_type, parent_id FROM document_links WHERE document_id = ?"
+                    );
+                    foreach ($docIds as $did) {          // keep the corpus's relevance order
+                        if (!isset($meta[$did])) continue;
+
+                        // Name one place it lives, and only one this caller can see.
+                        $subtitle = '';
+                        $linkStmt->execute([$did]);
+                        foreach ($linkStmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                            if (!documentCanViewParent($conn, $analystId, $allowed, (string) $l['parent_type'], (int) $l['parent_id'])) continue;
+                            $def = documentEntityDef((string) $l['parent_type']);
+                            $subtitle = $def['label'];
+                            try {
+                                $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
+                                $ns->execute([(int) $l['parent_id']]);
+                                $nm = $ns->fetchColumn();
+                                if ($nm) $subtitle .= ': ' . $nm;
+                            } catch (Exception $e) { /* the label alone will do */ }
+                            break;
+                        }
+
+                        $results[] = [
+                            'type'     => 'document_content',
+                            'module'   => 'system',
+                            'id'       => $did,
+                            'title'    => $meta[$did]['title'],
+                            'subtitle' => $subtitle,
+                            'url'      => 'api/documents/download.php?id=' . $did,
+                        ];
+                    }
+                }
+            }
+        } catch (Exception $e) { /* corpus absent — no document content results */ }
+    }
+
     echo json_encode(['success' => true, 'results' => $results]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

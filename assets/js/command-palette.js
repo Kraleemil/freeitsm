@@ -44,10 +44,11 @@
     // An attached document is a file, whatever it hangs off — same glyph as the
     // documents panel uses, so the two read as the same thing.
     ICONS.document = ICONS.contract;
+    ICONS.document_content = ICONS.contract;
     var TYPE_LABEL = {
         ticket: 'Ticket', change: 'Change', problem: 'Problem',
         knowledge: 'Article', contract: 'Contract', ci: 'Config item', asset: 'Asset',
-        ticket_content: 'Ticket', article_content: 'Article', document: 'Document'
+        ticket_content: 'Ticket', article_content: 'Article', document: 'Document', document_content: 'Document'
     };
 
     // Static quick actions. Each has a matcher label and a run().
@@ -196,7 +197,7 @@
             // be returning results perfectly and the palette will show nothing,
             // with no error anywhere — which is exactly what happened when
             // documents were added server-side (#76).
-            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci', 'document', 'ticket_content', 'article_content'].forEach(function (type) {
+            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci', 'document', 'ticket_content', 'article_content', 'document_content'].forEach(function (type) {
                 var group = serverResults.filter(function (r) { return r.type === type; });
                 if (!group.length) return;
                 html += '<div class="cmdp-group-label">' + esc(pluralType(type)) + '</div>';
@@ -262,7 +263,8 @@
             // their name, and the label is the only thing that explains why a
             // ticket whose subject looks unrelated is in the list.
             ticket_content: 'Found inside tickets',
-            article_content: 'Found inside articles'
+            article_content: 'Found inside articles',
+            document_content: 'Found inside documents'
         }[type] || type;
     }
 
