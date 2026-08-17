@@ -3333,11 +3333,39 @@ const PM = (() => {
     // =========================================================
     document.addEventListener('DOMContentLoaded', init);
 
+    /**
+     * Documents attached to the PROCESS (discussion #76).
+     *
+     * ⚠️ Not the step detail panel. That one belongs to whatever step is
+     * selected, and a process's own documents — the signed-off procedure, the
+     * policy it implements — belong to the process whether a step is selected or
+     * not. So this is its own slide-in, opened from the toolbar.
+     */
+    function toggleProcessDocs() {
+        const panel = document.getElementById('processDocsPanel');
+        if (!panel) return;
+        if (panel.classList.contains('open')) { panel.classList.remove('open'); return; }
+        if (!currentProcessId) return;              // nothing open to attach to
+        panel.classList.add('open');
+        if (window.FreeITSMDocuments) {
+            FreeITSMDocuments.mount(document.getElementById('processDocuments'), {
+                parentType: 'process',
+                parentId:   currentProcessId,
+                apiBase:    '../api/documents/'
+            });
+        }
+    }
+    function closeProcessDocs() {
+        const panel = document.getElementById('processDocsPanel');
+        if (panel) panel.classList.remove('open');
+    }
+
     // Public API
     return {
         createProcess, deleteProcess, openProcess,
         filterProcesses, save, deleteSelected,
         closeDetail, updateStepFromDetail,
+        toggleProcessDocs, closeProcessDocs,
         updateConnectorLabel, removeConnector,
         toggleAutosave,
         addGroup, updateGroupFromDetail,

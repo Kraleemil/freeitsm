@@ -591,7 +591,20 @@ $translationNamespaces = ['common', 'service-status'];
                     <span>${s.window_days}${escapeHtml(window.t('service-status.board.history_days_ago'))}</span>
                     <span>${escapeHtml(window.t('service-status.board.history_today'))}</span>
                 </div>
-                <table class="svc-history-table"><tbody>${rows}</tbody></table>`;
+                <table class="svc-history-table"><tbody>${rows}</tbody></table>
+                <div id="svcDocuments${serviceId}" style="margin-top:18px;"></div>`;
+
+            // Attached documents (discussion #76) — the runbook, the recovery
+            // procedure, the supplier's SLA. Inside the expanded card, because
+            // that is where a service already tells its longer story.
+            if (window.FreeITSMDocuments) {
+                FreeITSMDocuments.mount(document.getElementById('svcDocuments' + serviceId), {
+                    parentType: 'status_service',
+                    parentId:   serviceId,
+                    apiBase:    '../api/documents/',
+                    showHeading: true
+                });
+            }
         }
 
         function renderIncidents(incidents) {

@@ -234,9 +234,22 @@ function render() {
             '<div class="o2-sec">' + blastHtml() + '</div>' +
             '<div class="o2-sec">' + connectionsHtml() + '</div>' +
             '<div class="o2-sec">' + propsHtml() + '</div>' +
+            // Attached documents (discussion #76) — the diagram, the licence, the
+            // rack photo. Before activity and danger, which both read as endings.
+            '<div class="o2-sec"><div id="cmdbDocuments"></div></div>' +
             '<div class="o2-sec">' + activityHtml() + '</div>' +
             '<div class="o2-sec">' + dangerHtml() + '</div>' +
         '</div>';
+
+    // Mounted, not re-pointed: render() rebuilds this wrapper every time.
+    if (window.FreeITSMDocuments && obj && obj.id) {
+        FreeITSMDocuments.mount(document.getElementById('cmdbDocuments'), {
+            parentType: 'cmdb_object',
+            parentId:   obj.id,
+            apiBase:    '../api/documents/',
+            showHeading: true      // every other section here carries its own title
+        });
+    }
 
     if (signal) wrap.style.setProperty('--o2-signal', signal.colour);
     else wrap.style.removeProperty('--o2-signal');

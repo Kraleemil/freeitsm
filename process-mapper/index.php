@@ -112,6 +112,13 @@ try {
                     <button class="pm-tool-btn" onclick="PM.deleteSelected()" title="<?php echo htmlspecialchars(t('common.delete')); ?> (Del)">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
+                    <?php /* Documents attached to the PROCESS itself — not to a
+                             step. Its own slide-in, because the step detail panel
+                             belongs to whatever is selected and these belong to
+                             the process either way. */ ?>
+                    <button class="pm-tool-btn" onclick="PM.toggleProcessDocs()" title="<?php echo htmlspecialchars(t('common.documents.heading')); ?>">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    </button>
                     <div class="pm-tool-sep"></div>
                     <span class="pm-status" id="pmStatus" aria-live="polite"></span>
                     <label class="pm-autosave-toggle" title="<?php echo htmlspecialchars(t('process-mapper.autosave.tooltip')); ?>">
@@ -133,6 +140,18 @@ try {
                 <div class="pm-canvas-empty" id="canvasEmpty">
                     <p>Select a process from the sidebar or create a new one</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Documents attached to the process (discussion #76). Reuses the detail
+             panel's slide-in styling so it behaves like the rest of the module. -->
+        <div class="pm-detail-panel" id="processDocsPanel">
+            <div class="pm-detail-header">
+                <h3><?php echo htmlspecialchars(t('common.documents.heading')); ?></h3>
+                <button class="pm-detail-close" onclick="PM.closeProcessDocs()">&times;</button>
+            </div>
+            <div class="pm-detail-body">
+                <div id="processDocuments"></div>
             </div>
         </div>
 
@@ -458,6 +477,6 @@ try {
          CDN at print time. Same versions used by Network Mapper (#257). -->
     <script src="../assets/js/vendor/html2canvas.min.js"></script>
     <script src="../assets/js/vendor/jspdf.umd.min.js"></script>
-    <script src="../assets/js/process-mapper.js?v=11"></script>
+    <script src="../assets/js/process-mapper.js?v=12"></script>
 </body>
 </html>
