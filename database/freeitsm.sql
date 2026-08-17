@@ -1578,6 +1578,55 @@ CREATE TABLE IF NOT EXISTS `directory_sync_entries` (
     CONSTRAINT `fk_dse_run` FOREIGN KEY (`run_id`) REFERENCES `directory_sync_runs` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Documents that can be attached to anything (GH discussion #76).
+--
+-- A document is EITHER a file FreeITSM holds OR a link to an external DMS, so the
+-- two live in one table with a `kind` — a user sees one list either way, and
+-- splitting a table later is mechanical where merging two is not.
+--
+-- ⚠️ There are deliberately NO permission columns. A document is visible if you
+-- can see at least one thing it is attached to, resolved at query time from the
+-- parent. Storing visibility here would go stale the moment a permission changed.
+-- See includes/documents.php.
+CREATE TABLE IF NOT EXISTS `documents` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `kind`              VARCHAR(8) NOT NULL DEFAULT 'file',
+    `title`             VARCHAR(255) NOT NULL,
+    `description`       TEXT NULL,
+    `storage_key`       VARCHAR(255) NULL,
+    `original_name`     VARCHAR(255) NULL,
+    `mime_type`         VARCHAR(100) NULL,
+    `size_bytes`        BIGINT NULL,
+    `content_hash`      CHAR(64) NULL,
+    `external_url`      VARCHAR(2048) NULL,
+    `tenant_id`         INT NULL,
+    `uploaded_by_id`    INT NULL,
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`  DATETIME NULL,
+    `deleted_datetime`  DATETIME NULL,
+    PRIMARY KEY (`id`),
+    KEY `idx_documents_hash` (`content_hash`),
+    KEY `idx_documents_tenant` (`tenant_id`),
+    FULLTEXT KEY `ft_documents` (`title`,`description`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What each document is attached to. A ROW rather than a column on `documents`,
+-- so one document can belong to several things without a migration — and so that
+-- deleting a parent removes the LINK, never the file somebody else is still using.
+CREATE TABLE IF NOT EXISTS `document_links` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `document_id`       INT NOT NULL,
+    `parent_type`       VARCHAR(32) NOT NULL,
+    `parent_id`         INT NOT NULL,
+    `linked_by_id`      INT NULL,
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_document_links` (`document_id`,`parent_type`,`parent_id`),
+    KEY `idx_document_links_parent` (`parent_type`,`parent_id`),
+    KEY `idx_document_links_doc` (`document_id`),
+    CONSTRAINT `fk_document_links_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Outbound counterpart to mailbox_activity_log: one row per send ATTEMPT, so a
 -- failure is visible in the UI instead of only in the PHP error log. `route` says
 -- which part of FreeITSM asked for the send; provider/auth_mode are recorded on the

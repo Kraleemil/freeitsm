@@ -984,6 +984,43 @@ return [
         'created_datetime'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // A document is either a file we hold or a link to somewhere else (an external
+    // DMS). It carries NO permissions of its own — see includes/documents.php:
+    // visibility is inherited from whatever it is attached to.
+    'documents' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'kind'              => "VARCHAR(8) NOT NULL DEFAULT 'file'",   // file | link
+        'title'             => 'VARCHAR(255) NOT NULL',
+        // For a LINK this is all search will ever have to go on — there is no
+        // document to extract text from, only a URL. Hence not "optional".
+        'description'       => 'TEXT NULL',
+        // Opaque key, never a path: the files can move without a data migration.
+        'storage_key'       => 'VARCHAR(255) NULL',
+        'original_name'     => 'VARCHAR(255) NULL',
+        'mime_type'         => 'VARCHAR(100) NULL',
+        'size_bytes'        => 'BIGINT NULL',
+        // Lets the same warranty PDF attached to eleven laptops be stored once.
+        'content_hash'      => 'CHAR(64) NULL',
+        'external_url'      => 'VARCHAR(2048) NULL',
+        'tenant_id'         => 'INT NULL',
+        'uploaded_by_id'    => 'INT NULL',
+        'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'  => 'DATETIME NULL',
+        'deleted_datetime'  => 'DATETIME NULL',
+    ],
+
+    // What each document is attached to. A ROW, deliberately, not a column on
+    // `documents` — that is what lets one document belong to several things
+    // later without a migration or a rewrite of every query that touches it.
+    'document_links' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'document_id'       => 'INT NOT NULL',
+        'parent_type'       => 'VARCHAR(32) NOT NULL',   // documentEntityTypes()
+        'parent_id'         => 'INT NOT NULL',
+        'linked_by_id'      => 'INT NULL',
+        'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'email_send_log' => [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'mailbox_id'        => 'INT NULL',

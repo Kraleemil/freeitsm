@@ -655,6 +655,15 @@ try {
         }
     }
 
+    // Documents. Deleting the document takes its links with it. Note the cascade
+    // runs ONE way only, deliberately: removing a link must never remove the
+    // document, because something else may still be using the same file.
+    if ($tableExists('document_links') && $tableExists('documents')) {
+        if (!$fkExists('document_links', 'fk_document_links_document')) {
+            try { $conn->exec("ALTER TABLE document_links ADD CONSTRAINT fk_document_links_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+    }
+
     // RBAC Layer 2. Cascades keep the join tables clean: deleting a role, an
     // analyst or a team removes the assignments that pointed at it.
     if ($tableExists('rbac_role_capabilities') && $tableExists('rbac_roles')) {

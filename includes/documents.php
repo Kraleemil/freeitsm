@@ -1,0 +1,319 @@
+<?php
+/**
+ * Documents — attach files (or links to an external DMS) to anything.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THE ONE RULE THIS FILE EXISTS TO ENFORCE
+ *
+ *  A document has NO permissions of its own. It is visible if — and only if —
+ *  you can see at least one of the things it is attached to.
+ *
+ *  Ed's decision, in his words: "if you can see the thing and the thing has
+ *  document(s) attached then you should see those attachments." Which means
+ *  attaching a document somewhere widely visible WIDENS who can read it. That is
+ *  intended, and it is why the attach UI must show what else a document is on.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * 🔑 WHY THERE IS NO PERMISSIONS TABLE HERE. The obvious design — a generic
+ * per-object ACL table, with principals and groups — would mean building a
+ * permission subsystem FreeITSM does not have, across every module, before the
+ * feature could ship. FreeITSM already answers "can this analyst see X": module
+ * membership (reads are not capability-gated — see api/system/global_search.php)
+ * plus the module's own tenancy filter, plus a handful of per-record rules that
+ * already live in includes/tenancy.php. This file borrows those rather than
+ * inventing a rival to them. Storing visibility on the document would also be a
+ * bug, not just duplication: permissions change after the row is written.
+ *
+ * 🔑 TWO SHAPES OF THE SAME QUESTION. Downloading asks about ONE document, so it
+ * can afford an exact check. Searching asks about a SET, and checking N documents
+ * one at a time is a loop that gets slower as the product succeeds. So:
+ *
+ *     documentCanView()          — one document. The download/preview boundary.
+ *     documentVisibilityClause() — SQL. Constrains a search to what you may see.
+ *
+ * Both read the SAME registry below, so they cannot drift apart.
+ *
+ * ⚠️ FAIL CLOSED. An analyst with no accessible entity types gets `0=1`, not an
+ * empty filter. An empty filter would return everything.
+ */
+
+require_once __DIR__ . '/tenancy.php';
+
+/** Where uploaded documents live, relative to the uploads root. */
+const DOCUMENT_STORAGE_DIR = 'documents';
+
+/** A document is either a file we hold, or a link to somewhere else. */
+const DOCUMENT_KIND_FILE = 'file';
+const DOCUMENT_KIND_LINK = 'link';
+
+/**
+ * Every kind of thing a document can be attached to.
+ *
+ * ⚠️ ADDING A MODULE IS ADDING AN ENTRY HERE, AND NOTHING ELSE. That is the
+ * whole point — the document system never learns any module's rules.
+ *
+ * Each entry:
+ *   module  — the key in the analyst's allowed_modules (the read gate)
+ *   table   — where the parent lives
+ *   label   — what to call it in the UI
+ *   title   — column to show as the parent's name
+ *   can     — fn(PDO,int $analystId,int $id): bool   exact check, or null for
+ *             "module + filter is the whole rule"
+ *   filter  — fn(PDO,int $analystId,string $alias): [sql,params]  the SET form,
+ *             or null when the entity has no per-row scoping at all
+ *   alive   — extra SQL keeping deleted parents out (a deleted parent must not
+ *             keep a document visible)
+ */
+function documentEntityRegistry(): array {
+    static $reg = null;
+    if ($reg !== null) return $reg;
+
+    $reg = [
+        'ticket' => [
+            'module' => 'tickets',
+            'table'  => 'tickets',
+            'label'  => 'Ticket',
+            'title'  => 'subject',
+            'alive'  => 'deleted_datetime IS NULL',
+            'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessTicket($c, $a, $id); },
+            'filter' => function (PDO $c, int $a, string $alias) { return ticketTenantFilter($c, $a, $alias); },
+        ],
+        'asset' => [
+            'module' => 'assets',
+            'table'  => 'assets',
+            'label'  => 'Asset',
+            'title'  => 'hostname',
+            'alive'  => null,
+            'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessAsset($c, $a, $id); },
+            'filter' => function (PDO $c, int $a, string $alias) { return activeTenantFilter($c, $a, $alias); },
+        ],
+        'contract' => [
+            // No tenant_id column at all — module membership IS the whole rule
+            // here, and pretending otherwise would invent a filter on a column
+            // that does not exist.
+            'module' => 'contracts',
+            'table'  => 'contracts',
+            'label'  => 'Contract',
+            'title'  => 'title',
+            'alive'  => null,
+            'can'    => null,
+            'filter' => null,
+        ],
+        'knowledge_article' => [
+            // ⚠️ Knowledge is the module that does NOT follow the others:
+            // NULL means SHARED here, the opposite of tickets and assets. Its own
+            // helpers know that; this file must not second-guess them.
+            'module' => 'knowledge',
+            'table'  => 'knowledge_articles',
+            'label'  => 'Knowledge article',
+            'title'  => 'title',
+            'alive'  => null,
+            'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessArticle($c, $a, $id); },
+            'filter' => function (PDO $c, int $a, string $alias) { return knowledgeTenantFilter($c, $a, $alias); },
+        ],
+        'change' => [
+            'module' => 'changes',
+            'table'  => 'changes',
+            'label'  => 'Change',
+            'title'  => 'title',
+            'alive'  => null,
+            'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessChange($c, $a, $id); },
+            'filter' => function (PDO $c, int $a, string $alias) { return activeTenantFilter($c, $a, $alias); },
+        ],
+        'problem' => [
+            'module' => 'problems',
+            'table'  => 'problems',
+            'label'  => 'Problem',
+            'title'  => 'title',
+            'alive'  => null,
+            'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessProblem($c, $a, $id); },
+            'filter' => function (PDO $c, int $a, string $alias) { return activeTenantFilter($c, $a, $alias); },
+        ],
+        'cmdb_object' => [
+            'module' => 'cmdb',
+            'table'  => 'cmdb_objects',
+            'label'  => 'CMDB object',
+            'title'  => 'name',
+            'alive'  => null,
+            'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessCmdbObject($c, $a, $id); },
+            'filter' => function (PDO $c, int $a, string $alias) { return activeTenantFilter($c, $a, $alias); },
+        ],
+    ];
+    return $reg;
+}
+
+/** @return string[] Entity types this build knows about. */
+function documentEntityTypes(): array {
+    return array_keys(documentEntityRegistry());
+}
+
+function documentEntityDef(string $type): ?array {
+    $reg = documentEntityRegistry();
+    return $reg[$type] ?? null;
+}
+
+/**
+ * Which entity types this analyst may read at all.
+ *
+ * Module membership is the read gate, exactly as the command palette has it:
+ * "Reads aren't capability-gated in FreeITSM, so module membership is the right
+ * gate here." A NULL allowed_modules means unrestricted.
+ */
+function documentAccessibleTypes(?array $allowedModules): array {
+    $out = [];
+    foreach (documentEntityRegistry() as $type => $def) {
+        if ($allowedModules === null || in_array($def['module'], $allowedModules, true)) {
+            $out[] = $type;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Can this analyst see one specific parent record?
+ *
+ * Used for the exact, one-row question: may this document be downloaded, may it
+ * be attached here. Checks the module gate first (cheap, and the coarse rule),
+ * then the module's own record-level check where it has one.
+ */
+function documentCanViewParent(PDO $conn, int $analystId, ?array $allowedModules, string $type, int $parentId): bool {
+    $def = documentEntityDef($type);
+    if (!$def || $parentId <= 0) return false;
+    if ($allowedModules !== null && !in_array($def['module'], $allowedModules, true)) return false;
+
+    if (is_callable($def['can'])) {
+        try {
+            if (!$def['can']($conn, $analystId, $parentId)) return false;
+        } catch (Throwable $e) {
+            return false;   // an access check that errors is a NO, never a yes
+        }
+    }
+
+    // The parent must still exist. A deleted contract cannot keep its documents
+    // readable through a link nobody cleaned up.
+    $sql = "SELECT 1 FROM `" . $def['table'] . "` WHERE id = ?";
+    if (!empty($def['alive'])) $sql .= " AND " . $def['alive'];
+    try {
+        $st = $conn->prepare($sql . " LIMIT 1");
+        $st->execute([$parentId]);
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * SQL constraining a document query to what this analyst may see.
+ *
+ * Builds one EXISTS per accessible entity type, OR'd together — which is
+ * literally the agreed rule: visible if you can see AT LEAST ONE parent. The
+ * database evaluates it as a join and stops at the first match; nothing is
+ * fetched and then discarded in PHP.
+ *
+ * ⚠️ Returns ' AND 0=1' when the analyst can reach no entity type at all. An
+ * empty string would mean "no constraint", i.e. every document in the system.
+ *
+ * @return array [sqlFragment, params] — the [sql, params] shape every other
+ *               filter in includes/tenancy.php uses.
+ */
+function documentVisibilityClause(PDO $conn, int $analystId, ?array $allowedModules, string $docAlias = 'd'): array {
+    $types = documentAccessibleTypes($allowedModules);
+    if (!$types) return [' AND 0=1', []];
+
+    $doc    = $docAlias === '' ? 'id' : "$docAlias.id";
+    $parts  = [];
+    $params = [];
+    $n      = 0;
+
+    foreach ($types as $type) {
+        $def = documentEntityDef($type);
+        $dl  = 'dl' . $n;
+        $pa  = 'pa' . $n;
+        $n++;
+
+        $sql = "EXISTS (SELECT 1 FROM document_links $dl"
+             . " JOIN `" . $def['table'] . "` $pa ON $pa.id = $dl.parent_id"
+             . " WHERE $dl.document_id = $doc AND $dl.parent_type = ?";
+        $params[] = $type;
+
+        if (!empty($def['alive'])) $sql .= " AND $pa." . $def['alive'];
+
+        if (is_callable($def['filter'])) {
+            try {
+                list($fSql, $fParams) = $def['filter']($conn, $analystId, $pa);
+                if ($fSql !== '') {
+                    $sql   .= ' ' . $fSql;               // already begins " AND "
+                    $params = array_merge($params, $fParams);
+                }
+            } catch (Throwable $e) {
+                // A filter that cannot be built must not silently widen the
+                // query. Drop this type instead.
+                array_pop($params);
+                continue;
+            }
+        }
+
+        $parts[] = $sql . ')';
+    }
+
+    if (!$parts) return [' AND 0=1', []];
+    return [' AND (' . implode(' OR ', $parts) . ')', $params];
+}
+
+/**
+ * May this analyst see this document? The download/preview boundary.
+ *
+ * ⚠️ THIS IS THE CHECK THAT MATTERS. Search deciding what to LIST is a
+ * convenience; this decides what somebody may HAVE. It must be called on every
+ * download, preview and metadata read, and must never trust that the caller
+ * found the id through a filtered list — /download.php?id=12345 is the attack,
+ * and guessing an integer is not hard.
+ */
+function documentCanView(PDO $conn, int $analystId, ?array $allowedModules, int $documentId): bool {
+    if ($documentId <= 0) return false;
+
+    try {
+        $st = $conn->prepare(
+            "SELECT parent_type, parent_id FROM document_links WHERE document_id = ?"
+        );
+        $st->execute([$documentId]);
+        $links = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return false;
+    }
+
+    // An orphan — every parent gone, or never attached — is visible to nobody.
+    // It is not "unrestricted"; it is waiting to be collected.
+    foreach ($links as $l) {
+        if (documentCanViewParent($conn, $analystId, $allowedModules, (string)$l['parent_type'], (int)$l['parent_id'])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Absolute path for a stored document.
+ *
+ * 🔑 The database stores an opaque KEY, never a path. A path baked into a row is
+ * a data migration the day the files move to another disk, a NAS or object
+ * storage; a key is a change to this one function.
+ */
+function documentStoragePath(string $storageKey): string {
+    $key = str_replace('\\', '/', $storageKey);
+    // Defensive: a key is ours, but never let one climb out of the directory.
+    $key = preg_replace('#\.\.+/#', '', $key);
+    $key = ltrim($key, '/');
+    return dirname(__DIR__) . '/uploads/' . DOCUMENT_STORAGE_DIR . '/' . $key;
+}
+
+/**
+ * The key for a newly stored file: sharded by the first four hex characters so
+ * one directory never holds tens of thousands of entries.
+ */
+function documentStorageKey(string $storedName): string {
+    $safe = basename(str_replace('\\', '/', $storedName));
+    $a = substr($safe, 0, 2) ?: 'x0';
+    $b = substr($safe, 2, 2) ?: 'x1';
+    return $a . '/' . $b . '/' . $safe;
+}

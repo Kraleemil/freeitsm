@@ -26,6 +26,11 @@ $DB_VERIFY_TABLE_OVERRIDES = [
     'contacts'       => 'tickets',
     'freemail_domains' => 'tickets',
     'servers'        => 'assets',
+    // Documents attach to everything, so they belong to no one module. System is
+    // where they are administered. NOT prefixed, because "document_*" would also
+    // swallow directory_sync's tables if that prefix rule ever loosened.
+    'documents'      => 'system',
+    'document_links' => 'system',
 ];
 
 /**

@@ -268,6 +268,16 @@ return [
     ['network_diagram_connectors', 'ix_net_conn_diag', 'key', '(`diagram_id`)'],
     ['network_diagram_connectors', 'ix_net_conn_from', 'key', '(`from_node_id`)'],
     ['network_diagram_connectors', 'ix_net_conn_to', 'key', '(`to_node_id`)'],
+    // Documents (GH discussion #76). The link index leads on (parent_type,
+    // parent_id) because "what is attached to this contract" is the common read;
+    // the reverse index serves "what is this document attached to", which every
+    // permission check walks.
+    ['document_links', 'uq_document_links', 'unique', '(`document_id`,`parent_type`,`parent_id`)'],
+    ['document_links', 'idx_document_links_parent', 'key', '(`parent_type`,`parent_id`)'],
+    ['document_links', 'idx_document_links_doc', 'key', '(`document_id`)'],
+    ['documents', 'idx_documents_hash', 'key', '(`content_hash`)'],
+    ['documents', 'idx_documents_tenant', 'key', '(`tenant_id`)'],
+    ['documents', 'ft_documents', 'fulltext', '(`title`,`description`)'],
     ['search_documents', 'uq_search_docs_source', 'unique', '(`source_type`,`source_id`)'],
     ['search_documents', 'idx_search_docs_ticket', 'key', '(`ticket_id`)'],
     ['search_documents', 'idx_search_docs_tenant', 'key', '(`tenant_id`)'],
