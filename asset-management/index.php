@@ -30,6 +30,13 @@ $translationNamespaces = ['common', 'asset-management'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <?php
+    // This page renders its detail pane in JavaScript, so it takes the panel's
+    // assets here and mounts the component itself — renderDocumentsPanel() is for
+    // server-rendered records like contracts/edit.php.
+    require_once __DIR__ . '/../includes/documents_panel.php';
+    documentsPanelAssets('../');
+    ?>
     <style>
         .assets-container {
             display: flex;
@@ -1504,6 +1511,7 @@ $translationNamespaces = ['common', 'asset-management'];
                         <button class="detail-tab" onclick="switchDetailTab('devices')" data-dtab="devices">${window.t('asset-management.detail.tab_devices')} <span class="tab-count" id="devicesCountBadge">...</span></button>
                         <button class="detail-tab" onclick="switchDetailTab('software')" data-dtab="software">${window.t('asset-management.detail.tab_software')} <span class="tab-count" id="softwareCountBadge">...</span></button>
                         <button class="detail-tab" onclick="switchDetailTab('tickets')" data-dtab="tickets">${window.t('asset-management.detail.tab_tickets')} <span class="tab-count" id="ticketsCountBadge">...</span></button>
+                        <button class="detail-tab" onclick="switchDetailTab('documents')" data-dtab="documents">${window.t('common.documents.heading')}</button>
                     </div>
                 </div>
                 <div class="asset-detail-body" id="detailBody">
@@ -1631,6 +1639,9 @@ $translationNamespaces = ['common', 'asset-management'];
                             <div class="loading"><div class="spinner"></div></div>
                         </div>
                     </div>
+                    <div class="detail-tab-panel detail-tab-panel--scroll" id="documentsPanel" data-dtab-panel="documents">
+                        <div id="assetDocuments"></div>
+                    </div>
                 </div>
             `;
 
@@ -1641,6 +1652,18 @@ $translationNamespaces = ['common', 'asset-management'];
             loadInstalledSoftware(assetId);
             loadIntuneDevice(assetId);
             loadAssetTickets(assetId);
+
+            // ⚠️ MOUNTED, not re-pointed. This detail pane rebuilds its whole DOM
+            // on every asset you click, so the previous panel's element is already
+            // gone — there is nothing to call setParent() on. A server-rendered
+            // page like contracts/edit.php uses renderDocumentsPanel() instead;
+            // this one loads the assets in the head and calls the JS directly,
+            // which is why documentsPanelAssets() is separate from the renderer.
+            FreeITSMDocuments.mount(document.getElementById('assetDocuments'), {
+                parentType: 'asset',
+                parentId:   assetId,
+                apiBase:    '../api/documents/'
+            });
         }
 
         /**

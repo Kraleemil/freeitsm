@@ -134,6 +134,32 @@ return [
     // resolved when the bell renders, not when the row is written, so a
     // notification reads in the LANGUAGE OF WHOEVER IS READING IT rather than
     // whoever happened to trigger it.
+    // The documents panel, shared by every module that attaches files or links
+    // to a record. Lives in `common` because it belongs to no single module.
+    'documents' => [
+        'heading'        => 'Documents',
+        'count_one'      => '1 document',
+        'count_many'     => '{n} documents',
+        'none'           => 'No documents attached yet.',
+        'drop'           => 'Drop a file here, or click to choose one',
+        'drop_or'        => 'or paste a link to it in your document system below',
+        'link_url'       => 'https://link-to-your-document',
+        'link_title'     => 'What is it? (optional)',
+        'add_link'       => 'Add link',
+        'open'           => 'Open',
+        'download'       => 'Download',
+        'remove'         => 'Remove',
+        'remove_confirm' => 'Remove "{name}" from this record?',
+        // Said only when that was the LAST place it was attached. Everywhere else
+        // "Remove" means detach, and the file stays where others can still see it.
+        'removed_last'   => 'That was the last place it was attached, so the document has been deleted.',
+        'also_on'        => 'Also on {label}',
+        'uploading'      => 'Uploading…',
+        'show_more'      => 'Show more',
+        'failed'         => 'Something went wrong.',
+        'by'             => 'by {name}',
+    ],
+
     'notifications' => [
         'title'       => 'Notifications',
         'aria'        => 'Notifications',

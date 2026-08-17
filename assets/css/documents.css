@@ -1,0 +1,130 @@
+/*
+ * Documents panel — attach files or DMS links to any record (discussion #76).
+ *
+ * One stylesheet for every module that mounts the panel. Colours come from the
+ * theme tokens so the panel takes on each module's accent without knowing which
+ * module it is in.
+ *
+ * ⚠️ Only tokens that EXIST in assets/css/theme.css. `--danger` on its own does
+ * not; the trio is --danger-bg / --danger-text / --danger-border.
+ */
+
+.fd-panel { margin-top: 8px; }
+
+.fd-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+}
+.fd-head h4 {
+    margin: 0; font-size: 14px; font-weight: 600;
+    color: var(--text, #333);
+}
+.fd-count {
+    font-size: 12px; color: var(--text-dim, #888);
+}
+.fd-head .fd-spacer { flex: 1; }
+
+/* -- The drop zone ------------------------------------------------------- */
+.fd-drop {
+    border: 1.5px dashed var(--border, #ccc);
+    border-radius: 8px;
+    padding: 18px 16px;
+    text-align: center;
+    color: var(--text-muted, #666);
+    font-size: 13px;
+    background: var(--surface-2, #fafafa);
+    transition: border-color 140ms ease, background 140ms ease;
+    cursor: pointer;
+}
+.fd-drop:hover { border-color: var(--accent, #0078d4); }
+.fd-drop.fd-over {
+    border-color: var(--accent, #0078d4);
+    background: var(--accent-soft, #eef6fd);
+}
+.fd-drop input[type=file] { display: none; }
+.fd-drop-or {
+    display: block; margin-top: 6px;
+    font-size: 12px; color: var(--text-dim, #888);
+}
+
+/* -- Add a link ---------------------------------------------------------- */
+.fd-linkrow { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.fd-linkrow input {
+    flex: 1; min-width: 180px;
+    padding: 8px 11px; font-size: 13px;
+    border: 1px solid var(--border, #ccc); border-radius: 6px;
+    background: var(--surface, #fff); color: var(--text, #333);
+}
+.fd-linkrow input:focus { outline: none; border-color: var(--accent, #0078d4); }
+
+/* -- The list ------------------------------------------------------------ */
+.fd-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+
+.fd-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border, #e0e0e0); border-radius: 7px;
+    background: var(--surface, #fff);
+}
+.fd-icon {
+    flex: 0 0 auto; width: 28px; height: 28px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-2, #f3f4f6); color: var(--text-muted, #666);
+}
+.fd-body { flex: 1; min-width: 0; }
+.fd-title {
+    font-size: 13px; font-weight: 600; color: var(--text, #333);
+    word-break: break-word;
+}
+.fd-title a { color: inherit; text-decoration: none; }
+.fd-title a:hover { text-decoration: underline; }
+.fd-desc {
+    font-size: 12px; color: var(--text-muted, #666);
+    margin-top: 2px; word-break: break-word;
+}
+.fd-meta {
+    font-size: 11px; color: var(--text-dim, #999); margin-top: 4px;
+}
+
+/* Where else this document is attached. Shown because attaching somewhere
+   widely visible widens who can read it — the user should be able to see that. */
+.fd-also {
+    margin-top: 5px; display: flex; flex-wrap: wrap; gap: 5px;
+}
+.fd-also-tag {
+    font-size: 11px; padding: 1px 7px; border-radius: 10px;
+    background: var(--warning-bg, #fef3c7);
+    color: var(--warning-text, #92400e);
+    border: 1px solid var(--warning-border, #f0d9a8);
+}
+
+.fd-actions { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; }
+.fd-btn {
+    padding: 4px 9px; font-size: 12px; border-radius: 5px; cursor: pointer;
+    border: 1px solid var(--border, #ccc);
+    background: var(--surface, #fff); color: var(--text, #333);
+}
+.fd-btn:hover { border-color: var(--accent, #0078d4); }
+.fd-btn.fd-danger { color: var(--danger-text, #991b1b); border-color: var(--danger-border, #f0c2c2); }
+.fd-btn.fd-danger:hover { background: var(--danger-bg, #fee2e2); }
+
+.fd-empty {
+    padding: 14px; text-align: center;
+    font-size: 13px; color: var(--text-dim, #999);
+}
+.fd-error {
+    margin-top: 10px; padding: 9px 12px; border-radius: 6px; font-size: 13px;
+    background: var(--danger-bg, #fee2e2);
+    color: var(--danger-text, #991b1b);
+    border: 1px solid var(--danger-border, #f0c2c2);
+}
+.fd-error[hidden] { display: none; }
+
+/* Paging. Present from the start: "show everything" is fine until somebody
+   attaches three thousand photographs to one asset. */
+.fd-more { margin-top: 10px; text-align: center; }
+
+@media (max-width: 640px) {
+    .fd-item { flex-wrap: wrap; }
+    .fd-actions { width: 100%; justify-content: flex-end; }
+}

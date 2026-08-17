@@ -347,6 +347,17 @@ $contract_id = $_GET['id'] ?? null;
                         <input type="url" id="dmsLink" placeholder="https://...">
                     </div>
 
+                    <?php
+                    // Attach files, or several links, rather than the single DMS
+                    // URL above. That field is left in place for now because
+                    // removing it is a migration decision, not a build one — see
+                    // the note in the commit. The panel appears only once the
+                    // contract exists, since an unsaved record has no id to
+                    // attach to.
+                    require_once __DIR__ . '/../includes/documents_panel.php';
+                    renderDocumentsPanel('contract', (int) $contract_id, '../');
+                    ?>
+
                     <div class="form-section"><?php echo htmlspecialchars(t('contracts.detail.section_terms')); ?></div>
                     <div class="form-row">
                         <div class="form-group">
