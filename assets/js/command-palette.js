@@ -202,9 +202,16 @@
                 html += '<div class="cmdp-group-label">' + esc(pluralType(type)) + '</div>';
                 group.forEach(function (r) {
                     var idx = pending.length;
+                    // A document row carries an ⓘ: the subtitle names ONE place it
+                    // is attached, and a document can be on several. Documents only
+                    // — nothing else here has more than one home.
+                    var extra = (type === 'document')
+                        ? '<button type="button" class="cmdp-info" data-doc="' + (r.id | 0) +
+                          '" title="Document details" aria-label="Document details">i</button>'
+                        : '';
                     html += row(idx,
                         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[type] || '') + '</svg>',
-                        esc(r.title), esc(r.subtitle || ''), TYPE_LABEL[type] || '');
+                        esc(r.title), esc(r.subtitle || ''), TYPE_LABEL[type] || '', extra);
                     pending.push(function () { window.location.href = BASE + r.url; });
                 });
             });
@@ -224,7 +231,21 @@
             var activate = pending[i];
             items.push({ el: el, activate: activate });
             el.addEventListener('mousemove', function () { setActive(i); });
-            el.addEventListener('click', function () { if (activate) activate(); });
+            el.addEventListener('click', function (e) {
+                // ⚠️ The ⓘ must not also open the row. stopPropagation is not
+                // enough on its own — the handler is on the ROW, so the check has
+                // to happen here, before activate() navigates away.
+                var info = e.target.closest ? e.target.closest('[data-doc]') : null;
+                if (info) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (window.FreeITSMDocuments && window.FreeITSMDocuments.info) {
+                        window.FreeITSMDocuments.info(BASE + 'api/documents/', info.getAttribute('data-doc'), BASE);
+                    }
+                    return;
+                }
+                if (activate) activate();
+            });
         });
 
         activeIx = items.length ? 0 : -1;
@@ -245,13 +266,14 @@
         }[type] || type;
     }
 
-    function row(idx, iconSvg, title, sub, tag) {
+    function row(idx, iconSvg, title, sub, tag, extra) {
         return '<div class="cmdp-item" data-ix="' + idx + '">' +
             '<div class="cmdp-item-icon">' + iconSvg + '</div>' +
             '<div class="cmdp-item-body">' +
                 '<div class="cmdp-item-title">' + title + '</div>' +
                 (sub ? '<div class="cmdp-item-sub">' + sub + '</div>' : '') +
             '</div>' +
+            (extra || '') +
             (tag ? '<span class="cmdp-item-tag">' + tag + '</span>' : '') +
         '</div>';
     }

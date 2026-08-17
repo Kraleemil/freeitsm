@@ -540,6 +540,15 @@ function renderWaffleMenuJS() {
         window.CP_MODULES = <?php echo json_encode($cpModules, JSON_UNESCAPED_SLASHES); ?>;
     </script>
     <script src="<?php echo BASE_URL; ?>assets/js/command-palette.js?v=5"></script>
+    <?php
+    // The palette can return documents, and a document row offers an ⓘ that opens
+    // the "attached to" dialogue — which lives in the documents component. The
+    // palette is on every page, so the component has to be too. Emitted with
+    // BASE_URL (absolute), and documentsPanelAssets() is guarded per request, so
+    // a module page that also renders a panel does not load it twice.
+    require_once __DIR__ . '/documents_panel.php';
+    documentsPanelAssets(BASE_URL);
+    ?>
     <script>
     // Per-analyst toast preferences pushed from PHP — toast.js reads
     // these before falling back to localStorage / default.

@@ -32,8 +32,8 @@ function documentsPanelAssets(string $pathPrefix = '../'): void
     static $emitted = false;
     if ($emitted) return;
     $emitted = true;
-    echo '<link rel="stylesheet" href="' . htmlspecialchars($pathPrefix) . 'assets/css/documents.css?v=2">' . "\n";
-    echo '<script src="' . htmlspecialchars($pathPrefix) . 'assets/js/documents.js?v=2"></script>' . "\n";
+    echo '<link rel="stylesheet" href="' . htmlspecialchars($pathPrefix) . 'assets/css/documents.css?v=3">' . "\n";
+    echo '<script src="' . htmlspecialchars($pathPrefix) . 'assets/js/documents.js?v=3"></script>' . "\n";
 }
 
 /**

@@ -57,6 +57,8 @@ const DOCUMENT_KIND_LINK = 'link';
  *   table   — where the parent lives
  *   label   — what to call it in the UI
  *   title   — column to show as the parent's name
+ *   url     — sprintf pattern taking the parent id, for linking back to the
+ *             record. Relative to the install root, as the palette's urls are.
  *   can     — fn(PDO,int $analystId,int $id): bool   exact check, or null for
  *             "module + filter is the whole rule"
  *   filter  — fn(PDO,int $analystId,string $alias): [sql,params]  the SET form,
@@ -73,6 +75,7 @@ function documentEntityRegistry(): array {
             'module' => 'tickets',
             'table'  => 'tickets',
             'label'  => 'Ticket',
+            'url'    => 'tickets/?ticket_id=%d',
             'title'  => 'subject',
             'alive'  => 'deleted_datetime IS NULL',
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessTicket($c, $a, $id); },
@@ -82,6 +85,7 @@ function documentEntityRegistry(): array {
             'module' => 'assets',
             'table'  => 'assets',
             'label'  => 'Asset',
+            'url'    => 'asset-management/?asset_id=%d',
             'title'  => 'hostname',
             'alive'  => null,
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessAsset($c, $a, $id); },
@@ -94,6 +98,7 @@ function documentEntityRegistry(): array {
             'module' => 'contracts',
             'table'  => 'contracts',
             'label'  => 'Contract',
+            'url'    => 'contracts/view.php?id=%d',
             'title'  => 'title',
             'alive'  => null,
             'can'    => null,
@@ -106,6 +111,7 @@ function documentEntityRegistry(): array {
             'module' => 'knowledge',
             'table'  => 'knowledge_articles',
             'label'  => 'Knowledge article',
+            'url'    => 'knowledge/?article=%d',
             'title'  => 'title',
             'alive'  => null,
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessArticle($c, $a, $id); },
@@ -115,6 +121,7 @@ function documentEntityRegistry(): array {
             'module' => 'changes',
             'table'  => 'changes',
             'label'  => 'Change',
+            'url'    => 'change-management/?change_id=%d',
             'title'  => 'title',
             'alive'  => null,
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessChange($c, $a, $id); },
@@ -124,6 +131,7 @@ function documentEntityRegistry(): array {
             'module' => 'problems',
             'table'  => 'problems',
             'label'  => 'Problem',
+            'url'    => 'problem-management/?problem_id=%d',
             'title'  => 'title',
             'alive'  => null,
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessProblem($c, $a, $id); },
@@ -133,6 +141,7 @@ function documentEntityRegistry(): array {
             'module' => 'cmdb',
             'table'  => 'cmdb_objects',
             'label'  => 'CMDB object',
+            'url'    => 'cmdb/object.php?id=%d',
             'title'  => 'name',
             'alive'  => null,
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessCmdbObject($c, $a, $id); },
@@ -290,6 +299,55 @@ function documentCanView(PDO $conn, int $analystId, ?array $allowedModules, int 
         }
     }
     return false;
+}
+
+/**
+ * Everywhere a document is attached — that this caller may see.
+ *
+ * ⚠️ THE FILTER IS THE POINT, not a nicety. Listing a parent the caller cannot
+ * see would disclose that a contract exists, and its title, to somebody with no
+ * access to Contracts at all. So a hidden parent is omitted silently rather than
+ * shown as "1 other record", which would leak the same fact more quietly.
+ *
+ * @return array<int,array{parent_type:string,parent_id:int,label:string,name:?string,url:?string}>
+ */
+function documentVisibleParents(PDO $conn, int $analystId, ?array $allowedModules, int $documentId): array
+{
+    $out = [];
+    try {
+        $st = $conn->prepare(
+            "SELECT parent_type, parent_id, created_datetime
+               FROM document_links WHERE document_id = ? ORDER BY created_datetime, id"
+        );
+        $st->execute([$documentId]);
+        $links = $st->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return $out;
+    }
+
+    foreach ($links as $l) {
+        $type = (string) $l['parent_type'];
+        $pid  = (int) $l['parent_id'];
+        if (!documentCanViewParent($conn, $analystId, $allowedModules, $type, $pid)) continue;
+
+        $def  = documentEntityDef($type);
+        $name = null;
+        try {
+            $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
+            $ns->execute([$pid]);
+            $name = $ns->fetchColumn() ?: null;
+        } catch (Throwable $e) { /* the label alone will do */ }
+
+        $out[] = [
+            'parent_type' => $type,
+            'parent_id'   => $pid,
+            'label'       => $def['label'],
+            'name'        => $name,
+            'url'         => !empty($def['url']) ? sprintf($def['url'], $pid) : null,
+            'linked_at'   => $l['created_datetime'] ?? null,
+        ];
+    }
+    return $out;
 }
 
 /**

@@ -158,6 +158,22 @@ return [
         'show_more'      => 'Show more',
         'failed'         => 'Something went wrong.',
         'by'             => 'by {name}',
+        'loading'        => 'Loading…',
+        'close'          => 'Close',
+        // The ⓘ dialogue: where a document is attached, and whether it is searchable.
+        'info_title'     => 'Document details',
+        'attached_to'    => 'Attached to',
+        'attached_none'  => 'Not attached to anything you can see.',
+        // A COUNT, never a name — it says the document is more widely attached
+        // than you can see, which matters before you attach it somewhere new,
+        // and identifies nothing.
+        'attached_hidden' => 'And {n} other record(s) you do not have access to.',
+        'kind_link'      => 'A link to an external document',
+        // "Not indexed yet" and "nothing readable in it" look identical without this.
+        'idx_ok'          => 'Searchable — {n} characters of text indexed.',
+        'idx_pending'     => 'Not searchable yet — the text is still being read.',
+        'idx_unsupported' => 'Its contents cannot be read, so only its name and description are searchable.',
+        'idx_failed'      => 'Its contents could not be read.',
     ],
 
     'notifications' => [

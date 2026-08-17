@@ -43,7 +43,18 @@
         uploading:    'Uploading…',
         show_more:    'Show more',
         failed:       'Something went wrong.',
-        by:           'by {name}'
+        by:           'by {name}',
+        loading:      'Loading…',
+        close:        'Close',
+        info_title:   'Document details',
+        attached_to:  'Attached to',
+        attached_none:'Not attached to anything you can see.',
+        attached_hidden: 'And {n} other record(s) you do not have access to.',
+        kind_link:    'A link to an external document',
+        idx_ok:       'Searchable — {n} characters of text indexed.',
+        idx_pending:  'Not searchable yet — the text is still being read.',
+        idx_unsupported: 'Its contents cannot be read, so only its name and description are searchable.',
+        idx_failed:   'Its contents could not be read.'
     };
 
     function t(key, params) {
@@ -158,8 +169,15 @@
         // One delegated handler rather than a listener per row, so re-rendering
         // the list never leaves stale handlers behind.
         this.$list.addEventListener('click', function (e) {
-            var btn = e.target.closest('[data-remove]');
-            if (btn) { self.remove(parseInt(btn.getAttribute('data-remove'), 10), btn.getAttribute('data-name')); }
+            var rm = e.target.closest('[data-remove]');
+            if (rm) { self.remove(parseInt(rm.getAttribute('data-remove'), 10), rm.getAttribute('data-name')); return; }
+            var nfo = e.target.closest('[data-info]');
+            if (nfo) {
+                // The panel sits at a module path, the parent links are relative
+                // to the install root — so strip one segment off the api base.
+                showInfo(self.api, parseInt(nfo.getAttribute('data-info'), 10),
+                         self.api.replace(/api\/documents\/$/, ''));
+            }
         });
     };
 
@@ -252,6 +270,8 @@
                     (also ? '<div class="fd-also">' + also + '</div>' : '') +
                 '</div>' +
                 '<div class="fd-actions">' +
+                    '<button type="button" class="fd-btn fd-info" data-info="' + d.id +
+                        '" title="' + esc(t('info_title')) + '" aria-label="' + esc(t('info_title')) + '">i</button>' +
                     '<a class="fd-btn" href="' + esc(href) + '"' +
                         (isLink ? ' target="_blank" rel="noopener noreferrer"' : '') + '>' +
                         esc(isLink ? t('open') : t('download')) + '</a>' +
@@ -346,11 +366,99 @@
         }).catch(function () { self.fail(); });
     };
 
+    /* ─── The ⓘ modal: what is this document attached to? ──────────────────
+       Its own thing rather than part of Panel, because the command palette
+       needs it too and has no panel — a document result there is a row in an
+       overlay, not a list on a record. One implementation, two callers, same
+       reason the resolver is shared server-side. */
+
+    function closeInfo() {
+        var old = document.getElementById('fdInfoOverlay');
+        if (old) old.remove();
+        document.removeEventListener('keydown', onInfoKey);
+    }
+    function onInfoKey(e) { if (e.key === 'Escape') closeInfo(); }
+
+    function showInfo(apiBase, documentId, baseUrl) {
+        closeInfo();
+        var ov = document.createElement('div');
+        ov.id = 'fdInfoOverlay';
+        ov.className = 'fd-modal-overlay';
+        ov.innerHTML = '<div class="fd-modal" role="dialog" aria-modal="true">' +
+                '<div class="fd-modal-head"><strong class="fd-modal-title">' + esc(t('info_title')) + '</strong>' +
+                '<button type="button" class="fd-modal-x" aria-label="' + esc(t('close')) + '">&times;</button></div>' +
+                '<div class="fd-modal-body">' + esc(t('loading')) + '</div>' +
+            '</div>';
+        document.body.appendChild(ov);
+        document.addEventListener('keydown', onInfoKey);
+
+        // Click the backdrop to dismiss, but not a click inside the dialogue.
+        ov.addEventListener('click', function (e) { if (e.target === ov) closeInfo(); });
+        ov.querySelector('.fd-modal-x').addEventListener('click', closeInfo);
+
+        var body = ov.querySelector('.fd-modal-body');
+        fetch(apiBase + 'links.php?id=' + encodeURIComponent(documentId), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d.success) { body.textContent = d.error || t('failed'); return; }
+                var doc = d.document || {};
+                ov.querySelector('.fd-modal-title').textContent = doc.title || t('info_title');
+
+                var meta = [];
+                if (doc.kind === 'link') meta.push(t('kind_link'));
+                else {
+                    if (doc.original_name) meta.push(doc.original_name);
+                    if (doc.size_bytes)    meta.push(bytes(doc.size_bytes));
+                }
+                if (doc.uploaded_by_name) meta.push(t('by', { name: doc.uploaded_by_name }));
+                if (doc.created_datetime) meta.push(doc.created_datetime);
+
+                // Say plainly whether the contents are searchable. "Not indexed
+                // yet" and "nothing readable in it" look identical otherwise.
+                var idx = '';
+                if (doc.kind !== 'link') {
+                    if (doc.index_status === 'extracted' || doc.index_status === 'truncated') {
+                        idx = t('idx_ok', { n: doc.index_chars || 0 });
+                    } else if (doc.index_status === 'pending' || doc.index_status === 'extracting') {
+                        idx = t('idx_pending');
+                    } else if (doc.index_status === 'unsupported') {
+                        idx = t('idx_unsupported');
+                    } else if (doc.index_status) {
+                        idx = t('idx_failed');
+                    }
+                }
+
+                var links = (d.links || []).map(function (l) {
+                    var label = esc(l.label) + (l.name ? ': ' + esc(l.name) : '');
+                    return '<li>' + (l.url
+                        ? '<a href="' + esc((baseUrl || '') + l.url) + '">' + label + '</a>'
+                        : label) + '</li>';
+                }).join('');
+
+                body.innerHTML =
+                    (doc.description ? '<p class="fd-modal-desc">' + esc(doc.description) + '</p>' : '') +
+                    (meta.length ? '<p class="fd-modal-meta">' + esc(meta.join(' · ')) + '</p>' : '') +
+                    (idx ? '<p class="fd-modal-meta">' + esc(idx) + '</p>' : '') +
+                    '<h5 class="fd-modal-sub">' + esc(t('attached_to')) + '</h5>' +
+                    (links ? '<ul class="fd-modal-links">' + links + '</ul>'
+                           : '<p class="fd-modal-meta">' + esc(t('attached_none')) + '</p>') +
+                    (d.hidden_count > 0
+                        // A count, never a name. It tells you the document is more
+                        // widely attached than you can see — which matters before
+                        // you attach it somewhere else — and identifies nothing.
+                        ? '<p class="fd-modal-hidden">' + esc(t('attached_hidden', { n: d.hidden_count })) + '</p>'
+                        : '');
+            })
+            .catch(function () { body.textContent = t('failed'); });
+    }
+
     window.FreeITSMDocuments = {
         mount: function (el, opts) {
             if (typeof el === 'string') el = document.querySelector(el);
             if (!el) return null;
             return new Panel(el, opts || {});
-        }
+        },
+        /** Open the "what is this attached to" dialogue for a document id. */
+        info: showInfo
     };
 })();
