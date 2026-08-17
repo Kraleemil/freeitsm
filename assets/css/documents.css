@@ -11,13 +11,26 @@
 
 .fd-panel { margin-top: 8px; }
 
+/* ⚠️ This panel is dropped into a dozen different pages, each with its own idea
+   of what a bare element looks like. Anything the layout depends on is stated
+   here rather than inherited — .fd-drop is a <label>, and a page that does not
+   make labels block-level left it INLINE, so the dashed border wrapped the text
+   instead of drawing a box and the caption inside it broke out to full width. */
+.fd-panel, .fd-panel * { box-sizing: border-box; }
+
 .fd-head {
     display: flex; align-items: center; gap: 10px;
-    margin-bottom: 10px;
+    margin: 0 0 10px;
+    /* A page whose h4 carries a big bottom margin would otherwise push the row
+       apart; a page with none let the drop zone ride up over the heading. */
+    min-height: 20px;
 }
 .fd-head h4 {
-    margin: 0; font-size: 14px; font-weight: 600;
+    margin: 0; padding: 0;
+    font-size: 14px; font-weight: 600; line-height: 1.4;
     color: var(--text, #333);
+    text-transform: none;    /* several settings pages upper-case their headings */
+    letter-spacing: normal;
 }
 .fd-count {
     font-size: 12px; color: var(--text-dim, #888);
@@ -26,12 +39,17 @@
 
 /* -- The drop zone ------------------------------------------------------- */
 .fd-drop {
+    display: block;          /* a <label> is inline by default — see the note above */
+    width: 100%;
     border: 1.5px dashed var(--border, #ccc);
     border-radius: 8px;
     padding: 18px 16px;
+    margin: 0;
     text-align: center;
     color: var(--text-muted, #666);
     font-size: 13px;
+    font-weight: 400;        /* pages that embolden their labels must not embolden this */
+    line-height: 1.5;
     background: var(--surface-2, #fafafa);
     transition: border-color 140ms ease, background 140ms ease;
     cursor: pointer;
