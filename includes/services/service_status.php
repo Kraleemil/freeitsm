@@ -15,6 +15,7 @@
  */
 
 require_once __DIR__ . '/../service_context.php';
+require_once __DIR__ . '/../service_impact_levels.php';
 require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 
 class ServiceStatusService
@@ -258,9 +259,14 @@ class ServiceStatusService
                 $imp = $conn->prepare("SELECT id FROM service_impact_levels WHERE id = ? AND is_active = 1");
                 $imp->execute([(int)$s['impact_level_id']]);
             } else {
-                $name = trim((string)($s['impact_level'] ?? 'Operational'));
+                // An omitted impact falls back to the configured default level, not
+                // to the literal 'Operational' — renaming that level would otherwise
+                // turn every impact-less call into "Unknown or inactive impact level"
+                // (GH #70).
+                $fallback = defaultImpactLevel($conn)['name'];
+                $name = trim((string)($s['impact_level'] ?? $fallback));
                 $imp = $conn->prepare("SELECT id FROM service_impact_levels WHERE name = ? AND is_active = 1");
-                $imp->execute([$name !== '' ? $name : 'Operational']);
+                $imp->execute([$name !== '' ? $name : $fallback]);
             }
             $impactId = $imp->fetchColumn();
             if ($impactId === false) {

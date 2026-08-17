@@ -183,7 +183,7 @@ function getWatchtowerData($conn, $analystId = 0) {
             JOIN service_impact_levels il ON il.id = sis.impact_level_id
             LEFT JOIN service_incident_statuses sst ON sst.id = si.status_id
             WHERE (sst.is_resolved = 0 OR sst.id IS NULL)
-              AND il.name <> 'Operational'
+              AND il.is_default = 0
          ) worst ON worst.service_id = ss.id
          WHERE ss.is_active = 1
          ORDER BY worst.severity_order ASC, ss.display_order, ss.name"

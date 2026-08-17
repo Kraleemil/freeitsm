@@ -6,6 +6,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/service_impact_levels.php';
 
 header('Content-Type: application/json');
 
@@ -89,26 +90,31 @@ try {
     $ticketStmt->execute([$userId]);
     $recentTickets = $ticketStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Service status - active services with worst current impact (severity_order from lookup)
+    // Service status - active services with worst current impact (severity_order from lookup).
+    // No open incident => the configured default impact level and its colour, not a
+    // hardcoded 'Operational' (GH #70). Mirrors api/service-status/get_dashboard.php.
+    $defaultImpact = defaultImpactLevel($conn);
+
     $svcStmt = $conn->prepare(
         "SELECT ss.id, ss.name,
-            COALESCE(
-                (SELECT il.name
-                 FROM status_incident_services sis
-                 JOIN status_incidents si ON sis.incident_id = si.id
-                 JOIN service_impact_levels il ON il.id = sis.impact_level_id
-                 LEFT JOIN service_incident_statuses sst ON sst.id = si.status_id
-                 WHERE sis.service_id = ss.id
-                   AND (sst.is_resolved = 0 OR sst.id IS NULL)
-                 ORDER BY il.severity_order ASC
-                 LIMIT 1),
-                'Operational'
-            ) AS current_status
+            COALESCE(il.name, :def_name)     AS current_status,
+            COALESCE(il.colour, :def_colour) AS current_status_colour
         FROM status_services ss
+        LEFT JOIN service_impact_levels il ON il.id = (
+            SELECT sis.impact_level_id
+            FROM status_incident_services sis
+            JOIN status_incidents si ON sis.incident_id = si.id
+            JOIN service_impact_levels worst ON worst.id = sis.impact_level_id
+            LEFT JOIN service_incident_statuses sst ON sst.id = si.status_id
+            WHERE sis.service_id = ss.id
+              AND (sst.is_resolved = 0 OR sst.id IS NULL)
+            ORDER BY worst.severity_order ASC
+            LIMIT 1
+        )
         WHERE ss.is_active = 1
         ORDER BY ss.display_order, ss.name"
     );
-    $svcStmt->execute();
+    $svcStmt->execute([':def_name' => $defaultImpact['name'], ':def_colour' => $defaultImpact['colour']]);
     $services = $svcStmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Catalogue requests the user has submitted that carry an approval state (#928).
@@ -140,7 +146,10 @@ try {
         'ticket_summary' => $ticketSummary,
         'recent_tickets' => $recentTickets,
         'requests' => $requests,
-        'services' => $services
+        'services' => $services,
+        // Which level counts as "all clear" — the portal's "All systems operational"
+        // banner tests against this instead of the literal name (GH #70).
+        'default_impact' => $defaultImpact
     ]);
 
 } catch (Exception $e) {

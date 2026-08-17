@@ -4,8 +4,9 @@
  *
  * Mirrors the module's internal endpoints:
  *   - a service's state is DERIVED, not stored: the worst impact level
- *     (lowest severity_order) across its open incidents, else Operational —
- *     the services list computes it inline with get_dashboard.php's exact
+ *     (lowest severity_order) across its open incidents, else the configured
+ *     default impact level (usually Operational, but it is renameable — GH #70)
+ *     — the services list computes it inline with get_dashboard.php's exact
  *     subquery, so status-page builders get the health board in one call;
  *   - incident writes mirror save_incident.php: status by name (or id),
  *     resolved_datetime stamped once on entering a resolved status
@@ -26,6 +27,7 @@
 
 require_once dirname(__DIR__, 3) . '/includes/service_context.php';
 require_once dirname(__DIR__, 3) . '/includes/services/service_status.php';
+require_once dirname(__DIR__, 3) . '/includes/service_impact_levels.php';
 
 /** Map a ServiceError raised by the shared service to the API's error response. */
 function apiServiceStatusFail(ServiceError $e): void {
@@ -36,8 +38,15 @@ function apiServiceStatusFail(ServiceError $e): void {
 // Derived status + serializers
 // ---------------------------------------------------------------------------
 
-/** get_dashboard.php's exact worst-open-impact subquery, as a SQL fragment. */
-function apiServiceStatusSubquery(): string {
+/**
+ * get_dashboard.php's exact worst-open-impact subquery, as a SQL fragment.
+ *
+ * The "no open incident" fallback is the configured default impact level, not the
+ * literal 'Operational' (GH #70). Quoted rather than bound because this fragment is
+ * pasted into several statements whose own placeholders are positional.
+ */
+function apiServiceStatusSubquery(PDO $conn): string {
+    $default = $conn->quote(defaultImpactLevel($conn)['name']);
     return "COALESCE((
         SELECT il.name FROM status_incident_services sis
         JOIN status_incidents si ON sis.incident_id = si.id
@@ -45,7 +54,7 @@ function apiServiceStatusSubquery(): string {
         LEFT JOIN service_incident_statuses sst ON sst.id = si.status_id
         WHERE sis.service_id = ss.id AND (sst.is_resolved = 0 OR sst.id IS NULL)
         ORDER BY il.severity_order ASC
-        LIMIT 1), 'Operational')";
+        LIMIT 1), $default)";
 }
 
 function apiServiceStatusImpactMeta(PDO $conn): array {
@@ -61,7 +70,7 @@ function apiServiceStatusImpactMeta(PDO $conn): array {
 
 function apiSerializeService(PDO $conn, array $r): array {
     $meta = apiServiceStatusImpactMeta($conn);
-    $statusName = $r['current_status'] ?? 'Operational';
+    $statusName = $r['current_status'] ?? defaultImpactLevel($conn)['name'];
     return [
         'id'            => (int)$r['id'],
         'name'          => $r['name'],
@@ -78,7 +87,7 @@ function apiSerializeService(PDO $conn, array $r): array {
 
 function apiLoadService(PDO $conn, int $serviceId): array {
     $stmt = $conn->prepare(
-        "SELECT ss.*, " . apiServiceStatusSubquery() . " AS current_status
+        "SELECT ss.*, " . apiServiceStatusSubquery($conn) . " AS current_status
          FROM status_services ss WHERE ss.id = ?"
     );
     $stmt->execute([$serviceId]);
@@ -170,7 +179,7 @@ function apiStatusServicesList(PDO $conn, array $apiKey, array $params, array $b
     $whereSql = implode(' AND ', $where);
 
     $stmt = $conn->prepare(
-        "SELECT ss.*, " . apiServiceStatusSubquery() . " AS current_status
+        "SELECT ss.*, " . apiServiceStatusSubquery($conn) . " AS current_status
          FROM status_services ss WHERE $whereSql
          ORDER BY ss.display_order, ss.name"
     );

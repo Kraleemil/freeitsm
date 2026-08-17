@@ -6498,7 +6498,7 @@
                     "p": "\/service-status\/services",
                     "perm": "services.read",
                     "s": "The health board",
-                    "d": "Active services, each with its DERIVED live status: the worst impact level across its open incidents, else Operational — the module's exact dashboard computation. Everything a status-page builder needs in one call. Install-wide.",
+                    "d": "Active services, each with its DERIVED live status: the worst impact level across its open incidents, else the configured default impact level (Operational unless renamed) — the module's exact dashboard computation. Everything a status-page builder needs in one call. Install-wide.",
                     "params": [
                         {
                             "name": "is_active",
@@ -6806,7 +6806,7 @@
                     "p": "\/service-status\/incidents",
                     "perm": "service_incidents.create",
                     "s": "Open an incident",
-                    "d": "The monitoring-integration verb: title required, status defaults Investigating, and services is an array of {service_id, impact_level} pairs (impact by name or impact_level_id; defaults Operational). Unknown service\/impact values are a 422 — stricter than the UI, which silently skips them. Creating directly in a resolved status stamps resolved_at.",
+                    "d": "The monitoring-integration verb: title required, status defaults Investigating, and services is an array of {service_id, impact_level} pairs (impact by name or impact_level_id; defaults to the configured default impact level). Unknown service\/impact values are a 422 — stricter than the UI, which silently skips them. Creating directly in a resolved status stamps resolved_at.",
                     "params": [
                         {
                             "name": "title",

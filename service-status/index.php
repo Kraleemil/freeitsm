@@ -481,8 +481,11 @@ $translationNamespaces = ['common', 'service-status'];
             }
 
             grid.innerHTML = services.map(svc => {
-                const il = impactByName(svc.current_status);
-                const style = il && il.colour ? `style="background:${il.colour}; color:#fff;"` : '';
+                // Colour comes from the row the API resolved, not from a name lookup
+                // here: a level that was renamed OR deactivated still has to paint its
+                // badge (GH #70). impactByName is the fallback for older payloads.
+                const colour = svc.current_status_colour || impactByName(svc.current_status)?.colour;
+                const style = colour ? `style="background:${colour}; color:#fff;"` : '';
                 // History is loaded on demand (discussion #59): a dashboard with
                 // twenty services should not fire twenty history queries to draw a
                 // page most people are only glancing at.
@@ -748,9 +751,19 @@ $translationNamespaces = ['common', 'service-status'];
                 `<option value="${s.id}" ${s.id == serviceId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
             ).join('');
 
-            // Default impact for a freshly added row: 'Degraded' if available, else the configured default
+            // Default impact for a freshly added row. This used to name 'Degraded'
+            // literally, which broke the same way GH #70 did — rename the level and
+            // the row silently fell back to the baseline, i.e. an incident that
+            // affects nothing. Ask by MEANING instead: the mildest level that still
+            // counts as downtime. On the stock lookup that IS Degraded, and it stays
+            // right whatever the levels are called.
+            const mildestDowntime = impactLevels
+                .filter(l => l.counts_as_downtime && !l.is_default)
+                .sort((a, b) => b.severity_order - a.severity_order)[0];
             const defaultImpact = impactLevel
-                || (impactByName('Degraded') ? 'Degraded' : (impactLevels.find(l => l.is_default)?.name || (impactLevels[0]?.name || '')));
+                || mildestDowntime?.name
+                || impactLevels.find(l => l.is_default)?.name
+                || impactLevels[0]?.name || '';
             const impactOptions = impactLevels.map(level =>
                 `<option value="${escapeHtml(level.name)}" ${level.name === defaultImpact ? 'selected' : ''}>${escapeHtml(level.name)}</option>`
             ).join('');

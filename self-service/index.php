@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', loadDashboard);
                 renderSummaryCards(data.ticket_summary);
                 renderRequests(data.requests);
                 renderRecentTickets(data.recent_tickets);
-                renderServiceStatus(data.services);
+                renderServiceStatus(data.services, data.default_impact);
             } catch (err) {
                 console.error('Failed to load dashboard:', err);
             }
@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', loadDashboard);
             container.innerHTML = html;
         }
 
-        function renderServiceStatus(services) {
+        function renderServiceStatus(services, defaultImpact) {
             const container = document.getElementById('statusContainer');
 
             if (!services || services.length === 0) {
@@ -189,7 +189,11 @@ document.addEventListener('DOMContentLoaded', loadDashboard);
                 return;
             }
 
-            const allOk = services.every(s => s.current_status === 'Operational');
+            // "All clear" = every service sitting at the configured default impact
+            // level, whatever it is called. Testing against the literal 'Operational'
+            // meant renaming the level silently hid this banner for good (GH #70).
+            const okName = (defaultImpact && defaultImpact.name) || 'Operational';
+            const allOk = services.every(s => s.current_status === okName);
 
             let html = '';
             if (allOk) {
@@ -204,10 +208,16 @@ document.addEventListener('DOMContentLoaded', loadDashboard);
 
             html += '<div class="service-list">';
             services.forEach(svc => {
-                const impactClass = getImpactClass(svc.current_status);
+                // Colour from the lookup row wins; the hardcoded class map is only a
+                // fallback for a level with no colour set (GH #70 — a renamed level
+                // matched nothing in that map and came out looking Operational).
+                const colour = svc.current_status_colour;
+                const badgeAttrs = colour
+                    ? `class="impact-badge" style="${buildStatusBadgeStyle(colour)}"`
+                    : `class="impact-badge ${getImpactClass(svc.current_status)}"`;
                 html += `<div class="service-item">
                     <span class="svc-name">${escapeHtml(svc.name)}</span>
-                    <span class="impact-badge ${impactClass}">${escapeHtml(svc.current_status)}</span>
+                    <span ${badgeAttrs}>${escapeHtml(svc.current_status)}</span>
                 </div>`;
             });
             html += '</div>';

@@ -6969,7 +6969,7 @@ return array (
     'StatusServiceCurrentStatus' => 
     array (
       'type' => 'object',
-      'description' => 'Derived worst-open-impact status (Operational when no open incident affects the service).',
+      'description' => 'Derived worst-open-impact status (the default impact level — Operational unless renamed — when no open incident affects the service).',
       'properties' => 
       array (
         'name' => 
