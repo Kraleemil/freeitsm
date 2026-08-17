@@ -485,11 +485,24 @@ function renderArticleDetail() {
         <div class="article-content-body">
             ${currentArticle.body}
         </div>
+        <div id="kbDocuments" style="margin-top:24px;"></div>
     `;
 
     // Apply syntax highlighting to any code blocks
     if (typeof Prism !== 'undefined') {
         Prism.highlightAll();
+    }
+
+    // Attached documents (discussion #76) — the manuals, procedures and PDFs the
+    // feature request asked for. Mounted rather than re-pointed because this
+    // container is rebuilt for every article; see the note in documents.js.
+    if (window.FreeITSMDocuments) {
+        FreeITSMDocuments.mount(document.getElementById('kbDocuments'), {
+            parentType: 'knowledge_article',
+            parentId:   currentArticle.id,
+            apiBase:    '../api/documents/',
+            showHeading: true      // nothing else on this page names the section
+        });
     }
 }
 

@@ -137,6 +137,20 @@ function documentEntityRegistry(): array {
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessProblem($c, $a, $id); },
             'filter' => function (PDO $c, int $a, string $alias) { return activeTenantFilter($c, $a, $alias); },
         ],
+        'task' => [
+            // No tenant_id column — module membership is the whole rule, as with
+            // contracts. Inventing a filter on a column that does not exist would
+            // simply error and, because the builder drops a type it cannot filter,
+            // silently hide every task's documents.
+            'module' => 'tasks',
+            'table'  => 'tasks',
+            'label'  => 'Task',
+            'url'    => 'tasks/?task_id=%d',
+            'title'  => 'title',
+            'alive'  => null,
+            'can'    => null,
+            'filter' => null,
+        ],
         'cmdb_object' => [
             'module' => 'cmdb',
             'table'  => 'cmdb_objects',

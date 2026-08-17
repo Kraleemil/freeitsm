@@ -717,7 +717,19 @@ function renderChangeDetail() {
         </div>
     `;
 
+    html += '<div class="detail-section"><h3>Documents</h3><div id="chgDocuments"></div></div>';
+
     document.getElementById('changeDetailContent').innerHTML = html;
+
+    // Attached documents (discussion #76). Mounted, not re-pointed: this content
+    // is rebuilt for every change, so the previous element is already gone.
+    if (window.FreeITSMDocuments) {
+        FreeITSMDocuments.mount(document.getElementById('chgDocuments'), {
+            parentType: 'change',
+            parentId:   c.id,
+            apiBase:    '../api/documents/'
+        });
+    }
 
     // Load activity timeline asynchronously
     loadActivityTimeline(c.id);

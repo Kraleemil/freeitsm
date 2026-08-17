@@ -315,7 +315,21 @@ function pmRenderDetail(data) {
                 <h3>History</h3>
                 ${audit}
             </div>
+            <div class="pm-section">
+                <h3>Documents</h3>
+                <div id="pmDocuments"></div>
+            </div>
         </div>`;
+
+    // Attached documents (discussion #76). Mounted, not re-pointed: this view is
+    // rebuilt for every problem, so the previous element is already gone.
+    if (window.FreeITSMDocuments) {
+        FreeITSMDocuments.mount(document.getElementById('pmDocuments'), {
+            parentType: 'problem',
+            parentId:   p.id,
+            apiBase:    '../api/documents/'
+        });
+    }
 }
 
 // ----- Editor -----
