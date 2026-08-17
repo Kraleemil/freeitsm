@@ -30,6 +30,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/documents.php';
 
 header('Content-Type: application/json');
 
@@ -242,6 +243,71 @@ try {
                 ];
             }
         } catch (Exception $e) { /* table not ready — no contract results */ }
+    }
+
+    // --- Attached documents (discussion #76) -----------------------------
+    //
+    // ⚠️ THE ONLY SOURCE HERE WHOSE PERMISSION IS NOT ITS OWN. Every block above
+    // gates on one module and filters by that module's tenancy. A document
+    // belongs to no module: it is readable if you can see at least one RECORD it
+    // is attached to, which may be a contract, an asset, a ticket or a CMDB
+    // object. So the gate is "can you reach any attachable type at all", and the
+    // real check is documentVisibilityClause() — the same SQL the download
+    // endpoint and the main search use, so all three agree by construction.
+    //
+    // Matched on title and description with LIKE, in keeping with every other
+    // block here: the palette is for jumping to a thing you can half-name. The
+    // full-text search of a document's CONTENTS lives in the corpus, which the
+    // ticket-content block below queries.
+    if (documentAccessibleTypes($allowed)) {
+        try {
+            [$dSql, $dArgs] = documentVisibilityClause($conn, $analystId, $allowed, 'd');
+            $sql = "SELECT d.id, d.kind, d.title, d.description, d.external_url
+                      FROM documents d
+                     WHERE d.deleted_datetime IS NULL
+                       AND (d.title LIKE ? OR d.description LIKE ? OR d.original_name LIKE ?)"
+                       . $dSql . "
+                     ORDER BY d.created_datetime DESC
+                     LIMIT " . $perType;
+            $stmt = $conn->prepare($sql);
+            $stmt->execute(array_merge([$like, $like, $like], $dArgs));
+
+            // Name one place it is attached, so a result is not just a filename
+            // floating free — but ONLY a record this caller can see, or the
+            // subtitle would disclose a contract they have no access to.
+            $linkStmt = $conn->prepare(
+                "SELECT parent_type, parent_id FROM document_links WHERE document_id = ?"
+            );
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $subtitle = '';
+                $linkStmt->execute([(int) $r['id']]);
+                foreach ($linkStmt->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                    if (!documentCanViewParent($conn, $analystId, $allowed, (string) $l['parent_type'], (int) $l['parent_id'])) {
+                        continue;
+                    }
+                    $def = documentEntityDef((string) $l['parent_type']);
+                    $subtitle = $def['label'];
+                    try {
+                        $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
+                        $ns->execute([(int) $l['parent_id']]);
+                        $nm = $ns->fetchColumn();
+                        if ($nm) $subtitle .= ': ' . $nm;
+                    } catch (Exception $e) { /* the label alone will do */ }
+                    break;
+                }
+                $results[] = [
+                    'type'     => 'document',
+                    'module'   => 'system',
+                    'id'       => (int) $r['id'],
+                    'title'    => $r['title'],
+                    'subtitle' => $subtitle,
+                    // Always our own endpoint, never the external URL: it
+                    // authorises, it records the access, and a link row answers
+                    // with its destination rather than being redirected to.
+                    'url'      => 'api/documents/download.php?id=' . (int) $r['id'],
+                ];
+            }
+        } catch (Exception $e) { /* table not ready — no document results */ }
     }
 
     // --- Inside ticket content: messages and notes (discussion #53) ------
