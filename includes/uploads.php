@@ -261,12 +261,32 @@ IIS
 
     $htaccess = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . '.htaccess';
     if (!file_exists($htaccess)) {
-        // Covers Apache 2.2 and 2.4, mod_php and any handler-based PHP: turn the
-        // engine off, strip every handler, and refuse to serve script types at
-        // all. Files here are meant to be read by get_attachment.php, never
-        // fetched directly.
+        // ⚠️ DENY THE WHOLE DIRECTORY, not merely the script extensions.
+        //
+        // This block used to emit only the no-execute rules below, while this
+        // function's own documentation said it "refuses everything" and the
+        // committed .htaccess files in tickets/attachments et al. genuinely did.
+        // A directory created by this function therefore served .pdf, .txt and
+        // .docx quite happily to anyone with the URL — found by D009 the day a
+        // new upload folder (attached documents) was added, because the generated
+        // guard was the only one it had.
+        //
+        // Everything reaching this function is read back through an authorising
+        // PHP endpoint; nothing here is meant to be fetched at its own URL.
+        // Directories whose contents the browser IS meant to fetch use
+        // uploadPrepareWebServableDir() instead.
         @file_put_contents($htaccess, <<<'HT'
-# Uploaded content. NEVER executed — see includes/uploads.php.
+# Uploaded content. NEVER executed, and never served directly — see includes/uploads.php.
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>
+
+# Belt and braces for a server that ignores the deny above: even if something is
+# reachable, it must never run.
 php_flag engine off
 RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py .jsp .asp .aspx .shtml
 RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phps .cgi .pl .py

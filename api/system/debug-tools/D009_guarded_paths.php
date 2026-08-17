@@ -6,7 +6,7 @@
  * that only the application is supposed to hand out?"
  *
  * FreeITSM keeps uploaded files — ticket attachments, change attachments, war room
- * attachments, RFP uploads, call recordings — in folders under the web root, and
+ * attachments, RFP uploads, call recordings, attached documents — under the web root, and
  * relies on the WEB SERVER refusing to serve them. Every one of those files is
  * meant to be reached through a PHP endpoint that checks who you are first.
  *
@@ -164,6 +164,11 @@ $guarded = [
     'war-room/attachments'         => ['_d009probe.txt', 'War room attachments',      'deny'],
     'contracts/rfp-builder/uploads'=> ['_d009probe.txt', 'RFP uploads',               'deny'],
     'recordings'                   => ['_d009probe.txt', 'Screen recordings',         'deny'],
+    // Documents attached to records (discussion #76). Served only through
+    // api/documents/download.php, which checks that the caller can see something
+    // the document is attached to. The stored filename is random, but a random
+    // name is not a permission.
+    'uploads/documents'            => ['_d009probe.txt', 'Attached documents',        'deny'],
     'lms/content'                  => ['_d009probe.php', 'Course content (no-exec)',  'noexec'],
     'system/uploads/branding'      => ['_d009probe.php', 'Branding uploads (no-exec)','noexec'],
 ];
