@@ -148,6 +148,21 @@ try {
         throw $e;
     }
 
+    // Queue the text, then index what we already have. Indexing FIRST means the
+    // document is findable by title and description immediately, rather than
+    // being invisible to search until a worker gets round to the file — which on
+    // a bulk upload could be hours.
+    try {
+        require_once dirname(__DIR__, 2) . '/includes/search/documents_index.php';
+        documentTextEnqueue($conn, $documentId, $doc['kind'], $doc['original_name']);
+        searchIndexDocument($conn, $documentId);
+        // Opportunistic: do a little extraction now, bounded, so a quiet install
+        // with no cron still ends up searchable.
+        documentTextDrain($conn, 1, microtime(true) + 4);
+    } catch (Throwable $e) {
+        error_log('[documents/save] indexing: ' . $e->getMessage());   // never fail the upload
+    }
+
     echo json_encode(['success' => true, 'document_id' => $documentId]);
 
 } catch (Exception $e) {

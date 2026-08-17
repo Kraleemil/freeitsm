@@ -276,6 +276,7 @@ return [
     ['document_links', 'idx_document_links_parent', 'key', '(`parent_type`,`parent_id`)'],
     ['document_links', 'idx_document_links_doc', 'key', '(`document_id`)'],
     ['document_access_log', 'idx_document_access_doc', 'key', '(`document_id`)'],
+    ['document_text', 'ix_document_text_status', 'key', '(`status`)'],
     ['documents', 'idx_documents_hash', 'key', '(`content_hash`)'],
     ['documents', 'idx_documents_tenant', 'key', '(`tenant_id`)'],
     ['documents', 'ft_documents', 'fulltext', '(`title`,`description`)'],

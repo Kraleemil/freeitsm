@@ -72,6 +72,7 @@ $schema = require __DIR__ . '/../../includes/db_verify_schema.php';
 // Primary key definitions: table => pk_column (defaults to 'id')
 $primaryKeys = [
     'attachment_text'           => 'attachment_id',
+    'document_text'             => 'document_id',
     'system_settings'           => 'setting_key',
     'morningChecks_Checks'      => 'CheckID',
     'morningChecks_Results'     => 'ResultID',
@@ -661,6 +662,11 @@ try {
     if ($tableExists('document_links') && $tableExists('documents')) {
         if (!$fkExists('document_links', 'fk_document_links_document')) {
             try { $conn->exec("ALTER TABLE document_links ADD CONSTRAINT fk_document_links_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+    }
+    if ($tableExists('document_text') && $tableExists('documents')) {
+        if (!$fkExists('document_text', 'fk_document_text_document')) {
+            try { $conn->exec("ALTER TABLE document_text ADD CONSTRAINT fk_document_text_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
     }
     if ($tableExists('document_access_log') && $tableExists('documents')) {

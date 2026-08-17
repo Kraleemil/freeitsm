@@ -909,6 +909,24 @@ return [
         'extracted_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Extracted text for an attached document (discussion #76).
+    //
+    // Its own table rather than a source_type column on attachment_text: that
+    // table's primary key is the attachment id ALONE, and a document id is a
+    // different small integer from a different table, so the two would collide.
+    // What the pipelines genuinely share — attTextExtractFile() — is a function
+    // taking a path, and both use it.
+    //
+    // ⚠️ PK is document_id, so it is registered in $primaryKeys in db_verify.php.
+    'document_text' => [
+        'document_id'        => 'INT NOT NULL',
+        'status'             => 'VARCHAR(16) NOT NULL',
+        'extractor'          => 'VARCHAR(20) NULL',
+        'extracted_text'     => 'LONGTEXT NULL',
+        'chars'              => 'INT NOT NULL DEFAULT 0',
+        'extracted_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'ticket_recordings' => [
         'id'                  => 'INT NOT NULL AUTO_INCREMENT',
         'ticket_id'           => 'INT NULL',

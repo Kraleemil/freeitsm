@@ -1627,6 +1627,21 @@ CREATE TABLE IF NOT EXISTS `document_links` (
     CONSTRAINT `fk_document_links_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Extracted text for an attached document, so its CONTENTS are searchable and
+-- not merely its title. Separate from attachment_text because that table's key
+-- is an email-attachment id; the shared part is the extractor, not the queue.
+CREATE TABLE IF NOT EXISTS `document_text` (
+    `document_id`        INT NOT NULL,
+    `status`             VARCHAR(16) NOT NULL,
+    `extractor`          VARCHAR(20) NULL,
+    `extracted_text`     LONGTEXT NULL,
+    `chars`              INT NOT NULL DEFAULT 0,
+    `extracted_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`document_id`),
+    KEY `ix_document_text_status` (`status`),
+    CONSTRAINT `fk_document_text_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Who fetched which document, and when. Written at the download endpoint, which
 -- is the only way to obtain a document and therefore the only place that can
 -- honestly claim to have seen every access.

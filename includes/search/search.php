@@ -116,6 +116,11 @@ function searchScopeForAnalyst(PDO $conn, int $analystId, array $overrides = [])
         'source_types'      => null,   // null = every kind
         'ticket_ids'        => null,   // null = no restriction
         'require_ticket'    => false,  // true = only documents attached to a ticket
+        // Which modules this caller may read. Attached documents inherit their
+        // visibility from the record they hang off, so the corpus row alone
+        // cannot answer whether they may be listed — see below.
+        'allowed_modules'   => array_key_exists('allowed_modules', $_SESSION ?? [])
+                                 ? $_SESSION['allowed_modules'] : null,
     ];
 
     if (function_exists('isMultiTenant') && isMultiTenant($conn)) {
@@ -124,7 +129,32 @@ function searchScopeForAnalyst(PDO $conn, int $analystId, array $overrides = [])
         $scope['tenant_id']       = $active;
         $scope['include_default'] = ($active === $default);
     }
-    return array_merge($scope, $overrides);
+    $scope = array_merge($scope, $overrides);
+
+    /*
+     * ⚠️ ATTACHED DOCUMENTS NEED MORE THAN THE ROW SAYS (discussion #76).
+     *
+     * Every other source type can be judged from the corpus row itself: a tenant
+     * and an internal flag are the whole rule. A document's visibility lives in
+     * OTHER TABLES — it is readable if you can see at least one record it is
+     * attached to — and that changes after indexing, so it cannot be baked in.
+     *
+     * The clause is built here, where the analyst is known, and rendered by
+     * searchScopeToSql() with everything else. Computed once per search rather
+     * than per row: it is a join, not a loop.
+     */
+    try {
+        require_once __DIR__ . '/documents_index.php';
+        $scope['document_clause'] = documentSearchVisibilityClause(
+            $conn, $analystId, $scope['allowed_modules'], 'sd'
+        );
+    } catch (Throwable $e) {
+        // If the clause cannot be built, exclude documents entirely rather than
+        // letting them through unfiltered. Fail closed.
+        $scope['document_clause'] = [" AND sd.source_type <> 'document'", []];
+    }
+
+    return $scope;
 }
 
 /**
@@ -147,6 +177,13 @@ function searchScopeToSql(array $scope, string $alias = 'sd'): array {
 
     if (empty($scope['include_internal'])) {
         $sql .= " AND $alias.is_internal = 0";
+    }
+
+    // Attached documents: "not a document, OR a document you can see". Built in
+    // searchScopeForAnalyst(), where the analyst is known.
+    if (!empty($scope['document_clause']) && is_array($scope['document_clause'])) {
+        $sql .= $scope['document_clause'][0];
+        foreach ($scope['document_clause'][1] as $p) $params[] = $p;
     }
 
     if (!empty($scope['source_types']) && is_array($scope['source_types'])) {

@@ -97,6 +97,15 @@ try {
         }
     }
 
+    // An orphan is soft-deleted, so it must leave the index too — otherwise a
+    // deleted document goes on being findable by its title for ever.
+    if ($orphaned) {
+        try {
+            require_once dirname(__DIR__, 2) . '/includes/search/documents_index.php';
+            searchUnindexDocument($conn, $documentId);
+        } catch (Throwable $e) { error_log('[documents/unlink] ' . $e->getMessage()); }
+    }
+
     echo json_encode([
         'success'  => true,
         'orphaned' => $orphaned,   // true = that was its last link, so it is gone
