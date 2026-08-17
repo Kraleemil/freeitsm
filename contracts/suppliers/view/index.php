@@ -545,7 +545,20 @@ $translationNamespaces = ['common', 'contracts'];
                         <div class="view-value">${statusBadge}</div>
                     </div>
                 </div>
+                <div id="supplierDocuments" style="margin-top:22px;"></div>
             `;
+
+            // Attached documents (discussion #76) — due diligence, insurance
+            // certificates, signed terms. Mounted rather than re-pointed: this
+            // body is rebuilt whenever the supplier is reloaded.
+            if (window.FreeITSMDocuments) {
+                FreeITSMDocuments.mount(document.getElementById('supplierDocuments'), {
+                    parentType: 'supplier',
+                    parentId:   currentSupplier.id,
+                    apiBase:    '../../../api/documents/',
+                    showHeading: true
+                });
+            }
         }
 
         function val(text) {

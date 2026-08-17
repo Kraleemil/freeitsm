@@ -484,6 +484,25 @@ function openEventModal(eventId = null, dateStr = null, hour = null) {
 
     toggleAllDay();
     modal.classList.add('active');
+
+    // Attached documents (discussion #76) — agendas, minutes, the signed change
+    // approval. Only for an event that EXISTS: a new one has no id to attach to,
+    // so the panel is hidden until it has been saved once.
+    var docHost = document.getElementById('eventDocuments');
+    if (docHost) {
+        if (eventId && window.FreeITSMDocuments) {
+            docHost.hidden = false;
+            FreeITSMDocuments.mount(docHost, {
+                parentType: 'calendar_event',
+                parentId:   eventId,
+                apiBase:    '../api/documents/',
+                showHeading: true
+            });
+        } else {
+            docHost.hidden = true;
+            docHost.innerHTML = '';
+        }
+    }
 }
 
 // Load event data for editing

@@ -136,6 +136,10 @@ $translationNamespaces = ['common', 'calendar'];
                     <label class="form-label"><?php echo htmlspecialchars(t('calendar.event.description')); ?></label>
                     <textarea class="form-textarea" id="eventDescription" rows="3" placeholder="<?php echo htmlspecialchars(t('calendar.event.description_ph')); ?>"></textarea>
                 </div>
+                <?php /* Attached documents (discussion #76). Hidden for a NEW event —
+                         an unsaved one has no id to attach to. openEventModal() shows
+                         and mounts it once the event exists. */ ?>
+                <div id="eventDocuments" hidden></div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-danger" id="deleteEventBtn" onclick="deleteEvent()" style="display: none;"><?php echo htmlspecialchars(t('calendar.event.delete')); ?></button>
@@ -194,7 +198,7 @@ $translationNamespaces = ['common', 'calendar'];
     </div>
 
     <script>window.API_BASE = '../api/calendar/';</script>
-    <script src="../assets/js/itsm_calendar.js"></script>
+    <script src="../assets/js/itsm_calendar.js?v=2"></script>
     <script src="../assets/js/qrcode.min.js"></script>
     <script>
     // "Add to your phone" — subscription modal. Fetches the analyst's feed URL once,

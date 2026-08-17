@@ -172,6 +172,6 @@ $translationNamespaces = ['common', 'tasks'];
     <!-- Toast -->
     <script>window.API_BASE = '../api/tasks/';</script>
     <script src="../assets/js/tasks-ctx-menu.js?v=1"></script>
-    <script src="../assets/js/tasks.js?v=12"></script>
+    <script src="../assets/js/tasks.js?v=13"></script>
 </body>
 </html>

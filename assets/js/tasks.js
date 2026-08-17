@@ -950,9 +950,23 @@ function renderDetailPanel(task) {
             <span>${esc(window.t('tasks.detail.updated', { datetime: formatDateTime(task.updated_datetime) }))}</span>
             ${task.completed_datetime ? `<span>${esc(window.t('tasks.detail.completed', { datetime: formatDateTime(task.completed_datetime) }))}</span>` : ''}
         </div>
+        <div class="detail-section" style="margin-top:18px;">
+            <div id="taskDocuments"></div>
+        </div>
     `;
 
     renderTagSection();
+
+    // Attached documents (discussion #76). Mounted, not re-pointed — this panel
+    // is rebuilt for every task, so the previous element is already gone.
+    if (window.FreeITSMDocuments) {
+        FreeITSMDocuments.mount(document.getElementById('taskDocuments'), {
+            parentType: 'task',
+            parentId:   task.id,
+            apiBase:    '../api/documents/',
+            showHeading: true      // nothing else in this panel names the section
+        });
+    }
 
     // Init TinyMCE for description
     if (tinyEditor) { tinyEditor.destroy(); tinyEditor = null; }
