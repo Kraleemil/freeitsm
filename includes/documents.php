@@ -183,6 +183,23 @@ function documentEntityRegistry(): array {
             'can'    => null,
             'filter' => null,
         ],
+        'software_licence' => [
+            // ⚠️ THE ONLY ENTRY THAT NEEDS `title_sql`. A licence has no name of
+            // its own — `software_licences` holds a type, a key and a renewal
+            // date, and the product's name lives in software_inventory_apps via
+            // app_id. Rather than teach the registry about joins for one entity,
+            // the title is a scalar subquery. Licence certificates, purchase
+            // orders and renewal quotes are exactly what people file.
+            'module'    => 'software',
+            'table'     => 'software_licences',
+            'label'     => 'Software licence',
+            'url'       => 'software/licences/?id=%d',
+            'title'     => 'licence_type',      // the fallback if the join finds nothing
+            'title_sql' => '(SELECT a.display_name FROM software_inventory_apps a WHERE a.id = software_licences.app_id)',
+            'alive'     => null,
+            'can'       => null,
+            'filter'    => null,
+        ],
         'status_service' => [
             'module' => 'service-status',
             'table'  => 'status_services',
@@ -358,6 +375,40 @@ function documentCanView(PDO $conn, int $analystId, ?array $allowedModules, int 
 }
 
 /**
+ * The display name of one parent record.
+ *
+ * 🔑 ONE implementation. This query was written out four separate times — in
+ * documentVisibleParents(), list.php and twice in global_search.php — which is
+ * how a registry gains a fifth caller that quietly does it differently.
+ *
+ * ⚠️ `title` is a COLUMN NAME on the parent's own table, which covers eleven of
+ * the twelve entity types. `title_sql` is the escape hatch for the twelfth: a
+ * software licence has no name of its own — it lives in software_inventory_apps
+ * via app_id — so its entry supplies a scalar subquery instead. Both come from
+ * the registry, which is code, so neither is ever attacker-supplied.
+ */
+function documentParentName(PDO $conn, string $type, int $parentId): ?string
+{
+    $def = documentEntityDef($type);
+    if (!$def || $parentId <= 0) return null;
+
+    $expr = !empty($def['title_sql'])
+        ? $def['title_sql']
+        : '`' . $def['title'] . '`';
+
+    try {
+        $st = $conn->prepare("SELECT " . $expr . " FROM `" . $def['table'] . "` WHERE id = ?");
+        $st->execute([$parentId]);
+        $name = $st->fetchColumn();
+        return ($name === false || $name === null || $name === '') ? null : (string) $name;
+    } catch (Throwable $e) {
+        // A label is never worth failing a list for.
+        error_log('[documentParentName] ' . $type . ': ' . $e->getMessage());
+        return null;
+    }
+}
+
+/**
  * Everywhere a document is attached — that this caller may see.
  *
  * ⚠️ THE FILTER IS THE POINT, not a nicety. Listing a parent the caller cannot
@@ -387,12 +438,7 @@ function documentVisibleParents(PDO $conn, int $analystId, ?array $allowedModule
         if (!documentCanViewParent($conn, $analystId, $allowedModules, $type, $pid)) continue;
 
         $def  = documentEntityDef($type);
-        $name = null;
-        try {
-            $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
-            $ns->execute([$pid]);
-            $name = $ns->fetchColumn() ?: null;
-        } catch (Throwable $e) { /* the label alone will do */ }
+        $name = documentParentName($conn, $type, $pid);
 
         $out[] = [
             'parent_type' => $type,

@@ -90,13 +90,8 @@ try {
             if (!documentCanViewParent($conn, $analystId, $allowed, (string) $o['parent_type'], (int) $o['parent_id'])) {
                 continue;   // never name a record the caller cannot see
             }
-            $def = documentEntityDef((string) $o['parent_type']);
-            $name = null;
-            try {
-                $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
-                $ns->execute([(int) $o['parent_id']]);
-                $name = $ns->fetchColumn() ?: null;
-            } catch (Throwable $e) { /* a label is not worth failing the list for */ }
+            $def  = documentEntityDef((string) $o['parent_type']);
+            $name = documentParentName($conn, (string) $o['parent_type'], (int) $o['parent_id']);
             $r['also_on'][] = [
                 'parent_type' => $o['parent_type'],
                 'parent_id'   => (int) $o['parent_id'],

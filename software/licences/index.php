@@ -567,6 +567,10 @@ $translationNamespaces = ['common', 'software'];
                     <label class="form-label"><?php echo htmlspecialchars(t('software.licences.field_notes')); ?></label>
                     <textarea class="form-textarea" id="licenceNotes" rows="3" placeholder="<?php echo htmlspecialchars(t('software.licences.notes_placeholder')); ?>"></textarea>
                 </div>
+                <?php /* Attached documents (discussion #76) — the certificate, the
+                         purchase order, the renewal quote. Hidden while ADDING:
+                         an unsaved licence has no id to attach to. */ ?>
+                <div id="licenceDocuments" hidden></div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-danger" id="deleteLicenceBtn" onclick="deleteLicence()" style="display: none;"><?php echo htmlspecialchars(t('software.licences.delete')); ?></button>
@@ -783,6 +787,24 @@ $translationNamespaces = ['common', 'software'];
                 }
             } else {
                 document.getElementById('licenceModalTitle').textContent = window.t('software.licences.modal_add_caps');
+            }
+
+            // Attached documents (discussion #76). Only for a licence that exists —
+            // adding a new one has no id to attach to yet.
+            const licDocs = document.getElementById('licenceDocuments');
+            if (licDocs) {
+                if (licenceId && window.FreeITSMDocuments) {
+                    licDocs.hidden = false;
+                    FreeITSMDocuments.mount(licDocs, {
+                        parentType: 'software_licence',
+                        parentId:   licenceId,
+                        apiBase:    '../../api/documents/',
+                        showHeading: true
+                    });
+                } else {
+                    licDocs.hidden = true;
+                    licDocs.innerHTML = '';
+                }
             }
 
             document.getElementById('licenceOverlay').classList.add('open');

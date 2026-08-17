@@ -287,12 +287,8 @@ try {
                     }
                     $def = documentEntityDef((string) $l['parent_type']);
                     $subtitle = $def['label'];
-                    try {
-                        $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
-                        $ns->execute([(int) $l['parent_id']]);
-                        $nm = $ns->fetchColumn();
-                        if ($nm) $subtitle .= ': ' . $nm;
-                    } catch (Exception $e) { /* the label alone will do */ }
+                    $nm = documentParentName($conn, (string) $l['parent_type'], (int) $l['parent_id']);
+                    if ($nm) $subtitle .= ': ' . $nm;
                     break;
                 }
                 $results[] = [
@@ -495,12 +491,8 @@ try {
                             if (!documentCanViewParent($conn, $analystId, $allowed, (string) $l['parent_type'], (int) $l['parent_id'])) continue;
                             $def = documentEntityDef((string) $l['parent_type']);
                             $subtitle = $def['label'];
-                            try {
-                                $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
-                                $ns->execute([(int) $l['parent_id']]);
-                                $nm = $ns->fetchColumn();
-                                if ($nm) $subtitle .= ': ' . $nm;
-                            } catch (Exception $e) { /* the label alone will do */ }
+                            $nm = documentParentName($conn, (string) $l['parent_type'], (int) $l['parent_id']);
+                            if ($nm) $subtitle .= ': ' . $nm;
                             break;
                         }
 
