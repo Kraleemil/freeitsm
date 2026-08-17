@@ -275,6 +275,7 @@ return [
     ['document_links', 'uq_document_links', 'unique', '(`document_id`,`parent_type`,`parent_id`)'],
     ['document_links', 'idx_document_links_parent', 'key', '(`parent_type`,`parent_id`)'],
     ['document_links', 'idx_document_links_doc', 'key', '(`document_id`)'],
+    ['document_access_log', 'idx_document_access_doc', 'key', '(`document_id`)'],
     ['documents', 'idx_documents_hash', 'key', '(`content_hash`)'],
     ['documents', 'idx_documents_tenant', 'key', '(`tenant_id`)'],
     ['documents', 'ft_documents', 'fulltext', '(`title`,`description`)'],

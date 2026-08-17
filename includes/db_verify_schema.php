@@ -1021,6 +1021,18 @@ return [
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Who fetched which document, and when. One row per download, written at the
+    // only place a document can actually be obtained — which is also the only
+    // place that can honestly claim to have recorded every access.
+    'document_access_log' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'document_id'       => 'INT NOT NULL',
+        'analyst_id'        => 'INT NULL',
+        'action'            => "VARCHAR(12) NOT NULL DEFAULT 'download'",
+        'ip_address'        => 'VARCHAR(45) NULL',
+        'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'email_send_log' => [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'mailbox_id'        => 'INT NULL',

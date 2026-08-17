@@ -1627,6 +1627,21 @@ CREATE TABLE IF NOT EXISTS `document_links` (
     CONSTRAINT `fk_document_links_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Who fetched which document, and when. Written at the download endpoint, which
+-- is the only way to obtain a document and therefore the only place that can
+-- honestly claim to have seen every access.
+CREATE TABLE IF NOT EXISTS `document_access_log` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `document_id`       INT NOT NULL,
+    `analyst_id`        INT NULL,
+    `action`            VARCHAR(12) NOT NULL DEFAULT 'download',
+    `ip_address`        VARCHAR(45) NULL,
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_document_access_doc` (`document_id`),
+    CONSTRAINT `fk_document_access_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Outbound counterpart to mailbox_activity_log: one row per send ATTEMPT, so a
 -- failure is visible in the UI instead of only in the PHP error log. `route` says
 -- which part of FreeITSM asked for the send; provider/auth_mode are recorded on the

@@ -1,0 +1,114 @@
+<?php
+/**
+ * API Endpoint: the documents attached to one record.
+ *
+ * GET ?parent_type=contract&parent_id=42[&offset=0&limit=50]
+ *
+ * Paged from the start. "Show all attachments" is the obvious first
+ * implementation and it is fine right up until somebody attaches three thousand
+ * photographs to an asset, at which point it is a page that never renders.
+ *
+ * Each row also reports what ELSE it is attached to — limited to parents the
+ * caller can see, because "also on Contract 42" would otherwise disclose the
+ * existence of a contract they have no access to. That list is what makes the
+ * widening rule visible: attach a document somewhere public and everyone there
+ * can read it, so the UI has to say where it already is.
+ */
+session_start(['read_and_close' => true]);
+require_once '../../config.php';
+require_once '../../includes/functions.php';
+require_once '../../includes/tenancy.php';
+require_once '../../includes/documents.php';
+
+header('Content-Type: application/json');
+
+if (!isset($_SESSION['analyst_id'])) {
+    echo json_encode(['success' => false, 'error' => 'Not authenticated']);
+    exit;
+}
+
+$analystId  = (int) $_SESSION['analyst_id'];
+$allowed    = $_SESSION['allowed_modules'] ?? null;
+$parentType = trim((string) ($_GET['parent_type'] ?? ''));
+$parentId   = (int) ($_GET['parent_id'] ?? 0);
+$offset     = max(0, (int) ($_GET['offset'] ?? 0));
+$limit      = min(200, max(1, (int) ($_GET['limit'] ?? 50)));
+
+if (!documentEntityDef($parentType) || $parentId <= 0) {
+    echo json_encode(['success' => false, 'error' => 'A valid parent_type and parent_id are required.']);
+    exit;
+}
+
+try {
+    $conn = connectToDatabase();
+
+    if (!documentCanViewParent($conn, $analystId, $allowed, $parentType, $parentId)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'You do not have access to that record.']);
+        exit;
+    }
+
+    $countSt = $conn->prepare(
+        "SELECT COUNT(*) FROM document_links dl
+           JOIN documents d ON d.id = dl.document_id
+          WHERE dl.parent_type = ? AND dl.parent_id = ? AND d.deleted_datetime IS NULL"
+    );
+    $countSt->execute([$parentType, $parentId]);
+    $total = (int) $countSt->fetchColumn();
+
+    $st = $conn->prepare(
+        "SELECT d.id, d.kind, d.title, d.description, d.original_name, d.mime_type,
+                d.size_bytes, d.external_url, d.created_datetime,
+                a.full_name AS uploaded_by_name
+           FROM document_links dl
+           JOIN documents d ON d.id = dl.document_id
+      LEFT JOIN analysts a ON a.id = d.uploaded_by_id
+          WHERE dl.parent_type = ? AND dl.parent_id = ? AND d.deleted_datetime IS NULL
+       ORDER BY d.created_datetime DESC, d.id DESC
+          LIMIT $limit OFFSET $offset"
+    );
+    $st->execute([$parentType, $parentId]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+
+    // Where else each one lives — only the places this caller may see.
+    $otherSt = $conn->prepare(
+        "SELECT parent_type, parent_id FROM document_links
+          WHERE document_id = ? AND NOT (parent_type = ? AND parent_id = ?)"
+    );
+    foreach ($rows as &$r) {
+        $r['id']         = (int) $r['id'];
+        $r['size_bytes'] = $r['size_bytes'] !== null ? (int) $r['size_bytes'] : null;
+        $r['also_on']    = [];
+        $otherSt->execute([$r['id'], $parentType, $parentId]);
+        foreach ($otherSt->fetchAll(PDO::FETCH_ASSOC) as $o) {
+            if (!documentCanViewParent($conn, $analystId, $allowed, (string) $o['parent_type'], (int) $o['parent_id'])) {
+                continue;   // never name a record the caller cannot see
+            }
+            $def = documentEntityDef((string) $o['parent_type']);
+            $name = null;
+            try {
+                $ns = $conn->prepare("SELECT `" . $def['title'] . "` FROM `" . $def['table'] . "` WHERE id = ?");
+                $ns->execute([(int) $o['parent_id']]);
+                $name = $ns->fetchColumn() ?: null;
+            } catch (Throwable $e) { /* a label is not worth failing the list for */ }
+            $r['also_on'][] = [
+                'parent_type' => $o['parent_type'],
+                'parent_id'   => (int) $o['parent_id'],
+                'label'       => $def['label'],
+                'name'        => $name,
+            ];
+        }
+    }
+    unset($r);
+
+    echo json_encode([
+        'success'   => true,
+        'total'     => $total,
+        'offset'    => $offset,
+        'limit'     => $limit,
+        'documents' => $rows,
+    ]);
+
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}

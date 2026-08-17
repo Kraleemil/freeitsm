@@ -308,12 +308,13 @@ function documentStoragePath(string $storageKey): string {
 }
 
 /**
- * The key for a newly stored file: sharded by the first four hex characters so
- * one directory never holds tens of thousands of entries.
+ * The key for a newly stored file.
+ *
+ * Flat, and that is fine: at the few thousand documents this is built for, a
+ * single directory is not a problem worth solving. Sharding into subdirectories,
+ * or moving to object storage entirely, changes THIS function and nothing else —
+ * which is the entire reason the column holds a key rather than a path.
  */
 function documentStorageKey(string $storedName): string {
-    $safe = basename(str_replace('\\', '/', $storedName));
-    $a = substr($safe, 0, 2) ?: 'x0';
-    $b = substr($safe, 2, 2) ?: 'x1';
-    return $a . '/' . $b . '/' . $safe;
+    return basename(str_replace('\\', '/', $storedName));
 }

@@ -95,6 +95,14 @@ temp/
 # Upload directories (may contain sensitive user data)
 uploads/*
 !uploads/.gitkeep
+# ⚠️ The execution guards must ship, but git will not re-include a file inside an
+# excluded DIRECTORY — so uploads/documents/ has to be un-ignored first, then its
+# contents excluded again. Without this a fresh clone has no protection in that
+# folder until the first upload happens to create it.
+!uploads/documents/
+uploads/documents/*
+!uploads/documents/.htaccess
+!uploads/documents/web.config
 
 # Module-specific runtime content (attachments, uploaded LMS courses, etc.)
 # These are populated by the running app and are tenant-specific — never commit.

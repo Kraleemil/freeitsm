@@ -663,6 +663,11 @@ try {
             try { $conn->exec("ALTER TABLE document_links ADD CONSTRAINT fk_document_links_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
     }
+    if ($tableExists('document_access_log') && $tableExists('documents')) {
+        if (!$fkExists('document_access_log', 'fk_document_access_document')) {
+            try { $conn->exec("ALTER TABLE document_access_log ADD CONSTRAINT fk_document_access_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+    }
 
     // RBAC Layer 2. Cascades keep the join tables clean: deleting a role, an
     // analyst or a team removes the assignments that pointed at it.
