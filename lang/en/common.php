@@ -174,6 +174,11 @@ return [
         'idx_pending'     => 'Not searchable yet — the text is still being read.',
         'idx_unsupported' => 'Its contents cannot be read, so only its name and description are searchable.',
         'idx_failed'      => 'Its contents could not be read.',
+        // Attaching an existing document: the other half of the join table.
+        'find_existing'   => 'Or attach a document already in FreeITSM — start typing its name',
+        'find_none'       => 'No documents match, that you can see and that are not already here.',
+        // Shown against each candidate, because attaching WIDENS who can read it.
+        'currently_on'    => 'currently on {where}',
     ],
 
     'notifications' => [

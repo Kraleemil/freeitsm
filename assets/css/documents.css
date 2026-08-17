@@ -211,3 +211,29 @@
     font-size: 12px; font-weight: 700; line-height: 1;
 }
 .cmdp-info:hover { border-color: var(--accent, #0078d4); color: var(--accent, #0078d4); }
+
+/* -- Attach one that already exists -------------------------------------- */
+.fd-existing { margin-top: 8px; position: relative; }
+.fd-find {
+    width: 100%; padding: 8px 11px; font-size: 13px;
+    border: 1px solid var(--border, #ccc); border-radius: 6px;
+    background: var(--surface, #fff); color: var(--text, #333);
+}
+.fd-find:focus { outline: none; border-color: var(--accent, #0078d4); }
+.fd-findresults {
+    margin-top: 6px; border: 1px solid var(--border, #ccc); border-radius: 6px;
+    background: var(--surface, #fff); max-height: 220px; overflow: auto;
+}
+.fd-findresults[hidden] { display: none; }
+.fd-findrow {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    padding: 8px 11px; border: none; border-bottom: 1px solid var(--border, #eee);
+    background: none; color: var(--text, #333); font-size: 13px;
+}
+.fd-findrow:last-child { border-bottom: none; }
+.fd-findrow:hover { background: var(--surface-2, #f5f5f5); }
+.fd-findtitle { display: block; font-weight: 600; }
+/* Where it already lives. Attaching widens who can read it, so this is the
+   sentence somebody should read before clicking. */
+.fd-findwhere { display: block; font-size: 11px; color: var(--warning-text, #92400e); margin-top: 2px; }
+.fd-findempty { padding: 10px 11px; font-size: 12px; color: var(--text-dim, #999); }

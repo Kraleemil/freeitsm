@@ -54,7 +54,10 @@
         idx_ok:       'Searchable — {n} characters of text indexed.',
         idx_pending:  'Not searchable yet — the text is still being read.',
         idx_unsupported: 'Its contents cannot be read, so only its name and description are searchable.',
-        idx_failed:   'Its contents could not be read.'
+        idx_failed:   'Its contents could not be read.',
+        find_existing:'Or attach a document already in FreeITSM — start typing its name',
+        find_none:    'No documents match, that you can see and that are not already here.',
+        currently_on: 'currently on {where}'
     };
 
     function t(key, params) {
@@ -132,6 +135,13 @@
                       '<input type="url" class="fd-url" placeholder="' + esc(t('link_url')) + '">' +
                       '<input type="text" class="fd-linktitle" placeholder="' + esc(t('link_title')) + '">' +
                       '<button type="button" class="fd-btn fd-addlink">' + esc(t('add_link')) + '</button>' +
+                  '</div>' +
+                  // Attach one that already exists — the other half of the join
+                  // table. Without this, one warranty on eleven laptops means
+                  // eleven uploads of the same file.
+                  '<div class="fd-existing">' +
+                      '<input type="text" class="fd-find" placeholder="' + esc(t('find_existing')) + '">' +
+                      '<div class="fd-findresults" hidden></div>' +
                   '</div>'
                 : '') +
             '<div class="fd-error" hidden></div>' +
@@ -163,6 +173,17 @@
                 }
             });
             this.el.querySelector('.fd-addlink').addEventListener('click', function () { self.addLink(); });
+
+            var find = this.el.querySelector('.fd-find');
+            var findTimer = null;
+            find.addEventListener('input', function () {
+                clearTimeout(findTimer);
+                findTimer = setTimeout(function () { self.findExisting(find.value.trim()); }, 250);
+            });
+            this.el.querySelector('.fd-findresults').addEventListener('click', function (e) {
+                var pick = e.target.closest('[data-attach]');
+                if (pick) self.attachExisting(parseInt(pick.getAttribute('data-attach'), 10));
+            });
         }
         this.el.querySelector('.fd-moreBtn').addEventListener('click', function () { self.load(false); });
 
@@ -328,6 +349,58 @@
           .then(function (d) {
               if (!d.success) { self.fail(d.error); return; }
               $url.value = ''; $title.value = '';
+              self.load(true);
+          })
+          .catch(function () { self.fail(); });
+    };
+
+    Panel.prototype.findExisting = function (q) {
+        var box = this.el.querySelector('.fd-findresults');
+        if (!q || q.length < 2 || !this.parentId) { box.hidden = true; box.innerHTML = ''; return; }
+        var self = this;
+        fetch(this.api + 'find.php?q=' + encodeURIComponent(q)
+              + '&parent_type=' + encodeURIComponent(this.parentType) + '&parent_id=' + this.parentId,
+              { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (!d.success) { self.fail(d.error); return; }
+                box.hidden = false;
+                if (!d.documents.length) {
+                    box.innerHTML = '<div class="fd-findempty">' + esc(t('find_none')) + '</div>';
+                    return;
+                }
+                box.innerHTML = d.documents.map(function (x) {
+                    // Say where it already is. Attaching WIDENS who can read it,
+                    // so the person doing it should be able to see that first.
+                    var where = (x.also_on || []).map(function (a) {
+                        return esc(a.label) + (a.name ? ': ' + esc(a.name) : '');
+                    }).join(', ');
+                    return '<button type="button" class="fd-findrow" data-attach="' + x.id + '">' +
+                        '<span class="fd-findtitle">' + esc(x.title) + '</span>' +
+                        (where ? '<span class="fd-findwhere">' + esc(t('currently_on', { where: where })) + '</span>' : '') +
+                    '</button>';
+                }).join('');
+            })
+            .catch(function () { self.fail(); });
+    };
+
+    Panel.prototype.attachExisting = function (documentId) {
+        var self = this;
+        fetch(this.api + 'attach.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                document_id: documentId,
+                parent_type: this.parentType,
+                parent_id:   this.parentId
+            })
+        }).then(function (r) { return r.json(); })
+          .then(function (d) {
+              if (!d.success) { self.fail(d.error); return; }
+              var find = self.el.querySelector('.fd-find');
+              find.value = '';
+              self.el.querySelector('.fd-findresults').hidden = true;
               self.load(true);
           })
           .catch(function () { self.fail(); });
