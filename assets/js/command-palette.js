@@ -206,7 +206,12 @@
                     // A document row carries an ⓘ: the subtitle names ONE place it
                     // is attached, and a document can be on several. Documents only
                     // — nothing else here has more than one home.
-                    var extra = (type === 'document')
+                    //
+                    // BOTH document types: a content hit is the same document found
+                    // by its text instead of its name, and "where does this live?"
+                    // is if anything a more pressing question there — you have just
+                    // matched a phrase and have no idea what it belongs to.
+                    var extra = (type === 'document' || type === 'document_content')
                         ? '<button type="button" class="cmdp-info" data-doc="' + (r.id | 0) +
                           '" title="Document details" aria-label="Document details">i</button>'
                         : '';
