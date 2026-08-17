@@ -41,10 +41,13 @@
     // heading above it already says it was found by its text.
     ICONS.ticket_content = ICONS.ticket;
     ICONS.article_content = ICONS.knowledge;
+    // An attached document is a file, whatever it hangs off — same glyph as the
+    // documents panel uses, so the two read as the same thing.
+    ICONS.document = ICONS.contract;
     var TYPE_LABEL = {
         ticket: 'Ticket', change: 'Change', problem: 'Problem',
         knowledge: 'Article', contract: 'Contract', ci: 'Config item', asset: 'Asset',
-        ticket_content: 'Ticket', article_content: 'Article'
+        ticket_content: 'Ticket', article_content: 'Article', document: 'Document'
     };
 
     // Static quick actions. Each has a matcher label and a run().
@@ -189,7 +192,11 @@
             // hostname, press Enter, you are there. A content hit is a different
             // intent, and putting it any higher means "LT-001" shows message
             // snippets above the asset actually called LT-001.
-            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci', 'ticket_content', 'article_content'].forEach(function (type) {
+            // ⚠️ A TYPE MISSING FROM THIS LIST IS SILENTLY DROPPED. The server can
+            // be returning results perfectly and the palette will show nothing,
+            // with no error anywhere — which is exactly what happened when
+            // documents were added server-side (#76).
+            ['ticket', 'change', 'problem', 'knowledge', 'contract', 'asset', 'ci', 'document', 'ticket_content', 'article_content'].forEach(function (type) {
                 var group = serverResults.filter(function (r) { return r.type === type; });
                 if (!group.length) return;
                 html += '<div class="cmdp-group-label">' + esc(pluralType(type)) + '</div>';
@@ -228,7 +235,7 @@
         return {
             ticket: 'Tickets', change: 'Changes', problem: 'Problems',
             knowledge: 'Knowledge', contract: 'Contracts',
-            asset: 'Assets', ci: 'Configuration items',
+            asset: 'Assets', ci: 'Configuration items', document: 'Documents',
             // Says WHERE the match was, not what the thing is — these are the
             // same tickets as the group above, found by their text instead of
             // their name, and the label is the only thing that explains why a
