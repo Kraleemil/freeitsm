@@ -91,6 +91,10 @@
         this.parentId   = parseInt(opts.parentId, 10);
         this.api        = opts.apiBase || '../api/documents/';
         this.canEdit    = opts.canEdit !== false;
+        // Most hosts already name the section — a tab called Documents, or a form
+        // heading — so repeating it inside the panel just says the word twice.
+        // The COUNT still shows, because that is the part the host does not know.
+        this.showHeading = opts.showHeading === true;
         this.pageSize   = opts.pageSize || 25;
         this.offset     = 0;
         this.items      = [];
@@ -103,7 +107,7 @@
         this.el.classList.add('fd-panel');
         this.el.innerHTML =
             '<div class="fd-head">' +
-                '<h4>' + esc(t('heading')) + '</h4>' +
+                (this.showHeading ? '<h4>' + esc(t('heading')) + '</h4>' : '') +
                 '<span class="fd-count"></span>' +
                 '<span class="fd-spacer"></span>' +
             '</div>' +

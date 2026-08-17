@@ -842,6 +842,12 @@ $translationNamespaces = ['common', 'asset-management'];
         /* Tickets raised against this asset (discussion #57). Themed from real
            tokens throughout so dark mode needs no override block. */
         .asset-tickets-list { padding: 4px 0; }
+
+        /* The documents panel brings no padding of its own — the host page owns
+           its spacing, or the panel would double up inside a form that already
+           has some (as contracts does). 20px matches .asset-info-grid, so the
+           Documents tab lines up with Key info rather than nearly lining up. */
+        #assetDocuments { padding: 20px; }
         .asset-tickets-empty {
             padding: 24px 16px;
             color: var(--text-faint, #9ca3af);
