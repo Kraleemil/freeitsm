@@ -991,13 +991,16 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
         // (NULL). Always the Default company on a single-company install.
         $ticketTenantId = resolveTicketTenantForEmail($conn, $mailboxId, $fromAddress);
 
+        // Status/priority resolve to the CONFIGURED default, never to the literal
+        // names 'Open'/'Normal' — those are display names an admin may rename or
+        // translate, and a missed match silently inserted a NULL status_id (#79).
         $ticketSql = "INSERT INTO tickets (
             ticket_number, subject, status_id, priority_id,
             created_datetime, updated_datetime, user_id, tenant_id
         ) VALUES (
             ?, ?,
-            (SELECT id FROM ticket_statuses   WHERE name = 'Open'   LIMIT 1),
-            (SELECT id FROM ticket_priorities WHERE name = 'Normal' LIMIT 1),
+            (SELECT id FROM ticket_statuses   WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1),
+            (SELECT id FROM ticket_priorities WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1),
             ?, UTC_TIMESTAMP(), ?, ?
         )";
 

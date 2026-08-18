@@ -82,14 +82,16 @@ class TicketsService
             $requesterName = ucfirst(explode('@', $requesterEmail)[0]);
         }
 
+        // No status/priority supplied → the CONFIGURED default. Never the literal
+        // names 'Open'/'Normal': those are display names an admin may rename or
+        // translate, and a missed match silently left the field NULL (#79).
         $statusRes = self::resolveStatus($conn, $in) ?? (function () use ($conn) {
-            $row = $conn->query("SELECT id, name, is_closed FROM ticket_statuses WHERE name = 'Open' LIMIT 1")->fetch(PDO::FETCH_ASSOC)
-                ?: $conn->query("SELECT id, name, is_closed FROM ticket_statuses WHERE is_default = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $row = $conn->query("SELECT id, name, is_closed FROM ticket_statuses WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             return $row ? [(int)$row['id'], $row['name'], (int)$row['is_closed']] : [null, null, 0];
         })();
         $priorityRes = self::resolvePriority($conn, $in);
         if ($priorityRes === null) {
-            $row = $conn->query("SELECT id, name FROM ticket_priorities WHERE name = 'Normal' LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            $row = $conn->query("SELECT id, name FROM ticket_priorities WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
             $priorityRes = $row ? [(int)$row['id'], $row['name']] : [null, null];
         }
 

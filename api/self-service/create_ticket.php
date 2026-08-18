@@ -83,13 +83,15 @@ try {
     // Generate unique ticket number
     $ticketNumber = generateTicketNumber($conn);
 
-    // Create ticket. Resolve status/priority names to ids via subselects.
+    // Create ticket. The status resolves to the CONFIGURED default rather than the
+    // literal name 'Open', which an admin may rename or translate (#79). The
+    // priority was already validated against the active list above.
     $ticketSql = "INSERT INTO tickets (
         ticket_number, subject, status_id, priority_id,
         user_id, tenant_id, created_datetime, updated_datetime
     ) VALUES (
         ?, ?,
-        (SELECT id FROM ticket_statuses   WHERE name = 'Open' LIMIT 1),
+        (SELECT id FROM ticket_statuses   WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1),
         (SELECT id FROM ticket_priorities WHERE name = ? LIMIT 1),
         ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()
     )";

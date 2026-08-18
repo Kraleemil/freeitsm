@@ -66,11 +66,18 @@ try {
         'user_id'             => $userId,
         'requester_email'     => $fromEmail,
         'requester_name'      => $fromName,
-        'priority'            => $input['priority'] ?? 'Normal',
         'department_id'       => $input['department_id'] ?? null,
         'ticket_type_id'      => $input['ticket_type_id'] ?? null,
         'mailbox_id'          => $input['mailbox_id'] ?? null,
     ];
+    // Only pass a priority if the form actually sent one. This used to default to
+    // the literal 'Normal', which the service resolves BY NAME and rejects with
+    // "Unknown priority: Normal" on any install that renamed it — so a hardcoded
+    // English fallback could fail the create outright (#79). No key = the
+    // service picks the configured default.
+    if (isset($input['priority']) && trim((string)$input['priority']) !== '') {
+        $in['priority'] = $input['priority'];
+    }
     if (!empty($input['assigned_analyst_id'])) {
         $in['assigned_analyst_id'] = (int)$input['assigned_analyst_id'];
     }

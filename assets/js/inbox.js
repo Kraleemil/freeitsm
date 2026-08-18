@@ -2055,7 +2055,10 @@ function displayEmail(email, recordings) {
 
     // Build summary values for collapsed view
     const summaryDept = getDisplayName('department', email.department_id) || t('tickets.reading_pane.summary_none');
-    const summaryStatus = email.status || t('tickets.reading_pane.summary_open');
+    // A ticket with no status reads as "none". It used to claim "Open", which is
+    // why #79 looked self-contradictory: the header said Open while the list row
+    // and the Status dropdown correctly showed nothing.
+    const summaryStatus = email.status || t('tickets.reading_pane.summary_none');
     const summaryOwner = getDisplayName('owner', email.owner_id) || t('tickets.reading_pane.summary_unassigned');
 
     // When the open ticket is in the trash, lead with a banner offering Restore /
@@ -3858,14 +3861,17 @@ function updatePropertiesSummary() {
     const summaryStatus = document.getElementById('summaryStatus');
     const summaryOwner = document.getElementById('summaryOwner');
 
+    // Same strings the initial render uses, via t() — these were hardcoded English
+    // and overwrote the localised values as soon as any property changed (#79).
     if (summaryDept && currentEmail) {
-        summaryDept.textContent = getDisplayName('department', currentEmail.department_id) || 'None';
+        summaryDept.textContent = getDisplayName('department', currentEmail.department_id) || t('tickets.reading_pane.summary_none');
     }
     if (summaryStatus && currentEmail) {
-        summaryStatus.textContent = currentEmail.status || 'Open';
+        // No status is "none", not "Open" — claiming Open is what hid #79.
+        summaryStatus.textContent = currentEmail.status || t('tickets.reading_pane.summary_none');
     }
     if (summaryOwner && currentEmail) {
-        summaryOwner.textContent = getDisplayName('owner', currentEmail.owner_id) || 'Unassigned';
+        summaryOwner.textContent = getDisplayName('owner', currentEmail.owner_id) || t('tickets.reading_pane.summary_unassigned');
     }
 }
 

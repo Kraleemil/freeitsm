@@ -204,8 +204,8 @@ function webchatOpenTicket(PDO $conn, array $conversation, array $channel, strin
                 user_id, tenant_id, origin_id
             ) VALUES (
                 ?, ?,
-                (SELECT id FROM ticket_statuses   WHERE name = 'Open'   LIMIT 1),
-                (SELECT id FROM ticket_priorities WHERE name = 'Normal' LIMIT 1),
+                (SELECT id FROM ticket_statuses   WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1),
+                (SELECT id FROM ticket_priorities WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1),
                 UTC_TIMESTAMP(), UTC_TIMESTAMP(), UTC_TIMESTAMP(),
                 ?, ?, ?
             )";

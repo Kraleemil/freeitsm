@@ -1617,6 +1617,32 @@ try {
         $conn->exec("UPDATE tickets SET priority_id = (SELECT id FROM ticket_priorities WHERE is_default = 1 LIMIT 1) WHERE priority_id IS NULL");
     }
 
+    // Repair tickets left with no status/priority at all. This deliberately sits
+    // OUTSIDE the two legacy blocks above: those are gated on the old
+    // tickets.status / tickets.priority columns, which a fresh install has never
+    // had, so their identical repairs could never run on the installs that hit
+    // #79 — intake paths inserted a NULL status_id whenever the default status
+    // had been renamed (e.g. translated to 'Offen'). The row then showed no
+    // status chip and an empty Status dropdown.
+    if ($tableExists('tickets') && $colExists('tickets', 'status_id')) {
+        $upd = $conn->exec("UPDATE tickets
+                               SET status_id = (SELECT id FROM ticket_statuses WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1)
+                             WHERE status_id IS NULL");
+        if ($upd > 0) {
+            $results[] = ['table' => 'tickets', 'status' => 'migrated',
+                          'details' => ["Set the default status on $upd ticket(s) that had none"]];
+        }
+    }
+    if ($tableExists('tickets') && $colExists('tickets', 'priority_id')) {
+        $upd = $conn->exec("UPDATE tickets
+                               SET priority_id = (SELECT id FROM ticket_priorities WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1)
+                             WHERE priority_id IS NULL");
+        if ($upd > 0) {
+            $results[] = ['table' => 'tickets', 'status' => 'migrated',
+                          'details' => ["Set the default priority on $upd ticket(s) that had none"]];
+        }
+    }
+
     // asset_history.field_name normalisation: legacy rows stored an English label
     // (e.g. "Purchase date"). New writes store a stable key so the history view can
     // localise it via t('asset-management.field.<key>'). Exact-match + idempotent.

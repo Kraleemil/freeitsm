@@ -1890,8 +1890,9 @@ class WorkflowEngine
                 }
             }
 
-            // Default status to 'Open' (matches api/tickets/create_ticket.php).
-            $statusId = $conn->query("SELECT id FROM ticket_statuses WHERE name = 'Open' LIMIT 1")->fetchColumn();
+            // Default status = the CONFIGURED default, not the literal name 'Open',
+            // which an admin may rename or translate (#79).
+            $statusId = $conn->query("SELECT id FROM ticket_statuses WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1")->fetchColumn();
             $statusId = $statusId ? (int)$statusId : null;
 
             // Mirror create_ticket.php's number generator pattern.

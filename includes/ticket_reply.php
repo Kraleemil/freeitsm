@@ -83,14 +83,15 @@ function reopenTicketForCustomerReply(PDO $conn, int $ticketId): bool {
         $isClosed = $stmt->fetchColumn();
         if ($isClosed === false || (int)$isClosed !== 1) return false;
 
-        // Prefer an ACTIVE status literally called "Open", then the install's
-        // default, then whatever comes first. is_active sorts first rather than
-        // filtering, so an install that retired every status still gets an answer
-        // instead of leaving the ticket stuck closed.
+        // Prefer the install's DEFAULT open status, then whatever comes first.
+        // It used to prefer a status literally named "Open" ahead of the default,
+        // which loses on any install that renamed or translated it (#79).
+        // is_active sorts first rather than filtering, so an install that retired
+        // every status still gets an answer instead of leaving the ticket stuck closed.
         $openId = $conn->query(
             "SELECT id FROM ticket_statuses
              WHERE is_closed = 0
-             ORDER BY is_active DESC, (name = 'Open') DESC, is_default DESC, display_order ASC, id ASC
+             ORDER BY is_active DESC, is_default DESC, display_order ASC, id ASC
              LIMIT 1"
         )->fetchColumn();
         if ($openId === false || $openId === null) return false;   // every status is closed?!
