@@ -829,7 +829,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=88"></script>
+    <script src="../assets/js/inbox.js?v=89"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

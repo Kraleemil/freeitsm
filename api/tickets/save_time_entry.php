@@ -27,6 +27,16 @@ try {
         'entry_at' => !empty($data['entry_datetime']) ? $data['entry_datetime'] : null,
     ];
     $conn = connectToDatabase();
+
+    // Time tracking switched off for this ticket's company (discussion #72).
+    // Refuse the WRITE too, not only the read: a feature that is off should not
+    // still be quietly accepting entries from a stale tab or a bookmarked call.
+    require_once '../../includes/tenant_settings.php';
+    if (!timeTrackingUiOn($conn, ticketTenantId($conn, (int)$ticketId))) {
+        echo json_encode(['success' => false, 'error' => 'Time tracking is switched off for this company.']);
+        exit;
+    }
+
     $ctx = ActorContext::fromSession($conn);
     if ($entryId) {
         TicketsService::updateTimeEntry($conn, $ctx, $entryId, (int)$ticketId, $in);

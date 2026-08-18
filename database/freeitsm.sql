@@ -1627,6 +1627,21 @@ CREATE TABLE IF NOT EXISTS `document_links` (
     CONSTRAINT `fk_document_links_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Per-company answers to settings that otherwise live install-wide in
+-- system_settings (discussion #72). A company with NO ROW here is not "off" — it
+-- follows the install default, which is what keeps this invisible on a
+-- single-company install. See includes/tenant_settings.php.
+CREATE TABLE IF NOT EXISTS `tenant_settings` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `tenant_id`         INT NOT NULL,
+    `setting_key`       VARCHAR(100) NOT NULL,
+    `setting_value`     TEXT NULL,
+    `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_tenant_setting` (`tenant_id`,`setting_key`),
+    CONSTRAINT `fk_tenant_settings_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Extracted text for an attached document, so its CONTENTS are searchable and
 -- not merely its title. Separate from attachment_text because that table's key
 -- is an email-attachment id; the shared part is the extractor, not the queue.

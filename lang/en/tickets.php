@@ -593,6 +593,7 @@ return [
             'reply_cleanup'   => 'Reply cleanup',
             'csat'            => 'CSAT',
             'row_display'     => 'Row display',
+            'time_tracking'   => 'Time tracking',
         ],
         // Section h2 headings inside each tab. Most mirror the tab labels but
         // some are more descriptive — kept separate so translators can pick
@@ -618,6 +619,30 @@ return [
             'reply_cleanup_ai' => 'Reply cleanup AI',
             'csat'             => 'Customer satisfaction surveys',
             'row_display'      => 'What your ticket rows show',
+            'time_tracking'    => 'Time tracking',
+        ],
+
+        // Time tracking (discussion #72). Two switches, per company, over an
+        // install default — because hiding a panel and closing an API endpoint
+        // are different decisions with different people affected.
+        'time_tracking' => [
+            'intro'             => 'Not every team records time against tickets. Turn it off and the time panel disappears from the ticket view — nothing is deleted, and anything already recorded comes back untouched if you turn it on again.',
+            'default_heading'   => 'Default for this installation',
+            'ui_label'          => 'Record time on tickets',
+            'ui_desc'           => 'Shows the time panel in the ticket view, and lets people add entries.',
+            'api_label'         => 'Serve time entries over the REST API',
+            'api_desc'          => 'Separate on purpose: hiding the panel tidies the screen, but closing the API can break an integration somebody built. Leave it on unless you mean it.',
+            'companies_heading' => 'Per company',
+            'companies_intro'   => 'A company set to "Follow the default" changes with the setting above. Which switch applies to a ticket is decided by the company that ticket belongs to.',
+            'col_company'       => 'Company',
+            'col_ui'            => 'On tickets',
+            'col_api'           => 'REST API',
+            'inherit'           => 'Follow the default',
+            'on'                => 'On',
+            'off'               => 'Off',
+            'preserved_note'    => 'Turning either switch off never deletes anything. Existing time entries stay exactly as they are.',
+            'save'              => 'Save',
+            'saved'             => 'Time tracking settings saved',
         ],
 
         // Row display (discussion #61). Per-analyst, over an install default.

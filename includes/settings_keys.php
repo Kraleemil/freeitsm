@@ -106,6 +106,12 @@ function settingKeyOwners(): array
         // includes/uploads.php; it can never widen past it.
         'attachment_allowed_extensions' => ['module' => 'system', 'cap' => null, 'tab' => 'security'],
 
+        // --- Tickets: time tracking (discussion #72) ---
+        // The INSTALL-WIDE defaults. A company may override either of them —
+        // see includes/tenant_settings.php and the Time tracking tab.
+        'time_tracking_enabled'     => ['module' => 'tickets', 'cap' => Cap::TICKETS_MANAGE, 'tab' => 'time-tracking'],
+        'time_tracking_api_enabled' => ['module' => 'tickets', 'cap' => Cap::TICKETS_MANAGE, 'tab' => 'time-tracking'],
+
         // --- System: SSO area ---
         'sso_enabled'              => ['module' => 'system', 'cap' => null, 'tab' => 'sso'],
         'local_login_enabled'      => ['module' => 'system', 'cap' => null, 'tab' => 'sso'],

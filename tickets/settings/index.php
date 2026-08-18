@@ -1443,6 +1443,62 @@ $translationNamespaces = ['common', 'tickets'];
         </div>
         <?php endif; ?>
 
+        <?php if (settingsTabVisible($visibleTabs, 'time-tracking')): ?>
+        <!-- Time tracking (discussion #72). Two switches, because hiding the panel
+             and closing the API are different decisions: an install can tidy its
+             screens without breaking a billing export that nobody told it about. -->
+        <div class="tab-content<?php echo $activeTabId === 'time-tracking' ? ' active' : ''; ?>" id="time-tracking-tab" data-capability="<?php echo Cap::TICKETS_MANAGE; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('tickets.settings.headings.time_tracking')); ?></h2>
+            </div>
+            <p style="color: var(--text-muted, #555);">
+                <?php echo htmlspecialchars(t('tickets.settings.time_tracking.intro')); ?>
+            </p>
+
+            <div class="tt-block">
+                <h3 class="tt-sub" id="ttDefaultHeading"><?php echo htmlspecialchars(t('tickets.settings.time_tracking.default_heading')); ?></h3>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <strong><?php echo htmlspecialchars(t('tickets.settings.time_tracking.ui_label')); ?></strong>
+                        <?php echo htmlspecialchars(t('tickets.settings.time_tracking.ui_desc')); ?>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="ttDefaultUi"><span class="slider"></span></label>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <strong><?php echo htmlspecialchars(t('tickets.settings.time_tracking.api_label')); ?></strong>
+                        <?php echo htmlspecialchars(t('tickets.settings.time_tracking.api_desc')); ?>
+                    </div>
+                    <label class="switch"><input type="checkbox" id="ttDefaultApi"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <?php /* Only rendered when there is more than one company. At N=1 this
+                     whole block is absent and the page is two switches, which is
+                     exactly what discussion #72 asked for. */ ?>
+            <div class="tt-block" id="ttCompaniesBlock" hidden>
+                <h3 class="tt-sub"><?php echo htmlspecialchars(t('tickets.settings.time_tracking.companies_heading')); ?></h3>
+                <p style="color: var(--text-muted, #555); font-size: 13px;">
+                    <?php echo htmlspecialchars(t('tickets.settings.time_tracking.companies_intro')); ?>
+                </p>
+                <table class="settings-table" id="ttCompaniesTable">
+                    <thead><tr>
+                        <th><?php echo htmlspecialchars(t('tickets.settings.time_tracking.col_company')); ?></th>
+                        <th><?php echo htmlspecialchars(t('tickets.settings.time_tracking.col_ui')); ?></th>
+                        <th><?php echo htmlspecialchars(t('tickets.settings.time_tracking.col_api')); ?></th>
+                    </tr></thead>
+                    <tbody id="ttCompaniesBody"></tbody>
+                </table>
+            </div>
+
+            <p class="tt-note"><?php echo htmlspecialchars(t('tickets.settings.time_tracking.preserved_note')); ?></p>
+
+            <div class="save-area">
+                <button class="btn btn-primary" id="ttSaveBtn"><?php echo htmlspecialchars(t('tickets.settings.time_tracking.save')); ?></button>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <?php if (settingsTabVisible($visibleTabs, 'row-display')): ?>
         <!-- Row display (discussion #61). cap => null: a personal view preference,
              so no data-capability attribute — there is nothing here to grant. The
@@ -6377,6 +6433,86 @@ $translationNamespaces = ['common', 'tickets'];
             });
             rdRenderPreview();
         });
+
+        /* ─── Time tracking (discussion #72) ────────────────────────────────
+           Two switches per company, plus the install default they fall back to.
+           A company row has THREE states, not two: on, off, or "follow the
+           default" — which is why each cell is a <select> rather than a
+           checkbox. A tri-state you cannot express is a company you can never
+           hand back to the default once you have given it an answer. */
+        (function () {
+            const block = document.getElementById('time-tracking-tab');
+            if (!block) return;
+
+            const $ = id => document.getElementById(id);
+            let companies = [];
+
+            function optionsFor(value) {
+                // value: true | false | null (null = follow the default)
+                const sel = v => (v === value ? ' selected' : '');
+                return '<option value=""' + sel(null) + '>' + ttT('inherit') + '</option>' +
+                       '<option value="1"' + sel(true) + '>' + ttT('on') + '</option>' +
+                       '<option value="0"' + sel(false) + '>' + ttT('off') + '</option>';
+            }
+            function ttT(k) {
+                const map = {
+                    inherit: <?php echo json_encode(t('tickets.settings.time_tracking.inherit')); ?>,
+                    on:      <?php echo json_encode(t('tickets.settings.time_tracking.on')); ?>,
+                    off:     <?php echo json_encode(t('tickets.settings.time_tracking.off')); ?>
+                };
+                return map[k] || k;
+            }
+
+            async function load() {
+                try {
+                    const r = await fetch(API_BASE + 'tickets/get_time_tracking_settings.php');
+                    const d = await r.json();
+                    if (!d.success) return;
+                    $('ttDefaultUi').checked  = !!d.default.ui;
+                    $('ttDefaultApi').checked = !!d.default.api;
+                    companies = d.companies || [];
+                    if (d.multi_tenant && companies.length) {
+                        $('ttCompaniesBlock').hidden = false;
+                        $('ttCompaniesBody').innerHTML = companies.map(c =>
+                            '<tr data-id="' + c.id + '">' +
+                                '<td>' + escapeHtml(c.name) + '</td>' +
+                                '<td><select class="tt-ui">'  + optionsFor(c.ui)  + '</select></td>' +
+                                '<td><select class="tt-api">' + optionsFor(c.api) + '</select></td>' +
+                            '</tr>').join('');
+                    }
+                } catch (e) { /* leave the switches as rendered */ }
+            }
+
+            $('ttSaveBtn').addEventListener('click', async function () {
+                this.disabled = true;
+                const payload = {
+                    default: { ui: $('ttDefaultUi').checked, api: $('ttDefaultApi').checked },
+                    companies: [...document.querySelectorAll('#ttCompaniesBody tr')].map(tr => {
+                        const val = s => s.value === '' ? null : (s.value === '1');
+                        return {
+                            id:  parseInt(tr.dataset.id, 10),
+                            ui:  val(tr.querySelector('.tt-ui')),
+                            api: val(tr.querySelector('.tt-api'))
+                        };
+                    })
+                };
+                try {
+                    const r = await fetch(API_BASE + 'tickets/save_time_tracking_settings.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const d = await r.json();
+                    showToast(d.success ? <?php echo json_encode(t('tickets.settings.time_tracking.saved')); ?>
+                                        : (d.error || 'Failed'), d.success ? 'success' : 'error');
+                } catch (e) {
+                    showToast('Failed', 'error');
+                }
+                this.disabled = false;
+            });
+
+            load();
+        })();
 
     </script>
     <script src="../../assets/js/mobile.js?v=22"></script>

@@ -136,6 +136,19 @@ return [
             'grant'     => 'Manage the shared reply templates the whole team can insert',
         ],
         [
+            // Whether time recording appears at all (discussion #72).
+            //
+            // 🔑 IN TICKETS SETTINGS, NOT SYSTEM, because every surface time
+            // tracking has is a ticket surface — the panel in the reading pane
+            // and the two endpoints behind it. There is no time report, no time
+            // menu and no dashboard widget, so nothing about it is install-wide
+            // in character.
+            'id'        => 'time-tracking',
+            'cap'       => Cap::TICKETS_MANAGE,
+            'label_key' => 'tickets.settings.tabs.time_tracking',
+            'grant'     => 'Turn time recording on or off, per company',
+        ],
+        [
             // How merging behaves, install-wide. Deliberately NOT a per-analyst
             // preference like the multi-select pane: whether a merge keeps the
             // requester's reference alive decides what the CUSTOMER sees, so two

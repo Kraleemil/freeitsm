@@ -6720,6 +6720,19 @@ async function loadTimeEntries(ticketId) {
     try {
         const response = await fetch(`${API_BASE}get_time_entries.php?ticket_id=${ticketId}`);
         const data = await response.json();
+
+        // Time tracking switched off for this ticket's company (discussion #72).
+        // The SERVER decides, per ticket, because the answer is per company and a
+        // ticket always belongs to one — so an analyst working across two clients
+        // sees it on one ticket and not the next, which is correct rather than odd.
+        // Nothing is deleted; the entries are simply not shown.
+        if (data.disabled) {
+            const container = document.getElementById('timeEntriesContainer');
+            if (container) container.innerHTML = '';
+            currentTimeEntries = [];
+            return;
+        }
+
         currentTimeEntries = data.success ? data.entries : [];
         renderTimeEntries(data.success ? data.total_minutes : 0);
     } catch (e) {

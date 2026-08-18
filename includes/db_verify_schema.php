@@ -1051,6 +1051,17 @@ return [
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Per-company answers to settings that otherwise live install-wide in
+    // system_settings (discussion #72). A company with no row follows the
+    // install default — see includes/tenant_settings.php.
+    'tenant_settings' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'tenant_id'         => 'INT NOT NULL',
+        'setting_key'       => 'VARCHAR(100) NOT NULL',
+        'setting_value'     => 'TEXT NULL',
+        'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'email_send_log' => [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'mailbox_id'        => 'INT NULL',

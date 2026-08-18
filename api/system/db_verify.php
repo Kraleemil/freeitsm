@@ -664,6 +664,13 @@ try {
             try { $conn->exec("ALTER TABLE document_links ADD CONSTRAINT fk_document_links_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
     }
+    // Per-company settings. Deleting a company takes its overrides with it —
+    // they would otherwise outlive it and be inherited by a reused id.
+    if ($tableExists('tenant_settings') && $tableExists('tenants')) {
+        if (!$fkExists('tenant_settings', 'fk_tenant_settings_tenant')) {
+            try { $conn->exec("ALTER TABLE tenant_settings ADD CONSTRAINT fk_tenant_settings_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE CASCADE"); } catch (Exception $e) {}
+        }
+    }
     if ($tableExists('document_text') && $tableExists('documents')) {
         if (!$fkExists('document_text', 'fk_document_text_document')) {
             try { $conn->exec("ALTER TABLE document_text ADD CONSTRAINT fk_document_text_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}

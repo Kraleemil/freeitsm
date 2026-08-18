@@ -408,8 +408,28 @@ function apiTicketSlaGet(PDO $conn, array $apiKey, array $params, array $body): 
 // ---------------------------------------------------------------------------
 // Time entries
 // ---------------------------------------------------------------------------
+/**
+ * Refuse if this ticket's company has switched time tracking off FOR THE API
+ * (discussion #72).
+ *
+ * ⚠️ Separate from the UI switch on purpose. Hiding the panel is about interface
+ * clutter; silently emptying an endpoint breaks integrations belonging to people
+ * who changed nothing — so an install can tidy its screens without breaking a
+ * billing export, or switch both off, and the two are its own decision.
+ *
+ * A refusal rather than an empty list: an empty list says "this ticket has no
+ * time", which is a different and untrue statement.
+ */
+function apiRequireTimeTracking(PDO $conn, int $ticketId): void {
+    require_once dirname(__DIR__, 3) . '/includes/tenant_settings.php';
+    if (!timeTrackingApiOn($conn, ticketTenantId($conn, $ticketId))) {
+        apiError(404, 'not_found', 'Time tracking is not enabled for this ticket\'s company.');
+    }
+}
+
 function apiTicketTimeEntriesList(PDO $conn, array $apiKey, array $params, array $body): void {
     apiLoadTicket($conn, $apiKey, $params[0]);
+    apiRequireTimeTracking($conn, (int) $params[0]);
     $stmt = $conn->prepare(
         "SELECT te.id, te.time_spent_minutes, te.entry_datetime, te.notes,
                 te.analyst_id, a.full_name AS analyst_name
@@ -431,6 +451,7 @@ function apiTicketTimeEntriesList(PDO $conn, array $apiKey, array $params, array
 }
 
 function apiTicketTimeEntriesCreate(PDO $conn, array $apiKey, array $params, array $body): void {
+    apiRequireTimeTracking($conn, (int) $params[0]);
     try {
         $entryId = TicketsService::createTimeEntry($conn, ActorContext::fromApiKey($apiKey), (int)$params[0], $body);
     } catch (ServiceError $e) { apiFailFromService($e); }
@@ -447,6 +468,7 @@ function apiTicketTimeEntriesCreate(PDO $conn, array $apiKey, array $params, arr
 }
 
 function apiTicketTimeEntriesDelete(PDO $conn, array $apiKey, array $params, array $body): void {
+    apiRequireTimeTracking($conn, (int) $params[0]);
     try {
         TicketsService::deleteTimeEntry($conn, ActorContext::fromApiKey($apiKey), (int)$params[1], (int)$params[0], false);
     } catch (ServiceError $e) { apiFailFromService($e); }
