@@ -838,6 +838,13 @@ return [
                 'company_help'                => 'Pin this mailbox to a company — all its mail goes to that company and replies are sent from it. Choose "Shared intake" to route each email by the sender\'s domain instead.',
                 'company_shared'              => 'Shared intake (route by sender domain)',
                 'company_shared_badge'        => 'Shared intake',
+                // #79: the origin stamped on tickets this mailbox opens.
+                'origin_label'                => 'Default ticket origin',
+                'origin_help'                 => 'Where tickets opened by this mailbox are recorded as having come from. Set per mailbox, so a helpdesk address can be "Email" while a monitoring address is something else entirely. Leave blank to record no origin.',
+                'origin_none'                 => 'None',
+                'problems_title'              => 'Things to check',
+                'problems_tooltip'            => 'Something needs attention — click for details',
+                'problems_none'               => 'Nothing to report on this mailbox.',
                 'reading_from'                => 'Reading from {addr}',
                 'status_app_only'             => 'App-only — reads {addr} directly',
                 'status_imap'                 => 'IMAP — reads {addr} directly',

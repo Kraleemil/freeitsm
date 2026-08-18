@@ -991,22 +991,32 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
         // (NULL). Always the Default company on a single-company install.
         $ticketTenantId = resolveTicketTenantForEmail($conn, $mailboxId, $fromAddress);
 
+        // Where the ticket came from, as configured on THIS mailbox (#79). Per
+        // mailbox rather than one global "Email", because a helpdesk address and a
+        // monitoring alert address both arrive by email and are not the same
+        // source. NULL when the mailbox has no origin set — the ⚠ on the mailbox
+        // row says so rather than letting it stay invisible.
+        $originStmt = $conn->prepare("SELECT default_origin_id FROM target_mailboxes WHERE id = ?");
+        $originStmt->execute([$mailboxId]);
+        $ticketOriginId = $originStmt->fetchColumn();
+        $ticketOriginId = $ticketOriginId ? (int) $ticketOriginId : null;
+
         // Status/priority resolve to the CONFIGURED default, never to the literal
         // names 'Open'/'Normal' — those are display names an admin may rename or
         // translate, and a missed match silently inserted a NULL status_id (#79).
         $ticketSql = "INSERT INTO tickets (
             ticket_number, subject, status_id, priority_id,
-            created_datetime, updated_datetime, user_id, tenant_id
+            created_datetime, updated_datetime, user_id, tenant_id, origin_id
         ) VALUES (
             ?, ?,
             (SELECT id FROM ticket_statuses   WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1),
             (SELECT id FROM ticket_priorities WHERE is_active = 1 ORDER BY is_default DESC, display_order, id LIMIT 1),
-            ?, UTC_TIMESTAMP(), ?, ?
+            ?, UTC_TIMESTAMP(), ?, ?, ?
         )";
 
         $ticketStmt = $conn->prepare($ticketSql);
         $ticketStmt->execute([
-            $ticketNumber, $subject, $receivedDateTime, $userId, $ticketTenantId
+            $ticketNumber, $subject, $receivedDateTime, $userId, $ticketTenantId, $ticketOriginId
         ]);
 
         $ticketId = $conn->lastInsertId();

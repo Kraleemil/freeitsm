@@ -1062,11 +1062,17 @@ CREATE TABLE IF NOT EXISTS `target_mailboxes` (
     `imported_folder`       VARCHAR(100) NULL,
     `is_active`             TINYINT(1) NOT NULL DEFAULT 1,
     `tenant_id`             INT NULL,
+    -- The origin stamped on tickets this mailbox opens (#79). An ID, not a name,
+    -- so renaming the origin can't break it. NULL = don't set one. Per mailbox
+    -- rather than a single global "Email", because a helpdesk address and a
+    -- monitoring alert address are genuinely different sources.
+    `default_origin_id`     INT NULL,
     `created_datetime`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `last_checked_datetime` DATETIME NULL,
     PRIMARY KEY (`id`),
     KEY `ix_target_mailboxes_tenant_id` (`tenant_id`),
-    CONSTRAINT `fk_target_mailboxes_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_target_mailboxes_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_target_mailboxes_origin` FOREIGN KEY (`default_origin_id`) REFERENCES `ticket_origins` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `emails` (

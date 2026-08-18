@@ -1685,6 +1685,13 @@ $translationNamespaces = ['common', 'tickets'];
                         <small style="color: var(--text-muted, #666); display: block; margin-top: 4px;"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.company_help')); ?></small>
                     </div>
 
+                    <!-- #79: where tickets opened by THIS mailbox say they came from. -->
+                    <div class="form-group" id="mailboxOriginGroup" style="grid-column: span 2;">
+                        <label for="mailboxOrigin"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.origin_label')); ?></label>
+                        <select id="mailboxOrigin"></select>
+                        <small style="color: var(--text-muted, #666); display: block; margin-top: 4px;"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.origin_help')); ?></small>
+                    </div>
+
                     <div class="form-group provider-microsoft">
                         <label for="mailboxTenantId"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.azure_tenant_id')); ?> *</label>
                         <input type="text" id="mailboxTenantId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
@@ -2101,6 +2108,19 @@ $translationNamespaces = ['common', 'tickets'];
     </div>
 
     <!-- Activity Log Modal -->
+    <!-- #79: what is quietly wrong with one mailbox. Opened from the ! beside its
+         name. A mailbox can be authenticated and collecting mail and still be
+         mis-configured in ways nothing else in this screen would mention. -->
+    <div class="modal" id="mailboxProblemsModal">
+        <div class="modal-content" style="max-width: 640px;">
+            <div class="modal-header" id="mailboxProblemsTitle"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.problems_title')); ?></div>
+            <div id="mailboxProblemsBody" style="padding: 4px 0 8px;"></div>
+            <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:8px;">
+                <button type="button" class="btn btn-secondary" onclick="closeMailboxProblems()"><?php echo htmlspecialchars(t('common.close')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="activityModal">
         <!-- Deliberately the widest modal in Settings: these are log tables with a
              subject, an address and an error message competing for the same row, and
@@ -4052,9 +4072,24 @@ $translationNamespaces = ['common', 'tickets'];
                     authLine = `<div style="font-size:12px;color:#c62828;margin-top:3px;font-weight:600;">⚠ ${escapeHtml(t('tickets.settings.modals.mailbox.status_mismatch', {authed: mb.authenticated_as || '?', target: mb.target_mailbox}))}</div>`;
                 }
 
+                // Everything that could quietly be wrong with this mailbox, behind one
+                // mark (#79). A mailbox can be connected, green and collecting mail and
+                // still not be doing what you think — the point of this is that you
+                // find that out here rather than weeks later on the tickets.
+                const problems = mb.problems || [];
+                let problemMark = '';
+                if (problems.length) {
+                    const worst = problems.some(p => p.severity === 'error') ? 'error' : 'warning';
+                    const colour = worst === 'error' ? '#c62828' : '#ef6c00';
+                    problemMark = ` <button type="button" class="mailbox-problem-mark"
+                        onclick="showMailboxProblems(${mb.id})"
+                        title="${escapeHtml(t('tickets.settings.modals.mailbox.problems_tooltip'))}"
+                        style="background:none;border:none;cursor:pointer;color:${colour};font-weight:700;font-size:15px;padding:0 4px;line-height:1;">!</button>`;
+                }
+
                 return `
                     <tr>
-                        <td><strong>${escapeHtml(mb.name)}</strong>${providerBadge}${activeBadge}${companyBadge}</td>
+                        <td><strong>${escapeHtml(mb.name)}</strong>${problemMark}${providerBadge}${activeBadge}${companyBadge}</td>
                         <td>${escapeHtml(mb.target_mailbox)}${authLine}</td>
                         <td>${statusBadge}</td>
                         <td>${lastChecked}</td>
@@ -4092,6 +4127,42 @@ $translationNamespaces = ['common', 'tickets'];
             select.innerHTML = html;
             select.value = (selectedTenantId === null || selectedTenantId === undefined) ? '' : String(selectedTenantId);
             group.style.display = '';
+        }
+
+        // #79: the origins this mailbox may stamp on the tickets it opens. A mailbox
+        // pinned to a company gets that company's own origins as well as the global
+        // ones; a shared-intake mailbox gets global origins ONLY, because its tickets
+        // land in whichever company the sender's domain matches and one company's
+        // private origin must not end up on another's ticket. Global origins always
+        // exist, so the list is never empty — every mailbox can always set one.
+        //
+        // Re-runs when the company picker changes, since that changes the answer.
+        async function populateMailboxOrigins(selectedOriginId, tenantId) {
+            const select = document.getElementById('mailboxOrigin');
+            let origins = [];
+            try {
+                const r = await fetch('../../api/tickets/get_ticket_origins.php');
+                const d = await r.json();
+                origins = d.success ? (d.origins || []) : [];
+            } catch (e) { origins = []; }
+
+            const pinned = (tenantId !== null && tenantId !== undefined && tenantId !== '');
+            const usable = origins.filter(o => {
+                if (!o.is_active && o.id != selectedOriginId) return false;
+                if (o.tenant_id === null || o.tenant_id === undefined) return true;   // global
+                return pinned && String(o.tenant_id) === String(tenantId);            // this company's own
+            });
+
+            let html = '<option value="">' + escapeHtml(t('tickets.settings.modals.mailbox.origin_none')) + '</option>';
+            usable.forEach(o => {
+                html += '<option value="' + o.id + '">' + escapeHtml(o.name) + '</option>';
+            });
+            select.innerHTML = html;
+            // If the stored origin isn't offered any more (the mailbox moved company,
+            // or the origin was deleted), fall back to blank rather than silently
+            // showing the first entry as though it were the saved value.
+            select.value = (selectedOriginId === null || selectedOriginId === undefined) ? '' : String(selectedOriginId);
+            if (select.value !== String(selectedOriginId ?? '')) select.value = '';
         }
 
         async function openMailboxModal(mailbox = null) {
@@ -4132,6 +4203,17 @@ $translationNamespaces = ['common', 'tickets'];
             document.getElementById('verifyIntakeFolderResult').style.display = 'none';
             document.getElementById('mailboxActive').checked = mailbox ? mailbox.is_active : true;
             await populateMailboxCompanies(mailbox ? (mailbox.tenant_id ?? null) : null);
+            await populateMailboxOrigins(
+                mailbox ? (mailbox.default_origin_id ?? null) : null,
+                mailbox ? (mailbox.tenant_id ?? null) : null
+            );
+            // Changing the company changes which origins are on offer, so rebuild the
+            // list — keeping the current choice if it survives the move.
+            const mbCompanySelect = document.getElementById('mailboxCompany');
+            mbCompanySelect.onchange = () => populateMailboxOrigins(
+                document.getElementById('mailboxOrigin').value || null,
+                mbCompanySelect.value || null
+            );
 
             // Load whitelist
             whitelistEntries = [];
@@ -4558,7 +4640,8 @@ $translationNamespaces = ['common', 'tickets'];
                 imported_folder: document.getElementById('mailboxImportedFolder').value || null,
                 is_active: document.getElementById('mailboxActive').checked,
                 // Multi-tenancy: "" (shared intake) when the picker is hidden/unset → NULL server-side.
-                tenant_id: document.getElementById('mailboxCompany').value || null
+                tenant_id: document.getElementById('mailboxCompany').value || null,
+                default_origin_id: document.getElementById('mailboxOrigin').value || null
             };
 
             try {
@@ -4650,6 +4733,39 @@ $translationNamespaces = ['common', 'tickets'];
         let activitySearchTimer = null;
 
         let mailboxLogTab = 'inbound';
+
+        // #79: list what is wrong with one mailbox, in plain terms, each item saying
+        // what the consequence is rather than just naming a field. Errors first —
+        // "not collecting any mail at all" outranks "not stamping an origin".
+        function showMailboxProblems(mailboxId) {
+            const mb = mailboxes.find(m => m.id == mailboxId);
+            const problems = (mb && mb.problems) ? mb.problems.slice() : [];
+            document.getElementById('mailboxProblemsTitle').textContent =
+                t('tickets.settings.modals.mailbox.problems_title') + (mb ? ' — ' + mb.name : '');
+
+            problems.sort((a, b) => (a.severity === b.severity) ? 0 : (a.severity === 'error' ? -1 : 1));
+
+            const body = document.getElementById('mailboxProblemsBody');
+            if (!problems.length) {
+                body.innerHTML = '<p style="color:#2e7d32;margin:0;">✓ '
+                    + escapeHtml(t('tickets.settings.modals.mailbox.problems_none')) + '</p>';
+            } else {
+                body.innerHTML = problems.map(p => {
+                    const isError = p.severity === 'error';
+                    const colour  = isError ? '#c62828' : '#ef6c00';
+                    const bg      = isError ? '#ffebee' : '#fff3e0';
+                    return `<div style="border-left:3px solid ${colour}; background:${bg}; padding:10px 12px; margin-bottom:10px; border-radius:0 4px 4px 0;">
+                        <div style="font-weight:600; color:${colour}; margin-bottom:3px;">${escapeHtml(p.title)}</div>
+                        <div style="font-size:13px; color:var(--text-color,#333);">${escapeHtml(p.detail)}</div>
+                    </div>`;
+                }).join('');
+            }
+            document.getElementById('mailboxProblemsModal').classList.add('active');
+        }
+
+        function closeMailboxProblems() {
+            document.getElementById('mailboxProblemsModal').classList.remove('active');
+        }
 
         function openActivityModal(mailboxId) {
             activityMailboxId = mailboxId;

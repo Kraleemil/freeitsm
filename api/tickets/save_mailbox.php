@@ -118,6 +118,33 @@ try {
         }
     }
 
+    // The ticket origin stamped on tickets this mailbox opens (#79). Stored as an
+    // ID, so renaming the origin later can't break it — which is the whole bug
+    // this replaces. Empty/absent = don't set an origin.
+    //
+    // A mailbox pinned to a company may use that company's own origins as well as
+    // the global ones. A shared-intake mailbox (no company) may use ONLY global
+    // origins: its tickets land in whichever company the sender's domain matches,
+    // so one company's private origin could otherwise end up stamped on another
+    // company's ticket. Global origins always exist, so every mailbox can always
+    // set one — there is no mailbox left unable to record an origin.
+    $default_origin_id = $data['default_origin_id'] ?? null;
+    if ($default_origin_id === '' || $default_origin_id === 0 || $default_origin_id === '0') {
+        $default_origin_id = null;
+    }
+    if ($default_origin_id !== null) {
+        $default_origin_id = (int) $default_origin_id;
+        $oCheck = $conn->prepare(
+            "SELECT COUNT(*) FROM ticket_origins
+              WHERE id = ? AND (tenant_id IS NULL" . ($tenant_id !== null ? " OR tenant_id = ?" : "") . ")"
+        );
+        $oCheck->execute($tenant_id !== null ? [$default_origin_id, $tenant_id] : [$default_origin_id]);
+        if ((int) $oCheck->fetchColumn() === 0) {
+            echo json_encode(['success' => false, 'error' => 'That ticket origin is not available for this mailbox']);
+            exit;
+        }
+    }
+
     // Validate action values
     $allowedRejectedActions = ['delete', 'move_to_deleted', 'mark_read'];
     $allowedImportedActions = ['delete', 'move_to_folder'];
@@ -171,6 +198,7 @@ try {
         'imported_folder'      => $imported_folder,
         'is_active'            => $is_active,
         'tenant_id'            => $tenant_id,
+        'default_origin_id'    => $default_origin_id,
         'auth_mode'            => $auth_mode,
     ];
 

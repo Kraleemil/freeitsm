@@ -841,6 +841,9 @@ return [
         'imported_folder'         => 'VARCHAR(100) NULL',
         'is_active'               => 'TINYINT(1) NOT NULL DEFAULT 1',
         'tenant_id'               => 'INT NULL',
+        // The ticket origin stamped on tickets this mailbox opens (#79). Stored as
+        // an ID so renaming the origin can't break it; NULL = don't set one.
+        'default_origin_id'       => 'INT NULL',
         'created_datetime'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'last_checked_datetime'   => 'DATETIME NULL',
     ],

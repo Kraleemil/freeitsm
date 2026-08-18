@@ -7,6 +7,8 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/mailbox_graph.php';
+require_once '../../includes/mailbox_health.php';
+require_once '../../includes/tenancy.php';
 
 header('Content-Type: application/json');
 
@@ -24,7 +26,7 @@ try {
                    imap_username, imap_password, smtp_server, smtp_port, smtp_encryption,
                    target_mailbox, auth_mode, authenticated_as, authenticated_addresses, email_folder, max_emails_per_check, mark_as_read,
                    rejected_action, imported_action, imported_folder,
-                   is_active, tenant_id, created_datetime, last_checked_datetime,
+                   is_active, tenant_id, default_origin_id, created_datetime, last_checked_datetime,
                    CASE WHEN token_data IS NOT NULL AND token_data != '' THEN 1 ELSE 0 END as is_authenticated
             FROM target_mailboxes
             ORDER BY name";
@@ -53,6 +55,8 @@ try {
         $mailbox['max_emails_per_check'] = (int)$mailbox['max_emails_per_check'];
         // Multi-tenancy: the company this mailbox is pinned to (null = shared intake).
         $mailbox['tenant_id'] = ($mailbox['tenant_id'] === null) ? null : (int)$mailbox['tenant_id'];
+        // The ticket origin stamped on tickets this mailbox opens (#79).
+        $mailbox['default_origin_id'] = ($mailbox['default_origin_id'] === null) ? null : (int)$mailbox['default_origin_id'];
 
         // Convert bit fields to booleans
         $mailbox['is_active'] = (bool)$mailbox['is_active'];
@@ -102,6 +106,23 @@ try {
             $mailbox['auth_status'] = 'mismatch';             // ⚠ reading the WRONG inbox
         }
     }
+    unset($mailbox);
+
+    // Everything that could be quietly wrong with each mailbox, for the ⚠ on the
+    // row. Computed here rather than in the browser so the browser never has to
+    // hold the facts (folder names, sign-in state) needed to work it out.
+    $originNames = [];
+    foreach ($conn->query("SELECT id, name FROM ticket_origins") as $o) {
+        $originNames[(int)$o['id']] = $o['name'];
+    }
+    $healthContext = [
+        'origin_names'  => $originNames,
+        'multi_company' => isMultiTenant($conn),
+    ];
+    foreach ($mailboxes as &$mailbox) {
+        $mailbox['problems'] = mailboxHealthProblems($mailbox, $healthContext);
+    }
+    unset($mailbox);
 
     echo json_encode([
         'success' => true,
