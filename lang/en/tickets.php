@@ -643,6 +643,8 @@ return [
             'preserved_note'    => 'Turning either switch off never deletes anything. Existing time entries stay exactly as they are.',
             'save'              => 'Save',
             'saved'             => 'Time tracking settings saved',
+            'load_failed'       => 'These settings could not be read.',
+            'load_failed_desc'  => 'The switches below are NOT showing your real settings, so they are locked to stop a wrong value being saved over the top. Nothing has changed — reload the page to try again.',
         ],
 
         // Row display (discussion #61). Per-analyst, over an install default.

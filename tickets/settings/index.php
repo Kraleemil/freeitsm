@@ -1455,6 +1455,14 @@ $translationNamespaces = ['common', 'tickets'];
                 <?php echo htmlspecialchars(t('tickets.settings.time_tracking.intro')); ?>
             </p>
 
+            <?php /* Shown when the settings could not be read. Without it, an
+                     unreachable endpoint renders as "both switches off" — which is
+                     how this very tab shipped broken for ten minutes. */ ?>
+            <div class="tt-load-error" id="ttLoadError" hidden>
+                <strong><?php echo htmlspecialchars(t('tickets.settings.time_tracking.load_failed')); ?></strong>
+                <span><?php echo htmlspecialchars(t('tickets.settings.time_tracking.load_failed_desc')); ?></span>
+            </div>
+
             <div class="tt-block">
                 <h3 class="tt-sub" id="ttDefaultHeading"><?php echo htmlspecialchars(t('tickets.settings.time_tracking.default_heading')); ?></h3>
                 <div class="setting-row">
@@ -6463,13 +6471,33 @@ $translationNamespaces = ['common', 'tickets'];
                 return map[k] || k;
             }
 
+            /* ⚠️ A FAILED LOAD MUST NOT LOOK LIKE "BOTH OFF".
+               Both switches are drawn unticked in the markup, so an unreachable
+               endpoint renders exactly like time tracking being disabled — and
+               pressing Save would then write that guess back as fact, turning the
+               feature off install-wide from a screen that never read anything.
+               This is not hypothetical: the first version of this tab fetched a
+               doubled path (API_BASE already ends in api/tickets/), 404'd, and
+               showed both boxes unticked while time recording worked perfectly.
+               Ed spotted it. It is the same failure the Authentication page had
+               this morning, which is why the answer here is the same one. */
+            let ttLoaded = false;
+            function ttSetFailed(failed) {
+                ttLoaded = !failed;
+                $('ttLoadError').hidden = !failed;
+                $('ttDefaultUi').disabled  = failed;
+                $('ttDefaultApi').disabled = failed;
+                $('ttSaveBtn').disabled    = failed;
+            }
+
             async function load() {
                 try {
-                    const r = await fetch(API_BASE + 'tickets/get_time_tracking_settings.php');
+                    const r = await fetch(API_BASE + 'get_time_tracking_settings.php');
                     const d = await r.json();
-                    if (!d.success) return;
+                    if (!d.success) throw new Error(d.error || 'unsuccessful response');
                     $('ttDefaultUi').checked  = !!d.default.ui;
                     $('ttDefaultApi').checked = !!d.default.api;
+                    ttSetFailed(false);
                     companies = d.companies || [];
                     if (d.multi_tenant && companies.length) {
                         $('ttCompaniesBlock').hidden = false;
@@ -6480,10 +6508,14 @@ $translationNamespaces = ['common', 'tickets'];
                                 '<td><select class="tt-api">' + optionsFor(c.api) + '</select></td>' +
                             '</tr>').join('');
                     }
-                } catch (e) { /* leave the switches as rendered */ }
+                } catch (e) {
+                    console.error(e);
+                    ttSetFailed(true);
+                }
             }
 
             $('ttSaveBtn').addEventListener('click', async function () {
+                if (!ttLoaded) return;      // never save a state we never read
                 this.disabled = true;
                 const payload = {
                     default: { ui: $('ttDefaultUi').checked, api: $('ttDefaultApi').checked },
@@ -6497,7 +6529,7 @@ $translationNamespaces = ['common', 'tickets'];
                     })
                 };
                 try {
-                    const r = await fetch(API_BASE + 'tickets/save_time_tracking_settings.php', {
+                    const r = await fetch(API_BASE + 'save_time_tracking_settings.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -6508,7 +6540,7 @@ $translationNamespaces = ['common', 'tickets'];
                 } catch (e) {
                     showToast('Failed', 'error');
                 }
-                this.disabled = false;
+                this.disabled = !ttLoaded;
             });
 
             load();
