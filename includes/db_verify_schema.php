@@ -844,6 +844,8 @@ return [
         // The ticket origin stamped on tickets this mailbox opens (#79). Stored as
         // an ID so renaming the origin can't break it; NULL = don't set one.
         'default_origin_id'       => 'INT NULL',
+        // JSON array of mailbox-health warning keys the admin has acknowledged.
+        'health_dismissed'        => 'TEXT NULL',
         'created_datetime'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'last_checked_datetime'   => 'DATETIME NULL',
     ],

@@ -26,7 +26,7 @@ try {
                    imap_username, imap_password, smtp_server, smtp_port, smtp_encryption,
                    target_mailbox, auth_mode, authenticated_as, authenticated_addresses, email_folder, max_emails_per_check, mark_as_read,
                    rejected_action, imported_action, imported_folder,
-                   is_active, tenant_id, default_origin_id, created_datetime, last_checked_datetime,
+                   is_active, tenant_id, default_origin_id, health_dismissed, created_datetime, last_checked_datetime,
                    CASE WHEN token_data IS NOT NULL AND token_data != '' THEN 1 ELSE 0 END as is_authenticated
             FROM target_mailboxes
             ORDER BY name";
@@ -115,12 +115,13 @@ try {
     foreach ($conn->query("SELECT id, name FROM ticket_origins") as $o) {
         $originNames[(int)$o['id']] = $o['name'];
     }
-    $healthContext = [
-        'origin_names'  => $originNames,
-        'multi_company' => isMultiTenant($conn),
-    ];
+    $healthContext = ['origin_names' => $originNames];
     foreach ($mailboxes as &$mailbox) {
         $mailbox['problems'] = mailboxHealthProblems($mailbox, $healthContext);
+        // The mark on the row counts only what has NOT been acknowledged; the
+        // modal still lists the dismissed ones so they can be put back.
+        $mailbox['problem_count'] = count(array_filter($mailbox['problems'], fn($p) => empty($p['dismissed'])));
+        unset($mailbox['health_dismissed']);
     }
     unset($mailbox);
 

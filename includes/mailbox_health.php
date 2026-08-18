@@ -21,20 +21,44 @@
  */
 
 /**
+ * Every warning here can be dismissed, because every one of them can legitimately
+ * be somebody's deliberate choice: a mailbox that genuinely should record no
+ * origin, a receive-only IMAP mailbox with no outgoing server, a low-traffic
+ * mailbox nobody minds being checked rarely. Dismissing says "I know", and the
+ * item drops out of the ! while staying visible, and reversible, inside it.
+ *
+ * Errors cannot be dismissed. Reading the wrong inbox or holding credentials
+ * that no longer decrypt is not a configuration choice, it is a fault, and
+ * letting somebody silence it would be the one case where this whole feature
+ * makes things worse than saying nothing.
+ *
  * @param array $mb      A mailbox row as get_mailboxes.php has prepared it
  *                       (decrypted, typed, with auth_status already computed).
- * @param array $context 'origin_names'  => [id => name] of origins that exist
- *                       'multi_company' => bool, more than one company
- * @return array<int, array{key:string, severity:string, title:string, detail:string}>
+ * @param array $context 'origin_names' => [id => name] of origins that exist
+ * @return array<int, array{key:string, severity:string, title:string, detail:string, dismissible:bool, dismissed:bool}>
  */
 function mailboxHealthProblems(array $mb, array $context = []): array
 {
-    $problems     = [];
-    $originNames  = $context['origin_names']  ?? [];
-    $multiCompany = !empty($context['multi_company']);
+    $problems    = [];
+    $originNames = $context['origin_names'] ?? [];
 
-    $add = static function (&$out, $key, $severity, $title, $detail) {
-        $out[] = ['key' => $key, 'severity' => $severity, 'title' => $title, 'detail' => $detail];
+    // Keys the admin has already acknowledged on THIS mailbox.
+    $dismissed = json_decode((string)($mb['health_dismissed'] ?? ''), true);
+    if (!is_array($dismissed)) $dismissed = [];
+    $dismissed = array_flip(array_map('strval', $dismissed));
+
+    $add = static function (&$out, $key, $severity, $title, $detail) use ($dismissed) {
+        $isWarning = ($severity === 'warning');
+        $out[] = [
+            'key'         => $key,
+            'severity'    => $severity,
+            'title'       => $title,
+            'detail'      => $detail,
+            'dismissible' => $isWarning,
+            // An error is never treated as dismissed even if a stale key names it
+            // — e.g. a warning that was dismissed and has since become an error.
+            'dismissed'   => $isWarning && isset($dismissed[$key]),
+        ];
     };
 
     // --- Is it even reading? ------------------------------------------------
@@ -45,11 +69,11 @@ function mailboxHealthProblems(array $mb, array $context = []): array
             'The saved settings for this mailbox could not be decrypted, so it cannot sign in. This usually means the encryption key changed or was lost. Re-enter the credentials.');
     }
 
-    if (empty($mb['is_active'])) {
-        $add($problems, 'inactive', 'error',
-            'This mailbox is switched off',
-            'It is set to inactive, so no mail is collected from it and no tickets are created. Nothing is lost — mail stays in the mailbox — but nothing is coming in either.');
-    }
+    // Deliberately NOT flagged: a mailbox being inactive, or being shared intake
+    // rather than pinned to a company. Both are choices an admin makes on purpose,
+    // both already show as a badge on the row, and a mark that can never be
+    // cleared is one people stop reading — which would cost us the marks that
+    // actually matter.
 
     $authStatus = $mb['auth_status'] ?? '';
     if ($authStatus === 'mismatch') {
@@ -120,14 +144,6 @@ function mailboxHealthProblems(array $mb, array $context = []): array
         $add($problems, 'no_smtp', 'warning',
             'No outgoing (SMTP) server',
             'Mail can be collected from this mailbox but replies cannot be sent from it.');
-    }
-
-    // Only worth saying on an install that HAS more than one company —
-    // otherwise "shared intake" is the only thing it could possibly be.
-    if ($multiCompany && ($mb['tenant_id'] ?? null) === null) {
-        $add($problems, 'shared_intake', 'warning',
-            'Not assigned to a company',
-            'Tickets from this mailbox are routed by the sender\'s email domain, and any sender who does not match a known domain lands without a company. That is fine if this is a shared address — worth checking if it is not.');
     }
 
     return $problems;

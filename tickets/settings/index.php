@@ -4076,7 +4076,9 @@ $translationNamespaces = ['common', 'tickets'];
                 // mark (#79). A mailbox can be connected, green and collecting mail and
                 // still not be doing what you think — the point of this is that you
                 // find that out here rather than weeks later on the tickets.
-                const problems = mb.problems || [];
+                // Acknowledged warnings don't count towards the mark — a deliberate
+                // choice must be able to stop nagging, or the mark becomes wallpaper.
+                const problems = (mb.problems || []).filter(p => !p.dismissed);
                 let problemMark = '';
                 if (problems.length) {
                     const worst = problems.some(p => p.severity === 'error') ? 'error' : 'warning';
@@ -4745,22 +4747,71 @@ $translationNamespaces = ['common', 'tickets'];
 
             problems.sort((a, b) => (a.severity === b.severity) ? 0 : (a.severity === 'error' ? -1 : 1));
 
-            const body = document.getElementById('mailboxProblemsBody');
-            if (!problems.length) {
-                body.innerHTML = '<p style="color:#2e7d32;margin:0;">✓ '
-                    + escapeHtml(t('tickets.settings.modals.mailbox.problems_none')) + '</p>';
+            const live      = problems.filter(p => !p.dismissed);
+            const acked     = problems.filter(p =>  p.dismissed);
+            const body      = document.getElementById('mailboxProblemsBody');
+
+            const card = (p) => {
+                const isError = p.severity === 'error';
+                const colour  = isError ? '#c62828' : '#ef6c00';
+                const bg      = isError ? '#ffebee' : '#fff3e0';
+                // Errors carry no Dismiss button: reading the wrong inbox is a fault,
+                // not a preference, and silencing it is the one thing this modal
+                // must never help anybody do.
+                const btn = p.dismissible
+                    ? `<button type="button" class="btn btn-secondary" style="margin-top:8px;padding:3px 10px;font-size:12px;"
+                         onclick="setMailboxProblemDismissed(${mailboxId}, '${escapeHtml(p.key)}', true)">${escapeHtml(t('tickets.settings.modals.mailbox.problems_dismiss'))}</button>`
+                    : '';
+                return `<div style="border-left:3px solid ${colour}; background:${bg}; padding:10px 12px; margin-bottom:10px; border-radius:0 4px 4px 0;">
+                    <div style="font-weight:600; color:${colour}; margin-bottom:3px;">${escapeHtml(p.title)}</div>
+                    <div style="font-size:13px; color:var(--text-color,#333);">${escapeHtml(p.detail)}</div>
+                    ${btn}
+                </div>`;
+            };
+
+            let html = '';
+            if (!live.length) {
+                html += '<p style="color:#2e7d32;margin:0 0 10px;">✓ '
+                     + escapeHtml(t('tickets.settings.modals.mailbox.problems_none')) + '</p>';
             } else {
-                body.innerHTML = problems.map(p => {
-                    const isError = p.severity === 'error';
-                    const colour  = isError ? '#c62828' : '#ef6c00';
-                    const bg      = isError ? '#ffebee' : '#fff3e0';
-                    return `<div style="border-left:3px solid ${colour}; background:${bg}; padding:10px 12px; margin-bottom:10px; border-radius:0 4px 4px 0;">
-                        <div style="font-weight:600; color:${colour}; margin-bottom:3px;">${escapeHtml(p.title)}</div>
-                        <div style="font-size:13px; color:var(--text-color,#333);">${escapeHtml(p.detail)}</div>
-                    </div>`;
-                }).join('');
+                html += live.map(card).join('');
             }
+
+            // Acknowledged items stay visible and reversible. Dismissing is meant to
+            // say "I know", not to delete the fact.
+            if (acked.length) {
+                html += `<div style="margin-top:14px; padding-top:10px; border-top:1px solid var(--border-color,#e0e0e0);">
+                    <div style="font-size:12px; font-weight:600; color:var(--text-muted,#666); margin-bottom:8px;">
+                        ${escapeHtml(t('tickets.settings.modals.mailbox.problems_dismissed_heading'))}
+                    </div>
+                    ${acked.map(p => `<div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                        <span style="flex:1; font-size:13px; color:var(--text-muted,#666);">${escapeHtml(p.title)}</span>
+                        <button type="button" class="btn btn-secondary" style="padding:3px 10px;font-size:12px;"
+                            onclick="setMailboxProblemDismissed(${mailboxId}, '${escapeHtml(p.key)}', false)">${escapeHtml(t('tickets.settings.modals.mailbox.problems_restore'))}</button>
+                    </div>`).join('')}
+                </div>`;
+            }
+
+            body.innerHTML = html;
             document.getElementById('mailboxProblemsModal').classList.add('active');
+        }
+
+        // Acknowledge a warning, or put it back. Reloads the list so the mark on the
+        // row updates, then re-opens the modal so the change is visible where it was made.
+        async function setMailboxProblemDismissed(mailboxId, key, dismissed) {
+            try {
+                const res = await fetch(API_BASE + 'set_mailbox_health_dismissed.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mailbox_id: mailboxId, key: key, dismissed: dismissed })
+                });
+                const data = await res.json();
+                if (!data.success) { showToast('Error: ' + (data.error || ''), 'error'); return; }
+                await loadMailboxes();
+                showMailboxProblems(mailboxId);
+            } catch (e) {
+                showToast('Failed to update', 'error');
+            }
         }
 
         function closeMailboxProblems() {

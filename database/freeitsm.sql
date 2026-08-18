@@ -1067,6 +1067,10 @@ CREATE TABLE IF NOT EXISTS `target_mailboxes` (
     -- rather than a single global "Email", because a helpdesk address and a
     -- monitoring alert address are genuinely different sources.
     `default_origin_id`     INT NULL,
+    -- JSON array of mailbox-health warning keys the admin has acknowledged, so a
+    -- deliberate choice (no origin wanted, receive-only IMAP) stops nagging. Only
+    -- warnings can appear here; errors are never dismissible.
+    `health_dismissed`      TEXT NULL,
     `created_datetime`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `last_checked_datetime` DATETIME NULL,
     PRIMARY KEY (`id`),
