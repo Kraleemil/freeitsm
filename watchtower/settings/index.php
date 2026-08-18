@@ -129,6 +129,17 @@ $translationNamespaces = ['common', 'watchtower'];
 const API = '../../api/watchtower/';
 let settings = null;
 
+// renderSettingsTabBar() emits onclick="switchTab('<id>')", so every settings
+// page has to provide it. Same implementation as the other modules'.
+function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    const btn = document.querySelector('.tab[data-tab="' + tab + '"]');
+    if (btn) btn.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    const pane = document.getElementById(tab + '-tab');
+    if (pane) pane.classList.add('active');
+}
+
 function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
