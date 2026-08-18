@@ -54,23 +54,26 @@ return [
     // Morning Checks card.
     'mc' => [
         'metric_done' => 'Done',
-        'metric_ok'   => 'OK',
-        'metric_warn' => 'Warn',
-        'metric_fail' => 'Fail',
+        // metric_ok / metric_warn / metric_fail are gone: the card now labels each
+        // count with the status's own name from morningChecks_Statuses, so it reads
+        // correctly whatever the statuses are called and in whatever language.
         'not_started'      => 'Checks not started today',
         'pending'          => '{count} checks still pending',
-        'failed'           => '{count} check(s) failed',
-        'warnings'         => '{count} check(s) with warnings',
-        'all_passing'      => 'All checks completed and passing',
+        // Was "All checks completed and passing" — which claimed something nothing
+        // records. Nothing marks a morning-check status as a pass or a failure, and
+        // the old test relied on status names that have never existed, so this was
+        // shown even when every check was red. It now states only what is known.
+        'all_completed'    => 'All checks completed',
     ],
 
     // Tickets card.
     'tickets' => [
+        // metric_open is the TOTAL across every open status. The per-status metrics
+        // beside it are labelled with the statuses' own names, so metric_new /
+        // metric_active / metric_hold are gone — they hardcoded three of them, and
+        // called the status "Open" by the different word "New".
         'metric_open'   => 'Open',
-        'metric_new'    => 'New',
-        'metric_active' => 'Active',
-        'metric_hold'   => 'Hold',
-        'urgent_high'   => '<span class="wt-attention-bold">{count}</span> urgent/high priority tickets',
+        'urgent_high'   => '<span class="wt-attention-bold">{count}</span> high priority tickets',
         'unassigned'    => '<span class="wt-attention-bold">{count}</span> unassigned tickets',
         'paused_one'    => '<span class="wt-attention-bold">{count}</span> ticket paused over {hours}h (SLA clock stopped)',
         'paused_many'   => '<span class="wt-attention-bold">{count}</span> tickets paused over {hours}h (SLA clock stopped)',
@@ -131,8 +134,8 @@ return [
 
     // Tasks card.
     'tasks' => [
-        'metric_todo'   => 'To Do',
-        'metric_active' => 'Active',
+        // As with tickets: a total, then one per open status under its own name.
+        'metric_open'   => 'Open',
         'overdue'       => '<span class="wt-attention-bold">{count}</span> overdue task(s)',
         'due_today'     => '<span class="wt-attention-bold">{count}</span> due today',
         'all_clear'     => 'No overdue tasks',

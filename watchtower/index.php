@@ -540,6 +540,20 @@ $translationNamespaces = ['common', 'watchtower'];
         return `<div class="wt-attention-item ${level}"><div class="wt-attention-dot"></div><span>${text}</span></div>`;
     }
 
+    // Status and priority names are now read from the database and rendered as
+    // labels, so they must be escaped — they are free text an admin types.
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    // Colours come from the same rows and go straight into a style attribute.
+    // Same guard as the inbox uses: a hex value or nothing at all.
+    function safeColour(value) {
+        const v = String(value || '').trim();
+        return /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : null;
+    }
+
     // The colour passed in is DATA (green = done, amber = warning, red = fail) and
     // is used as given. The DEFAULT is chrome — plain text — so it must follow the
     // theme, or a neutral metric would be dark slate on a dark card.
@@ -549,26 +563,29 @@ $translationNamespaces = ['common', 'watchtower'];
 
     function renderMorningChecks(d) {
         const mc = d.morning_checks;
+        const statuses = mc.statuses || [];          // now a LIST, in the admin's own order
+        const done = mc.completed_today >= mc.total_checks && mc.total_checks > 0;
         let html = '';
 
-        // Status dot logic
-        if (mc.not_started) {
-            setDot('wtMcDot', 'red');
-        } else if ((mc.statuses['Fail'] || 0) > 0) {
-            setDot('wtMcDot', 'red');
-        } else if ((mc.statuses['Warning'] || 0) > 0) {
-            setDot('wtMcDot', 'amber');
-        } else if (mc.completed_today >= mc.total_checks && mc.total_checks > 0) {
-            setDot('wtMcDot', 'green');
-        } else {
-            setDot('wtMcDot', 'amber');
-        }
+        // Nothing marks a morning-check status as good or bad, so the strongest
+        // honest claim is "every check is in the most favourable status you have
+        // defined" — the first one in your own order. Anything else gets amber:
+        // done, but with something in it worth a look. It used to go green off
+        // 'Fail' and 'Warning' counts that were always zero (no status has ever
+        // been called either), so it lit green on a morning when every check was red.
+        const allBest = statuses.length > 0 && mc.best_sort_order !== null &&
+                        statuses.every(s => s.count === 0 || s.sort_order === mc.best_sort_order);
+        if (mc.not_started)        setDot('wtMcDot', 'red');
+        else if (done && allBest)  setDot('wtMcDot', 'green');
+        else                       setDot('wtMcDot', 'amber');
 
         html += '<div class="wt-metrics">';
-        html += metric(mc.completed_today + '/' + mc.total_checks, window.t('watchtower.mc.metric_done'), mc.completed_today >= mc.total_checks ? '#22c55e' : '#f59e0b');
-        html += metric(mc.statuses['OK'] || 0, window.t('watchtower.mc.metric_ok'), '#22c55e');
-        html += metric(mc.statuses['Warning'] || 0, window.t('watchtower.mc.metric_warn'), (mc.statuses['Warning'] || 0) > 0 ? '#f59e0b' : '#94a3b8');
-        html += metric(mc.statuses['Fail'] || 0, window.t('watchtower.mc.metric_fail'), (mc.statuses['Fail'] || 0) > 0 ? '#ef4444' : '#94a3b8');
+        html += metric(mc.completed_today + '/' + mc.total_checks, window.t('watchtower.mc.metric_done'), done ? '#22c55e' : '#f59e0b');
+        // One metric per status that exists, under the label and in the colour the
+        // admin gave it — so a renamed or added status appears by itself.
+        statuses.forEach(s => {
+            html += metric(s.count, escapeHtml(s.label), s.count > 0 ? (safeColour(s.colour) || 'var(--text, #334155)') : '#94a3b8');
+        });
         html += '</div>';
 
         html += '<div class="wt-attention">';
@@ -577,14 +594,10 @@ $translationNamespaces = ['common', 'watchtower'];
         } else if (mc.completed_today < mc.total_checks) {
             html += attentionItem('amber', window.t('watchtower.mc.pending', { count: mc.total_checks - mc.completed_today }));
         }
-        if ((mc.statuses['Fail'] || 0) > 0) {
-            html += attentionItem('red', window.t('watchtower.mc.failed', { count: mc.statuses['Fail'] }));
-        }
-        if ((mc.statuses['Warning'] || 0) > 0) {
-            html += attentionItem('amber', window.t('watchtower.mc.warnings', { count: mc.statuses['Warning'] }));
-        }
-        if (mc.completed_today >= mc.total_checks && mc.total_checks > 0 && !(mc.statuses['Fail'] || 0) && !(mc.statuses['Warning'] || 0)) {
-            html += attentionItem('green', window.t('watchtower.mc.all_passing'));
+        // "All checks completed" — a fact. It used to say "all passing", which it
+        // could not know and which was shown even when every check was red.
+        if (done) {
+            html += attentionItem(allBest ? 'green' : 'amber', window.t('watchtower.mc.all_completed'));
         }
         html += '</div>';
 
@@ -593,7 +606,12 @@ $translationNamespaces = ['common', 'watchtower'];
 
     function renderTickets(d) {
         const tk = d.tickets;
-        const totalOpen = tk.open + tk.in_progress + tk.on_hold;
+        // Every open status counts towards the total. This used to add up the three
+        // called Open, In Progress and On Hold, so tickets sitting in any other open
+        // status — Awaiting Response ships with FreeITSM — were missing from the
+        // headline figure entirely, in every language.
+        const byStatus = tk.by_status || [];
+        const totalOpen = tk.total_open || 0;
         const pausedTooLong = tk.paused_too_long || 0;
         const pausedThreshold = tk.paused_threshold_hours || 24;
 
@@ -605,9 +623,12 @@ $translationNamespaces = ['common', 'watchtower'];
 
         let html = '<div class="wt-metrics">';
         html += metric(totalOpen, window.t('watchtower.tickets.metric_open'), 'var(--text, #334155)');
-        html += metric(tk.open, window.t('watchtower.tickets.metric_new'), '#3b82f6');
-        html += metric(tk.in_progress, window.t('watchtower.tickets.metric_active'), '#f59e0b');
-        html += metric(tk.on_hold, window.t('watchtower.tickets.metric_hold'), '#94a3b8');
+        // One per open status, under its own name and colour, in the order they are
+        // arranged in Tickets → Settings. Names come from the database, so they are
+        // already in the reader's language and cannot drift out of date.
+        byStatus.forEach(s => {
+            html += metric(s.count, escapeHtml(s.name), s.count > 0 ? (safeColour(s.colour) || 'var(--text, #334155)') : '#94a3b8');
+        });
         html += '</div>';
 
         html += '<div class="wt-attention">';
@@ -886,9 +907,14 @@ $translationNamespaces = ['common', 'watchtower'];
             setDot('wtTasksDot', 'green');
         }
 
+        // Was two metrics counting the statuses called 'To Do' and 'In Progress',
+        // which left anything in another open status (Blocked ships as standard)
+        // off the card. Now one per open status, in its own name and colour.
         let html = '<div class="wt-metrics">';
-        html += metric(t.todo, window.t('watchtower.tasks.metric_todo'), 'var(--text, #334155)');
-        html += metric(t.in_progress, window.t('watchtower.tasks.metric_active'), '#0078d4');
+        html += metric(t.total_open || 0, window.t('watchtower.tasks.metric_open'), 'var(--text, #334155)');
+        (t.by_status || []).forEach(s => {
+            html += metric(s.count, escapeHtml(s.name), s.count > 0 ? (safeColour(s.colour) || 'var(--text, #334155)') : '#94a3b8');
+        });
         html += '</div>';
 
         html += '<div class="wt-attention">';

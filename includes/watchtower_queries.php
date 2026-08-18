@@ -27,45 +27,93 @@ function getWatchtowerData($conn, $analystId = 0) {
     $mcDoneStmt->execute([$today]);
     $mcDone = (int)$mcDoneStmt->fetchColumn();
 
+    // One row per status that actually exists, with the label and colour the
+    // admin configured. This used to group the denormalised label snapshot and
+    // the card then looked up 'OK', 'Warning' and 'Fail' — none of which are
+    // status names FreeITSM has ever shipped (the seeds are Green/Amber/Red), so
+    // all three counts read zero for ever and "all checks passing" was shown on
+    // mornings when every check was red. Statuses are user-editable anyway, so
+    // no hardcoded name could have been right for long.
     $mcStatusStmt = $conn->prepare(
-        "SELECT r.Status, COUNT(*) AS cnt
+        "SELECT COALESCE(s.Label, r.Status) AS label,
+                MAX(s.Colour)               AS colour,
+                MIN(COALESCE(s.SortOrder, 9999)) AS sort_order,
+                COUNT(*)                    AS cnt
          FROM morningChecks_Results r
+         LEFT JOIN morningChecks_Statuses s ON s.StatusID = r.StatusID
          WHERE DATE(r.CheckDate) = ?
-         GROUP BY r.Status"
+         GROUP BY COALESCE(s.Label, r.Status)
+         ORDER BY sort_order, label"
     );
     $mcStatusStmt->execute([$today]);
     $mcStatuses = [];
-    while ($row = $mcStatusStmt->fetch(PDO::FETCH_ASSOC)) {
-        $mcStatuses[$row['Status']] = (int)$row['cnt'];
+    foreach ($mcStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (($row['label'] ?? '') === '') continue;
+        $mcStatuses[] = [
+            'label'      => $row['label'],
+            'colour'     => $row['colour'] ?: null,
+            'sort_order' => (int)$row['sort_order'],
+            'count'      => (int)$row['cnt'],
+        ];
     }
+
+    // The most favourable status the admin has defined — the first one in their
+    // own order. Nothing records which statuses are "good", so the card claims
+    // all-clear only when every check sits in that first status, and says
+    // "completed" rather than "passing" for anything else. Without this, a
+    // morning where every check is red would still show a green light.
+    $mcBestOrder = $conn->query("SELECT MIN(SortOrder) FROM morningChecks_Statuses WHERE IsActive = 1")->fetchColumn();
+    $mcBestOrder = ($mcBestOrder === null || $mcBestOrder === false) ? null : (int)$mcBestOrder;
 
     $morningChecks = [
         'total_checks'    => $mcTotal,
         'completed_today' => $mcDone,
+        // A LIST now, not a map keyed by English label.
         'statuses'        => $mcStatuses,
+        'best_sort_order' => $mcBestOrder,
         'not_started'     => $mcDone === 0 && $mcTotal > 0
     ];
 
     // -- Tickets --
 
+    // Every open status, in the order the admin arranged them, with its own name
+    // and colour. The query was always general — it was the card that picked out
+    // 'Open', 'In Progress' and 'On Hold' by name and summed those three into the
+    // "open tickets" headline, so a ticket in any other open status (Awaiting
+    // Response, say — a status FreeITSM ships) was missing from the total.
     $tkStatusStmt = $conn->query(
-        "SELECT ts.name AS status, COUNT(*) AS cnt
-         FROM tickets t
-         JOIN ticket_statuses ts ON ts.id = t.status_id
-         WHERE ts.is_closed = 0
-         GROUP BY ts.name"
+        "SELECT ts.id, ts.name AS status, ts.colour, COUNT(t.id) AS cnt
+         FROM ticket_statuses ts
+         LEFT JOIN tickets t ON t.status_id = ts.id
+         WHERE ts.is_closed = 0 AND ts.is_active = 1
+         GROUP BY ts.id, ts.name, ts.colour, ts.display_order
+         ORDER BY ts.display_order, ts.name"
     );
     $tkStatuses = [];
-    while ($row = $tkStatusStmt->fetch(PDO::FETCH_ASSOC)) {
-        $tkStatuses[$row['status']] = (int)$row['cnt'];
+    $tkTotalOpen = 0;
+    foreach ($tkStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $tkStatuses[] = [
+            'name'   => $row['status'],
+            'colour' => $row['colour'] ?: null,
+            'count'  => (int)$row['cnt'],
+        ];
+        $tkTotalOpen += (int)$row['cnt'];
     }
 
+    // "Needs attention" = ranked ABOVE the default priority, rather than a
+    // hardcoded Urgent/High/Critical. On stock data that is the same three, so
+    // the number is unchanged — but it now survives renaming and translation,
+    // and a priority somebody adds above Normal (an "Emergency") is counted
+    // instead of being silently left out of the very tile meant to catch it.
     $tkUrgent = (int)$conn->query(
         "SELECT COUNT(*)
          FROM tickets t
          JOIN ticket_priorities tp ON tp.id = t.priority_id
          JOIN ticket_statuses   ts ON ts.id = t.status_id
-         WHERE tp.name IN ('Urgent','High','Critical') AND ts.is_closed = 0"
+         WHERE ts.is_closed = 0
+           AND tp.display_order > COALESCE(
+                 (SELECT display_order FROM ticket_priorities WHERE is_default = 1 LIMIT 1),
+                 (SELECT MIN(display_order) FROM ticket_priorities))"
     )->fetchColumn();
 
     $tkUnassigned = (int)$conn->query(
@@ -105,9 +153,10 @@ function getWatchtowerData($conn, $analystId = 0) {
     $tkPausedTooLong = (int)$tkPausedStmt->fetchColumn();
 
     $tickets = [
-        'open'                    => $tkStatuses['Open'] ?? 0,
-        'in_progress'             => $tkStatuses['In Progress'] ?? 0,
-        'on_hold'                 => $tkStatuses['On Hold'] ?? 0,
+        // A LIST of every open status, plus the true total. Replaces the three
+        // English names the card used to add up.
+        'by_status'               => $tkStatuses,
+        'total_open'              => $tkTotalOpen,
         'urgent_high'             => $tkUrgent,
         'unassigned'              => $tkUnassigned,
         'paused_too_long'         => $tkPausedTooLong,
@@ -123,21 +172,31 @@ function getWatchtowerData($conn, $analystId = 0) {
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
          WHERE c.work_start_datetime BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
-           AND cs.name NOT IN ('Closed','Cancelled')"
+           AND cs.is_closed = 0"
     )->fetchColumn();
+    // Was NOT IN ('Closed','Cancelled') — and FreeITSM has never shipped a change
+    // status called 'Closed'. Of the four finished statuses (Rejected, Completed,
+    // Failed, Cancelled) that list caught exactly one, so completed and failed
+    // changes were counted as upcoming work. is_closed is the fact it wanted.
 
+    // Awaiting approval is a recorded fact, not a status name: a change that has
+    // not been approved yet and has not finished. Reading it from the approval
+    // itself also means an extra approval stage added to the workflow doesn't
+    // have to be added to a list in here to be counted.
     $chUnapproved = (int)$conn->query(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
-         WHERE cs.name IN ('Submitted','Pending Approval')"
+         WHERE c.approval_datetime IS NULL AND cs.is_closed = 0"
     )->fetchColumn();
 
+    // Work that is under way right now: the work window already says so exactly,
+    // so the status name added nothing except a way to break.
     $chInProgress = (int)$conn->query(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
-         WHERE cs.name = 'In Progress'
+         WHERE cs.is_closed = 0
            AND c.work_start_datetime <= NOW()
            AND (c.work_end_datetime >= NOW() OR c.work_end_datetime IS NULL)"
     )->fetchColumn();
@@ -322,25 +381,33 @@ function getWatchtowerData($conn, $analystId = 0) {
            AND t.parent_task_id IS NULL"
     )->fetchColumn();
 
-    $taskInProgress = (int)$conn->query(
-        "SELECT COUNT(*) FROM tasks t
-         JOIN task_statuses ts ON ts.id = t.status_id
-         WHERE ts.name = 'In Progress'
-           AND t.parent_task_id IS NULL"
-    )->fetchColumn();
-
-    $taskTodo = (int)$conn->query(
-        "SELECT COUNT(*) FROM tasks t
-         JOIN task_statuses ts ON ts.id = t.status_id
-         WHERE ts.name = 'To Do'
-           AND t.parent_task_id IS NULL"
-    )->fetchColumn();
+    // Every open task status with its own name and colour, instead of counting
+    // the two called 'To Do' and 'In Progress' — which left tasks in any other
+    // open status (Blocked, on stock data) off the dashboard altogether.
+    $taskStatusStmt = $conn->query(
+        "SELECT ts.id, ts.name, ts.colour, COUNT(t.id) AS cnt
+         FROM task_statuses ts
+         LEFT JOIN tasks t ON t.status_id = ts.id AND t.parent_task_id IS NULL
+         WHERE ts.is_closed = 0 AND ts.is_active = 1
+         GROUP BY ts.id, ts.name, ts.colour, ts.display_order
+         ORDER BY ts.display_order, ts.name"
+    );
+    $taskStatuses = [];
+    $taskTotalOpen = 0;
+    foreach ($taskStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $taskStatuses[] = [
+            'name'   => $row['name'],
+            'colour' => $row['colour'] ?: null,
+            'count'  => (int)$row['cnt'],
+        ];
+        $taskTotalOpen += (int)$row['cnt'];
+    }
 
     $tasksWt = [
         'overdue'     => $taskOverdue,
         'due_today'   => $taskDueToday,
-        'in_progress' => $taskInProgress,
-        'todo'        => $taskTodo
+        'by_status'   => $taskStatuses,
+        'total_open'  => $taskTotalOpen
     ];
 
     // -- Workflows --
