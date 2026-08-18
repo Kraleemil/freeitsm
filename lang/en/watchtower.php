@@ -15,6 +15,62 @@
 return [
     'title' => 'Watchtower',
 
+    // Settings screen. Everything here TRIMS a dashboard that is already correct
+    // — leaving it alone shows every card and counts every status.
+    'settings' => [
+        'title'          => 'Settings',
+        'loading'        => 'Loading…',
+        'saved'          => 'Saved',
+        'save_failed'    => 'Failed to save',
+        'load_failed'    => 'Failed to load settings',
+
+        'tab_cards'      => 'Cards',
+        'tab_counts'     => 'Counts',
+
+        'cards_heading'  => 'Which cards appear',
+        'cards_intro'    => 'Watchtower shows every card by default. Turn off the ones your team does not watch — nothing is lost, and each module still shows everything in its own screens.',
+
+        'counts_heading' => 'What each count includes',
+        'counts_intro'   => 'Each of these counts every status you have, which is why a status you rename or add keeps working without being listed anywhere in here. Narrow one only if a card is showing more than you want to read at a glance.',
+
+        'choose_specific'      => 'Choose specific ones',
+        'choose_specific_desc' => 'Leave this off to include everything, now and anything added later. Turn it on and only the ones ticked below are counted.',
+
+        'item_tickets_status'       => 'Ticket statuses shown',
+        'item_tickets_status_why'   => 'One figure per open status, plus a total. The total always matches what is listed beside it.',
+        'item_tickets_priority'     => 'Priorities counted as high priority',
+        'item_tickets_priority_why' => 'The red "high priority tickets" line. Left alone, it means any priority ranked above your default one — so a new priority added above it is included automatically.',
+        'item_tasks_status'         => 'Task statuses shown',
+        'item_tasks_status_why'     => 'One figure per open task status, plus a total.',
+        'item_mc_attention'         => 'Morning check statuses that need attention',
+        'item_mc_attention_why'     => 'Nothing in FreeITSM records which of your morning-check statuses is a pass and which is a problem. Until you say, the card treats only the first status in your order as good, and never claims checks have passed — just that they are done.',
+
+        'paused_heading' => 'Paused too long',
+        'paused_why'     => 'How long a ticket may sit with its SLA clock stopped before Watchtower mentions it.',
+        'paused_unit'    => 'hours',
+
+        'card_morning_checks'      => 'Morning Checks',
+        'card_morning_checks_desc' => 'Whether today\'s round has been done, and how it went.',
+        'card_tickets'             => 'Tickets',
+        'card_tickets_desc'        => 'Open tickets by status, high priority, unassigned and paused.',
+        'card_changes'             => 'Changes',
+        'card_changes_desc'        => 'Awaiting approval, in progress now, and scheduled in the next 7 days.',
+        'card_calendar'            => 'Calendar',
+        'card_calendar_desc'       => 'Today\'s events and the week ahead.',
+        'card_service_status'      => 'Service Status',
+        'card_service_status_desc' => 'Degraded services and open incidents.',
+        'card_contracts'           => 'Contracts',
+        'card_contracts_desc'      => 'Contracts expiring and notice periods running out.',
+        'card_knowledge'           => 'Knowledge',
+        'card_knowledge_desc'      => 'Recent articles and reviews now overdue.',
+        'card_assets'              => 'Assets',
+        'card_assets_desc'         => 'Warranties expiring and assets not seen recently.',
+        'card_tasks'               => 'Tasks',
+        'card_tasks_desc'          => 'Open tasks by status, overdue and due today.',
+        'card_workflows'           => 'Workflows',
+        'card_workflows_desc'      => 'Failed or aborted runs, and webhooks that have stopped delivering.',
+    ],
+
     'nav' => [
         'dashboard' => 'Dashboard',
         'help'      => 'Help',

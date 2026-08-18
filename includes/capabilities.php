@@ -133,6 +133,15 @@ final class Cap
     const PROBLEMS_PRIORITIES = 'problems.priorities';
     const PROBLEMS_AI         = 'problems.ai';          // AI provider + API key
 
+    // ---- Watchtower --------------------------------------------------------
+    // Watchtower reads every other module and owns nothing, so these govern the
+    // VIEW only: which cards are drawn, and which statuses and priorities feed
+    // each count. Neither grants any access to the modules being counted — the
+    // cards already show only what the analyst may see.
+    const WATCHTOWER_MANAGE = 'watchtower.manage';    // umbrella
+    const WATCHTOWER_CARDS  = 'watchtower.cards';     // which cards appear
+    const WATCHTOWER_COUNTS = 'watchtower.counts';    // what each count is counting
+
     // ---- Service Status ----------------------------------------------------
     const SERVICE_STATUS_MANAGE   = 'service_status.manage';    // umbrella
     const SERVICE_STATUS_SERVICES = 'service_status.services';

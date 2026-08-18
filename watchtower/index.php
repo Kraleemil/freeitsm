@@ -217,6 +217,9 @@ $translationNamespaces = ['common', 'watchtower'];
         .wt-attention-item.blue .wt-attention-dot    { background: #3b82f6; }
         .wt-attention-item.neutral .wt-attention-dot { background: #94a3b8; }
         .wt-attention-bold { font-weight: 600; }
+        /* Which priorities a combined count actually covered — quieter than the
+           number itself, but present, so the line can never claim the wrong set. */
+        .wt-attention-note { color: var(--text-dim, #94a3b8); font-size: 12px; }
 
         /* ── Event list ─────────────────────────────────────────────────────── */
         .wt-event-list {
@@ -554,6 +557,20 @@ $translationNamespaces = ['common', 'watchtower'];
         return /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : null;
     }
 
+    // Card keys map to the element ids the page already uses.
+    const WT_CARD_ELEMENTS = {
+        morning_checks: 'wtMorningChecks', tickets: 'wtTickets', changes: 'wtChanges',
+        calendar: 'wtCalendar', service_status: 'wtServiceStatus', contracts: 'wtContracts',
+        knowledge: 'wtKnowledge', assets: 'wtAssets', tasks: 'wtTasks', workflows: 'wtWorkflows',
+    };
+
+    function applyCardVisibility(cards) {
+        Object.entries(WT_CARD_ELEMENTS).forEach(([key, id]) => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = (cards[key] === false) ? 'none' : '';
+        });
+    }
+
     // The colour passed in is DATA (green = done, amber = warning, red = fail) and
     // is used as given. The DEFAULT is chrome — plain text — so it must follow the
     // theme, or a neutral metric would be dark slate on a dark card.
@@ -573,8 +590,12 @@ $translationNamespaces = ['common', 'watchtower'];
         // done, but with something in it worth a look. It used to go green off
         // 'Fail' and 'Warning' counts that were always zero (no status has ever
         // been called either), so it lit green on a morning when every check was red.
-        const allBest = statuses.length > 0 && mc.best_sort_order !== null &&
-                        statuses.every(s => s.count === 0 || s.sort_order === mc.best_sort_order);
+        // If Watchtower → Settings names which statuses mean trouble, use that —
+        // it is a stated answer rather than an inference from the ordering.
+        const allBest = mc.attention_set
+            ? statuses.every(s => s.count === 0 || !s.is_attention)
+            : (statuses.length > 0 && mc.best_sort_order !== null &&
+               statuses.every(s => s.count === 0 || s.sort_order === mc.best_sort_order));
         if (mc.not_started)        setDot('wtMcDot', 'red');
         else if (done && allBest)  setDot('wtMcDot', 'green');
         else                       setDot('wtMcDot', 'amber');
@@ -633,7 +654,13 @@ $translationNamespaces = ['common', 'watchtower'];
 
         html += '<div class="wt-attention">';
         if (tk.urgent_high > 0) {
-            html += attentionItem('red', window.t('watchtower.tickets.urgent_high', { count: tk.urgent_high }));
+            // The label names the priorities it actually counted, from the database,
+            // rather than saying "urgent/high" for ever. That wording was baked into
+            // a translated string, so it would have quietly become untrue the moment
+            // anybody renamed a priority or chose a different set in settings.
+            const names = (tk.high_priority_names || []).map(escapeHtml).join(', ');
+            html += attentionItem('red', window.t('watchtower.tickets.urgent_high', { count: tk.urgent_high })
+                + (names ? ' <span class="wt-attention-note">(' + names + ')</span>' : ''));
         }
         if (tk.unassigned > 0) {
             html += attentionItem('amber', window.t('watchtower.tickets.unassigned', { count: tk.unassigned }));
@@ -851,7 +878,11 @@ $translationNamespaces = ['common', 'watchtower'];
     function renderWorkflows(d) {
         const wf = d.workflows;
         const card = document.getElementById('wtWorkflows');
-        if (!wf || !wf.available) { card.style.display = 'none'; return; }
+        // This card manages its own visibility (it is hidden entirely when the
+        // Workflows module isn't in use), so it has to honour the settings choice
+        // itself — applyCardVisibility runs before this and would be overruled.
+        const hiddenBySetting = (d.cards || {}).workflows === false;
+        if (!wf || !wf.available || hiddenBySetting) { card.style.display = 'none'; return; }
         card.style.display = '';
 
         const esc = (s) => { const x = document.createElement('div'); x.textContent = s == null ? '' : String(s); return x.innerHTML; };
@@ -943,6 +974,11 @@ $translationNamespaces = ['common', 'watchtower'];
                     console.error('Watchtower API error:', d.error);
                     return;
                 }
+
+                // Cards turned off in Watchtower → Settings. Absent or true = shown,
+                // so an installation that has never opened that screen sees exactly
+                // what it saw before.
+                applyCardVisibility(d.cards || {});
 
                 renderMorningChecks(d);
                 renderTickets(d);

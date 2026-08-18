@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/tenancy.php';   // knowledgeTenantFilter() for the Knowledge card
+require_once __DIR__ . '/watchtower_settings.php';   // which cards show, which statuses count
 
 /**
  * $analystId is optional and only used to scope the Knowledge card to the
@@ -65,12 +66,30 @@ function getWatchtowerData($conn, $analystId = 0) {
     $mcBestOrder = $conn->query("SELECT MIN(SortOrder) FROM morningChecks_Statuses WHERE IsActive = 1")->fetchColumn();
     $mcBestOrder = ($mcBestOrder === null || $mcBestOrder === false) ? null : (int)$mcBestOrder;
 
+    // If the admin has said which statuses mean trouble, say so outright rather
+    // than inferring it from the order. This is the one judgement the correctness
+    // pass could not make on its own — nothing in the database records which of
+    // your morning-check statuses is a pass and which is a failure.
+    $mcAttention = wtItemMembers($conn, 'mc.attention');
+    if ($mcAttention !== null) {
+        $attLabels = [];
+        if ($mcAttention) {
+            $lbl = $conn->query("SELECT Label FROM morningChecks_Statuses WHERE StatusID IN " . wtIdListSql($mcAttention));
+            $attLabels = array_flip($lbl->fetchAll(PDO::FETCH_COLUMN));
+        }
+        foreach ($mcStatuses as &$s) { $s['is_attention'] = isset($attLabels[$s['label']]); }
+        unset($s);
+    }
+
     $morningChecks = [
         'total_checks'    => $mcTotal,
         'completed_today' => $mcDone,
         // A LIST now, not a map keyed by English label.
         'statuses'        => $mcStatuses,
         'best_sort_order' => $mcBestOrder,
+        // true = the admin has named which statuses mean trouble, so the card
+        // uses that instead of falling back to "the first status is the good one".
+        'attention_set'   => $mcAttention !== null,
         'not_started'     => $mcDone === 0 && $mcTotal > 0
     ];
 
@@ -81,11 +100,19 @@ function getWatchtowerData($conn, $analystId = 0) {
     // 'Open', 'In Progress' and 'On Hold' by name and summed those three into the
     // "open tickets" headline, so a ticket in any other open status (Awaiting
     // Response, say — a status FreeITSM ships) was missing from the total.
+    // A selection made in Watchtower → Settings narrows which statuses get their
+    // own metric. No selection = all of them, which is the correct default and
+    // the behaviour with the screen untouched. The TOTAL below deliberately
+    // follows the same selection, so the headline always equals the numbers
+    // printed beside it — a total that silently counted more than it showed is
+    // the bug this replaced.
+    $tkPicked = wtItemMembers($conn, 'tickets.by_status');
+    $tkPickSql = $tkPicked === null ? '' : ' AND ts.id IN ' . wtIdListSql($tkPicked);
     $tkStatusStmt = $conn->query(
         "SELECT ts.id, ts.name AS status, ts.colour, COUNT(t.id) AS cnt
          FROM ticket_statuses ts
          LEFT JOIN tickets t ON t.status_id = ts.id
-         WHERE ts.is_closed = 0 AND ts.is_active = 1
+         WHERE ts.is_closed = 0 AND ts.is_active = 1{$tkPickSql}
          GROUP BY ts.id, ts.name, ts.colour, ts.display_order
          ORDER BY ts.display_order, ts.name"
     );
@@ -105,16 +132,33 @@ function getWatchtowerData($conn, $analystId = 0) {
     // the number is unchanged — but it now survives renaming and translation,
     // and a priority somebody adds above Normal (an "Emergency") is counted
     // instead of being silently left out of the very tile meant to catch it.
+    // An explicit choice in Watchtower → Settings wins; otherwise the rule above.
+    $hpPicked = wtItemMembers($conn, 'tickets.high_priority');
+    $hpWhere = $hpPicked === null
+        ? "tp.display_order > COALESCE(
+               (SELECT display_order FROM ticket_priorities WHERE is_default = 1 LIMIT 1),
+               (SELECT MIN(display_order) FROM ticket_priorities))"
+        : 'tp.id IN ' . wtIdListSql($hpPicked);
     $tkUrgent = (int)$conn->query(
         "SELECT COUNT(*)
          FROM tickets t
          JOIN ticket_priorities tp ON tp.id = t.priority_id
          JOIN ticket_statuses   ts ON ts.id = t.status_id
-         WHERE ts.is_closed = 0
-           AND tp.display_order > COALESCE(
-                 (SELECT display_order FROM ticket_priorities WHERE is_default = 1 LIMIT 1),
-                 (SELECT MIN(display_order) FROM ticket_priorities))"
+         WHERE ts.is_closed = 0 AND {$hpWhere}"
     )->fetchColumn();
+
+    // The names behind that one number, so the card can say which priorities it
+    // means instead of the label claiming "urgent/high" for ever regardless of
+    // what was actually chosen.
+    $hpNames = $conn->query(
+        "SELECT name FROM ticket_priorities WHERE is_active = 1 AND " .
+        ($hpPicked === null
+            ? "display_order > COALESCE(
+                   (SELECT display_order FROM ticket_priorities WHERE is_default = 1 LIMIT 1),
+                   (SELECT MIN(display_order) FROM ticket_priorities))"
+            : 'id IN ' . wtIdListSql($hpPicked)) .
+        " ORDER BY display_order, name"
+    )->fetchAll(PDO::FETCH_COLUMN);
 
     $tkUnassigned = (int)$conn->query(
         "SELECT COUNT(*)
@@ -158,6 +202,7 @@ function getWatchtowerData($conn, $analystId = 0) {
         'by_status'               => $tkStatuses,
         'total_open'              => $tkTotalOpen,
         'urgent_high'             => $tkUrgent,
+        'high_priority_names'     => $hpNames,
         'unassigned'              => $tkUnassigned,
         'paused_too_long'         => $tkPausedTooLong,
         'paused_threshold_hours'  => $pausedThresholdHours,
@@ -384,11 +429,13 @@ function getWatchtowerData($conn, $analystId = 0) {
     // Every open task status with its own name and colour, instead of counting
     // the two called 'To Do' and 'In Progress' — which left tasks in any other
     // open status (Blocked, on stock data) off the dashboard altogether.
+    $tkTaskPicked = wtItemMembers($conn, 'tasks.by_status');
+    $tkTaskPickSql = $tkTaskPicked === null ? '' : ' AND ts.id IN ' . wtIdListSql($tkTaskPicked);
     $taskStatusStmt = $conn->query(
         "SELECT ts.id, ts.name, ts.colour, COUNT(t.id) AS cnt
          FROM task_statuses ts
          LEFT JOIN tasks t ON t.status_id = ts.id AND t.parent_task_id IS NULL
-         WHERE ts.is_closed = 0 AND ts.is_active = 1
+         WHERE ts.is_closed = 0 AND ts.is_active = 1{$tkTaskPickSql}
          GROUP BY ts.id, ts.name, ts.colour, ts.display_order
          ORDER BY ts.display_order, ts.name"
     );
@@ -493,6 +540,10 @@ function getWatchtowerData($conn, $analystId = 0) {
         'knowledge'      => $knowledge,
         'assets'         => $assets,
         'tasks'          => $tasksWt,
-        'workflows'      => $wf
+        'workflows'      => $wf,
+        // Which cards this installation wants on screen. Every card is visible
+        // unless somebody has said otherwise, so an install that never opens
+        // Watchtower → Settings sees exactly what it saw before.
+        'cards'          => wtVisibleCards($conn)
     ];
 }

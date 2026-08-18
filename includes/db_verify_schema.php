@@ -287,6 +287,28 @@ return [
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // Watchtower settings. analyst_id 0 = the installation's setting; real ids are
+    // reserved for per-person overrides later. is_customised distinguishes "not
+    // configured" from "configured to nothing".
+    'watchtower_items' => [
+        'id'            => 'INT NOT NULL AUTO_INCREMENT',
+        'analyst_id'    => 'INT NOT NULL DEFAULT 0',
+        'item_key'      => 'VARCHAR(60) NOT NULL',
+        'is_visible'    => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'is_customised' => 'TINYINT(1) NOT NULL DEFAULT 0',
+    ],
+    // Which statuses/priorities feed one Watchtower item. Rows rather than a flag
+    // on the status, so an item can hold a set and each member can carry its own
+    // severity later. entity_type is polymorphic, so no foreign key is possible.
+    'watchtower_item_members' => [
+        'id'          => 'INT NOT NULL AUTO_INCREMENT',
+        'analyst_id'  => 'INT NOT NULL DEFAULT 0',
+        'item_key'    => 'VARCHAR(60) NOT NULL',
+        'entity_type' => 'VARCHAR(30) NOT NULL',
+        'entity_id'   => 'INT NOT NULL',
+        'severity'    => 'VARCHAR(10) NULL',
+    ],
+
     'ticket_prefixes' => [
         'id'            => 'INT NOT NULL AUTO_INCREMENT',
         'prefix'        => 'VARCHAR(3) NOT NULL',

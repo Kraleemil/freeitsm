@@ -66,7 +66,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 
 | Module | What it does |
 |--------|--------------|
-| [Watchtower](https://github.com/edmozley/freeitsm/wiki/Watchtower) | Unified attention dashboard — one glance shows what needs you across every module. Counts every status you have, under the name and colour you gave it, so renaming or adding one keeps working |
+| [Watchtower](https://github.com/edmozley/freeitsm/wiki/Watchtower) | Unified attention dashboard — one glance shows what needs you across every module. Counts every status you have, under the name and colour you gave it, so renaming or adding one keeps working. Settings turn off cards you don't watch and narrow what each count includes |
 | [Tickets](https://github.com/edmozley/freeitsm/wiki/Tickets) | Outlook-style inbox with email, WhatsApp, Slack and web chat channels, SLAs, CSAT, canned responses, multi-select bulk actions, snooze, collision detection, AI reply cleanup |
 | [Self-Service Portal](https://github.com/edmozley/freeitsm/wiki/Self-Service-Portal) | End-user portal — request catalogue, knowledge, replies, screen recording; works even with no email address. Can be set as the page people land on (**System → Branding**), with a per-analyst override |
 | [Tasks](https://github.com/edmozley/freeitsm/wiki/Tasks) | Kanban board, list, calendar and timeline views for internal work |

@@ -404,6 +404,48 @@ CREATE TABLE IF NOT EXISTS `ticket_origins` (
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Watchtower settings. Two tables rather than flags on the status rows, because
+-- "show this on my dashboard" is a fact about the DASHBOARD, not about the
+-- status — the status's own facts (is_closed, is_default) are used by the SLA
+-- engine and everything else, and must not be mixed up with one view's taste.
+--
+-- analyst_id 0 = the installation's setting. Real analyst ids are reserved for
+-- per-person overrides later; storing it now means adding those needs no
+-- migration. (0 rather than NULL so the unique key actually de-duplicates.)
+CREATE TABLE IF NOT EXISTS `watchtower_items` (
+    `id`            INT NOT NULL AUTO_INCREMENT,
+    `analyst_id`    INT NOT NULL DEFAULT 0,
+    -- 'card.tickets', 'tickets.by_status', 'tickets.high_priority', …
+    `item_key`      VARCHAR(60) NOT NULL,
+    `is_visible`    TINYINT(1) NOT NULL DEFAULT 1,
+    -- 0 = follow the built-in default. Distinguishes "not configured" from
+    -- "configured to nothing", which a bare list of members cannot express —
+    -- and getting that wrong would make an empty selection silently mean "all".
+    `is_customised` TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_watchtower_items` (`analyst_id`, `item_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Which statuses / priorities feed one Watchtower item. Rows, not a flag on the
+-- status, so an item can hold a SET (the "high priority tickets" line is one
+-- number over several priorities) and so each member can carry its own severity
+-- later without a schema change.
+CREATE TABLE IF NOT EXISTS `watchtower_item_members` (
+    `id`          INT NOT NULL AUTO_INCREMENT,
+    `analyst_id`  INT NOT NULL DEFAULT 0,
+    `item_key`    VARCHAR(60) NOT NULL,
+    -- 'ticket_status' | 'ticket_priority' | 'task_status' | 'mc_status'.
+    -- Deliberately no foreign key: the target table varies by row, so no FK
+    -- could cover it. Reads join the real table, which drops members whose
+    -- status has since been deleted rather than counting a ghost.
+    `entity_type` VARCHAR(30) NOT NULL,
+    `entity_id`   INT NOT NULL,
+    -- Reserved: 'red' / 'amber' per member, for when one line becomes several.
+    `severity`    VARCHAR(10) NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_watchtower_members` (`analyst_id`, `item_key`, `entity_type`, `entity_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `ticket_prefixes` (
     `id`            INT NOT NULL AUTO_INCREMENT,
     `prefix`        VARCHAR(3) NOT NULL,
