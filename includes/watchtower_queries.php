@@ -217,31 +217,39 @@ function getWatchtowerData($conn, $analystId = 0) {
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
          WHERE c.work_start_datetime BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
-           AND cs.is_closed = 0"
+           AND cs.is_closed = 0 AND cs.is_default = 0"
     )->fetchColumn();
     // Was NOT IN ('Closed','Cancelled') — and FreeITSM has never shipped a change
     // status called 'Closed'. Of the four finished statuses (Rejected, Completed,
     // Failed, Cancelled) that list caught exactly one, so completed and failed
     // changes were counted as upcoming work. is_closed is the fact it wanted.
 
-    // Awaiting approval is a recorded fact, not a status name: a change that has
-    // not been approved yet and has not finished. Reading it from the approval
-    // itself also means an extra approval stage added to the workflow doesn't
-    // have to be added to a list in here to be counted.
+    // Awaiting approval is a recorded fact, not a status name: not yet approved,
+    // not finished, and no longer sitting in the status it started in. Reading it
+    // from the approval itself means an extra approval stage added to the
+    // workflow is counted without being listed in here.
+    //
+    // is_default = 0 is doing real work. A change still in its starting status is
+    // a DRAFT — nobody has submitted it, so it is not waiting on anyone, and
+    // putting it on an "awaiting approval" count would nag about something that
+    // is nobody's turn. The first version of this counted drafts, which is how
+    // the number went from 0 to 1 on a database with one unsubmitted draft in it.
     $chUnapproved = (int)$conn->query(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
-         WHERE c.approval_datetime IS NULL AND cs.is_closed = 0"
+         WHERE c.approval_datetime IS NULL AND cs.is_closed = 0 AND cs.is_default = 0"
     )->fetchColumn();
 
     // Work that is under way right now: the work window already says so exactly,
-    // so the status name added nothing except a way to break.
+    // so the status name added nothing except a way to break. Same draft rule —
+    // a change nobody has submitted is not being worked on, whatever dates
+    // somebody pencilled into it.
     $chInProgress = (int)$conn->query(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
-         WHERE cs.is_closed = 0
+         WHERE cs.is_closed = 0 AND cs.is_default = 0
            AND c.work_start_datetime <= NOW()
            AND (c.work_end_datetime >= NOW() OR c.work_end_datetime IS NULL)"
     )->fetchColumn();
