@@ -145,7 +145,12 @@ return [
         // / metric_pending are gone: they repeated the three lines below them.
         'metric_open'    => 'Open',
         'awaiting'       => '<span class="wt-attention-bold">{count}</span> change(s) awaiting approval',
-        'in_progress'    => '{count} change(s) in progress now',
+        // Deliberately NOT "in progress now". There is a status called In
+        // Progress sitting inches away in the metric row, and the two count
+        // different things — where changes are, versus what is happening this
+        // minute — so sharing a name made them look like a contradiction.
+        'in_progress'    => '{count} change(s) inside their work window now',
+        'overrunning'    => '<span class="wt-attention-bold">{count}</span> change(s) past their scheduled window and still open',
         'scheduled'      => '{count} change(s) scheduled this week',
         'all_clear'      => 'No upcoming changes',
     ],

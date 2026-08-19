@@ -285,11 +285,11 @@ $translationNamespaces = ['common', 'watchtower'];
             border-radius: 10px;
             white-space: nowrap;
         }
-        /* Impact pills = DATA — same reading in both modes (dark washes below). */
-        .wt-impact-major    { background: #fef2f2; color: #991b1b; }
-        .wt-impact-partial  { background: #fff7ed; color: #9a3412; }
-        .wt-impact-degraded { background: #fffbeb; color: #92400e; }
-        .wt-impact-maint    { background: #eff6ff; color: #1e40af; }
+        /* Impact pills = DATA. The colour is now set inline from the impact level
+           itself, so a renamed or newly added level is drawn in ITS colour rather
+           than falling through to one of four styles picked by English name. This
+           is the fallback for a level with no colour saved against it. */
+        .wt-service-item .wt-impact-badge { background: var(--surface-2, #f1f5f9); color: var(--text, #334155); }
 
         /* ── All-clear banner ───────────────────────────────────────────────── */
         .wt-all-clear {
@@ -351,10 +351,9 @@ $translationNamespaces = ['common', 'watchtower'];
 
         [data-theme-mode="dark"] .wt-all-clear { background: #16331f; color: #86efac; }
 
-        [data-theme-mode="dark"] .wt-impact-major    { background: #3a1a1d; color: #fca5a5; }
-        [data-theme-mode="dark"] .wt-impact-partial  { background: #3a2312; color: #fdba74; }
-        [data-theme-mode="dark"] .wt-impact-degraded { background: #3a2e12; color: #fcd34d; }
-        [data-theme-mode="dark"] .wt-impact-maint    { background: #1d3346; color: #93c5fd; }
+        /* The impact pill's colour now comes from the level itself and is applied
+           inline, which reads on both grounds (the tint is the same hue as the
+           text), so there is nothing left here to flip for dark mode. */
     </style>
 </head>
 <body>
@@ -705,10 +704,16 @@ $translationNamespaces = ['common', 'watchtower'];
         if (ch.in_progress_today > 0) {
             html += attentionItem('blue', window.t('watchtower.changes.in_progress', { count: ch.in_progress_today }));
         }
+        // The change whose window closed and which is still sitting open. Counted
+        // in the status breakdown, excluded from the line above, and until now
+        // visible in neither.
+        if (ch.overrunning > 0) {
+            html += attentionItem('amber', window.t('watchtower.changes.overrunning', { count: ch.overrunning }));
+        }
         if (ch.upcoming_7d > 0) {
             html += attentionItem('neutral', window.t('watchtower.changes.scheduled', { count: ch.upcoming_7d }));
         }
-        if (ch.unapproved === 0 && ch.in_progress_today === 0 && ch.upcoming_7d === 0) {
+        if (ch.unapproved === 0 && ch.in_progress_today === 0 && ch.upcoming_7d === 0 && !ch.overrunning) {
             html += attentionItem('green', window.t('watchtower.changes.all_clear'));
         }
         html += '</div>';
@@ -746,8 +751,13 @@ $translationNamespaces = ['common', 'watchtower'];
         if (ss.all_operational) {
             setDot('wtSsDot', 'green');
         } else {
-            const hasMajor = ss.degraded_services.some(s => s.current_status === 'Major Outage' || s.current_status === 'Partial Outage');
-            setDot('wtSsDot', hasMajor ? 'red' : 'amber');
+            // Red when something is genuinely down — decided by the level's own
+            // "counts as downtime" setting, which is precisely the question being
+            // asked. It used to test the level's NAME against 'Major Outage' and
+            // 'Partial Outage', so renaming or translating either one quietly
+            // downgraded a total outage to amber.
+            const realDowntime = ss.degraded_services.some(s => Number(s.counts_as_downtime) === 1);
+            setDot('wtSsDot', realDowntime ? 'red' : 'amber');
         }
 
         let html = '';
@@ -760,12 +770,16 @@ $translationNamespaces = ['common', 'watchtower'];
             }
             html += '</div>';
 
+            // The badge wears the colour set against that impact level, rather
+            // than one of four styles chosen by matching its English name — which
+            // left every renamed or newly added level looking identically mild.
+            // Service and level names are admin-typed free text, so both are
+            // escaped; they were being written into the page raw.
             ss.degraded_services.forEach(function(svc) {
-                let impactClass = 'wt-impact-degraded';
-                if (svc.current_status === 'Major Outage') impactClass = 'wt-impact-major';
-                else if (svc.current_status === 'Partial Outage') impactClass = 'wt-impact-partial';
-                else if (svc.current_status === 'Maintenance') impactClass = 'wt-impact-maint';
-                html += `<div class="wt-service-item"><span>${svc.name}</span><span class="wt-impact-badge ${impactClass}">${svc.current_status}</span></div>`;
+                const c = safeColour(svc.colour);
+                const style = c ? ` style="background:${c}20;color:${c};"` : '';
+                html += `<div class="wt-service-item"><span>${escapeHtml(svc.name)}</span>`
+                      + `<span class="wt-impact-badge"${style}>${escapeHtml(svc.current_status)}</span></div>`;
             });
         }
 

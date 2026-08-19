@@ -281,10 +281,27 @@ function getWatchtowerData($conn, $analystId = 0) {
         $chTotalOpen += (int)$row['cnt'];
     }
 
+    // The gap between the two numbers above is the interesting one: a change
+    // whose scheduled window has finished but which nobody moved on. It counted
+    // towards the status breakdown and was excluded from "in its window now", so
+    // it fell between the two and was the one thing on this card nobody could
+    // see — on an attention dashboard, the overrunning change is the whole point.
+    // Needs an end date: an open-ended window has not been overrun, it is just
+    // open-ended.
+    $chOverrunning = (int)$conn->query(
+        "SELECT COUNT(*)
+         FROM changes c
+         JOIN change_statuses cs ON cs.id = c.status_id
+         WHERE cs.is_closed = 0 AND cs.is_default = 0
+           AND c.work_end_datetime IS NOT NULL
+           AND c.work_end_datetime < NOW()"
+    )->fetchColumn();
+
     $changes = [
         'upcoming_7d'       => $chUpcoming,
         'unapproved'        => $chUnapproved,
         'in_progress_today' => $chInProgress,
+        'overrunning'       => $chOverrunning,
         'by_status'         => $chStatuses,
         'total_open'        => $chTotalOpen
     ];
@@ -314,11 +331,19 @@ function getWatchtowerData($conn, $analystId = 0) {
 
     // -- Service Status --
 
+    // The impact level's own colour and its counts_as_downtime flag come back with
+    // it. The card used to decide red-versus-amber, and pick a badge style, by
+    // comparing the level's NAME against 'Major Outage', 'Partial Outage' and
+    // 'Maintenance' — the same levels #70 made renameable, so a renamed or
+    // translated total outage was drawn amber, in the mildest style, on the one
+    // card meant to shout about it.
     $ssDegradedStmt = $conn->query(
-        "SELECT ss.id, ss.name, worst.current_status, worst.severity_order
+        "SELECT ss.id, ss.name, worst.current_status, worst.severity_order,
+                worst.colour, worst.counts_as_downtime
          FROM status_services ss
          JOIN (
-            SELECT sis.service_id, il.name AS current_status, il.severity_order
+            SELECT sis.service_id, il.name AS current_status, il.severity_order,
+                   il.colour, il.counts_as_downtime
             FROM status_incident_services sis
             JOIN status_incidents si ON sis.incident_id = si.id
             JOIN service_impact_levels il ON il.id = sis.impact_level_id
