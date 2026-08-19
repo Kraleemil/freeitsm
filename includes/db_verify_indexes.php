@@ -103,6 +103,7 @@ return [
 
     // Sender rules for email templates (#80). Looked up on every automatic email,
     // by template when editing and by value when choosing which template fires.
+    ['analyst_signatures', 'idx_sig_analyst', 'key', '(`analyst_id`)'],
     ['ticket_email_template_rules', 'idx_tmpl', 'key', '(`template_id`)'],
     ['ticket_email_template_rules', 'idx_match', 'key', '(`match_type`, `match_value`)'],
     ['ticket_csat_responses', 'uq_ticket_csat_token', 'unique', '(`token`)'],

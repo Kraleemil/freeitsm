@@ -590,6 +590,27 @@ return [
         'multiselect_keep_hint'    => 'The reading pane carries on showing the ticket you opened, with a reminder that an action will hit all of them.',
         'multiselect_bar_hint'     => 'A compact strip appears above the ticket list with the count and the actions.',
 
+
+        // My details + email signatures (discussion #80, request 3).
+        'details_heading'    => 'My details',
+        'details_desc'       => 'Used by your email signatures. Your name and email address come from your account and are not editable here.',
+        'details_job_title'  => 'Job title',
+        'details_department' => 'Department',
+        'details_phone'      => 'Phone',
+        'details_mobile'     => 'Mobile',
+
+        'sig_heading'         => 'Email signatures',
+        'sig_desc'            => 'Signatures are yours alone — nobody else can see or change them. The one marked Default is added to your replies automatically, and you can keep more than one for when a different sign-off suits, such as a shorter note to colleagues or one in another language.',
+        'sig_empty'           => 'You have no signatures yet.',
+        'sig_load_failed'     => 'Your signatures could not be loaded, so none are shown. This is not the same as having none — reload before adding one, or you may end up with a duplicate.',
+        'sig_save_failed'     => 'That could not be saved.',
+        'sig_delete_confirm'  => 'Delete this signature?',
+        'sig_default'         => 'Default',
+        'sig_is_default'      => 'Add this one to my replies automatically',
+        'sig_name'            => 'Name',
+        'sig_name_placeholder'=> 'Formal, Short, German …',
+        'sig_codes'           => 'Insert:',
+        'sig_preview'         => 'Preview',
         'mc_heading' => 'Morning checks bar fill',
         'mc_desc'    => 'Solid or gradient fill for the Morning Checks 30-day trend chart. Also available on the Morning Checks settings page.',
         'fill_plain'    => 'Plain',

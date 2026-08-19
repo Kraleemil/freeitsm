@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS `analysts` (
     `full_name`                 VARCHAR(100) NOT NULL,
     `email`                     VARCHAR(100) NOT NULL,
     `is_active`                 TINYINT(1) NULL DEFAULT 1,
+    `job_title`                 VARCHAR(100) NULL,
+    `department`                VARCHAR(100) NULL,
+    `phone`                     VARCHAR(50) NULL,
+    `mobile`                    VARCHAR(50) NULL,
     `created_datetime`          DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `last_login_datetime`       DATETIME NULL,
     `last_modified_datetime`    DATETIME NULL,
@@ -1758,6 +1762,23 @@ CREATE TABLE IF NOT EXISTS `ticket_email_templates` (
     `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- An analyst's email signatures (discussion #80). Per analyst always — there is no
+-- shared signature, because a signature is a person signing their own name. Several
+-- are allowed and exactly one is the default: the default is inserted without being
+-- asked for, so an analyst who wants only one never has to choose.
+CREATE TABLE IF NOT EXISTS `analyst_signatures` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `analyst_id`       INT NOT NULL,
+    `name`             VARCHAR(100) NOT NULL,
+    `body`             LONGTEXT NOT NULL,
+    `is_default`       TINYINT(1) NOT NULL DEFAULT 0,
+    `display_order`    INT NOT NULL DEFAULT 0,
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_sig_analyst` (`analyst_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Which senders an email template applies to (discussion #80). A template with no

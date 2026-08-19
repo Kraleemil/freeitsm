@@ -115,6 +115,48 @@ if (isset($_SESSION['analyst_id'])) {
             color: var(--text-dim, #888);
         }
 
+        /* My details + signatures (#80). */
+        .sig-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
+        .sig-details-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+        .sig-details-grid input, .sig-field input[type="text"] {
+            padding: 9px 10px; border: 1px solid var(--border, #ddd); border-radius: 4px;
+            font-size: 14px; font-family: inherit;
+        }
+        .sig-btn { padding: 8px 16px; border-radius: 4px; border: 1px solid var(--border, #ddd); cursor: pointer; font-size: 13px; font-family: inherit; }
+        .sig-btn-primary { background: var(--accent, #2d6a4f); color: #fff; border-color: transparent; }
+        .sig-btn-secondary { background: var(--surface-2, #f1f1f1); color: var(--text, #333); }
+        .sig-btn-danger { background: var(--danger-bg, #f8d7da); color: var(--danger-text, #721c24); border-color: transparent; }
+        .sig-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+        .sig-empty { color: var(--text-muted, #666); font-size: 13px; padding: 10px 0; }
+        .sig-error { color: var(--danger-text, #721c24); }
+        .sig-card { border: 1px solid var(--border, #ddd); border-radius: 6px; overflow: hidden; }
+        .sig-card-head {
+            display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+            background: var(--surface-2, #f9f9f9); border-bottom: 1px solid var(--border, #ddd); font-size: 13px;
+        }
+        .sig-card-actions { margin-left: auto; display: flex; gap: 6px; }
+        .sig-default-badge {
+            font-size: 11px; padding: 2px 8px; border-radius: 10px;
+            background: var(--success-bg, #d4edda); color: var(--success-text, #155724);
+        }
+        .sig-card-body { padding: 12px; font-size: 13px; line-height: 1.5; background: var(--surface, #fff); color: var(--text, #333); }
+        .sig-editor { margin-top: 14px; padding: 14px; border: 1px solid var(--border, #ddd); border-radius: 6px; background: var(--surface-2, #f9f9f9); }
+        .sig-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin-bottom: 10px; max-width: 420px; }
+        .sig-default-row { flex-direction: row !important; align-items: center; gap: 8px; }
+        .sig-codes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0; }
+        .sig-codes-label { font-size: 12px; color: var(--text-muted, #666); margin-right: 4px; }
+        .sig-code {
+            font-family: Consolas, Monaco, monospace; font-size: 11px; cursor: pointer;
+            padding: 3px 8px; border-radius: 10px;
+            border: 1px solid var(--border, #ddd); background: var(--surface, #fff); color: var(--text-muted, #666);
+        }
+        .sig-preview-wrap { margin-top: 10px; }
+        .sig-preview-label { font-size: 12px; color: var(--text-muted, #666); margin-bottom: 4px; }
+        .sig-preview {
+            border: 1px solid var(--border, #ddd); border-radius: 4px; padding: 12px; min-height: 60px;
+            background: #ffffff; color: #333333; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5;
+        }
+        .sig-editor-actions { display: flex; gap: 8px; margin-top: 12px; }
         .pref-section {
             margin-bottom: 32px;
         }
@@ -395,11 +437,71 @@ if (isset($_SESSION['analyst_id'])) {
                     <button class="anim-option" data-fill="gradient"><?php echo htmlspecialchars(t('system.preferences.fill_gradient')); ?></button>
                 </div>
             </div>
+
+            <!-- My details + email signatures (discussion #80, request 3).
+                 Here rather than on an admin screen because a signature is one
+                 person signing their own name — there is deliberately no shared
+                 or install-wide signature to administer. -->
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.details_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.details_desc')); ?></p>
+                <div class="sig-details-grid">
+                    <label><span><?php echo htmlspecialchars(t('system.preferences.details_job_title')); ?></span>
+                        <input type="text" id="myJobTitle" autocomplete="off" maxlength="100"></label>
+                    <label><span><?php echo htmlspecialchars(t('system.preferences.details_department')); ?></span>
+                        <input type="text" id="myDepartment" autocomplete="off" maxlength="100"></label>
+                    <label><span><?php echo htmlspecialchars(t('system.preferences.details_phone')); ?></span>
+                        <input type="text" id="myPhone" autocomplete="off" maxlength="50"></label>
+                    <label><span><?php echo htmlspecialchars(t('system.preferences.details_mobile')); ?></span>
+                        <input type="text" id="myMobile" autocomplete="off" maxlength="50"></label>
+                </div>
+                <button type="button" class="sig-btn sig-btn-primary" onclick="saveMyDetails()"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                <span class="pref-saving-hint" id="detailsSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+            </div>
+
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.sig_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.sig_desc')); ?></p>
+
+                <div id="sigList" class="sig-list"></div>
+
+                <button type="button" class="sig-btn sig-btn-primary" onclick="openSignatureEditor()"><?php echo htmlspecialchars(t('common.add')); ?></button>
+
+                <!-- Editor, shown in place rather than in a modal: it holds a rich
+                     text box and a live preview, and both want room. -->
+                <div id="sigEditor" class="sig-editor" style="display:none;">
+                    <input type="hidden" id="sigId">
+                    <label class="sig-field"><span><?php echo htmlspecialchars(t('system.preferences.sig_name')); ?></span>
+                        <input type="text" id="sigName" autocomplete="off" maxlength="100" placeholder="<?php echo htmlspecialchars(t('system.preferences.sig_name_placeholder')); ?>"></label>
+
+                    <label class="sig-field sig-default-row">
+                        <input type="checkbox" id="sigIsDefault">
+                        <span><?php echo htmlspecialchars(t('system.preferences.sig_is_default')); ?></span>
+                    </label>
+
+                    <textarea id="sigBody"></textarea>
+
+                    <div class="sig-codes" id="sigCodes"></div>
+
+                    <div class="sig-preview-wrap">
+                        <div class="sig-preview-label"><?php echo htmlspecialchars(t('system.preferences.sig_preview')); ?></div>
+                        <div class="sig-preview" id="sigPreview"></div>
+                    </div>
+
+                    <div class="sig-editor-actions">
+                        <button type="button" class="sig-btn sig-btn-secondary" onclick="closeSignatureEditor()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+                        <button type="button" class="sig-btn sig-btn-primary" onclick="saveSignature()"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
+    <?php /* The analyst's own name and email, for the signature live preview (#80). */ ?>
+    <script>window.__MY_NAME = <?php echo json_encode($_SESSION['analyst_name'] ?? ''); ?>; window.__MY_EMAIL = <?php echo json_encode($_SESSION['analyst_email'] ?? ''); ?>;</script>
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <script src="../../assets/js/i18n.js?v=2"></script>
+    <script src="../../assets/js/tinymce/tinymce.min.js"></script>
     <script>
         // Initial preference values pre-fetched server-side. The page
         // hydrates UI controls from these instead of localStorage.
@@ -642,6 +744,211 @@ if (isset($_SESSION['analyst_id'])) {
                 localStorage.removeItem('toast_animation');
             }
         })();
+
+        // ==================== My details + signatures (#80) ====================
+        // Everything here is the signed-in analyst's own; no endpoint takes an
+        // analyst id, so there is nothing to scope in the browser either.
+
+        let sigEditor = null;      // the TinyMCE instance
+        let sigState  = { loaded: false, signatures: [], codes: {} };
+
+        async function loadSignatures() {
+            try {
+                const resp = await fetch('../../api/myaccount/get_signatures.php');
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'load failed');
+
+                sigState = { loaded: true, signatures: data.signatures || [], codes: data.merge_codes || {} };
+
+                const p = data.profile || {};
+                document.getElementById('myJobTitle').value  = p.job_title  || '';
+                document.getElementById('myDepartment').value = p.department || '';
+                document.getElementById('myPhone').value      = p.phone      || '';
+                document.getElementById('myMobile').value     = p.mobile     || '';
+
+                renderSignatureList();
+                renderSignatureCodes();
+            } catch (e) {
+                // ⚠️ Say so rather than rendering an empty list. "You have no
+                // signatures" and "we could not find out" look identical, and the
+                // second one would have somebody rewriting a signature they already
+                // have — see the unloaded-checkbox problem this app has hit twice.
+                sigState.loaded = false;
+                document.getElementById('sigList').innerHTML =
+                    '<div class="sig-empty sig-error">' + escapeHtmlSig(t('system.preferences.sig_load_failed')) + '</div>';
+            }
+        }
+
+        function escapeHtmlSig(s) {
+            const d = document.createElement('div');
+            d.textContent = s == null ? '' : String(s);
+            return d.innerHTML;
+        }
+
+        function renderSignatureList() {
+            const box = document.getElementById('sigList');
+            if (!sigState.signatures.length) {
+                box.innerHTML = '<div class="sig-empty">' + escapeHtmlSig(t('system.preferences.sig_empty')) + '</div>';
+                return;
+            }
+            box.innerHTML = sigState.signatures.map(function (s) {
+                const badge = Number(s.is_default) === 1
+                    ? '<span class="sig-default-badge">' + escapeHtmlSig(t('system.preferences.sig_default')) + '</span>' : '';
+                // The rendered form, not the raw one: the point of the list is to see
+                // what actually goes out, merge codes already filled in.
+                return '<div class="sig-card">'
+                     +   '<div class="sig-card-head">'
+                     +     '<strong>' + escapeHtmlSig(s.name) + '</strong>' + badge
+                     +     '<span class="sig-card-actions">'
+                     +       '<button type="button" class="sig-btn sig-btn-secondary" onclick="openSignatureEditor(' + s.id + ')">'
+                     +         escapeHtmlSig(t('common.edit')) + '</button>'
+                     +       '<button type="button" class="sig-btn sig-btn-danger" onclick="deleteSignature(' + s.id + ')">'
+                     +         escapeHtmlSig(t('common.delete')) + '</button>'
+                     +     '</span>'
+                     +   '</div>'
+                     +   '<div class="sig-card-body">' + (s.rendered || '') + '</div>'
+                     + '</div>';
+            }).join('');
+        }
+
+        function renderSignatureCodes() {
+            const box = document.getElementById('sigCodes');
+            if (!box) return;
+            const codes = Object.keys(sigState.codes);
+            box.innerHTML = '<span class="sig-codes-label">' + escapeHtmlSig(t('system.preferences.sig_codes')) + '</span>'
+                + codes.map(function (c) {
+                    return '<button type="button" class="sig-code" title="' + escapeHtmlSig(sigState.codes[c])
+                         + '" onclick="insertSignatureCode(\'' + c + '\')">[' + escapeHtmlSig(c) + ']</button>';
+                  }).join('');
+        }
+
+        function insertSignatureCode(code) {
+            if (sigEditor) sigEditor.execCommand('mceInsertContent', false, '[' + code + ']');
+        }
+
+        function initSignatureEditor() {
+            if (sigEditor || typeof tinymce === 'undefined') return Promise.resolve();
+            const isDark = (document.documentElement.getAttribute('data-theme-mode') || 'light') === 'dark';
+            return tinymce.init({
+                selector: '#sigBody',
+                license_key: 'gpl',
+                height: 220,
+                menubar: false,
+                skin: isDark ? 'oxide-dark' : 'oxide',
+                content_css: isDark ? 'dark' : 'default',
+                plugins: ['autolink', 'lists', 'link', 'code'],
+                toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat | code',
+                content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+                setup: function (ed) {
+                    sigEditor = ed;
+                    // Live preview, so the effect of a merge code is visible while
+                    // typing rather than only after saving.
+                    ed.on('input change keyup SetContent', function () { refreshSignaturePreview(); });
+                }
+            });
+        }
+
+        // The preview substitutes the analyst's OWN details, which the page already
+        // holds — including anything typed into the details boxes but not yet saved,
+        // so you can see a phone number take effect before committing to it.
+        function refreshSignaturePreview() {
+            const el = document.getElementById('sigPreview');
+            if (!el) return;
+            const values = {
+                my_name:       (window.__MY_NAME || ''),
+                my_email:      (window.__MY_EMAIL || ''),
+                my_job_title:  document.getElementById('myJobTitle').value,
+                my_department: document.getElementById('myDepartment').value,
+                my_phone:      document.getElementById('myPhone').value,
+                my_mobile:     document.getElementById('myMobile').value
+            };
+            let html = sigEditor ? sigEditor.getContent() : '';
+            for (const k in values) {
+                html = html.split('[' + k + ']').join(escapeHtmlSig(values[k]));
+            }
+            // Same rule as the server: a code with nothing behind it is removed, not
+            // left showing at the bottom of every email you send.
+            el.innerHTML = html.replace(/\[my_[a-z_]+\]/g, '');
+        }
+
+        async function openSignatureEditor(id) {
+            await initSignatureEditor();
+            const sig = id ? sigState.signatures.find(function (s) { return Number(s.id) === Number(id); }) : null;
+            document.getElementById('sigId').value = sig ? sig.id : '';
+            document.getElementById('sigName').value = sig ? sig.name : '';
+            document.getElementById('sigIsDefault').checked = sig ? Number(sig.is_default) === 1 : false;
+            if (sigEditor) sigEditor.setContent(sig ? sig.body : '');
+            document.getElementById('sigEditor').style.display = '';
+            refreshSignaturePreview();
+            document.getElementById('sigName').focus();
+        }
+
+        function closeSignatureEditor() {
+            document.getElementById('sigEditor').style.display = 'none';
+        }
+
+        async function saveSignature() {
+            const body = sigEditor ? sigEditor.getContent() : '';
+            const payload = {
+                id: document.getElementById('sigId').value || null,
+                name: document.getElementById('sigName').value.trim(),
+                body: body,
+                is_default: document.getElementById('sigIsDefault').checked
+            };
+            try {
+                const resp = await fetch('../../api/myaccount/save_signature.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (!data.success) { alert(data.error); return; }
+                closeSignatureEditor();
+                await loadSignatures();
+            } catch (e) {
+                alert(t('system.preferences.sig_save_failed'));
+            }
+        }
+
+        async function deleteSignature(id) {
+            if (!confirm(t('system.preferences.sig_delete_confirm'))) return;
+            try {
+                await fetch('../../api/myaccount/delete_signature.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                await loadSignatures();
+            } catch (e) { /* the reload below will show the real state either way */ }
+        }
+
+        async function saveMyDetails() {
+            const hint = document.getElementById('detailsSavingHint');
+            hint.classList.add('visible');
+            try {
+                const resp = await fetch('../../api/myaccount/save_profile.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        job_title:  document.getElementById('myJobTitle').value,
+                        department: document.getElementById('myDepartment').value,
+                        phone:      document.getElementById('myPhone').value,
+                        mobile:     document.getElementById('myMobile').value
+                    })
+                });
+                const data = await resp.json();
+                if (!data.success) { alert(data.error); return; }
+                // Re-read: the saved details change every signature's rendered form,
+                // and the list is showing the old one until it is reloaded.
+                await loadSignatures();
+            } catch (e) {
+                alert(t('system.preferences.sig_save_failed'));
+            } finally {
+                setTimeout(function () { hint.classList.remove('visible'); }, 900);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadSignatures);
     </script>
 </body>
 </html>

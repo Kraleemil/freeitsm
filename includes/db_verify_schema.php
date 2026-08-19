@@ -31,6 +31,14 @@ return [
         'password_hash'          => 'VARCHAR(255) NOT NULL',
         'full_name'              => 'VARCHAR(100) NOT NULL',
         'email'                  => 'VARCHAR(100) NOT NULL',
+        // Profile details an analyst can put in their signature (#80). Deliberately
+        // on the analyst rather than borrowed from a users row: an analyst may have no
+        // person record at all, and a signature that silently loses its phone number
+        // because a link is missing is worse than one that never had it.
+        'job_title'              => 'VARCHAR(100) NULL',
+        'department'             => 'VARCHAR(100) NULL',
+        'phone'                  => 'VARCHAR(50) NULL',
+        'mobile'                 => 'VARCHAR(50) NULL',
         'is_active'              => 'TINYINT(1) NULL DEFAULT 1',
         'created_datetime'       => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'last_login_datetime'    => 'DATETIME NULL',
@@ -1115,6 +1123,29 @@ return [
         'updated_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+
+    /**
+     * An analyst's email signatures (discussion #80, request 3).
+     *
+     * PER ANALYST, ALWAYS. There is deliberately no shared or install-wide signature:
+     * a signature is a person signing their own name, and one signature for a whole
+     * team is either wrong for everybody or has to be filled in by merge codes anyway.
+     *
+     * SEVERAL ARE ALLOWED, and exactly one is the default. The default is what gets
+     * inserted without being asked for — an analyst who only ever wants one signature
+     * never sees a choice. Picking a different one is a deliberate act, which is what
+     * keeps "several" from taxing every single reply with a decision.
+     */
+    'analyst_signatures' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'analyst_id'       => 'INT NOT NULL',
+        'name'             => 'VARCHAR(100) NOT NULL',
+        'body'             => 'LONGTEXT NOT NULL',
+        'is_default'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'display_order'    => 'INT NOT NULL DEFAULT 0',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
     /**
      * Which senders an email template applies to (discussion #80).
      *
