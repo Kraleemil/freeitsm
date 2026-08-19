@@ -40,6 +40,8 @@ return [
         'item_tickets_status_why'   => 'One figure per open status, plus a total. The total always matches what is listed beside it.',
         'item_tickets_priority'     => 'Priorities counted as high priority',
         'item_tickets_priority_why' => 'The red "high priority tickets" line. Left alone, it means any priority ranked above your default one — so a new priority added above it is included automatically.',
+        'item_changes_status'       => 'Change statuses shown',
+        'item_changes_status_why'   => 'One figure per open change status, plus a total. The three lines below it — scheduled, awaiting approval, in progress now — are worked out from dates and approvals rather than from statuses, so they are not affected by this.',
         'item_tasks_status'         => 'Task statuses shown',
         'item_tasks_status_why'     => 'One figure per open task status, plus a total.',
         'item_mc_attention'         => 'Morning check statuses that need attention',
@@ -138,9 +140,10 @@ return [
 
     // Changes card.
     'changes' => [
-        'metric_next_7d' => 'Next 7d',
-        'metric_active'  => 'Active',
-        'metric_pending' => 'Pending',
+        // The metric row is now a total plus one figure per open status, under
+        // its own name — as on Tickets and Tasks. metric_next_7d / metric_active
+        // / metric_pending are gone: they repeated the three lines below them.
+        'metric_open'    => 'Open',
         'awaiting'       => '<span class="wt-attention-bold">{count}</span> change(s) awaiting approval',
         'in_progress'    => '{count} change(s) in progress now',
         'scheduled'      => '{count} change(s) scheduled this week',

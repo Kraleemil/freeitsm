@@ -254,10 +254,39 @@ function getWatchtowerData($conn, $analystId = 0) {
            AND (c.work_end_datetime >= NOW() OR c.work_end_datetime IS NULL)"
     )->fetchColumn();
 
+    // Changes broken down by status, the same as tickets and tasks. The three
+    // figures above are DERIVED (a date window, an approval) rather than status
+    // counts, so on their own the card could never answer "how many changes are
+    // sitting at Submitted?" — the one question the other two cards do answer.
+    // Drafts are included here: this is a count of what exists, not of what is
+    // waiting on somebody.
+    $chPicked = wtItemMembers($conn, 'changes.by_status');
+    $chPickSql = $chPicked === null ? '' : ' AND cs.id IN ' . wtIdListSql($chPicked);
+    $chStatusStmt = $conn->query(
+        "SELECT cs.id, cs.name, cs.colour, COUNT(c.id) AS cnt
+         FROM change_statuses cs
+         LEFT JOIN changes c ON c.status_id = cs.id
+         WHERE cs.is_closed = 0 AND cs.is_active = 1{$chPickSql}
+         GROUP BY cs.id, cs.name, cs.colour, cs.display_order
+         ORDER BY cs.display_order, cs.name"
+    );
+    $chStatuses = [];
+    $chTotalOpen = 0;
+    foreach ($chStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $chStatuses[] = [
+            'name'   => $row['name'],
+            'colour' => $row['colour'] ?: null,
+            'count'  => (int)$row['cnt'],
+        ];
+        $chTotalOpen += (int)$row['cnt'];
+    }
+
     $changes = [
         'upcoming_7d'       => $chUpcoming,
         'unapproved'        => $chUnapproved,
-        'in_progress_today' => $chInProgress
+        'in_progress_today' => $chInProgress,
+        'by_status'         => $chStatuses,
+        'total_open'        => $chTotalOpen
     ];
 
     // -- Calendar --

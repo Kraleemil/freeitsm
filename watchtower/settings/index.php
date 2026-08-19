@@ -157,6 +157,7 @@ function showToast(msg, type) {
 const COUNT_ITEMS = [
     { key: 'tickets.by_status',     nameKey: 'watchtower.settings.item_tickets_status' },
     { key: 'tickets.high_priority', nameKey: 'watchtower.settings.item_tickets_priority' },
+    { key: 'changes.by_status',     nameKey: 'watchtower.settings.item_changes_status' },
     { key: 'tasks.by_status',       nameKey: 'watchtower.settings.item_tasks_status' },
     { key: 'mc.attention',          nameKey: 'watchtower.settings.item_mc_attention' },
 ];

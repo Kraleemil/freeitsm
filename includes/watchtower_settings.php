@@ -54,6 +54,11 @@ function wtSelectableItems(): array
             'table' => 'ticket_priorities', 'id' => 'id', 'name' => 'name',
             'where' => 'is_active = 1', 'order' => 'display_order, name',
         ],
+        'changes.by_status' => [
+            'entity_type' => 'change_status',
+            'table' => 'change_statuses', 'id' => 'id', 'name' => 'name',
+            'where' => 'is_closed = 0 AND is_active = 1', 'order' => 'display_order, name',
+        ],
         'tasks.by_status' => [
             'entity_type' => 'task_status',
             'table' => 'task_statuses', 'id' => 'id', 'name' => 'name',

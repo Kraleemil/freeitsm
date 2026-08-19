@@ -686,10 +686,16 @@ $translationNamespaces = ['common', 'watchtower'];
             setDot('wtChDot', 'green');
         }
 
+        // Open changes by status, matching the Tickets and Tasks cards. The three
+        // figures that used to sit here — next 7 days, active, pending — are
+        // repeated verbatim in the attention list below, so the metric row was
+        // saying the same thing twice and never answered "how many are at
+        // Submitted?". Those three keep their place underneath.
         let html = '<div class="wt-metrics">';
-        html += metric(ch.upcoming_7d, window.t('watchtower.changes.metric_next_7d'), 'var(--text, #334155)');
-        html += metric(ch.in_progress_today, window.t('watchtower.changes.metric_active'), ch.in_progress_today > 0 ? '#f59e0b' : '#94a3b8');
-        html += metric(ch.unapproved, window.t('watchtower.changes.metric_pending'), ch.unapproved > 0 ? '#ef4444' : '#94a3b8');
+        html += metric(ch.total_open || 0, window.t('watchtower.changes.metric_open'), 'var(--text, #334155)');
+        (ch.by_status || []).forEach(s => {
+            html += metric(s.count, escapeHtml(s.name), s.count > 0 ? (safeColour(s.colour) || 'var(--text, #334155)') : '#94a3b8');
+        });
         html += '</div>';
 
         html += '<div class="wt-attention">';
