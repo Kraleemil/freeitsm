@@ -25,7 +25,7 @@ if (!isset($_SESSION['analyst_id'])) {
 
 $mailboxId = $_GET['mailbox_id'] ?? null;
 $search    = trim($_GET['search'] ?? '');
-$status    = $_GET['status'] ?? '';          // '', 'sent' or 'failed'
+$status    = $_GET['status'] ?? '';          // '', 'sent', 'failed' or 'skipped'
 $page      = max(1, (int)($_GET['page'] ?? 1));
 $perPage   = 50;
 $offset    = ($page - 1) * $perPage;
@@ -52,7 +52,7 @@ try {
         $s = '%' . $search . '%';
         $params[] = $s; $params[] = $s; $params[] = $s;
     }
-    if ($status === 'sent' || $status === 'failed') {
+    if (in_array($status, ['sent', 'failed', 'skipped'], true)) {
         $where .= " AND status = ?";
         $params[] = $status;
     }

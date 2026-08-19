@@ -40,7 +40,7 @@ try {
     $conn = connectToDatabase();
 
     $stmt = $conn->prepare("SELECT setting_key, setting_value FROM system_settings
-                             WHERE setting_key IN ('public_base_url','public_base_url_warning_dismissed')");
+                             WHERE setting_key IN ('public_base_url','public_base_url_warning_dismissed','template_scope_warning_dismissed')");
     $stmt->execute();
     $rows = [];
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
@@ -64,6 +64,7 @@ try {
         'inherited'         => $own === '' && $effective !== '',
         'is_configured'     => $effective !== '',
         'warning_dismissed' => ($rows['public_base_url_warning_dismissed'] ?? '') === '1',
+        'scope_warning_dismissed' => ($rows['template_scope_warning_dismissed'] ?? '') === '1',
         'effective_url'     => publicAbsoluteUrl($conn, 'self-service/tickets.php?id=1'),
         // The root on its own, so the body preview can show a sample link on THIS
         // install's address rather than an invented one. Every other sample value is

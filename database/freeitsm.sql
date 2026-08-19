@@ -1760,6 +1760,21 @@ CREATE TABLE IF NOT EXISTS `ticket_email_templates` (
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Which senders an email template applies to (discussion #80). A template with no
+-- rows here applies to everyone, which is the state a new template starts in — so
+-- there is always a catch-all unless one is deliberately removed. match_type is
+-- 'address' or 'domain'; selection is by specificity, never by display_order.
+CREATE TABLE IF NOT EXISTS `ticket_email_template_rules` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `template_id`       INT NOT NULL,
+    `match_type`        VARCHAR(10) NOT NULL,
+    `match_value`       VARCHAR(255) NOT NULL,
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_tmpl` (`template_id`),
+    KEY `idx_match` (`match_type`, `match_value`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Canned responses an analyst inserts into a reply by hand. Distinct from
 -- ticket_email_templates above (automated mail the system sends on an event).
 -- analyst_id NULL = a shared team template; set = that analyst's private one.

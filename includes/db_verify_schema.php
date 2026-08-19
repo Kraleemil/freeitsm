@@ -1116,6 +1116,26 @@ return [
     ],
 
     /**
+     * Which senders an email template applies to (discussion #80).
+     *
+     * A template with NO rows here applies to EVERYONE, and that is the state a new
+     * template starts in — so an installation always has a catch-all unless somebody
+     * deliberately removes it. "No rules" meaning "everyone" rather than "nobody" is
+     * the whole safety property: the empty case is the permissive one.
+     *
+     * match_type is 'address' (someone@a.com) or 'domain' (a.com, stored without
+     * the @). Selection is by SPECIFICITY, not by order: address beats domain beats
+     * everyone, so display_order cannot change which template is chosen.
+     */
+    'ticket_email_template_rules' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'template_id'       => 'INT NOT NULL',
+        'match_type'        => 'VARCHAR(10) NOT NULL',
+        'match_value'       => 'VARCHAR(255) NOT NULL',
+        'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    /**
      * One merge: which ticket was folded away, and into what.
      *
      * WHY THIS TABLE EXISTS AT ALL

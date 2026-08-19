@@ -28,6 +28,11 @@ if (!$id) {
 try {
     $conn = connectToDatabase();
 
+    // Sender rules first (#80). There is no foreign key, so nothing else would
+    // remove them, and an AUTO_INCREMENT id can be reissued after a restart —
+    // which would silently attach a deleted template's rules to a new one.
+    $conn->prepare("DELETE FROM ticket_email_template_rules WHERE template_id = ?")->execute([$id]);
+
     $sql = "DELETE FROM ticket_email_templates WHERE id = ?";
     $stmt = $conn->prepare($sql);
     $stmt->execute([$id]);

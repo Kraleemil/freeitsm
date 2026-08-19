@@ -25,6 +25,15 @@ try {
     $stmt->execute();
     $templates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Sender rules (#80). Attached to every template so the settings screen can show
+    // each one's scope in the list, work out whether a catch-all exists, and edit the
+    // rules without a second request per row.
+    $rules = templateRulesByTemplate($conn, array_column($templates, 'id'));
+    foreach ($templates as &$tpl) {
+        $tpl['rules'] = $rules[(int)$tpl['id']] ?? [];
+    }
+    unset($tpl);
+
     echo json_encode(['success' => true, 'templates' => $templates]);
 
 } catch (Exception $e) {

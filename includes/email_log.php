@@ -54,7 +54,7 @@ function emailLogRecord(
     string $route,
     string $to,
     string $subject,
-    bool $sent,
+    $sent,                      // bool for sent/failed, or a status string
     ?string $error = null,
     ?int $ticketId = null
 ): void {
@@ -78,7 +78,7 @@ function emailLogRecord(
                 ? substr((string)($mailbox['auth_mode'] ?? 'delegated'), 0, 20) : null,
             substr($to, 0, 255),
             substr($subject, 0, 500),
-            $sent ? 'sent' : 'failed',
+            is_string($sent) ? substr($sent, 0, 10) : ($sent ? 'sent' : 'failed'),
             $error !== null ? substr($error, 0, 2000) : null,
 
         ]);
@@ -102,4 +102,22 @@ function emailLogFailed(?PDO $conn, ?array $mailbox, string $route, string $to, 
 /** Human label for a route key, falling back to the key itself for unknown ones. */
 function emailLogRouteLabel(string $route): string {
     return EMAIL_LOG_ROUTES[$route] ?? $route;
+}
+
+/**
+ * Convenience: an email that was deliberately NOT sent, and why.
+ *
+ * ⚠️ THIS IS THE ONE THAT MATTERS TWELVE MONTHS LATER. When email templates are
+ * scoped to particular senders, a sender matching none of them gets no reply —
+ * which is correct, and is also indistinguishable from a fault unless somebody
+ * wrote it down. The scenario this exists for is a new customer domain being
+ * onboarded long after the templates were set up, by people who never saw the
+ * settings screen: without this row, the only evidence is an absence, and the
+ * only way to understand it is to already suspect the cause.
+ *
+ * The mailbox may legitimately be null: not sending happens before a mailbox is
+ * looked up, and the row is still worth having.
+ */
+function emailLogSkipped(?PDO $conn, ?array $mailbox, string $route, string $to, string $subject, string $reason, ?int $ticketId = null): void {
+    emailLogRecord($conn, $mailbox, $route, $to, $subject, 'skipped', $reason, $ticketId);
 }

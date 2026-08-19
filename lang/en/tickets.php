@@ -712,6 +712,7 @@ return [
             'mailbox'      => 'Mailbox',
             'last_checked' => 'Last checked',
             'event'        => 'Event',
+            'sends_to'     => 'Sends to',
             'subject'      => 'Subject',
             'preview'      => 'Preview',
             'start'        => 'Start',
@@ -870,6 +871,7 @@ return [
                 'status_all'         => 'All results',
                 'status_failed'      => 'Failures only',
                 'status_sent'        => 'Sent only',
+                'status_skipped'     => 'Not sent',
             ],
 
             // Analyst modal
@@ -1107,6 +1109,29 @@ return [
             'provider'     => 'Provider',
             'reference'    => 'Reference',
         ],
+        // Sender rules for email templates (discussion #80).
+        'scope' => [
+            'field_label'      => 'Send this to',
+            'everyone'         => 'Everyone',
+            'restricted'       => 'Only these senders',
+            'rule_placeholder' => 'someone@example.com, or example.com for a whole domain',
+            'rule_help'        => 'An address with an @ matches that one sender; anything else is treated as a domain. The most specific rule wins, so a template naming an exact address beats one naming its domain, and both beat a template that goes to everyone. The order templates appear in does not affect which one is sent.',
+            'rule_invalid'     => 'Enter an email address, or a domain such as example.com.',
+            'rule_duplicate'   => 'That is already in the list.',
+            'badge_everyone'   => 'Everyone',
+            'badge_senders'    => '{count} sender(s)',
+            'warn_title'       => 'Some senders will get no reply at all',
+            'warn_body'        => 'Every active template for {events} is limited to particular senders, so anyone who matches none of them gets nothing. Add a template set to Everyone if that is not what you intended. Where it happens, it is recorded on the ticket and in the mailbox send log as Not sent.',
+            'sim_label'        => 'Check what a sender would get',
+            'sim_placeholder'  => 'someone@example.com',
+            'sim_button'       => 'Check',
+            'sim_none'         => 'No reply would be sent. This address matches none of the templates for that event, and none of them applies to everyone.',
+            'sim_no_template'  => 'No reply would be sent, because there is no active template for that event at all.',
+            'sim_address'      => 'would be sent, because a rule names this exact address ({value}).',
+            'sim_domain'       => 'would be sent, because a rule names the domain {value}.',
+            'sim_everyone'     => 'would be sent, because it applies to everyone and no more specific template matched.',
+        ],
+
         // The public web address, surfaced on the Email Templates tab because that is
         // where [ticket_url] gets written (discussion #80).
         'base_url' => [

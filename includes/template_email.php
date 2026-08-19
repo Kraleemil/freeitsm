@@ -20,14 +20,36 @@ require_once __DIR__ . '/public_url.php';   // publicAbsoluteUrl(), for the [tic
  */
 function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array $extraMergeData = []): void {
     try {
-        $template = getActiveTemplate($conn, $eventTrigger);
-        if (!$template) {
-            return; // No active template for this event
-        }
-
+        // ⚠️ Merge data FIRST, because which template applies now depends on who the
+        // email is going to (discussion #80). It used to be the other way round.
         $mergeData = buildTicketMergeData($conn, $ticketId);
         if (!$mergeData) {
             error_log("Template email: could not build merge data for ticket $ticketId");
+            return;
+        }
+
+        $choice   = templateSelectForRecipient($conn, $eventTrigger, $mergeData['requester_email'] ?? '');
+        $template = $choice['template'];
+        if (!$template) {
+            // 'no_active_template' is the state every install has always been able to
+            // reach and is not worth a row — nobody configured a template, so nobody
+            // is expecting an email. 'no_match' is the new one and is the whole point
+            // of logging: templates exist, this sender matched none of them, and the
+            // only other evidence would be an email that never arrived.
+            if ($choice['reason'] === 'no_match') {
+                // Resolve the mailbox even though nothing is being sent, so the row
+                // files under the mailbox that took the email in. Logged against no
+                // mailbox at all it would land in the "sends with no mailbox" bucket,
+                // which is not where anybody asking "why did this mailbox not reply?"
+                // will look. One extra query, only on the path that sends nothing.
+                emailLogSkipped(
+                    $conn, templateGetMailboxForTicket($conn, $ticketId), 'template',
+                    (string)($mergeData['requester_email'] ?? ''),
+                    'Automatic email: ' . $eventTrigger,
+                    'No email template applies to this sender. Every template for this event is limited to particular senders, and none of them covers this one.',
+                    $ticketId
+                );
+            }
             return;
         }
 
@@ -145,15 +167,109 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
 /**
  * Get the first active template for a given event trigger.
  */
-function getActiveTemplate(PDO $conn, string $eventTrigger): ?array {
-    $sql = "SELECT * FROM ticket_email_templates
-            WHERE event_trigger = ? AND is_active = 1
-            ORDER BY display_order ASC, id ASC
-            LIMIT 1";
-    $stmt = $conn->prepare($sql);
+function getActiveTemplate(PDO $conn, string $eventTrigger, ?string $recipientEmail = null): ?array {
+    return templateSelectForRecipient($conn, $eventTrigger, $recipientEmail)['template'];
+}
+
+/**
+ * Choose the template for an event and a recipient, and say WHY it was chosen.
+ *
+ * ⚠️ SPECIFICITY DECIDES, NOT ORDER. This is the whole design of the sender rules
+ * (discussion #80) and the reason they are safe to hand to an administrator:
+ *
+ *      1. a rule naming this exact address      someone@a.com
+ *      2. a rule naming this domain             a.com
+ *      3. a template with no rules at all       everyone
+ *
+ * The alternative — evaluate top to bottom, first match wins — requires the admin
+ * to get the rules right AND the ordering right, and gives no sign when the second
+ * is wrong. Here, dragging rows cannot change which template is sent. `display_order`
+ * survives only as a tie-break between two rules of equal specificity, which is a
+ * genuine ambiguity the settings screen flags rather than resolves silently.
+ *
+ * ⚠️ NO RULES MEANS EVERYONE, not nobody. The permissive case is the empty case, so
+ * a template nobody has restricted keeps working and a fresh install always has a
+ * catch-all. Inverting that would make "forgot to add a rule" mean silence.
+ *
+ * Returns ['template' => ?array, 'reason' => string, 'matched' => ?array] — the
+ * reason is what the simulator shows and what is written to the send log when
+ * nothing matches, so the answer to "why did nobody get a reply?" survives the
+ * twelve months after everyone forgets this screen exists.
+ */
+function templateSelectForRecipient(PDO $conn, string $eventTrigger, ?string $recipientEmail = null): array
+{
+    $stmt = $conn->prepare(
+        "SELECT * FROM ticket_email_templates
+          WHERE event_trigger = ? AND is_active = 1
+          ORDER BY display_order ASC, id ASC"
+    );
     $stmt->execute([$eventTrigger]);
-    $template = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $template ?: null;
+    $templates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (!$templates) {
+        return ['template' => null, 'reason' => 'no_active_template', 'matched' => null];
+    }
+
+    $rules = templateRulesByTemplate($conn, array_column($templates, 'id'));
+
+    $email  = strtolower(trim((string)$recipientEmail));
+    $domain = ($at = strrpos($email, '@')) !== false ? substr($email, $at + 1) : '';
+
+    $unrestricted = null;
+    $byDomain     = null;
+    foreach ($templates as $tpl) {
+        $mine = $rules[(int)$tpl['id']] ?? [];
+
+        if (!$mine) {
+            // Ordered by display_order already, so the first one found is the winner.
+            if ($unrestricted === null) $unrestricted = $tpl;
+            continue;
+        }
+        // Without a recipient there is nothing to match a rule against, so a
+        // restricted template can never be the answer.
+        if ($email === '') {
+            continue;
+        }
+        foreach ($mine as $rule) {
+            if ($rule['match_type'] === 'address' && $rule['match_value'] === $email) {
+                return ['template' => $tpl, 'reason' => 'address', 'matched' => $rule];
+            }
+            if ($rule['match_type'] === 'domain' && $domain !== '' && $rule['match_value'] === $domain
+                && $byDomain === null) {
+                $byDomain = ['template' => $tpl, 'reason' => 'domain', 'matched' => $rule];
+            }
+        }
+    }
+
+    if ($byDomain)     return $byDomain;
+    if ($unrestricted) return ['template' => $unrestricted, 'reason' => 'everyone', 'matched' => null];
+
+    return ['template' => null, 'reason' => 'no_match', 'matched' => null];
+}
+
+/** Sender rules for the given templates, keyed by template id, values lowercased. */
+function templateRulesByTemplate(PDO $conn, array $templateIds): array
+{
+    if (!$templateIds) return [];
+    try {
+        $in   = implode(',', array_fill(0, count($templateIds), '?'));
+        $stmt = $conn->prepare("SELECT template_id, match_type, match_value
+                                  FROM ticket_email_template_rules
+                                 WHERE template_id IN ($in)");
+        $stmt->execute(array_map('intval', $templateIds));
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $out[(int)$r['template_id']][] = [
+                'match_type'  => $r['match_type'],
+                'match_value' => strtolower(trim((string)$r['match_value'])),
+            ];
+        }
+        return $out;
+    } catch (Exception $e) {
+        // A part-upgraded install without the table has no rules, which means every
+        // template applies to everyone — exactly the behaviour before this existed.
+        return [];
+    }
 }
 
 /**

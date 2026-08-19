@@ -36,13 +36,24 @@ try {
     $data      = json_decode(file_get_contents('php://input'), true);
     $dismissed = !empty($data['dismissed']) ? '1' : '0';
 
+    // Whitelisted rather than free-form: this writes a system setting, and letting
+    // the browser name the key would let it write any of them.
+    $keys = [
+        'base_url'       => 'public_base_url_warning_dismissed',
+        'template_scope' => 'template_scope_warning_dismissed',   // no catch-all template (#80)
+    ];
+    $which = (string)($data['warning'] ?? 'base_url');
+    if (!isset($keys[$which])) {
+        throw new Exception('Unknown warning.');
+    }
+
     $conn = connectToDatabase();
     $stmt = $conn->prepare(
         "INSERT INTO system_settings (setting_key, setting_value)
-         VALUES ('public_base_url_warning_dismissed', :v)
+         VALUES (:k, :v)
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
     );
-    $stmt->execute([':v' => $dismissed]);
+    $stmt->execute([':k' => $keys[$which], ':v' => $dismissed]);
 
     echo json_encode(['success' => true, 'dismissed' => $dismissed === '1']);
 

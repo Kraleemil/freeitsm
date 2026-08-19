@@ -331,6 +331,54 @@ $translationNamespaces = ['common', 'tickets'];
         }
 
         /* Email-template body: Edit / Preview tabs */
+        /* Sender rules: scope editor, simulator, warning (#80). */
+        .tpl-scope-warn {
+            display: flex; gap: 12px; align-items: flex-start; justify-content: space-between;
+            background: var(--warning-bg, #fef3c7);
+            color: var(--warning-text, #92400e);
+            border: 1px solid var(--warning-border, #f0d9a8);
+            border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;
+            font-size: 13px; line-height: 1.5;
+        }
+        .tpl-scope-warn button { flex: 0 0 auto; }
+        .tpl-sim {
+            border: 1px solid var(--border, #ddd); border-radius: 8px;
+            padding: 14px 16px; margin-bottom: 18px; background: var(--surface-2, #f9f9f9);
+        }
+        .tpl-sim label { display: block; font-weight: 600; margin-bottom: 6px; }
+        .tpl-sim-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .tpl-sim-row select, .tpl-sim-row input {
+            padding: 10px; border: 1px solid var(--border, #ddd); border-radius: 4px;
+            font-size: 14px; font-family: inherit;
+        }
+        .tpl-sim-row input { flex: 1; min-width: 220px; }
+        .tpl-sim-result {
+            margin-top: 10px; padding: 10px 12px; border-radius: 6px;
+            font-size: 13px; line-height: 1.5;
+            background: var(--surface, #fff); border: 1px solid var(--border, #ddd);
+        }
+        .tpl-sim-result.none { background: var(--warning-bg, #fef3c7); color: var(--warning-text, #92400e); border-color: var(--warning-border, #f0d9a8); }
+        .tpl-scope-choice { display: inline-flex !important; align-items: center; gap: 6px; margin-right: 18px; font-weight: 400 !important; }
+        .tpl-rules-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+        .tpl-rule-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--surface-2, #f1f1f1); border: 1px solid var(--border, #ddd);
+            border-radius: 14px; padding: 3px 6px 3px 10px; font-size: 12px;
+        }
+        .tpl-rule-chip button {
+            border: none; background: none; cursor: pointer; font-size: 14px; line-height: 1;
+            color: var(--text-muted, #666); padding: 0 4px;
+        }
+        .tpl-rule-add { display: flex; gap: 8px; align-items: center; max-width: 520px; }
+        .tpl-rule-add input {
+            flex: 1; min-width: 0; padding: 10px; border: 1px solid var(--border, #ddd);
+            border-radius: 4px; font-size: 14px; font-family: inherit;
+        }
+        .tpl-scope-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 11px; background: var(--surface-2, #f1f1f1);
+            border: 1px solid var(--border, #ddd); color: var(--text-muted, #666);
+        }
         /* Public web address panel — the setting [ticket_url] depends on (#80). */
         .tpl-baseurl {
             border: 1px solid var(--border, #ddd);
@@ -443,6 +491,8 @@ $translationNamespaces = ['common', 'tickets'];
         }
         .mbx-result.sent   { background: #d4edda; color: #155724; }
         .mbx-result.failed { background: #f8d7da; color: #721c24; }
+        /* Deliberately not sent (#80) — neutral, because it is not a fault. */
+        .mbx-result.skipped { background: var(--warning-bg, #fef3c7); color: var(--warning-text, #92400e); }
 
         /* The log panes size to the window rather than a fixed 450px, so a tall screen
            shows far more rows than a laptop instead of both showing the same handful.
@@ -537,7 +587,7 @@ $translationNamespaces = ['common', 'tickets'];
                     </tr>
                 </thead>
                 <tbody id="departments-list">
-                    <tr><td colspan="6" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
+                    <tr><td colspan="7" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
                 </tbody>
             </table>
         </div>
@@ -645,7 +695,7 @@ $translationNamespaces = ['common', 'tickets'];
                     </tr>
                 </thead>
                 <tbody id="priorities-list">
-                    <tr><td colspan="6" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
+                    <tr><td colspan="7" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
                 </tbody>
             </table>
         </div>
@@ -930,7 +980,7 @@ $translationNamespaces = ['common', 'tickets'];
                     </tr>
                 </thead>
                 <tbody id="rota-locations-list">
-                    <tr><td colspan="6" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
+                    <tr><td colspan="7" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
                 </tbody>
             </table>
         </div>
@@ -1109,11 +1159,40 @@ $translationNamespaces = ['common', 'tickets'];
                 <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.base_url.help')); ?></small>
                 <div id="tplBaseUrlExample" class="tpl-baseurl-example"></div>
             </div>
+
+            <!-- No catch-all warning + simulator (discussion #80).
+                 The warning catches the mistake; the simulator answers "what actually
+                 happens for this sender", which is the question an admin has to think
+                 to ask. Neither helps twelve months later when nobody visits this
+                 screen — that is what the Not sent rows in the send log are for. -->
+            <div class="tpl-scope-warn" id="tplScopeWarning" style="display: none;">
+                <div>
+                    <strong><?php echo htmlspecialchars(t('tickets.settings.scope.warn_title')); ?></strong>
+                    <div id="tplScopeWarningBody" style="margin-top: 4px;"></div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="dismissScopeWarning()"><?php echo htmlspecialchars(t('common.dismiss')); ?></button>
+            </div>
+
+            <div class="tpl-sim">
+                <label for="tplSimEmail"><?php echo htmlspecialchars(t('tickets.settings.scope.sim_label')); ?></label>
+                <div class="tpl-sim-row">
+                    <select id="tplSimEvent">
+                        <option value="new_ticket_email"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_new_ticket')); ?></option>
+                        <option value="ticket_assigned"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_assigned')); ?></option>
+                        <option value="ticket_closed"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_closed')); ?></option>
+                        <option value="csat_request"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_csat_request')); ?></option>
+                    </select>
+                    <input type="text" id="tplSimEmail" autocomplete="off" placeholder="<?php echo htmlspecialchars(t('tickets.settings.scope.sim_placeholder')); ?>" onkeydown="if(event.key==='Enter'){event.preventDefault();runTemplateSimulator();}">
+                    <button type="button" class="btn btn-secondary" onclick="runTemplateSimulator()"><?php echo htmlspecialchars(t('tickets.settings.scope.sim_button')); ?></button>
+                </div>
+                <div id="tplSimResult" class="tpl-sim-result" style="display: none;"></div>
+            </div>
             <table>
                 <thead>
                     <tr>
                         <th><?php echo htmlspecialchars(t('tickets.settings.columns.name')); ?></th>
                         <th><?php echo htmlspecialchars(t('tickets.settings.columns.event')); ?></th>
+                        <th><?php echo htmlspecialchars(t('tickets.settings.columns.sends_to')); ?></th>
                         <th><?php echo htmlspecialchars(t('tickets.settings.columns.subject')); ?></th>
                         <th><?php echo htmlspecialchars(t('tickets.settings.columns.order')); ?></th>
                         <th><?php echo htmlspecialchars(t('tickets.settings.columns.status')); ?></th>
@@ -1121,7 +1200,7 @@ $translationNamespaces = ['common', 'tickets'];
                     </tr>
                 </thead>
                 <tbody id="email-templates-list">
-                    <tr><td colspan="6" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
+                    <tr><td colspan="7" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
                 </tbody>
             </table>
         </div>
@@ -1278,7 +1357,7 @@ $translationNamespaces = ['common', 'tickets'];
                     </tr>
                 </thead>
                 <tbody id="rota-shifts-list">
-                    <tr><td colspan="6" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
+                    <tr><td colspan="7" style="text-align: center;"><?php echo htmlspecialchars(t('tickets.settings.loading')); ?></td></tr>
                 </tbody>
             </table>
             <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
@@ -2207,6 +2286,7 @@ $translationNamespaces = ['common', 'tickets'];
                     <option value=""><?php echo htmlspecialchars(t('tickets.settings.modals.activity.status_all')); ?></option>
                     <option value="failed"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.status_failed')); ?></option>
                     <option value="sent"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.status_sent')); ?></option>
+                    <option value="skipped"><?php echo htmlspecialchars(t('tickets.settings.modals.activity.status_skipped')); ?></option>
                 </select>
             </div>
 
@@ -2305,6 +2385,24 @@ $translationNamespaces = ['common', 'tickets'];
                             <option value="ticket_closed"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_closed')); ?></option>
                             <option value="csat_request"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_csat_request')); ?></option>
                         </select>
+                    </div>
+
+                    <!-- Which senders this template applies to (#80). Everyone is the
+                         default for a new template on purpose: narrowing has to be a
+                         deliberate act, so an install always has a catch-all unless
+                         somebody removes it. -->
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label><?php echo htmlspecialchars(t('tickets.settings.scope.field_label')); ?></label>
+                        <label class="tpl-scope-choice"><input type="radio" name="tplScope" value="everyone" onchange="switchTemplateScope()"> <?php echo htmlspecialchars(t('tickets.settings.scope.everyone')); ?></label>
+                        <label class="tpl-scope-choice"><input type="radio" name="tplScope" value="restricted" onchange="switchTemplateScope()"> <?php echo htmlspecialchars(t('tickets.settings.scope.restricted')); ?></label>
+                        <div id="tplRulesBox" style="display: none;">
+                            <div id="tplRulesList" class="tpl-rules-list"></div>
+                            <div class="tpl-rule-add">
+                                <input type="text" id="tplRuleInput" autocomplete="off" placeholder="<?php echo htmlspecialchars(t('tickets.settings.scope.rule_placeholder')); ?>" onkeydown="if(event.key==='Enter'){event.preventDefault();addTemplateRule();}">
+                                <button type="button" class="btn btn-secondary" onclick="addTemplateRule()"><?php echo htmlspecialchars(t('common.add')); ?></button>
+                            </div>
+                            <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.scope.rule_help')); ?></small>
+                        </div>
                     </div>
 
                     <div class="form-group" style="grid-column: span 2;">
@@ -4948,19 +5046,26 @@ $translationNamespaces = ['common', 'tickets'];
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted,#666);">Nothing sent from this mailbox yet.</td></tr>';
                 } else {
                     tbody.innerHTML = data.entries.map(e => {
-                        const failed = e.status === 'failed';
-                        // The error is the reason anybody opens this tab, so it is shown
-                        // in the row rather than hidden behind another click.
-                        const err = failed && e.error_message
-                            ? `<div style="margin-top:4px; font-size:11px; color:#a4262c; white-space:normal;">${escapeHtml(e.error_message)}</div>` : '';
+                        const failed  = e.status === 'failed';
+                        // A deliberate non-send (#80): no template covered this sender.
+                        // It MUST NOT render as "Sent" — this row exists precisely
+                        // because an email did not go, and labelling it Sent would put
+                        // the wrong answer in the one place somebody comes looking.
+                        const skipped = e.status === 'skipped';
+                        // The error, or the reason nothing was sent, is why anybody
+                        // opens this tab — shown in the row rather than behind a click.
+                        const note = (failed || skipped) && e.error_message
+                            ? `<div style="margin-top:4px; font-size:11px; color:${failed ? '#a4262c' : 'var(--text-muted,#666)'}; white-space:normal;">${escapeHtml(e.error_message)}</div>` : '';
                         const ticket = e.ticket_id
                             ? ` <a href="../?ticket_id=${e.ticket_id}" style="font-size:11px;">#${e.ticket_id}</a>` : '';
+                        const cls   = failed ? 'failed' : (skipped ? 'skipped' : 'sent');
+                        const label = failed ? 'Failed' : (skipped ? 'Not sent' : 'Sent');
                         return `<tr>
                             <td style="white-space:nowrap;">${new Date(e.created_datetime + 'Z').toLocaleString()}</td>
                             <td>${escapeHtml(e.to_address || '')}${ticket}</td>
-                            <td>${escapeHtml(e.subject || '')}${err}</td>
+                            <td>${escapeHtml(e.subject || '')}${note}</td>
                             <td style="white-space:nowrap;">${escapeHtml(e.route_label || e.route)}</td>
-                            <td><span class="mbx-result ${failed ? 'failed' : 'sent'}">${failed ? 'Failed' : 'Sent'}</span></td>
+                            <td><span class="mbx-result ${cls}">${label}</span></td>
                         </tr>`;
                     }).join('');
                 }
@@ -5416,6 +5521,7 @@ $translationNamespaces = ['common', 'tickets'];
             }
             await loadPublicBaseUrl();
             refreshBaseUrlWarning();
+            refreshScopeWarning();
         }
 
         // ==================== Public web address (#80) ====================
@@ -5427,7 +5533,7 @@ $translationNamespaces = ['common', 'tickets'];
         // empty field and a missing flag look like. Showing the warning on a failed
         // load would tell an administrator who has set this up correctly that they
         // have not — so the warning stays hidden until we have actually been told.
-        let baseUrlState = { loaded: false, configured: false, dismissed: false, example: '' };
+        let baseUrlState = { loaded: false, configured: false, dismissed: false, scopeDismissed: false, example: '' };
 
         async function loadPublicBaseUrl() {
             const input = document.getElementById('tplBaseUrl');
@@ -5441,6 +5547,7 @@ $translationNamespaces = ['common', 'tickets'];
                     loaded: true,
                     configured: !!data.is_configured,
                     dismissed: !!data.warning_dismissed,
+                    scopeDismissed: !!data.scope_warning_dismissed,
                     example: data.effective_url || ''
                 };
                 const ex = document.getElementById('tplBaseUrlExample');
@@ -5460,7 +5567,7 @@ $translationNamespaces = ['common', 'tickets'];
                 }
             } catch (e) {
                 console.error('Error loading public base URL:', e);
-                baseUrlState = { loaded: false, configured: false, dismissed: false, example: '' };
+                baseUrlState = { loaded: false, configured: false, dismissed: false, scopeDismissed: false, example: '' };
             }
         }
 
@@ -5520,7 +5627,7 @@ $translationNamespaces = ['common', 'tickets'];
         function renderEmailTemplates(templates) {
             const tbody = document.getElementById('email-templates-list');
             if (templates.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-faint, #999);">No email templates configured</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-faint, #999);">No email templates configured</td></tr>';
                 return;
             }
 
@@ -5528,6 +5635,7 @@ $translationNamespaces = ['common', 'tickets'];
                 <tr>
                     <td>${escapeHtml(tpl.name)}</td>
                     <td>${EVENT_LABELS[tpl.event_trigger] || tpl.event_trigger}</td>
+                    <td>${templateScopeBadge(tpl)}</td>
                     <td>${escapeHtml(tpl.subject_template)}</td>
                     <td>${tpl.display_order}</td>
                     <td><span class="status-badge status-${tpl.is_active == 1 ? 'active' : 'inactive'}">${tpl.is_active == 1 ? 'Active' : 'Inactive'}</span></td>
@@ -5541,6 +5649,174 @@ $translationNamespaces = ['common', 'tickets'];
                     </td>
                 </tr>
             `).join('');
+        }
+
+
+        // ==================== Sender rules (#80) ====================
+        // Which senders a template applies to. The editor holds them in memory while
+        // the modal is open and posts the whole list on save.
+
+        let templateRules = [];        // [{match_type, match_value}]
+
+        const TPL_EVENT_LABELS = {
+            new_ticket_email: t('tickets.settings.modals.template.event_new_ticket'),
+            ticket_assigned:  t('tickets.settings.modals.template.event_assigned'),
+            ticket_closed:    t('tickets.settings.modals.template.event_closed'),
+            csat_request:     t('tickets.settings.modals.template.event_csat_request')
+        };
+
+        function switchTemplateScope() {
+            const picked = document.querySelector('input[name="tplScope"]:checked');
+            const restricted = picked && picked.value === 'restricted';
+            document.getElementById('tplRulesBox').style.display = restricted ? '' : 'none';
+        }
+
+        function renderTemplateRules() {
+            const box = document.getElementById('tplRulesList');
+            if (!box) return;
+            if (!templateRules.length) {
+                box.innerHTML = '<span style="font-size:12px;color:var(--text-muted,#666);">'
+                              + escapeHtml(t('tickets.settings.scope.rule_placeholder')) + '</span>';
+                return;
+            }
+            box.innerHTML = templateRules.map(function (r, i) {
+                const shown = r.match_type === 'address' ? r.match_value : '@' + r.match_value;
+                return '<span class="tpl-rule-chip">' + escapeHtml(shown)
+                     + '<button type="button" onclick="removeTemplateRule(' + i + ')">&times;</button></span>';
+            }).join('');
+        }
+
+        // The @ decides the type, rather than a dropdown asking the admin to classify
+        // what they just typed. "someone@a.com" is an address, "a.com" is a domain,
+        // and "@a.com" is the domain somebody naturally writes for one.
+        function addTemplateRule() {
+            const input = document.getElementById('tplRuleInput');
+            const raw = (input.value || '').trim().toLowerCase();
+            if (!raw) return;
+
+            let type, value;
+            if (raw.indexOf('@') > 0) {
+                type = 'address';
+                value = raw;
+                if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+                    showToast(t('tickets.settings.scope.rule_invalid'), 'error');
+                    return;
+                }
+            } else {
+                type = 'domain';
+                value = raw.replace(/^@/, '');
+                if (!/^[^@\s]+\.[^@\s]+$/.test(value)) {
+                    showToast(t('tickets.settings.scope.rule_invalid'), 'error');
+                    return;
+                }
+            }
+            const dupe = templateRules.some(function (r) {
+                return r.match_type === type && r.match_value === value;
+            });
+            if (dupe) {
+                showToast(t('tickets.settings.scope.rule_duplicate'), 'error');
+                return;
+            }
+            templateRules.push({ match_type: type, match_value: value });
+            input.value = '';
+            renderTemplateRules();
+        }
+
+        function removeTemplateRule(i) {
+            templateRules.splice(i, 1);
+            renderTemplateRules();
+        }
+
+        // What the list column shows for each template.
+        function templateScopeBadge(tpl) {
+            const rules = tpl.rules || [];
+            if (!rules.length) {
+                return '<span class="tpl-scope-badge">'
+                     + escapeHtml(t('tickets.settings.scope.badge_everyone')) + '</span>';
+            }
+            const shown = rules.slice(0, 2).map(function (r) {
+                return escapeHtml(r.match_type === 'address' ? r.match_value : '@' + r.match_value);
+            }).join(', ');
+            const more = rules.length > 2 ? ' +' + (rules.length - 2) : '';
+            const title = t('tickets.settings.scope.badge_senders').replace('{count}', rules.length);
+            return '<span class="tpl-scope-badge" title="' + escapeHtml(title) + '">' + shown + more + '</span>';
+        }
+
+        // The mistake this catches: every template for an event restricted, so a
+        // sender matching none of them gets silence. Per event, because a gap in one
+        // event says nothing about the others.
+        function refreshScopeWarning() {
+            const box = document.getElementById('tplScopeWarning');
+            if (!box) return;
+
+            const gaps = [];
+            for (const ev in TPL_EVENT_LABELS) {
+                const active = (emailTemplates || []).filter(function (tpl) {
+                    return tpl.event_trigger === ev && tpl.is_active == 1;
+                });
+                const hasCatchAll = active.some(function (tpl) { return !(tpl.rules || []).length; });
+                // No templates at all is not a gap — nobody is expecting an email.
+                if (active.length && !hasCatchAll) gaps.push(TPL_EVENT_LABELS[ev]);
+            }
+
+            // baseUrlState.loaded gates this for the same reason it gates the other
+            // warning: until the settings have actually been read we do not know
+            // whether it was dismissed, and guessing "not dismissed" nags somebody
+            // who already said they know.
+            const show = gaps.length > 0 && baseUrlState.loaded && !baseUrlState.scopeDismissed;
+            box.style.display = show ? '' : 'none';
+            if (show) {
+                document.getElementById('tplScopeWarningBody').textContent =
+                    t('tickets.settings.scope.warn_body').replace('{events}', gaps.join(', '));
+            }
+        }
+
+        async function dismissScopeWarning() {
+            try {
+                await fetch(API_BASE + 'set_base_url_warning_dismissed.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ warning: 'template_scope', dismissed: true })
+                });
+            } catch (e) { /* dismissing is a convenience; a failure leaves it showing */ }
+            baseUrlState.scopeDismissed = true;
+            refreshScopeWarning();
+        }
+
+        // Runs the REAL selection on the server rather than re-implementing the
+        // matching here, so the answer cannot drift from what actually gets sent.
+        async function runTemplateSimulator() {
+            const out = document.getElementById('tplSimResult');
+            const email = document.getElementById('tplSimEmail').value.trim();
+            const event = document.getElementById('tplSimEvent').value;
+            out.style.display = '';
+            try {
+                const resp = await fetch(API_BASE + 'simulate_email_template.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ event_trigger: event, email: email })
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    out.className = 'tpl-sim-result none';
+                    out.textContent = data.error;
+                    return;
+                }
+                if (!data.template_id) {
+                    out.className = 'tpl-sim-result none';
+                    out.textContent = data.reason === 'no_active_template'
+                        ? t('tickets.settings.scope.sim_no_template')
+                        : t('tickets.settings.scope.sim_none');
+                    return;
+                }
+                const value = data.matched_type === 'domain' ? '@' + data.matched_value : (data.matched_value || '');
+                const why = t('tickets.settings.scope.sim_' + data.reason).replace('{value}', value);
+                out.className = 'tpl-sim-result';
+                out.textContent = '"' + data.template_name + '" ' + why;
+            } catch (e) {
+                out.className = 'tpl-sim-result none';
+                out.textContent = t('tickets.settings.base_url.save_failed');
+            }
         }
 
         // ==================== Email template body editor (#80) ====================
@@ -5598,6 +5874,14 @@ $translationNamespaces = ['common', 'tickets'];
             document.getElementById('templateEvent').value = template ? template.event_trigger : '';
             document.getElementById('templateSubject').value = template ? template.subject_template : '';
             setTemplateBody(template ? template.body_template : '');
+            // A NEW template starts as Everyone — narrowing has to be deliberate, which
+            // is what keeps a catch-all present unless somebody removes it on purpose.
+            templateRules = template && Array.isArray(template.rules)
+                ? template.rules.map(function (r) { return { match_type: r.match_type, match_value: r.match_value }; })
+                : [];
+            document.querySelector('input[name="tplScope"][value="' + (templateRules.length ? 'restricted' : 'everyone') + '"]').checked = true;
+            switchTemplateScope();
+            renderTemplateRules();
             document.getElementById('templateOrder').value = template ? template.display_order : 0;
             document.getElementById('templateActive').checked = template ? template.is_active == 1 : true;
             document.getElementById('templateModalTitle').textContent = template ? t('tickets.settings.modals.template.edit_title') : t('tickets.settings.modals.template.add_title');
@@ -5899,6 +6183,9 @@ $translationNamespaces = ['common', 'tickets'];
                 event_trigger: document.getElementById('templateEvent').value,
                 subject_template: document.getElementById('templateSubject').value,
                 body_template: getTemplateBody(),
+                // Always sent, so "Everyone" (an empty list) is saved as a real choice
+                // rather than read as "leave the rules alone".
+                rules: (document.querySelector('input[name="tplScope"]:checked') && document.querySelector('input[name="tplScope"]:checked').value === 'restricted') ? templateRules : [],
                 display_order: parseInt(document.getElementById('templateOrder').value) || 0,
                 is_active: document.getElementById('templateActive').checked ? 1 : 0
             };

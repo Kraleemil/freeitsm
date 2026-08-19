@@ -100,6 +100,11 @@ return [
     ['email_send_log', 'idx_esl_ticket', 'key', '(`ticket_id`)'],
     ['ticket_reply_templates', 'idx_reply_tpl_analyst', 'key', '(`analyst_id`)'],
     ['ticket_reply_templates', 'idx_reply_tpl_tenant', 'key', '(`tenant_id`)'],
+
+    // Sender rules for email templates (#80). Looked up on every automatic email,
+    // by template when editing and by value when choosing which template fires.
+    ['ticket_email_template_rules', 'idx_tmpl', 'key', '(`template_id`)'],
+    ['ticket_email_template_rules', 'idx_match', 'key', '(`match_type`, `match_value`)'],
     ['ticket_csat_responses', 'uq_ticket_csat_token', 'unique', '(`token`)'],
     ['ticket_csat_responses', 'ix_ticket_csat_ticket_id', 'key', '(`ticket_id`)'],
     ['ticket_csat_responses', 'ix_ticket_csat_responded', 'key', '(`responded_datetime`)'],
