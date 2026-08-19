@@ -26,6 +26,7 @@ require_once __DIR__ . '/AzureDevOpsProvider.php';
 require_once __DIR__ . '/../encryption.php';   // decryptValue()
 require_once __DIR__ . '/../ssl.php';          // sslApplyCurl(), used by every provider's httpRequest()
 require_once __DIR__ . '/../tenancy.php';      // getDefaultTenantId(), for the company guard
+require_once __DIR__ . '/../public_url.php';   // publicAbsoluteUrl(), behind integrationsAbsoluteUrl()
 
 /**
  * Are the integration tables present?
@@ -187,59 +188,15 @@ function integrationsTrackerProviders(): array
  * *their* tracker's host and 404s. The whole reason we put the link there is so
  * somebody can click back to the ticket, so it has never done its job.
  *
- * Resolution order, most trustworthy first:
- *   1. an explicitly configured public address — the only one that is right when
- *      a WORKFLOW raises the issue from cron, where there is no request at all
- *      and $_SERVER['HTTP_HOST'] is simply absent. That is the case this exists
- *      for, because unattended escalation is the normal case, not the exception;
- *   2. the current request's scheme + host, when an analyst clicked Escalate;
- *   3. BASE_URL alone — no worse than before, so a install that has configured
- *      nothing is not made worse by this.
- *
- * `messaging_public_base_url` is read as a fallback because it already holds
- * exactly this fact (the address this install is reachable at from outside);
- * `public_base_url` is preferred so a properly general setting can supersede it
- * later without a migration.
+ * The resolution itself now lives in includes/public_url.php, because the
+ * [ticket_url] merge code needs the identical answer (discussion #80) and two
+ * copies of "how is this install addressed" is exactly the pair that drifts.
+ * This name is kept: it is what every provider calls, and it reads correctly at
+ * those call sites.
  */
 function integrationsAbsoluteUrl(PDO $conn, string $path): string
 {
-    static $root = null;
-
-    if ($root === null) {
-        $configured = '';
-        try {
-            $stmt = $conn->prepare(
-                "SELECT setting_key, setting_value FROM system_settings
-                  WHERE setting_key IN ('public_base_url','messaging_public_base_url')"
-            );
-            $stmt->execute();
-            $found = [];
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-                $found[$r['setting_key']] = trim((string)$r['setting_value']);
-            }
-            $configured = $found['public_base_url'] ?? $found['messaging_public_base_url'] ?? '';
-        } catch (Exception $e) {
-            $configured = '';   // an install without the table still gets a link
-        }
-
-        if ($configured !== '' && preg_match('~^https?://~i', $configured)) {
-            $root = rtrim($configured, '/');
-        } elseif (!empty($_SERVER['HTTP_HOST'])) {
-            $https  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-                   || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-            // The host is attacker-controllable, so only characters a hostname
-            // may legally contain survive — a link we post into someone else's
-            // tracker is not somewhere to reflect an unchecked header.
-            $host = preg_replace('/[^A-Za-z0-9\.\-:]/', '', (string)$_SERVER['HTTP_HOST']);
-            $root = $host !== '' ? (($https ? 'https://' : 'http://') . $host . rtrim(BASE_URL, '/')) : '';
-        } else {
-            $root = '';
-        }
-
-        if ($root === '') $root = rtrim(BASE_URL, '/');   // last resort: today's behaviour
-    }
-
-    return $root . '/' . ltrim($path, '/');
+    return publicAbsoluteUrl($conn, $path);
 }
 
 /**

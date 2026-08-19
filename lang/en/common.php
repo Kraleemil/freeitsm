@@ -53,6 +53,7 @@ return [
     'add'          => 'Add',
     'edit'         => 'Edit',
     'close'        => 'Close',
+    'dismiss'      => 'Dismiss',
     'copy'         => 'Copy',
     'copied'       => 'Copied',
     'retry'        => 'Retry',

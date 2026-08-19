@@ -47,6 +47,10 @@ function replyTemplateMergeCodes(): array {
         'requester_name'       => 'Requester full name',
         'requester_email'      => 'Requester email',
         'ticket_reference'     => 'Ticket reference',
+        // Resolves to an absolute link to the requester's own view of the ticket.
+        // Worth having mid-conversation ("you can track this here"), and it costs
+        // nothing to offer because buildTicketMergeData() already produces it.
+        'ticket_url'           => 'Link to the ticket (portal)',
         'ticket_subject'       => 'Ticket subject',
         'ticket_status'        => 'Ticket status',
         'ticket_priority'      => 'Ticket priority',

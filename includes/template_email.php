@@ -8,6 +8,7 @@
 
 require_once __DIR__ . '/encryption.php';
 require_once __DIR__ . '/email_log.php';
+require_once __DIR__ . '/public_url.php';   // publicAbsoluteUrl(), for the [ticket_url] merge code
 
 /**
  * Main entry point — send a template email for a ticket event.
@@ -184,6 +185,15 @@ function buildTicketMergeData(PDO $conn, int $ticketId): ?array {
 
     return [
         'ticket_reference' => $row['ticket_number'] ?? '',
+        // A clickable way back to the ticket, asked for in discussion #80. It points
+        // at the SELF-SERVICE view rather than the analyst one, because everything
+        // built from this data is addressed to the requester — an analyst link would
+        // land them on a login page they have no account for.
+        //
+        // publicAbsoluteUrl() is what makes it usable: these emails are usually sent
+        // by the mail collector from cron, where there is no request to read a host
+        // from, so a link built any other way would be a bare path.
+        'ticket_url' => publicAbsoluteUrl($conn, 'self-service/tickets.php?id=' . $ticketId),
         'ticket_subject' => $row['subject'] ?? '',
         'ticket_status' => $row['status'] ?? '',
         'ticket_priority' => $row['priority'] ?? '',

@@ -942,7 +942,7 @@ return [
                 'subject_help'        => '[SDREF:...] is added automatically for reply threading.',
                 'body'                => 'Body',
                 'body_placeholder'    => "Dear [requester_name],\n\nThank you for contacting us...",
-                'body_help'           => 'Merge codes: [ticket_reference], [ticket_subject], [ticket_status], [ticket_priority], [requester_name], [requester_first_name], [requester_email], [analyst_name], [analyst_email], [department_name], [created_date], [closed_date]. HTML is supported (e.g. styled buttons).',
+                'body_help'           => 'Merge codes: [ticket_reference], [ticket_url], [ticket_subject], [ticket_status], [ticket_priority], [requester_name], [requester_first_name], [requester_email], [analyst_name], [analyst_email], [department_name], [created_date], [closed_date]. HTML is supported (e.g. styled buttons).',
                 'display_order'       => 'Display order',
                 'active'              => 'Active',
                 'tab_edit'            => 'Edit',
@@ -1106,6 +1106,19 @@ return [
             'webhook_url'  => 'Webhook URL',
             'provider'     => 'Provider',
             'reference'    => 'Reference',
+        ],
+        // The public web address, surfaced on the Email Templates tab because that is
+        // where [ticket_url] gets written (discussion #80).
+        'base_url' => [
+            'label'       => 'Public web address',
+            'placeholder' => 'https://itsm.example.com',
+            'help'        => 'Used to build [ticket_url] and other links FreeITSM sends out. Include the folder if FreeITSM is not at the root of the site, for example https://itsm.example.com/freeitsm. Leave it empty and links sent by the overnight mail collector will have no site name in them, because there is no browser request at that point to work one out from.',
+            'example'     => 'A ticket link currently comes out as:',
+            'inherited'   => 'Taken from your web chat setting until you save one here.',
+            'saved'       => 'Public web address saved',
+            'save_failed' => 'Could not save the public web address',
+            'warn_title'  => 'Links in these emails will be broken',
+            'warn_body'   => '[ticket_url] is used in {count} template(s), but no public web address is set. It works while you are clicking around, and fails in mail sent overnight — which is when these templates are usually sent.',
         ],
 
         // Instructional paragraphs / notes / info boxes shown at the top of (or

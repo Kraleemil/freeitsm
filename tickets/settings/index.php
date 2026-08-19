@@ -331,6 +331,50 @@ $translationNamespaces = ['common', 'tickets'];
         }
 
         /* Email-template body: Edit / Preview tabs */
+        /* Public web address panel — the setting [ticket_url] depends on (#80). */
+        .tpl-baseurl {
+            border: 1px solid var(--border, #ddd);
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            background: var(--surface-2, #f9f9f9);
+        }
+        .tpl-baseurl label { display: block; font-weight: 600; margin-bottom: 6px; }
+        .tpl-baseurl-row { display: flex; gap: 8px; align-items: center; max-width: 620px; }
+        /* Matches .form-group input in inbox.css deliberately — including leaving
+           background and colour unset, so this field inherits the same way every
+           other input on the page does and cannot drift in dark mode. */
+        .tpl-baseurl-row input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px;
+            border: 1px solid var(--border, #ddd);
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .tpl-baseurl-example {
+            margin-top: 8px;
+            font-size: 12px;
+            font-family: Consolas, Monaco, monospace;
+            color: var(--text-muted, #666);
+            word-break: break-all;
+        }
+        .tpl-baseurl-warn {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            justify-content: space-between;
+            background: var(--warning-bg, #fef3c7);
+            color: var(--warning-text, #92400e);
+            border: 1px solid var(--warning-border, #f0d9a8);
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .tpl-baseurl-warn button { flex: 0 0 auto; }
         .tpl-body-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
         .tpl-body-tab {
             padding: 6px 16px;
@@ -1044,6 +1088,27 @@ $translationNamespaces = ['common', 'tickets'];
                 <button class="add-btn" onclick="openTemplateModal()"><?php echo htmlspecialchars(t('common.add')); ?></button>
             </div>
             <p style="margin-bottom: 15px; color: var(--text-muted, #666);"><?php echo t('tickets.settings.intros.email_templates'); ?></p>
+
+            <!-- Public web address (discussion #80).
+                 Sits here rather than in a general settings page because this is where
+                 [ticket_url] is written, and a setting you are told about at the moment
+                 you need it is one you actually set. -->
+            <div class="tpl-baseurl">
+                <div class="tpl-baseurl-warn" id="tplBaseUrlWarning" style="display: none;">
+                    <div>
+                        <strong><?php echo htmlspecialchars(t('tickets.settings.base_url.warn_title')); ?></strong>
+                        <div id="tplBaseUrlWarningBody" style="margin-top: 4px;"></div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="dismissBaseUrlWarning()"><?php echo htmlspecialchars(t('common.dismiss')); ?></button>
+                </div>
+                <label for="tplBaseUrl"><?php echo htmlspecialchars(t('tickets.settings.base_url.label')); ?></label>
+                <div class="tpl-baseurl-row">
+                    <input type="text" id="tplBaseUrl" autocomplete="off" placeholder="<?php echo htmlspecialchars(t('tickets.settings.base_url.placeholder')); ?>">
+                    <button type="button" class="btn btn-secondary" onclick="savePublicBaseUrl()"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                </div>
+                <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.base_url.help')); ?></small>
+                <div id="tplBaseUrlExample" class="tpl-baseurl-example"></div>
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -5338,6 +5403,7 @@ $translationNamespaces = ['common', 'tickets'];
         let emailTemplates = [];
 
         async function loadEmailTemplates() {
+            initTemplateBodyEditor();
             try {
                 const response = await fetch(API_BASE + 'get_email_templates.php');
                 const data = await response.json();
@@ -5348,8 +5414,99 @@ $translationNamespaces = ['common', 'tickets'];
             } catch (error) {
                 console.error('Error loading templates:', error);
             }
+            await loadPublicBaseUrl();
+            refreshBaseUrlWarning();
         }
 
+        // ==================== Public web address (#80) ====================
+        // What [ticket_url] resolves to. Kept here because this is the tab where
+        // [ticket_url] gets typed.
+
+        // ⚠️ `loaded` is not decoration. If the fetch fails we know NOTHING about
+        // whether an address is configured, and "not configured" is exactly what an
+        // empty field and a missing flag look like. Showing the warning on a failed
+        // load would tell an administrator who has set this up correctly that they
+        // have not — so the warning stays hidden until we have actually been told.
+        let baseUrlState = { loaded: false, configured: false, dismissed: false, example: '' };
+
+        async function loadPublicBaseUrl() {
+            const input = document.getElementById('tplBaseUrl');
+            if (!input) return;                        // tab not visible to this analyst
+            try {
+                const resp = await fetch(API_BASE + 'get_public_base_url.php');
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'load failed');
+                input.value = data.base_url || '';
+                baseUrlState = {
+                    loaded: true,
+                    configured: !!data.is_configured,
+                    dismissed: !!data.warning_dismissed,
+                    example: data.effective_url || ''
+                };
+                const ex = document.getElementById('tplBaseUrlExample');
+                if (ex && baseUrlState.example) {
+                    ex.textContent = (data.inherited ? t('tickets.settings.base_url.inherited') + ' ' : '')
+                                   + t('tickets.settings.base_url.example') + ' ' + baseUrlState.example;
+                }
+            } catch (e) {
+                console.error('Error loading public base URL:', e);
+                baseUrlState = { loaded: false, configured: false, dismissed: false, example: '' };
+            }
+        }
+
+        // Shown only when the two facts are both true: something actually uses
+        // [ticket_url], and nothing is configured for it to resolve against. A
+        // warning about a merge code nobody has used would be noise on every
+        // install that never wanted the feature.
+        function refreshBaseUrlWarning() {
+            const box = document.getElementById('tplBaseUrlWarning');
+            if (!box) return;
+
+            const users = (emailTemplates || []).filter(tpl =>
+                ((tpl.body_template || '') + (tpl.subject_template || '')).includes('[ticket_url]'));
+
+            const show = baseUrlState.loaded && !baseUrlState.configured
+                      && !baseUrlState.dismissed && users.length > 0;
+
+            box.style.display = show ? '' : 'none';
+            if (show) {
+                document.getElementById('tplBaseUrlWarningBody').textContent =
+                    t('tickets.settings.base_url.warn_body').replace('{count}', users.length);
+            }
+        }
+
+        async function savePublicBaseUrl() {
+            const input = document.getElementById('tplBaseUrl');
+            if (!input) return;
+            try {
+                const resp = await fetch(API_BASE + 'save_public_base_url.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ base_url: input.value })
+                });
+                const data = await resp.json();
+                if (!data.success) { showToast(data.error, 'error'); return; }
+                showToast(t('tickets.settings.base_url.saved'), 'success');
+                // Re-read rather than assume: the server normalises what was typed,
+                // and the example line has to show what will really be sent.
+                await loadPublicBaseUrl();
+                refreshBaseUrlWarning();
+            } catch (e) {
+                showToast(t('tickets.settings.base_url.save_failed'), 'error');
+            }
+        }
+
+        async function dismissBaseUrlWarning() {
+            try {
+                await fetch(API_BASE + 'set_base_url_warning_dismissed.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dismissed: true })
+                });
+            } catch (e) { /* dismissing is a convenience; a failure just leaves it showing */ }
+            baseUrlState.dismissed = true;
+            refreshBaseUrlWarning();
+        }
         function renderEmailTemplates(templates) {
             const tbody = document.getElementById('email-templates-list');
             if (templates.length === 0) {
@@ -5376,12 +5533,61 @@ $translationNamespaces = ['common', 'tickets'];
             `).join('');
         }
 
+        // ==================== Email template body editor (#80) ====================
+        // Requested alongside [ticket_url]: the body was a bare textarea, so anyone
+        // wanting bold text or a link had to hand-write HTML into it. The editor is
+        // deliberately a cut-down one — this is an email body, and the formatting
+        // that survives a mail client is a short list. Fonts, colours, images and
+        // tables are left out on purpose rather than forgotten.
+        //
+        // The merge codes are typed as literal [ticket_url] text and pass through
+        // untouched: TinyMCE has no reason to rewrite square brackets.
+        let templateBodyEditor = null;
+
+        function initTemplateBodyEditor() {
+            if (templateBodyEditor || !document.getElementById('templateBody')) return;
+            const isDark = (document.documentElement.getAttribute('data-theme-mode') || 'light') === 'dark';
+            tinymce.init({
+                selector: '#templateBody',
+                license_key: 'gpl',
+                height: 300,
+                menubar: false,
+                skin: isDark ? 'oxide-dark' : 'oxide',
+                content_css: isDark ? 'dark' : 'default',
+                plugins: ['autolink', 'lists', 'link', 'code'],
+                toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat | code',
+                // `code` stays available because these bodies legitimately contain
+                // hand-written HTML — the styled call-to-action buttons the help text
+                // already suggests — and taking that away would be a regression for
+                // anyone who has written one.
+                content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+                setup: function (editor) { templateBodyEditor = editor; }
+            });
+        }
+
+        // Every read and write of the body goes through these two, so that the
+        // editor and the underlying textarea can never disagree about what the
+        // template says. Falling back to the textarea matters: if TinyMCE failed to
+        // load, editing must still work rather than silently saving an empty body.
+        function getTemplateBody() {
+            return templateBodyEditor ? templateBodyEditor.getContent()
+                                      : document.getElementById('templateBody').value;
+        }
+
+        function setTemplateBody(html) {
+            if (templateBodyEditor) {
+                templateBodyEditor.setContent(html || '');
+            } else {
+                document.getElementById('templateBody').value = html || '';
+            }
+        }
+
         function openTemplateModal(template = null) {
             document.getElementById('templateId').value = template ? template.id : '';
             document.getElementById('templateName').value = template ? template.name : '';
             document.getElementById('templateEvent').value = template ? template.event_trigger : '';
             document.getElementById('templateSubject').value = template ? template.subject_template : '';
-            document.getElementById('templateBody').value = template ? template.body_template : '';
+            setTemplateBody(template ? template.body_template : '');
             document.getElementById('templateOrder').value = template ? template.display_order : 0;
             document.getElementById('templateActive').checked = template ? template.is_active == 1 : true;
             document.getElementById('templateModalTitle').textContent = template ? t('tickets.settings.modals.template.edit_title') : t('tickets.settings.modals.template.add_title');
@@ -5393,6 +5599,7 @@ $translationNamespaces = ['common', 'tickets'];
         // includes/template_email.php so "what you preview" matches "what's sent".
         const TPL_PREVIEW_SAMPLES = {
             ticket_reference: 'ABC-123-4567',
+            ticket_url: 'https://itsm.example.com/self-service/tickets.php?id=409',
             ticket_subject: "Laptop won't turn on",
             ticket_status: 'Resolved',
             ticket_priority: 'High',
@@ -5428,7 +5635,7 @@ $translationNamespaces = ['common', 'tickets'];
             const isPreview = tab === 'preview';
             if (isPreview) {
                 document.getElementById('templatePreview').innerHTML =
-                    buildTemplatePreviewHtml(document.getElementById('templateBody').value);
+                    buildTemplatePreviewHtml(getTemplateBody());
             }
             document.getElementById('tplBodyEdit').style.display = isPreview ? 'none' : '';
             document.getElementById('tplBodyPreview').style.display = isPreview ? '' : 'none';
@@ -5681,7 +5888,7 @@ $translationNamespaces = ['common', 'tickets'];
                 name: document.getElementById('templateName').value,
                 event_trigger: document.getElementById('templateEvent').value,
                 subject_template: document.getElementById('templateSubject').value,
-                body_template: document.getElementById('templateBody').value,
+                body_template: getTemplateBody(),
                 display_order: parseInt(document.getElementById('templateOrder').value) || 0,
                 is_active: document.getElementById('templateActive').checked ? 1 : 0
             };
@@ -5689,9 +5896,18 @@ $translationNamespaces = ['common', 'tickets'];
             // Body is validated here (not via the `required` attribute) because the
             // textarea is hidden on the Preview tab, which would otherwise break
             // native form validation.
-            if (!templateData.body_template.trim()) {
+            //
+            // ⚠️ Emptiness has to be judged on the TEXT, not the markup. A body the
+            // author has cleared comes back from TinyMCE as `<p>&nbsp;</p>` or
+            // `<br>`, all of which are truthy strings — so a plain .trim() check
+            // would wave an empty template straight through and send blank emails.
+            const bodyText = templateData.body_template
+                .replace(/<[^>]*>/g, '')
+                .replace(/&nbsp;/gi, ' ')
+                .trim();
+            if (!bodyText) {
                 switchTemplateBodyTab('edit');
-                document.getElementById('templateBody').focus();
+                if (templateBodyEditor) { templateBodyEditor.focus(); } else { document.getElementById('templateBody').focus(); }
                 showToast(t('tickets.settings.modals.template.body_required'), 'error');
                 return;
             }
