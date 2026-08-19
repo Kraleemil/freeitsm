@@ -589,12 +589,9 @@ $translationNamespaces = ['common', 'watchtower'];
         // done, but with something in it worth a look. It used to go green off
         // 'Fail' and 'Warning' counts that were always zero (no status has ever
         // been called either), so it lit green on a morning when every check was red.
-        // If Watchtower → Settings names which statuses mean trouble, use that —
-        // it is a stated answer rather than an inference from the ordering.
-        const allBest = mc.attention_set
-            ? statuses.every(s => s.count === 0 || !s.is_attention)
-            : (statuses.length > 0 && mc.best_sort_order !== null &&
-               statuses.every(s => s.count === 0 || s.sort_order === mc.best_sort_order));
+        // One number, worked out server-side, shared with the browser extension —
+        // rather than each consumer deciding for itself what counts as trouble.
+        const allBest = statuses.length > 0 && (mc.attention_count || 0) === 0;
         if (mc.not_started)        setDot('wtMcDot', 'red');
         else if (done && allBest)  setDot('wtMcDot', 'green');
         else                       setDot('wtMcDot', 'amber');

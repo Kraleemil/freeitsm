@@ -66,20 +66,29 @@ function getWatchtowerData($conn, $analystId = 0) {
     $mcBestOrder = $conn->query("SELECT MIN(SortOrder) FROM morningChecks_Statuses WHERE IsActive = 1")->fetchColumn();
     $mcBestOrder = ($mcBestOrder === null || $mcBestOrder === false) ? null : (int)$mcBestOrder;
 
-    // If the admin has said which statuses mean trouble, say so outright rather
-    // than inferring it from the order. This is the one judgement the correctness
-    // pass could not make on its own — nothing in the database records which of
-    // your morning-check statuses is a pass and which is a failure.
+    // Which statuses mean trouble. If the admin has said, use that; otherwise
+    // fall back to "anything that is not the most favourable status". Nothing in
+    // the database records which of your morning-check statuses is a pass, which
+    // is the one judgement the correctness pass could not make on its own.
+    //
+    // Marked on EVERY status and totalled into one number here, deliberately.
+    // The dashboard, the browser-extension badge and its popup all need this
+    // answer, and when each worked it out for itself they diverged — all three
+    // were counting a status called 'Fail' that has never existed.
     $mcAttention = wtItemMembers($conn, 'mc.attention');
-    if ($mcAttention !== null) {
-        $attLabels = [];
-        if ($mcAttention) {
-            $lbl = $conn->query("SELECT Label FROM morningChecks_Statuses WHERE StatusID IN " . wtIdListSql($mcAttention));
-            $attLabels = array_flip($lbl->fetchAll(PDO::FETCH_COLUMN));
-        }
-        foreach ($mcStatuses as &$s) { $s['is_attention'] = isset($attLabels[$s['label']]); }
-        unset($s);
+    $attLabels = [];
+    if ($mcAttention) {
+        $lbl = $conn->query("SELECT Label FROM morningChecks_Statuses WHERE StatusID IN " . wtIdListSql($mcAttention));
+        $attLabels = array_flip($lbl->fetchAll(PDO::FETCH_COLUMN));
     }
+    $mcAttentionCount = 0;
+    foreach ($mcStatuses as &$s) {
+        $s['is_attention'] = $mcAttention !== null
+            ? isset($attLabels[$s['label']])
+            : ($mcBestOrder !== null && $s['sort_order'] !== $mcBestOrder);
+        if ($s['is_attention']) $mcAttentionCount += $s['count'];
+    }
+    unset($s);
 
     $morningChecks = [
         'total_checks'    => $mcTotal,
@@ -90,6 +99,9 @@ function getWatchtowerData($conn, $analystId = 0) {
         // true = the admin has named which statuses mean trouble, so the card
         // uses that instead of falling back to "the first status is the good one".
         'attention_set'   => $mcAttention !== null,
+        // How many of today's checks are in a status that needs looking at. THE
+        // single definition — every consumer reads this rather than re-deriving.
+        'attention_count' => $mcAttentionCount,
         'not_started'     => $mcDone === 0 && $mcTotal > 0
     ];
 

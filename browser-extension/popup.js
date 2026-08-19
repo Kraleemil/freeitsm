@@ -70,6 +70,14 @@ function showError(msg) {
     document.getElementById('errorText').textContent = msg;
 }
 
+// Status names now reach the popup and are written into innerHTML. They are
+// free text an admin types on a server this extension is pointed at, so they
+// are escaped rather than trusted.
+function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function hideError() {
     document.getElementById('errorBanner').style.display = 'none';
 }
@@ -109,14 +117,18 @@ function renderMorningChecks(mc) {
     if (!mc) return '';
     const done = mc.completed_today || 0;
     const total = mc.total_checks || 0;
-    const fails = (mc.statuses && mc.statuses['Fail']) || 0;
+    // Was mc.statuses['Fail'] — a status name FreeITSM has never shipped, and one
+    // an admin can rename anyway. The server now supplies a single count of
+    // checks needing attention, shared with the dashboard and the badge.
+    const fails = mc.attention_count || 0;
     let detail = '';
     if (mc.not_started) {
         detail = '<span class="warn">Not started</span>';
     } else if (fails > 0) {
-        detail = `<span class="highlight">${fails} failed</span>`;
+        detail = `<span class="highlight">${fails} need attention</span>`;
     } else if (done === total && total > 0) {
-        detail = '<span class="good">All passed</span>';
+        // "Completed", not "passed": nothing records which status is a pass.
+        detail = '<span class="good">All completed</span>';
     } else {
         detail = `${total - done} remaining`;
     }
@@ -138,11 +150,19 @@ function renderMorningChecks(mc) {
 
 function renderTickets(tk) {
     if (!tk) return '';
-    const total = (tk.open || 0) + (tk.in_progress || 0) + (tk.on_hold || 0);
+    // Was open + in_progress + on_hold, three hardcoded English status names, so
+    // a ticket in any other open status went uncounted. The server now sends the
+    // real total across every open status.
+    const total = tk.total_open || 0;
     let details = [];
-    if (tk.urgent_high > 0) details.push(`<span class="highlight">${tk.urgent_high} urgent/high</span>`);
+    if (tk.urgent_high > 0) details.push(`<span class="highlight">${tk.urgent_high} high priority</span>`);
     if (tk.unassigned > 0) details.push(`<span class="warn">${tk.unassigned} unassigned</span>`);
-    if (details.length === 0) details.push(`${tk.in_progress || 0} in progress`);
+    if (details.length === 0) {
+        // Name the biggest open status rather than assuming one is called
+        // "In Progress" — it may not exist, and it may not be the interesting one.
+        const biggest = (tk.by_status || []).slice().sort((a, b) => b.count - a.count)[0];
+        details.push(biggest ? `${biggest.count} ${escapeHtml(biggest.name)}` : `${total} open`);
+    }
 
     return `
         <div class="card">
@@ -326,7 +346,9 @@ function renderTasks(tk) {
         detail = '<span class="good">No overdue tasks</span>';
     }
 
-    const total = (tk.todo || 0) + (tk.in_progress || 0);
+    // Was todo + in_progress by name, which left tasks in any other open status
+    // (Blocked ships as standard) out of the figure entirely.
+    const total = tk.total_open || 0;
 
     return `
         <div class="card">

@@ -147,8 +147,13 @@ function computeAttentionCount(data) {
     }
     if (data.morning_checks && data.morning_checks.not_started) {
         count += (data.morning_checks.total_checks || 0);
-    } else if (data.morning_checks && data.morning_checks.statuses) {
-        count += (data.morning_checks.statuses['Fail'] || 0);
+    } else if (data.morning_checks) {
+        // Checks in a status that needs attention. This used to look up a status
+        // called 'Fail' — a name FreeITSM has never shipped (the statuses are
+        // Green, Amber and Red, and they are renameable), so it always added
+        // nothing and the badge silently ignored a morning of failed checks.
+        // The server now works this out once and everything reads that.
+        count += (data.morning_checks.attention_count || 0);
     }
     if (data.tasks) {
         count += (data.tasks.overdue || 0);
@@ -160,6 +165,6 @@ function computeAttentionCount(data) {
 function hasUrgent(data) {
     if (data.tickets && data.tickets.urgent_high > 0) return true;
     if (data.service_status && data.service_status.active_incidents > 0) return true;
-    if (data.morning_checks && data.morning_checks.statuses && data.morning_checks.statuses['Fail'] > 0) return true;
+    if (data.morning_checks && (data.morning_checks.attention_count || 0) > 0) return true;
     return false;
 }
