@@ -222,6 +222,7 @@ return [
         'nav_cards'     => 'Module cards explained',
         'nav_refresh'   => 'Auto-refresh',
         'nav_tips'      => 'Quick tips',
+        'nav_settings'  => 'Settings',
 
         // Section 1 — Overview
         's1_title' => 'Overview',
@@ -315,5 +316,19 @@ return [
         's6_tip5_desc'  => 'Project Watchtower onto a screen during stand-ups or operational review meetings. The colour-coded dots make it easy to discuss which areas need attention and assign ownership of amber or red items.',
         's6_tip6_title' => 'Green means all clear',
         's6_tip6_desc'  => 'When every dot on the dashboard is green, your IT operations are in good shape. No urgent tickets, no failed checks, no expiring contracts, and all services operational. That is the goal.',
+
+        // Section 7 — Settings
+        's7_title'  => 'Settings',
+        's7_intro'  => 'Watchtower → Settings decides which cards appear and what each figure is counting. Everything there trims a dashboard that is already correct: leave the whole screen alone and every card is drawn and every status counted, so nothing needs configuring for the numbers to be right.',
+        's7_cards_title'  => 'Cards',
+        's7_cards_desc'   => 'Turn off any of the ten cards your team does not watch. Nothing is lost — each module still shows everything in its own screens.',
+        's7_counts_title' => 'Counts',
+        's7_counts_desc'  => 'Each count includes every status you have, which is why renaming or adding one keeps working without being listed anywhere. Narrow one only if a card is showing more than you want to read at a glance. Each row is tagged with the module it affects, in that module\'s colour.',
+        's7_mc_title'     => 'Which morning checks count as a problem',
+        's7_mc_desc'      => 'Nothing in FreeITSM records which of your morning-check statuses is a pass and which is a failure — they are your labels. Until you say, the card treats only the first status in your own order as good, and reports that checks are completed rather than that they passed. Name the ones that mean trouble and it will use that instead.',
+        's7_red_title'    => 'Which service problems turn the light red',
+        's7_red_desc'     => 'Chosen separately from each impact level\'s "counts as downtime" setting, on purpose: that one decides your uptime percentages, so you should never have to distort your reporting to change a colour here. Left alone it follows those levels, so nothing changes until you say otherwise.',
+        's7_paused_title' => 'Paused too long',
+        's7_paused_desc'  => 'How many hours a ticket may sit with its SLA clock stopped before Watchtower mentions it. The default is 24.',
     ],
 ];

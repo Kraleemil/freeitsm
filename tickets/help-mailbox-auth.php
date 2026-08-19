@@ -71,11 +71,14 @@ $translationNamespaces = ['common', 'tickets'];
         <a href="#add-mailbox" class="help-nav-link" data-section="add-mailbox">
             <span class="help-nav-num">7</span> Add &amp; verify a mailbox
         </a>
+        <a href="#origin-health" class="help-nav-link" data-section="origin-health">
+            <span class="help-nav-num">8</span> Ticket origin &amp; the ! mark
+        </a>
         <a href="#google" class="help-nav-link" data-section="google">
-            <span class="help-nav-num">8</span> Google Workspace
+            <span class="help-nav-num">9</span> Google Workspace
         </a>
         <a href="#troubleshooting" class="help-nav-link" data-section="troubleshooting">
-            <span class="help-nav-num">9</span> Troubleshooting
+            <span class="help-nav-num">10</span> Troubleshooting
         </a>
     </div>
 
@@ -278,10 +281,39 @@ $translationNamespaces = ['common', 'tickets'];
                 <p class="help-note warn">Re-using an older mailbox for a new address? Its stored OAuth scopes may pre-date <code>User.Read</code>. Either add <code>User.Read</code> to the <strong>OAuth scopes</strong> field before authenticating, or add a fresh mailbox (new mailboxes include it by default).</p>
             </div>
 
-            <!-- 8. Google -->
-            <div class="help-section" id="google">
+            <!-- 8. Ticket origin & the health mark -->
+            <div class="help-section" id="origin-health">
                 <div class="help-section-header">
                     <span class="help-section-num">8</span>
+                    <div>
+                        <h3>Ticket origin, and the <strong>!</strong> beside a mailbox</h3>
+                        <p>What a mailbox records on its tickets, and how it tells you something is off.</p>
+                    </div>
+                </div>
+
+                <h4>Default ticket origin</h4>
+                <p>Each mailbox has a <strong>Default ticket origin</strong> in its settings. Tickets that mailbox opens are recorded as having come from it, so your reports can separate email tickets from any other kind. Without it the <strong>Source</strong> field on those tickets stays empty.</p>
+                <p>It is set <strong>per mailbox</strong> rather than once for all email, because a helpdesk address and a monitoring address both arrive as email and are not the same source. Point one at <em>Email</em> and another at an origin you have added called <em>Monitoring</em>, and the tickets can finally be told apart.</p>
+                <p class="help-note">Renaming an origin later is safe — the mailbox stores a reference to it, not the word. On installations with more than one company, a mailbox pinned to a company may also use that company's own origins; a shared-intake mailbox may use only the standard ones, because its tickets land in whichever company the sender's domain matches. The standard origins are always available, so every mailbox can be given one.</p>
+                <p class="help-note warn">Existing tickets are not backfilled. Nothing knows which mailbox an old ticket came through, so only tickets created from now on carry an origin.</p>
+
+                <h4>The <strong>!</strong> beside a mailbox name</h4>
+                <p>A mailbox can be authenticated, green and collecting mail perfectly and still not be doing what you assume — which is exactly how a missing ticket origin goes unnoticed for weeks. When something needs attention, an <strong>!</strong> appears next to the mailbox name. Click it for the list in plain terms, each item saying what the consequence is rather than just naming a setting.</p>
+                <ul>
+                    <li><strong>Errors</strong> mean mail is not being collected, or is being collected wrongly: reading the wrong inbox, never signed in, stored credentials that cannot be decrypted, or a ticket origin that has since been deleted.</li>
+                    <li><strong>Warnings</strong> mean mail is collected but something downstream is not set up: no ticket origin, never checked for mail, not checked for several days, set to file imported mail into a folder that was never named, or an IMAP mailbox with no outgoing server so replies cannot be sent.</li>
+                </ul>
+                <p>A mailbox with nothing wrong has <strong>no mark at all</strong>.</p>
+
+                <h4>Dismissing a warning</h4>
+                <p>Most warnings describe something you may well have meant — a mailbox that genuinely should record no origin, or a receive-only address with no outgoing server. Each one has a <strong>Dismiss</strong> button. Dismissing says <em>"I know"</em>: the mark clears, and the item stays listed inside with a <strong>Restore</strong> beside it, so acknowledging something is not the same as hiding it.</p>
+                <p class="help-note"><strong>Errors cannot be dismissed.</strong> Reading the wrong inbox is a fault rather than a preference, and it is the one case where silencing the warning would be worse than never showing it. A mailbox that is simply switched off, or left as shared intake, is not flagged at all — both are ordinary choices and both already show as a badge on the row.</p>
+            </div>
+
+            <!-- 9. Google -->
+            <div class="help-section" id="google">
+                <div class="help-section-header">
+                    <span class="help-section-num">9</span>
                     <div>
                         <h3>Google Workspace</h3>
                         <p>Briefly — Gmail mailboxes behave like delegated mode.</p>
@@ -290,10 +322,10 @@ $translationNamespaces = ['common', 'tickets'];
                 <p>Google mailboxes use the <strong>Gmail API</strong> with OAuth 2.0 and behave like delegated mode — you authorise once and FreeITSM reads/sends as that account. There's no app-only equivalent in the FreeITSM UI for Google; the redirect URI uses <code>google_oauth_callback.php</code> instead of <code>oauth_callback.php</code>.</p>
             </div>
 
-            <!-- 9. Troubleshooting -->
+            <!-- 10. Troubleshooting -->
             <div class="help-section" id="troubleshooting">
                 <div class="help-section-header">
-                    <span class="help-section-num">9</span>
+                    <span class="help-section-num">10</span>
                     <div>
                         <h3>Troubleshooting</h3>
                         <p>Common symptoms and how to clear them.</p>

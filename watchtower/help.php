@@ -131,6 +131,10 @@ $translationNamespaces = ['common', 'watchtower'];
                 <span class="help-nav-num">6</span>
                 <?php echo htmlspecialchars(t('watchtower.help.nav_tips')); ?>
             </a>
+            <a href="#settings" class="help-nav-link" data-section="settings">
+                <span class="help-nav-num">7</span>
+                <?php echo htmlspecialchars(t('watchtower.help.nav_settings')); ?>
+            </a>
         </div>
 
         <!-- Main content area -->
@@ -426,6 +430,36 @@ $translationNamespaces = ['common', 'watchtower'];
                         <div class="help-card row">
                             <div class="help-card-icon">&#9989;</div>
                             <div><strong><?php echo htmlspecialchars(t('watchtower.help.s6_tip6_title')); ?></strong><br><?php echo htmlspecialchars(t('watchtower.help.s6_tip6_desc')); ?></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="help-section" id="settings">
+                    <div class="help-section-header">
+                        <span class="help-section-num">7</span>
+                        <h3><?php echo htmlspecialchars(t('watchtower.help.s7_title')); ?></h3>
+                    </div>
+                    <p><?php echo htmlspecialchars(t('watchtower.help.s7_intro')); ?></p>
+                    <div class="help-cards">
+                        <div class="help-card row">
+                            <div class="help-card-icon">&#128203;</div>
+                            <div><strong><?php echo htmlspecialchars(t('watchtower.help.s7_cards_title')); ?></strong><br><?php echo htmlspecialchars(t('watchtower.help.s7_cards_desc')); ?></div>
+                        </div>
+                        <div class="help-card row">
+                            <div class="help-card-icon">&#128290;</div>
+                            <div><strong><?php echo htmlspecialchars(t('watchtower.help.s7_counts_title')); ?></strong><br><?php echo htmlspecialchars(t('watchtower.help.s7_counts_desc')); ?></div>
+                        </div>
+                        <div class="help-card row">
+                            <div class="help-card-icon">&#9749;</div>
+                            <div><strong><?php echo htmlspecialchars(t('watchtower.help.s7_mc_title')); ?></strong><br><?php echo htmlspecialchars(t('watchtower.help.s7_mc_desc')); ?></div>
+                        </div>
+                        <div class="help-card row">
+                            <div class="help-card-icon">&#128721;</div>
+                            <div><strong><?php echo htmlspecialchars(t('watchtower.help.s7_red_title')); ?></strong><br><?php echo htmlspecialchars(t('watchtower.help.s7_red_desc')); ?></div>
+                        </div>
+                        <div class="help-card row">
+                            <div class="help-card-icon">&#9203;</div>
+                            <div><strong><?php echo htmlspecialchars(t('watchtower.help.s7_paused_title')); ?></strong><br><?php echo htmlspecialchars(t('watchtower.help.s7_paused_desc')); ?></div>
                         </div>
                     </div>
                 </div>
