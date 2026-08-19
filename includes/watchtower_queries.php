@@ -337,24 +337,45 @@ function getWatchtowerData($conn, $analystId = 0) {
     // 'Maintenance' — the same levels #70 made renameable, so a renamed or
     // translated total outage was drawn amber, in the mildest style, on the one
     // card meant to shout about it.
+    // Which impact levels put a service on this card. Default: anything that is
+    // not the "healthy" level. A choice in Watchtower → Settings narrows it, so
+    // planned maintenance can be kept off an attention board without pretending
+    // it is not happening.
+    $ssPicked = wtItemMembers($conn, 'service.levels');
+    $ssPickSql = $ssPicked === null ? 'il.is_default = 0' : 'il.id IN ' . wtIdListSql($ssPicked);
+
     $ssDegradedStmt = $conn->query(
         "SELECT ss.id, ss.name, worst.current_status, worst.severity_order,
-                worst.colour, worst.counts_as_downtime
+                worst.colour, worst.counts_as_downtime, worst.level_id
          FROM status_services ss
          JOIN (
-            SELECT sis.service_id, il.name AS current_status, il.severity_order,
-                   il.colour, il.counts_as_downtime
+            SELECT sis.service_id, il.id AS level_id, il.name AS current_status,
+                   il.severity_order, il.colour, il.counts_as_downtime
             FROM status_incident_services sis
             JOIN status_incidents si ON sis.incident_id = si.id
             JOIN service_impact_levels il ON il.id = sis.impact_level_id
             LEFT JOIN service_incident_statuses sst ON sst.id = si.status_id
             WHERE (sst.is_resolved = 0 OR sst.id IS NULL)
-              AND il.is_default = 0
+              AND {$ssPickSql}
          ) worst ON worst.service_id = ss.id
          WHERE ss.is_active = 1
          ORDER BY worst.severity_order ASC, ss.display_order, ss.name"
     );
     $ssDegraded = $ssDegradedStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Which levels are serious enough to turn the light red. Decided HERE rather
+    // than in the browser, and deliberately not read straight off the level's
+    // counts_as_downtime flag: that flag decides whether time at this level
+    // counts against your uptime percentage, which is a reporting fact. Reusing
+    // it for a dashboard colour would mean an admin who wanted a degraded
+    // service drawn amber had to distort their uptime figures to get it.
+    $ssSerious = wtItemMembers($conn, 'service.serious');
+    foreach ($ssDegraded as &$svc) {
+        $svc['is_serious'] = $ssSerious === null
+            ? ((int)$svc['counts_as_downtime'] === 1)
+            : in_array((int)$svc['level_id'], $ssSerious, true);
+    }
+    unset($svc);
 
     $ssActiveIncidents = (int)$conn->query(
         "SELECT COUNT(*) FROM status_incidents si

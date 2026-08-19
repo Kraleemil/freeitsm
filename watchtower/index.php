@@ -751,13 +751,13 @@ $translationNamespaces = ['common', 'watchtower'];
         if (ss.all_operational) {
             setDot('wtSsDot', 'green');
         } else {
-            // Red when something is genuinely down — decided by the level's own
-            // "counts as downtime" setting, which is precisely the question being
-            // asked. It used to test the level's NAME against 'Major Outage' and
-            // 'Partial Outage', so renaming or translating either one quietly
+            // Worked out server-side from the levels you have marked as serious
+            // (Watchtower → Settings → Counts), defaulting to those that count as
+            // downtime. It used to test the level's NAME against 'Major Outage'
+            // and 'Partial Outage', so renaming or translating either one quietly
             // downgraded a total outage to amber.
-            const realDowntime = ss.degraded_services.some(s => Number(s.counts_as_downtime) === 1);
-            setDot('wtSsDot', realDowntime ? 'red' : 'amber');
+            const serious = ss.degraded_services.some(s => s.is_serious);
+            setDot('wtSsDot', serious ? 'red' : 'amber');
         }
 
         let html = '';

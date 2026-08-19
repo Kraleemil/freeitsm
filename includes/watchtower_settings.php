@@ -54,6 +54,24 @@ function wtSelectableItems(): array
             'table' => 'ticket_priorities', 'id' => 'id', 'name' => 'name',
             'where' => 'is_active = 1', 'order' => 'display_order, name',
         ],
+        // Which impact levels put a service on the card at all. The default status
+        // (Operational) is never offered — a healthy service is not a problem.
+        'service.levels' => [
+            'entity_type' => 'impact_level',
+            'table' => 'service_impact_levels', 'id' => 'id', 'name' => 'name',
+            'where' => 'is_active = 1 AND is_default = 0', 'order' => 'severity_order, name',
+        ],
+        // Which of them turn the light red rather than amber. Separate from the
+        // level's counts_as_downtime flag ON PURPOSE: that one decides whether
+        // time at this level counts against your uptime figures, which is a
+        // reporting fact, not a question about how loudly a dashboard should
+        // shout. Tying them together would mean distorting your uptime to change
+        // a colour.
+        'service.serious' => [
+            'entity_type' => 'impact_level',
+            'table' => 'service_impact_levels', 'id' => 'id', 'name' => 'name',
+            'where' => 'is_active = 1 AND is_default = 0', 'order' => 'severity_order, name',
+        ],
         'changes.by_status' => [
             'entity_type' => 'change_status',
             'table' => 'change_statuses', 'id' => 'id', 'name' => 'name',
