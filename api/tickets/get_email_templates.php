@@ -6,6 +6,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/template_email.php';   // templateRulesByTemplate() (#80)
 
 header('Content-Type: application/json');
 
