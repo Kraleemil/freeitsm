@@ -173,7 +173,7 @@ $analyst_name = $_SESSION['analyst_name'] ?? 'Analyst';
         </div>
 
         <button type="button" class="submit-btn" id="submitBtn" onclick="changePassword()">Change Password</button>
-        <a href="analyst_logout.php" class="logout-link">Logout instead</a>
+        <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/analyst_logout.php" class="logout-link">Logout instead</a>
     </div>
 
     <script>
@@ -197,7 +197,7 @@ $analyst_name = $_SESSION['analyst_name'] ?? 'Analyst';
         btn.textContent = 'Changing...';
 
         try {
-            const resp = await fetch('api/myaccount/change_password.php', {
+            const resp = await fetch('<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>api/myaccount/change_password.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

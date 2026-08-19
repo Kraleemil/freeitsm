@@ -712,7 +712,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 errEl.style.display = 'none';
 
                 try {
-                    const resp = await fetch('api/myaccount/verify_login_otp.php', {
+                    const resp = await fetch('<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>api/myaccount/verify_login_otp.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ code: code })

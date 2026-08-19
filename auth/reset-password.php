@@ -5,6 +5,10 @@
  */
 session_start();
 
+// BASE_URL: this page is reachable as /reset-password and as /auth/reset-password.php,
+// so every link it emits has to be absolute. config.php is what defines it (#74).
+require_once __DIR__ . '/../config.php';
+
 // Already logged in
 if (isset($_SESSION['analyst_id'])) {
     header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'index.php');
@@ -213,7 +217,7 @@ $token = $_GET['token'] ?? '';
                 btn.textContent = 'Resetting...';
 
                 try {
-                    const resp = await fetch('api/auth/reset_password.php', {
+                    const resp = await fetch('<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>api/auth/reset_password.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
