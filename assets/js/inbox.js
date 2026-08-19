@@ -385,7 +385,7 @@ function initTinyMCE() {
         // — the same <16px focus-zoom that broke the note sheet. Mouse users
         // (pointer: fine) are unchanged.
         content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; } @media (pointer: coarse) { body { font-size: 16px; } }',
-        extended_valid_elements: 'div[style|data-reply-marker]',
+        extended_valid_elements: 'div[style|data-reply-marker|data-signature]',
         setup: function(editor) {
             emailEditor = editor;
         }
@@ -4549,6 +4549,7 @@ function openReplyModal() {
         emailEditor.setContent('<p><br></p>');
     }
 
+    applyDefaultSignature();
     setReplyCleanupVisibility('reply');
     document.getElementById('emailModal').classList.add('active');
     // Tell colleagues we're writing, and show their warning if they already are.
@@ -4576,6 +4577,7 @@ function openForwardModal() {
         emailEditor.setContent('<p><br></p>');
     }
 
+    applyDefaultSignature();
     setReplyCleanupVisibility('forward');
     document.getElementById('emailModal').classList.add('active');
     setPresenceComposing(true);
@@ -4596,6 +4598,7 @@ function closeEmailModal() {
     renderAttachments();
     hideReplyCleanupUndoBar();
     closeReplyTemplateMenu();
+    closeSignatureMenu();
 }
 
 // ===========================================================================
@@ -8518,4 +8521,158 @@ async function wuSaveDraft() {
         if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
         showToast('Could not save', 'error');
     }
+}
+
+// ==================== Signatures in the composer (#80) ====================
+//
+// The signature is put INTO THE EDITOR, visibly, when a reply or forward is
+// opened — not stapled on at send time. The analyst can read it, change it or
+// delete it before sending, which is the whole point: what they see is what the
+// customer gets. A signature appended invisibly on send is how somebody ends up
+// with two sign-offs, or with the wrong one, and never knows.
+//
+// The wrapper carries data-signature so the picker can replace it. That attribute
+// only survives because it is declared in extended_valid_elements on the editor —
+// TinyMCE drops attributes its schema does not know about, silently.
+
+let mySignatureCache = null;
+
+async function loadMySignatures(force) {
+    if (mySignatureCache && !force) return mySignatureCache;
+    try {
+        const base = window.MYACCOUNT_API || '../api/myaccount/';
+        const resp = await fetch(base + 'get_signatures.php');
+        const data = await resp.json();
+        // null, not [], when the request failed: "you have none" and "we could not
+        // find out" must not look the same, or a failed load silently composes a
+        // reply with no signature and nobody knows why.
+        mySignatureCache = data.success ? (data.signatures || []) : null;
+    } catch (e) {
+        mySignatureCache = null;
+    }
+    return mySignatureCache;
+}
+
+function signatureWrap(sig) {
+    return '<div data-signature="' + sig.id + '">' + (sig.rendered || '') + '</div>';
+}
+
+/** Drop the analyst's default signature into a freshly opened composer. */
+function applyDefaultSignature() {
+    loadMySignatures().then(function (sigs) {
+        if (!emailEditor || !sigs || !sigs.length) return;
+        // The editor may have been closed again while this was in flight.
+        const modal = document.getElementById('emailModal');
+        if (!modal || !modal.classList.contains('active')) return;
+        // Never overwrite something already typed — the analyst may have been
+        // quicker than the fetch.
+        if (emailEditor.getBody().querySelector('[data-signature]')) return;
+        let def = null;
+        for (let i = 0; i < sigs.length; i++) {
+            if (Number(sigs[i].is_default) === 1) { def = sigs[i]; break; }
+        }
+        setSignatureInEditor(def || sigs[0]);
+    });
+}
+
+/** Put this signature in, replacing whichever one is already there. */
+function setSignatureInEditor(sig) {
+    if (!emailEditor) return;
+    const existing = emailEditor.getBody().querySelector('[data-signature]');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    // ⚠️ An empty editor returns '' from getContent() — TinyMCE does not hand back
+    // the <p><br></p> that is sitting in it. Concatenating onto that would leave the
+    // signature as the FIRST thing in the body, and the cursor would land inside it:
+    // the analyst starts typing in the middle of their own sign-off. So the blank
+    // paragraph to write in is put there explicitly.
+    let current = emailEditor.getContent();
+    if (current.replace(/<[^>]*>|&nbsp;|\s/g, '') === '') {
+        current = '<p><br></p>';
+    }
+    emailEditor.setContent(current + signatureWrap(sig));
+
+    // Cursor above the signature, the way every mail client does it — otherwise
+    // the analyst starts typing underneath their own sign-off.
+    try {
+        const first = emailEditor.getBody().firstChild;
+        if (first) {
+            emailEditor.selection.select(first, true);
+            emailEditor.selection.collapse(true);
+        }
+        emailEditor.focus();
+    } catch (e) { /* cursor placement is a nicety, never a reason to fail */ }
+}
+
+async function toggleSignatureMenu(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('signatureMenu');
+    if (!menu) return;
+    if (menu.style.display === 'block') { menu.style.display = 'none'; return; }
+    // Re-fetch on open: the analyst may have just added one in another tab.
+    await loadMySignatures(true);
+    renderSignatureMenu();
+    menu.style.display = 'block';
+}
+
+function closeSignatureMenu() {
+    const menu = document.getElementById('signatureMenu');
+    if (menu) menu.style.display = 'none';
+}
+
+document.addEventListener('click', function (e) {
+    const menu = document.getElementById('signatureMenu');
+    if (menu && menu.style.display === 'block' && !menu.contains(e.target)) {
+        closeSignatureMenu();
+    }
+});
+
+function renderSignatureMenu() {
+    const menu = document.getElementById('signatureMenu');
+    if (!menu) return;
+
+    const manage = '<div class="reply-tpl-menu-empty"><a href="' + (window.PREFS_URL || '../system/preferences/') + '">'
+                 + escapeHtml(t('tickets.reply_modal.signature_manage')) + '</a></div>';
+
+    if (mySignatureCache === null) {
+        menu.innerHTML = '<div class="reply-tpl-menu-empty">'
+                       + escapeHtml(t('tickets.reply_modal.signature_failed')) + '</div>';
+        return;
+    }
+    if (!mySignatureCache.length) {
+        menu.innerHTML = '<div class="reply-tpl-menu-empty">'
+                       + escapeHtml(t('tickets.reply_modal.signature_none')) + '</div>' + manage;
+        return;
+    }
+
+    menu.innerHTML = mySignatureCache.map(function (s) {
+        const def = Number(s.is_default) === 1
+            ? ' <span class="sig-menu-default">' + escapeHtml(t('tickets.reply_modal.signature_default')) + '</span>' : '';
+        return '<div class="reply-tpl-menu-row">'
+             +   '<button type="button" class="reply-tpl-insert" onclick="pickSignature(' + s.id + ')">'
+             +     escapeHtml(s.name) + def
+             +   '</button>'
+             + '</div>';
+    }).join('')
+    + '<div class="reply-tpl-menu-row">'
+    +   '<button type="button" class="reply-tpl-insert" onclick="pickSignature(0)">'
+    +     escapeHtml(t('tickets.reply_modal.signature_remove'))
+    +   '</button>'
+    + '</div>'
+    + manage;
+}
+
+function pickSignature(id) {
+    closeSignatureMenu();
+    if (!emailEditor) return;
+
+    if (Number(id) === 0) {
+        const existing = emailEditor.getBody().querySelector('[data-signature]');
+        if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        // getContent() re-reads the body, so the removal is what gets kept.
+        emailEditor.setContent(emailEditor.getContent());
+        return;
+    }
+    const sig = (mySignatureCache || []).find(function (s) { return Number(s.id) === Number(id); });
+    if (sig) setSignatureInEditor(sig);
 }

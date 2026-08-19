@@ -167,6 +167,14 @@ $translationNamespaces = ['common', 'tickets'];
                             </button>
                             <div class="reply-tpl-menu" id="replyTemplateMenu" style="display: none;"></div>
                         </div>
+                        <div class="reply-tpl-wrap">
+                            <button type="button" class="btn btn-secondary reply-tpl-btn" id="signatureBtn" onclick="toggleSignatureMenu(event)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c3.5 0 3.5-10 7-10s3.5 10 7 10c1.5 0 2.5-.7 4-2"/><line x1="3" y1="21" x2="21" y2="21"/></svg>
+                                <?php echo htmlspecialchars(t("tickets.reply_modal.signature")); ?>
+                                <span class="reply-tpl-caret">▾</span>
+                            </button>
+                            <div class="reply-tpl-menu" id="signatureMenu" style="display: none;"></div>
+                        </div>
                     </div>
                     <textarea id="emailBody"></textarea>
                 </div>
@@ -813,6 +821,8 @@ $translationNamespaces = ['common', 'tickets'];
     </div>
     <script>
         window.API_BASE = '../api/tickets/';
+        window.MYACCOUNT_API = '../api/myaccount/';   // signatures (#80)
+        window.PREFS_URL = '../system/preferences/';
         window.CURRENT_ANALYST_ID = <?php echo (int)($_SESSION['analyst_id'] ?? 0); ?>;
         // The "Write up" button posts to the Knowledge module and saves an
         // article, so it is hidden from anyone who could only be refused. The
@@ -829,7 +839,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=90"></script>
+    <script src="../assets/js/inbox.js?v=91"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
     <script>
     // Auto-check mailboxes every 60 seconds
