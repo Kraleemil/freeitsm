@@ -646,6 +646,18 @@ try {
                         <div style="flex-shrink:0;font-size:24px;opacity:0.7;">&rarr;</div>
                     </a>
 
+                    <!-- Prominent Automatic emails & signatures callout -->
+                    <a href="help-email-templates.php" style="display:flex;align-items:center;gap:18px;padding:20px 24px;margin-bottom:24px;background:linear-gradient(135deg, #0f766e 0%, #115e59 100%);color:white;border-radius:12px;text-decoration:none;box-shadow:0 4px 12px rgba(15,118,110,0.25);transition:transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(15,118,110,0.35)';" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(15,118,110,0.25)';">
+                        <div style="flex-shrink:0;width:56px;height:56px;border-radius:12px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:30px;height:30px;"><path d="M3 17c3.5 0 3.5-10 7-10s3.5 10 7 10c1.5 0 2.5-.7 4-2"></path><line x1="3" y1="21" x2="21" y2="21"></line></svg>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">Automatic emails &amp; signatures — Admin Guide</div>
+                            <div style="font-size:13px;opacity:0.9;line-height:1.5;">Merge codes and <code style="background:rgba(255,255,255,0.18);padding:1px 5px;border-radius:4px;">[ticket_url]</code>, the public web address links depend on, limiting a template to particular senders, checking who would get what, and per-analyst signatures.</div>
+                        </div>
+                        <div style="flex-shrink:0;font-size:24px;opacity:0.7;">&rarr;</div>
+                    </a>
+
                     <div class="help-cards cols-3">
                         <div class="help-card">
                             <strong><?php echo t('tickets.help.settings.card_dept_title'); ?></strong>
