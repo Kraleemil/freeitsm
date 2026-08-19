@@ -5448,6 +5448,16 @@ $translationNamespaces = ['common', 'tickets'];
                     ex.textContent = (data.inherited ? t('tickets.settings.base_url.inherited') + ' ' : '')
                                    + t('tickets.settings.base_url.example') + ' ' + baseUrlState.example;
                 }
+                // Preview the link on THIS install's address. The other sample values
+                // are invented and should be — nobody checks a preview to find out
+                // what the requester is called — but a made-up host in the one field
+                // whose whole purpose is "will this link work?" answers the question
+                // wrongly every time. Left as the example.com placeholder only when
+                // the address could not be read, where obviously-fake is the honest
+                // thing to show.
+                if (data.effective_root) {
+                    TPL_PREVIEW_SAMPLES.ticket_url = data.effective_root + '/self-service/tickets.php?id=409';
+                }
             } catch (e) {
                 console.error('Error loading public base URL:', e);
                 baseUrlState = { loaded: false, configured: false, dismissed: false, example: '' };

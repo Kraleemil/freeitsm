@@ -65,6 +65,10 @@ try {
         'is_configured'     => $effective !== '',
         'warning_dismissed' => ($rows['public_base_url_warning_dismissed'] ?? '') === '1',
         'effective_url'     => publicAbsoluteUrl($conn, 'self-service/tickets.php?id=1'),
+        // The root on its own, so the body preview can show a sample link on THIS
+        // install's address rather than an invented one. Every other sample value is
+        // fiction and can be; the host is the one fact the preview exists to confirm.
+        'effective_root'    => publicBaseUrl($conn),
     ]);
 
 } catch (Exception $e) {
