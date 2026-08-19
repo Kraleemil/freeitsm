@@ -24,7 +24,14 @@ if (!isset($_SESSION['analyst_id'])) {
 }
 
 require_once '../../includes/settings_manifest.php';
+require_once '../../includes/module-colors.php';
 requireModuleAccess('watchtower');
+
+// Everything on this screen belongs to another module, which is easy to lose
+// sight of when it is all listed on one page. Each row is tagged with the module
+// it affects, in that module's own colour — taken from the shared registry, so a
+// module recoloured under System is recoloured here too rather than drifting.
+$wtModuleColors = getModuleColors();
 
 // RBAC Layer 2: a tab this analyst lacks is never emitted, so there is nothing
 // to un-hide in the browser.
@@ -69,8 +76,14 @@ $translationNamespaces = ['common', 'watchtower'];
         .wt-opt-name { font-weight: 600; font-size: 14px; color: var(--text, #333); }
         .wt-opt-desc { font-size: 13px; color: var(--text-dim, #888); margin-top: 2px; line-height: 1.4; }
 
-        .wt-group { border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 16px 18px; margin-bottom: 18px; max-width: 760px; }
-        .wt-group h3 { margin: 0 0 4px; font-size: 15px; color: var(--text, #333); }
+        /* The module stripe and pill are the only colour on the page, and both are
+           the module's own — so the eye groups the two ticket rows together
+           without anything having to say so. The pill tint is a 10%-alpha wash of
+           the same hex, which reads on both light and dark grounds. */
+        .wt-group { border: 1px solid var(--border, #ddd); border-left-width: 3px; border-radius: 8px; padding: 16px 18px; margin-bottom: 18px; max-width: 760px; }
+        .wt-group h3 { margin: 0 0 4px; font-size: 15px; color: var(--text, #333); display: flex; align-items: center; gap: 9px; }
+        .wt-mod-pill { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 10px; white-space: nowrap; letter-spacing: 0.02em; }
+        .wt-opt { border-left: 3px solid transparent; }
         .wt-group .why { font-size: 13px; color: var(--text-muted, #777); margin: 0 0 12px; line-height: 1.45; }
         .wt-members { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
         .wt-member { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border, #ddd); border-radius: 20px; font-size: 13px; cursor: pointer; }
@@ -111,8 +124,15 @@ $translationNamespaces = ['common', 'watchtower'];
             <p class="intro"><?php echo htmlspecialchars(t('watchtower.settings.counts_intro')); ?></p>
             <div id="countsList"><?php echo htmlspecialchars(t('watchtower.settings.loading')); ?></div>
 
-            <div class="wt-group">
-                <h3><?php echo htmlspecialchars(t('watchtower.settings.paused_heading')); ?></h3>
+            <?php
+            // Rendered here rather than by the JS above, so it takes its module
+            // colour straight from the registry in PHP.
+            $wtPausedColour = $wtModuleColors['tickets'][0] ?? '#0078d4';
+            ?>
+            <div class="wt-group" style="border-left-color: <?php echo htmlspecialchars($wtPausedColour); ?>;">
+                <h3><?php echo htmlspecialchars(t('watchtower.settings.paused_heading')); ?>
+                    <span class="wt-mod-pill" style="background: <?php echo htmlspecialchars($wtPausedColour); ?>1a; color: <?php echo htmlspecialchars($wtPausedColour); ?>;"><?php echo htmlspecialchars(t('watchtower.settings.card_tickets')); ?></span>
+                </h3>
                 <p class="why"><?php echo htmlspecialchars(t('watchtower.settings.paused_why')); ?></p>
                 <input type="number" min="1" max="8760" class="num-input" id="pausedHours" value="24">
                 <span style="font-size:13px;color:var(--text-muted,#777);margin-left:6px;"><?php echo htmlspecialchars(t('watchtower.settings.paused_unit')); ?></span>
@@ -128,6 +148,34 @@ $translationNamespaces = ['common', 'watchtower'];
 <script>
 const API = '../../api/watchtower/';
 let settings = null;
+
+// module key => accent colour, from the shared registry (System can override it).
+const MODULE_COLOURS = <?php echo json_encode(array_map(fn($c) => $c[0], $wtModuleColors), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+
+// Watchtower's card keys use underscores and one plural; the colour registry uses
+// hyphens and the singular. Mapped explicitly rather than transformed, so a key
+// that stops matching shows up here instead of silently losing its colour.
+const CARD_MODULE = {
+    morning_checks: 'morning-checks', tickets: 'tickets', changes: 'changes',
+    calendar: 'calendar', service_status: 'service-status', contracts: 'contracts',
+    knowledge: 'knowledge', assets: 'assets', tasks: 'tasks', workflows: 'workflow',
+};
+
+function moduleColour(cardKey) {
+    return MODULE_COLOURS[CARD_MODULE[cardKey]] || 'var(--text-muted, #666)';
+}
+
+// The module's name, reusing the labels the Cards tab already has — no second
+// list of module names to keep in step with the first.
+function moduleLabel(cardKey) {
+    return window.t('watchtower.settings.card_' + cardKey);
+}
+
+function modulePill(cardKey) {
+    const c = moduleColour(cardKey);
+    const tint = /^#[0-9a-fA-F]{6}$/.test(c) ? c + '1a' : 'var(--surface-2, #f1f5f9)';
+    return `<span class="wt-mod-pill" style="background:${tint};color:${c};">${escapeHtml(moduleLabel(cardKey))}</span>`;
+}
 
 // renderSettingsTabBar() emits onclick="switchTab('<id>')", so every settings
 // page has to provide it. Same implementation as the other modules'.
@@ -155,13 +203,13 @@ function showToast(msg, type) {
 // Each count names the statuses IT can choose from, read live from the lookup
 // tables — so this screen never has to know what anybody's statuses are called.
 const COUNT_ITEMS = [
-    { key: 'tickets.by_status',     nameKey: 'watchtower.settings.item_tickets_status' },
-    { key: 'tickets.high_priority', nameKey: 'watchtower.settings.item_tickets_priority' },
-    { key: 'changes.by_status',     nameKey: 'watchtower.settings.item_changes_status' },
-    { key: 'service.levels',        nameKey: 'watchtower.settings.item_service_levels' },
-    { key: 'service.serious',       nameKey: 'watchtower.settings.item_service_serious' },
-    { key: 'tasks.by_status',       nameKey: 'watchtower.settings.item_tasks_status' },
-    { key: 'mc.attention',          nameKey: 'watchtower.settings.item_mc_attention' },
+    { key: 'tickets.by_status',     card: 'tickets',        nameKey: 'watchtower.settings.item_tickets_status' },
+    { key: 'tickets.high_priority', card: 'tickets',        nameKey: 'watchtower.settings.item_tickets_priority' },
+    { key: 'changes.by_status',     card: 'changes',        nameKey: 'watchtower.settings.item_changes_status' },
+    { key: 'service.levels',        card: 'service_status', nameKey: 'watchtower.settings.item_service_levels' },
+    { key: 'service.serious',       card: 'service_status', nameKey: 'watchtower.settings.item_service_serious' },
+    { key: 'tasks.by_status',       card: 'tasks',          nameKey: 'watchtower.settings.item_tasks_status' },
+    { key: 'mc.attention',          card: 'morning_checks', nameKey: 'watchtower.settings.item_mc_attention' },
 ];
 
 async function load() {
@@ -183,10 +231,10 @@ function renderCards() {
     const box = document.getElementById('cardsList');
     if (!box || !settings) return;
     box.innerHTML = (settings.card_keys || []).map(key => `
-        <label class="wt-opt">
+        <label class="wt-opt" style="border-left-color:${moduleColour(key)};">
             <input type="checkbox" data-card="${escapeHtml(key)}" ${settings.cards[key] !== false ? 'checked' : ''}>
             <span>
-                <span class="wt-opt-name">${escapeHtml(window.t('watchtower.settings.card_' + key))}</span>
+                <span class="wt-opt-name" style="color:${moduleColour(key)};">${escapeHtml(window.t('watchtower.settings.card_' + key))}</span>
                 <span class="wt-opt-desc">${escapeHtml(window.t('watchtower.settings.card_' + key + '_desc'))}</span>
             </span>
         </label>`).join('');
@@ -207,8 +255,8 @@ function renderCounts() {
                 <span>${escapeHtml(o.name)}</span>
             </label>`).join('');
         return `
-        <div class="wt-group">
-            <h3>${escapeHtml(window.t(item.nameKey))}</h3>
+        <div class="wt-group" style="border-left-color:${moduleColour(item.card)};">
+            <h3>${escapeHtml(window.t(item.nameKey))}${modulePill(item.card)}</h3>
             <p class="why">${escapeHtml(window.t(item.nameKey + '_why'))}</p>
             <label class="wt-opt" style="padding-left:0;">
                 <input type="checkbox" data-custom="${escapeHtml(item.key)}" ${cfg.customised ? 'checked' : ''}
