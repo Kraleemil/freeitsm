@@ -45,7 +45,7 @@ try {
             echo json_encode([
                 'success'     => true,
                 'catalogue'   => HandoverTemplates::catalogue(),
-                'columns'     => HandoverTemplates::assetColumns(),
+                'columns'     => HandoverTemplates::assetColumns($conn),
                 'merge_codes' => HandoverTemplates::mergeCodes(),
                 'defaults'    => HandoverTemplates::defaultBlocks(),
             ]);

@@ -673,6 +673,36 @@ class AssetsService
         foreach ($assets as &$a) {
             $a['id'] = (int)$a['id'];
         }
+        unset($a);
+
+        // Custom field values, so a handover document can show a monitor's size
+        // or a headset's part number alongside the built-in columns.
+        //
+        // Attached HERE rather than in each of the three handover callers
+        // (print, email, preview) — one batched query, and they cannot drift
+        // apart. Keyed `custom` so nothing existing changes shape.
+        //
+        // 🔑 A field the asset has not got stays ABSENT, so the document can
+        // print a dash for "not recorded" rather than an empty cell that might
+        // mean "no".
+        if ($assets) {
+            require_once __DIR__ . '/asset_fields.php';
+            if (AssetFieldsService::schemaReady($conn)) {
+                $defs = AssetFieldsService::fieldsForSets(
+                    $conn,
+                    $conn->query("SELECT id FROM asset_field_sets WHERE is_deleted = 0")->fetchAll(PDO::FETCH_COLUMN)
+                );
+                if ($defs) {
+                    $vals = AssetFieldsService::readForAssets(
+                        $conn, array_map(static fn($x) => (int)$x['id'], $assets), $defs
+                    );
+                    foreach ($assets as &$a) {
+                        $a['custom'] = $vals[(int)$a['id']] ?? [];
+                    }
+                    unset($a);
+                }
+            }
+        }
 
         return ['user' => $user, 'assets' => $assets];
     }

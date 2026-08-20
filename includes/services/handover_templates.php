@@ -58,10 +58,23 @@ class HandoverTemplates
         ];
     }
 
-    /** Columns the equipment table can show, and their defaults. */
-    public static function assetColumns(): array
+    /**
+     * Columns the equipment table can show, and their defaults.
+     *
+     * With a $conn, every custom asset field is offered too, keyed `cf:<key>`
+     * and defaulting to OFF — a handover document is a legal-ish record that
+     * somebody signs, so nothing appears on it that an administrator has not
+     * deliberately put there.
+     *
+     * ⚠️ Offering ALL custom fields rather than only the ones ticked "offer as
+     * a column": that flag is about the asset LIST, and a serial-number-ish
+     * field you would never put in a table is exactly the sort of thing you do
+     * want on a handover. Overloading one flag for two unrelated screens is how
+     * settings stop meaning anything.
+     */
+    public static function assetColumns(?PDO $conn = null): array
     {
-        return [
+        $cols = [
             'type'     => true,
             'name'     => true,
             'model'    => true,
@@ -72,6 +85,42 @@ class HandoverTemplates
             'status'   => false,
             'notes'    => false,
         ];
+        foreach (self::customColumns($conn) as $key => $def) {
+            $cols[$key] = false;
+        }
+        return $cols;
+    }
+
+    /**
+     * Custom asset fields available as handover columns, as `cf:<key>` => label.
+     *
+     * Cached per request: this is called from the designer, the validator and
+     * the renderer, and none of them should each pay for it.
+     */
+    public static function customColumns(?PDO $conn = null): array
+    {
+        static $cache = null;
+        if ($conn === null) {
+            // No connection: the caller is a context that never had one (a saved
+            // template being validated in isolation). Whatever was cached from
+            // this request still applies; otherwise assume none.
+            return $cache ?? [];
+        }
+        if ($cache === null) {
+            $cache = [];
+            try {
+                $rows = $conn->query(
+                    "SELECT field_key, label FROM asset_fields WHERE is_deleted = 0 ORDER BY label"
+                )->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($rows as $r) {
+                    $cache['cf:' . $r['field_key']] = $r['label'];
+                }
+            } catch (Exception $e) {
+                // Schema not ready — no custom columns, and the document still prints.
+                $cache = [];
+            }
+        }
+        return $cache;
     }
 
     /**
@@ -197,6 +246,7 @@ class HandoverTemplates
 
     public static function load(PDO $conn, int $id): ?array
     {
+        self::customColumns($conn);   // see effective() — sanitiseBlocks needs it warm
         $s = $conn->prepare("SELECT * FROM asset_handover_templates WHERE id = ?");
         $s->execute([$id]);
         $row = $s->fetch(PDO::FETCH_ASSOC);
@@ -217,6 +267,13 @@ class HandoverTemplates
      */
     public static function effective(PDO $conn, ?int $id = null): array
     {
+        // ⚠️ Warm the custom-column list while a connection is in hand.
+        // sanitiseBlocks(), defaultBlocks() and renderBlocks() take no $conn —
+        // they are pure transformations over a stored template — so they read
+        // it from the per-request cache. Every path that renders or validates a
+        // template comes through here or load(), so it is always warm by then;
+        // without this the columns would silently vanish from a document.
+        self::customColumns($conn);
         try {
             if ($id !== null && $id > 0) {
                 $t = self::load($conn, $id);
@@ -417,6 +474,29 @@ class HandoverTemplates
             'status'   => ['label' => $L('col_status', 'Status'),        'get' => fn($a) => $a['asset_status'] ?? '—'],
             'notes'    => ['label' => $L('col_notes', 'Notes'),          'get' => fn($a) => $a['notes'] ?? '—'],
         ];
+
+        // Custom asset fields. The label is the administrator's own wording, so
+        // it is NOT run through $L — there is nothing to translate it to.
+        //
+        // 🔑 A field the asset does not carry prints an em dash, exactly like an
+        // empty built-in column. A signed document must not imply "no" where it
+        // means "never recorded".
+        foreach (self::customColumns() as $colKey => $label) {
+            $fieldKey = substr($colKey, 3);   // strip the "cf:" prefix
+            $defs[$colKey] = [
+                'label' => $label,
+                'get'   => function ($a) use ($fieldKey) {
+                    $v = $a['custom'][$fieldKey] ?? null;
+                    if ($v === null || $v === '') {
+                        return '—';
+                    }
+                    if (is_bool($v)) {
+                        return $v ? 'Yes' : 'No';
+                    }
+                    return (string)$v;
+                },
+            ];
+        }
 
         $active = array_values(array_filter(array_keys($defs), fn($k) => !empty($cols[$k])));
         if (!$active) {
