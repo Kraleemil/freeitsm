@@ -297,6 +297,40 @@ $translationNamespaces = ['common', 'asset-management'];
         .cf-pick-kind { color: var(--text-muted, #666); font-size: 12px; }
         .cf-pick-req { margin-left: auto; font-size: 11px; color: var(--text-muted, #666); display: flex; align-items: center; gap: 4px; }
 
+        /* ── Custom fields: the tree ───────────────────────────────── */
+        .cf-tree { font-size: 13px; }
+        .cf-tree-node { padding: 2px 0; }
+        .cf-tree-type {
+            display: flex; align-items: baseline; gap: 8px;
+            padding: 7px 0 4px 0; font-weight: 600; color: var(--text, #333);
+            border-top: 1px solid var(--border-soft, #eee);
+        }
+        .cf-tree-type:first-child { border-top: 0; }
+        /* The connector lines. A left border plus a short horizontal rule is
+           enough to read as a tree without dragging in an icon set. */
+        .cf-tree-set, .cf-tree-field { position: relative; padding-left: 22px; }
+        .cf-tree-set::before, .cf-tree-field::before {
+            content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+            border-left: 1px solid var(--border, #e0e0e0);
+        }
+        .cf-tree-set > span, .cf-tree-field > span { position: relative; }
+        .cf-tree-set { padding-top: 4px; }
+        .cf-tree-set-name { color: var(--text, #333); font-weight: 600; }
+        .cf-tree-field { padding-left: 44px; color: var(--text-muted, #666); }
+        .cf-tree-field::before { left: 29px; }
+        .cf-tree-kind { color: var(--text-dim, #888); font-size: 12px; }
+        .cf-tree-req { color: var(--danger-text, #c0392b); }
+        .cf-tree-count { font-size: 11px; color: var(--text-dim, #888); font-weight: 400; }
+        /* A type with no custom fields, or a field in no set. Stated, not hidden. */
+        .cf-tree-none { color: var(--text-faint, #999); font-style: italic; padding-left: 22px; }
+        .cf-tree-warn { color: var(--warning-text, #6b4e00); }
+        .cf-tree-section {
+            margin-top: 16px; padding-top: 12px;
+            border-top: 1px solid var(--border, #e0e0e0);
+            font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+            text-transform: uppercase; color: var(--text-muted, #666);
+        }
+
         /* ── Import tab ────────────────────────────────────────────── */
         .imp-filerow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .imp-info {
@@ -654,6 +688,25 @@ $translationNamespaces = ['common', 'asset-management'];
             </div>
 
             <div id="cfBody" style="display:none;">
+                <?php /* Read-only overview, first because it is orientation
+                         rather than an action. Asked for after somebody set up
+                         two sets across four types and could not see, anywhere
+                         in one place, how types / sets / fields joined up —
+                         which is exactly when the model stops being obvious.
+
+                         ⚠️ Types with NOTHING are listed too. "This type records
+                         nothing extra" and "we did not look" must never render
+                         the same way, and a missing type is precisely the
+                         mistake this view exists to catch. */ ?>
+                <div class="cf-block">
+                    <div class="cf-block-head">
+                        <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.cf_tree')); ?></h3>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="cfToggleTree()" id="cfTreeToggle"></button>
+                    </div>
+                    <p class="cf-block-intro"><?php echo t('asset-management.settings.cf_tree_intro'); ?></p>
+                    <div id="cfTree"></div>
+                </div>
+
                 <!-- 1. By asset type -->
                 <div class="cf-block">
                     <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.cf_sec_types')); ?></h3>
@@ -2579,12 +2632,128 @@ $translationNamespaces = ['common', 'asset-management'];
                 if (!data.schema_ready) return;
 
                 cfFillTypeSelect();
+                cfRenderTree();
                 cfRenderType();
                 cfRenderCatalogue();
                 cfRenderSets();
             } catch (e) {
                 showToast(cfT('cf_save_failed'), 'error');
             }
+        }
+
+        /**
+         * The read-only overview: asset type → field set → field.
+         *
+         * 🔑 The whole point is to make the SHAPE visible. A field defined once
+         * and reused by two sets across four types is the right design and it is
+         * completely invisible from three separate lists — which is how somebody
+         * ends up with a set attached to two types and no idea the other two are
+         * missing.
+         *
+         * Two directions, because there are two questions:
+         *   "what does a Monitor record?"     → the tree
+         *   "where on earth is Resolution used?" → the field summary below it
+         */
+        let cfTreeOpen = true;
+
+        function cfToggleTree() {
+            cfTreeOpen = !cfTreeOpen;
+            const tree = document.getElementById('cfTree');
+            if (tree) tree.style.display = cfTreeOpen ? '' : 'none';
+            const btn = document.getElementById('cfTreeToggle');
+            if (btn) btn.textContent = cfTreeOpen ? cfT('cf_tree_hide') : cfT('cf_tree_show');
+        }
+
+        function cfRenderTree() {
+            const box = document.getElementById('cfTree');
+            if (!box) return;
+
+            const setById = {};
+            (cfData.sets || []).forEach(s => { setById[s.id] = s; });
+            const fieldById = {};
+            (cfData.fields || []).forEach(f => { fieldById[f.id] = f; });
+
+            const types = allItems['asset-type'] || [];
+            const parts = [];
+            const bare  = [];   // types recording nothing extra
+
+            types.forEach(t => {
+                const setIds = (cfData.type_sets && cfData.type_sets[t.id]) || [];
+                const rows = [];
+
+                setIds.forEach(sid => {
+                    const set = setById[sid];
+                    if (!set) return;
+                    const fields = set.fields || [];
+                    rows.push(`
+                        <div class="cf-tree-set">
+                            <span class="cf-tree-set-name">${escapeHtml(set.name)}</span>
+                            <span class="cf-tree-count">${cfT('cf_tree_set_of', { n: fields.length })}</span>
+                        </div>` +
+                        (fields.length
+                            ? fields.map(m => `
+                                <div class="cf-tree-field">
+                                    <span>${escapeHtml(m.label)}${m.is_required ? '<span class="cf-tree-req">*</span>' : ''}
+                                    <span class="cf-tree-kind">${escapeHtml(cfKindName(m.field_type))}</span></span>
+                                </div>`).join('')
+                            : `<div class="cf-tree-none" style="padding-left:44px;">${cfT('cf_tree_set_empty')}</div>`)
+                    );
+                });
+
+                // Types that record something come first, in one block. The
+                // rest are gathered at the bottom rather than interleaved —
+                // otherwise six "nothing extra recorded" lines break up the
+                // four that carry the actual answer. Still LISTED, though:
+                // a type you forgot to set up is the mistake this view is for.
+                if (!rows.length) {
+                    bare.push(escapeHtml(t.name));
+                    return;
+                }
+                parts.push(`
+                    <div class="cf-tree-node">
+                        <div class="cf-tree-type"><span>${escapeHtml(t.name)}</span></div>
+                        ${rows.join('')}
+                    </div>`);
+            });
+
+            if (bare.length) {
+                parts.push(`
+                    <div class="cf-tree-section">${cfT('cf_tree_bare', { n: bare.length })}</div>
+                    <div class="cf-tree-none" style="padding-left:0;">${bare.join(', ')}</div>`);
+            }
+
+            // The other direction. "Where is Resolution used?" is the question
+            // the tree above cannot answer at a glance once a field is shared.
+            const usage = (cfData.fields || []).map(f => {
+                const inSets = (cfData.sets || []).filter(s =>
+                    (s.fields || []).some(m => m.field_id === f.id));
+                const typeNames = [];
+                inSets.forEach(s => {
+                    types.forEach(t => {
+                        const ids = (cfData.type_sets && cfData.type_sets[t.id]) || [];
+                        if (ids.includes(s.id) && !typeNames.includes(t.name)) typeNames.push(t.name);
+                    });
+                });
+                // ⚠️ A field in NO set is a real state and is called out — it was
+                // created and then never attached, so nothing records it.
+                const where = inSets.length
+                    ? `${inSets.map(s => escapeHtml(s.name)).join(', ')} &rarr; ${typeNames.length ? typeNames.map(escapeHtml).join(', ') : `<span class="cf-tree-warn">${cfT('cf_tree_set_unused')}</span>`}`
+                    : `<span class="cf-tree-warn">${cfT('cf_tree_field_unused')}</span>`;
+                return `
+                    <div class="cf-tree-field" style="padding-left:22px;">
+                        <span><strong>${escapeHtml(f.label)}</strong>
+                        <span class="cf-tree-kind">${escapeHtml(cfKindName(f.field_type))}</span> &mdash; ${where}</span>
+                    </div>`;
+            }).join('');
+
+            box.innerHTML =
+                (types.length ? parts.join('') : `<div class="cf-tree-none">${cfT('cf_tree_no_types')}</div>`) +
+                (cfData.fields && cfData.fields.length
+                    ? `<div class="cf-tree-section">${cfT('cf_tree_where')}</div>${usage}`
+                    : '');
+
+            const btn = document.getElementById('cfTreeToggle');
+            if (btn) btn.textContent = cfTreeOpen ? cfT('cf_tree_hide') : cfT('cf_tree_show');
         }
 
         function cfFillTypeSelect() {

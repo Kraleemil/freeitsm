@@ -618,6 +618,22 @@ return [
         'cf_intro'             => 'The built-in asset details describe a computer, because that is what the inventory agent reports. Custom fields are how you record everything else &mdash; printers, monitors, headsets, televisions &mdash; with whichever details matter to you. Adding one takes effect immediately: no database change, and nothing already recorded is touched.',
         'cf_not_ready'         => 'Custom fields need a database update first. Go to <strong>System &rarr; Database Verification</strong> and run it, then come back.',
 
+        // The read-only overview. Exists because three separate lists cannot
+        // show the SHAPE — which set is on which type, and which field is
+        // shared between them.
+        'cf_tree'              => 'How it all fits together',
+        'cf_tree_intro'        => 'Every asset type, the sets attached to it, and the fields in those sets. A field can appear under several types &mdash; it is still one field, which is what makes it possible to search across all of them at once. Nothing here can be changed; it is a picture of what you have set up.',
+        'cf_tree_hide'         => 'Hide',
+        'cf_tree_show'         => 'Show',
+        'cf_tree_set_of'       => '{n} field(s)',
+        'cf_tree_set_empty'    => 'This set has no fields in it yet.',
+        'cf_tree_type_none'    => 'nothing extra recorded',
+        'cf_tree_bare'         => '{n} asset type(s) record nothing extra',
+        'cf_tree_no_types'     => 'No asset types yet.',
+        'cf_tree_where'        => 'Where each field is used',
+        'cf_tree_field_unused' => 'not in any set, so nothing records it yet',
+        'cf_tree_set_unused'   => 'in a set that is not attached to any asset type',
+
         'cf_sec_types'         => 'Fields by asset type',
         'cf_sec_types_intro'   => 'Pick an asset type and choose what gets recorded against it. Everything of that type gains the fields straight away.',
         'cf_sec_catalogue'     => 'All fields',
