@@ -46,6 +46,16 @@ try {
     // says 12 and the list shows 11, and the analyst hunts for a ticket that is
     // deliberately hidden. Same no-placeholder property as the line above.
     $ttSql .= snoozeHiddenSql($conn, 't');
+    // 🔴 And a ticket that has been MERGED AWAY. It still exists, and it is
+    // deliberately not deleted — its number must keep resolving so a reply
+    // quoting it lands on the surviving ticket — but it is no longer a thing
+    // sitting in a queue waiting for somebody. Counting it made the department
+    // badge say 99 while the list showed 97, and the two tickets responsible
+    // could never be found because the list had, correctly, absorbed them.
+    //
+    // The list only excluded them by ACCIDENT: a merge moves the emails to the
+    // survivor, and the list is built from emails. This says it on purpose.
+    $ttSql .= " AND t.merged_into_id IS NULL";
 
     if ($hasTeamFilter) {
         // User has team assignments - filter to only their departments

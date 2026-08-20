@@ -47,7 +47,7 @@ try {
                 e.has_attachments,
                 e.importance,
                 e.is_read,
-                e.ticket_id,
+                t.id AS ticket_id,
                 e.is_initial,
                 e.direction,
                 t.ticket_number,
@@ -69,21 +69,36 @@ try {
                 t.created_datetime as ticket_created,
                 t.updated_datetime as ticket_updated,
                 t.deleted_datetime
-            FROM emails e
-            INNER JOIN tickets t ON e.ticket_id = t.id
+            __FROM_CLAUSE__
             LEFT JOIN ticket_statuses ts ON ts.id = t.status_id
             LEFT JOIN ticket_priorities tp ON tp.id = t.priority_id
             LEFT JOIN users u ON u.id = t.user_id
             WHERE ";
 
-    // Look up by email ID or by ticket ID (gets the initial email for the ticket)
+    // 🔴 THE TWO LOOKUPS NEED DIFFERENT JOINS, and conflating them is a trap.
+    //
+    // By EMAIL id, an email certainly exists and may be any message on the
+    // thread, so the query is driven from `emails` exactly as it always was.
+    // Restricting that side to `is_initial = 1` would break every reply.
+    //
+    // By TICKET id, the ticket is the thing that must exist and the email is
+    // optional: a merge moves the emails to the surviving ticket, so a
+    // merged-away or otherwise email-less ticket has none. This used to be
+    // `FROM emails INNER JOIN tickets`, which meant such a ticket could not be
+    // opened by ANY route - it was missing from the inbox list and unreachable
+    // if you found it another way.
     if ($emailId) {
-        $sql .= "e.id = ?";
+        $from = "FROM emails e
+                 INNER JOIN tickets t ON t.id = e.ticket_id";
+        $where = "e.id = ?";
         $param = $emailId;
     } else {
-        $sql .= "e.ticket_id = ? AND e.is_initial = 1";
+        $from = "FROM tickets t
+                 LEFT JOIN emails e ON e.ticket_id = t.id AND e.is_initial = 1";
+        $where = "t.id = ?";
         $param = $ticketId;
     }
+    $sql = str_replace('__FROM_CLAUSE__', $from, $sql) . $where;
 
     $stmt = $conn->prepare($sql);
     $stmt->execute([$param]);

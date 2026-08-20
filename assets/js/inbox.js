@@ -2037,6 +2037,17 @@ function bulkProgressHtml() {
 
 // Select and display email by email ID
 async function selectEmail(emailId) {
+    // 🔑 A NEGATIVE ID IS A TICKET WITH NO EMAIL. get_emails.php sends
+    // COALESCE(le.id, -t.id), so the sign says which kind of thing the row is.
+    // Selection, drag and the highlight all work off this id unchanged; only
+    // the way the reading pane is loaded differs.
+    if (emailId < 0) {
+        selectedEmailIds  = new Set([emailId]);
+        selectionAnchorId = emailId;
+        selectionFocusId  = emailId;
+        setSelectedEmailRow(emailId);
+        return loadTicketById(-emailId);
+    }
     selectedEmailId = emailId;
     // Opening a single ticket collapses the selection to it, so the highlight,
     // the reading pane and what an action would hit can never disagree. Callers
@@ -2094,7 +2105,9 @@ async function loadTicketById(ticketId) {
         const data = await response.json();
 
         if (data.success) {
-            selectedEmailId = data.email.id;
+            // For a ticket with no email the row id is the negative ticket id,
+            // so keep using that or the highlight would clear itself.
+            selectedEmailId = data.email.id !== null ? data.email.id : -ticketId;
             renderEmailList();
             displayEmail(data.email, data.recordings || []);
         } else {

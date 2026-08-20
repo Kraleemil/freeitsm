@@ -47,15 +47,25 @@ try {
                 FROM emails e
             )
             SELECT
-                le.id,
-                le.from_address,
-                le.from_name,
-                le.received_datetime,
+                -- 🔑 A ROW STILL NEEDS A UNIQUE ID WHEN THERE IS NO EMAIL.
+                -- The inbox keys selection, drag and the reading pane off this.
+                -- Email ids are positive, so the negative ticket id can never
+                -- collide with one, and its sign is what tells the front end to
+                -- open the ticket directly instead of an email.
+                COALESCE(le.id, -t.id) AS id,
+                le.id AS email_id,
+                -- With no email there is no sender, so the row falls back to the
+                -- ticket's requester. A row showing a ticket number and then a
+                -- blank sender would be worse than the bug this fixes.
+                COALESCE(le.from_address, u.email) AS from_address,
+                COALESCE(le.from_name, u.display_name, u.username) AS from_name,
+                COALESCE(le.received_datetime, t.created_datetime) AS received_datetime,
                 le.body_preview,
-                le.is_read,
-                le.has_attachments,
+                -- No email means nothing to have left unread.
+                COALESCE(le.is_read, 1) AS is_read,
+                COALESCE(le.has_attachments, 0) AS has_attachments,
                 le.importance,
-                le.ticket_id,
+                t.id AS ticket_id,
                 t.ticket_number,
                 t.subject,
                 ts.name AS status,
@@ -73,12 +83,28 @@ try {
                 ts.colour AS status_colour,
                 aa.full_name AS assignee_name,
                 (SELECT COUNT(*) FROM emails WHERE ticket_id = t.id) as email_count
-            FROM LatestEmails le
-            INNER JOIN tickets t ON le.ticket_id = t.id
+            -- 🔴 DRIVEN FROM `tickets`, NOT FROM `emails`.
+            --
+            -- This used to be `FROM LatestEmails le INNER JOIN tickets t`, which
+            -- quietly made the inbox a list of EMAILS wearing a ticket's clothes:
+            -- a ticket with no email row was counted in every folder badge and
+            -- appeared in none of them, and could not be opened by any route.
+            -- The folder said 99 and the list showed 96.
+            --
+            -- A ticket with no email is not exotic. A merge moves the emails to
+            -- the surviving ticket; anything that removes the last email leaves
+            -- one behind. The inbox lists TICKETS, so tickets is what it reads.
+            FROM tickets t
+            LEFT JOIN LatestEmails le ON le.ticket_id = t.id AND le.rn = 1
             LEFT JOIN ticket_statuses ts ON ts.id = t.status_id
             LEFT JOIN ticket_priorities tp ON tp.id = t.priority_id
             LEFT JOIN analysts aa ON aa.id = t.assigned_analyst_id
-            WHERE le.rn = 1";
+            LEFT JOIN users u ON u.id = t.user_id
+            -- A merged-away ticket has been absorbed into another. It is kept, and
+            -- kept findable by number, but it is not sitting in a queue. The old
+            -- query dropped it only by accident (the merge took its emails); now
+            -- it is excluded deliberately, and the counts exclude it to match.
+            WHERE t.merged_into_id IS NULL";
 
     $params = [];
 
@@ -125,7 +151,7 @@ try {
     // that answers the question you open that folder to ask ("what's next?").
     $sql .= (!empty($_GET['snoozed']) && $snoozeReady)
         ? " ORDER BY t.snoozed_until ASC"
-        : " ORDER BY le.received_datetime DESC";
+        : " ORDER BY COALESCE(le.received_datetime, t.created_datetime) DESC";
 
     $stmt = $conn->prepare($sql);
     $stmt->execute($params);
