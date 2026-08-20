@@ -1198,6 +1198,20 @@ $translationNamespaces = ['common', 'asset-management'];
                         <?php echo htmlspecialchars(t('asset-management.settings.cf_field_in_list')); ?>
                     </label>
                 </div>
+                <?php /* Feeds ⌘K and the global search. Off by default and
+                         opt-in per field on purpose: quietly searching a
+                         free-text notes field would make half the estate match
+                         half the queries. */ ?>
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="cfFieldSearchable">
+                            <span class="toggle-slider"></span>
+                        </span>
+                        <?php echo htmlspecialchars(t('asset-management.settings.cf_field_searchable')); ?>
+                    </label>
+                    <div class="form-hint"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_searchable_hint')); ?></div>
+                </div>
                 <div class="form-group">
                     <label class="toggle-label">
                         <span class="toggle-switch">
@@ -2859,6 +2873,8 @@ $translationNamespaces = ['common', 'asset-management'];
             typeSel.value                                    = f ? f.field_type : 'text';
             document.getElementById('cfFieldHelp').value     = (f && f.help_text) || '';
             document.getElementById('cfFieldInList').checked = !!(f && f.show_in_list);
+            document.getElementById('cfFieldSearchable').checked = !!(f && f.is_searchable);
+
             document.getElementById('cfFieldUnique').checked = !!(f && f.is_unique);
 
             const cfg = (f && f.config) || {};
@@ -2972,6 +2988,8 @@ $translationNamespaces = ['common', 'asset-management'];
                 config:        config,
                 help_text:     document.getElementById('cfFieldHelp').value.trim(),
                 show_in_list:  document.getElementById('cfFieldInList').checked,
+                is_searchable: document.getElementById('cfFieldSearchable').checked,
+
                 is_unique:     document.getElementById('cfFieldUnique').checked
             };
             if (id) payload.id = id;

@@ -111,26 +111,93 @@ try {
         } catch (Exception $e) { /* table not ready — no CI results */ }
     }
 
-    // --- Assets: by hostname or service tag -----------------------------
+    // --- Assets: by hostname, service tag, or a searchable custom field --
+    //
+    // The custom-field half is a UNION rather than an OR against a join: a join
+    // would multiply the asset row by however many field values matched, and
+    // "MTG-TV-01" would appear three times in the palette.
+    //
+    // 🔑 Only fields ticked "include in search" are searched. The catalogue can
+    // hold anything, and quietly searching a free-text notes field would make
+    // half the estate match half the queries.
     if ($can('assets')) {
         try {
             [$tSql, $tArgs] = activeTenantFilter($conn, $analystId, 'a');
-            $sql = "SELECT a.id, a.hostname, a.service_tag
-                      FROM assets a
-                     WHERE (a.hostname LIKE ? OR a.service_tag LIKE ?)" . $tSql . "
-                     ORDER BY a.hostname
-                     LIMIT " . $perType;
-            $stmt = $conn->prepare($sql);
+
+            // Which fields opted in. Absent (or an install that has not run
+            // Database Verification) simply means no custom-field matching.
+            $searchable = [];
+            try {
+                $sf = $conn->query(
+                    "SELECT id, label FROM asset_fields WHERE is_deleted = 0 AND is_searchable = 1"
+                )->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($sf as $row) { $searchable[(int)$row['id']] = $row['label']; }
+            } catch (Exception $e) { /* schema not ready */ }
+
+            // ⚠️ TWO QUERIES, merged in PHP — NOT a UNION.
+            //
+            // A UNION of `NULL AS matched_value` against
+            // `COALESCE(value_text, CAST(value_number AS CHAR))` fails with
+            // "Illegal mix of collations": the CAST takes the connection's
+            // collation while the column has the table's. Fixable with an
+            // explicit COLLATE, but that hardcodes a collation name into a
+            // product that supports both MySQL and MariaDB. Two queries cost
+            // nothing here (both are indexed and capped) and cannot break that
+            // way at all.
+            $rows = [];
+
+            $stmt = $conn->prepare(
+                "SELECT a.id, a.hostname, a.service_tag, NULL AS matched_field, NULL AS matched_value
+                   FROM assets a
+                  WHERE (a.hostname LIKE ? OR a.service_tag LIKE ?)" . $tSql . "
+                  ORDER BY a.hostname LIMIT " . $perType
+            );
             $stmt->execute(array_merge([$like, $like], $tArgs));
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($searchable) {
+                $ph = implode(',', array_fill(0, count($searchable), '?'));
+                // value_text covers text / dropdown / url / email; a number is
+                // cast so "27" finds a 27-inch monitor. Dates and booleans are
+                // deliberately not matched — nobody types a date into ⌘K, and
+                // "yes" would match half the estate.
+                $fs = $conn->prepare(
+                    "SELECT a.id, a.hostname, a.service_tag, v.field_id AS matched_field,
+                            COALESCE(v.value_text, CAST(v.value_number AS CHAR)) AS matched_value
+                       FROM assets a
+                       JOIN asset_field_values v ON v.asset_id = a.id
+                      WHERE v.field_id IN ({$ph})
+                        AND (v.value_text LIKE ? OR CAST(v.value_number AS CHAR) LIKE ?)" . $tSql . "
+                      ORDER BY a.hostname LIMIT " . $perType
+                );
+                $fs->execute(array_merge(array_keys($searchable), [$like, $like], $tArgs));
+                // Hostname matches first, so they win the dedupe below — that is
+                // what somebody typing a hostname expects to see.
+                $rows = array_merge($rows, $fs->fetchAll(PDO::FETCH_ASSOC));
+            }
+
+            // One asset can match both ways; the first row for an id wins.
+            $seenAssets = [];
+            foreach ($rows as $r) {
+                $id = (int) $r['id'];
+                if (isset($seenAssets[$id])) {
+                    continue;
+                }
+                $seenAssets[$id] = true;
                 $tag = trim((string) ($r['service_tag'] ?? ''));
+                // Say WHY it matched when it was a custom field — otherwise a
+                // result appears with no visible connection to what was typed.
+                $subtitle = $tag;
+                if (!empty($r['matched_field']) && isset($searchable[(int)$r['matched_field']])) {
+                    $subtitle = $searchable[(int)$r['matched_field']] . ': ' . $r['matched_value'];
+                }
                 $results[] = [
                     'type'     => 'asset',
                     'module'   => 'assets',
-                    'id'       => (int) $r['id'],
+                    'id'       => $id,
                     'title'    => $r['hostname'],
-                    'subtitle' => $tag,
-                    'url'      => 'asset-management/?asset_id=' . (int) $r['id'],
+                    'subtitle' => $subtitle,
+                    'url'      => 'asset-management/?asset_id=' . $id,
                 ];
             }
         } catch (Exception $e) { /* table not ready — no asset results */ }
