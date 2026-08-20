@@ -219,14 +219,21 @@ class AssetImportService
 
         $core = [
             'hostname' => ['hostname', 'name', 'assetname', 'devicename', 'computername'],
+            // These three take a NAME in the file and are resolved to an id by
+            // resolveLookups(), so suggesting them is safe and is what anybody
+            // exporting from another system will actually have.
+            'asset_type_id' => ['type', 'assettype', 'category', 'kind'],
+            'asset_status_id' => ['status', 'assetstatus', 'state', 'condition'],
+            'location_id' => ['location', 'site', 'office', 'room', 'building'],
+            'supplier_id' => ['supplier', 'suppliedby', 'purchasedfrom'],   // NOT 'vendor' — in an asset export that almost always means the manufacturer, which is matched below
             'asset_tag' => ['assettag', 'tag', 'assetnumber', 'assetid'],
             'service_tag' => ['servicetag', 'serial', 'serialnumber', 'sn'],
             'manufacturer' => ['manufacturer', 'make', 'brand', 'vendor'],
             'model' => ['model', 'modelnumber', 'modelno'],
-            'purchase_date' => ['purchasedate', 'datepurchased', 'acquired'],
+            'purchase_date' => ['purchasedate', 'datepurchased', 'acquired', 'purchased', 'boughton'],
             'purchase_cost' => ['purchasecost', 'cost', 'price', 'value'],
             'order_number' => ['ordernumber', 'ponumber', 'po'],
-            'warranty_expiry' => ['warrantyexpiry', 'warranty', 'warrantyend', 'warrantyexpires'],
+            'warranty_expiry' => ['warrantyexpiry', 'warranty', 'warrantyend', 'warrantyends', 'warrantyexpires', 'warrantyuntil'],
         ];
 
         $fields = AssetFieldsService::catalogue($conn, $analystId);
@@ -379,6 +386,11 @@ class AssetImportService
     {
         [$core, $fields] = self::applyMapping($row, $mapping);
 
+        // A spreadsheet says "Printer", not "20". Resolved here rather than in
+        // AssetsService, whose id-only contract is the REST API's and should
+        // stay that way — the same split as translating its error messages.
+        $core = self::resolveLookups($conn, $core, $tenantId);
+
         // Defaults fill only what the row did not say.
         if (empty($core['asset_type_id']) && !empty($opts['default_asset_type_id'])) {
             $core['asset_type_id'] = (int)$opts['default_asset_type_id'];
@@ -411,6 +423,82 @@ class AssetImportService
             return self::applyUpdate($conn, $ctx, (int)$match['id'], $core, $fields, $opts, $ref, $name, $live);
         }
         return self::applyCreate($conn, $ctx, $core, $fields, $opts, $ref, $name, $tenantId, $live);
+    }
+
+    /**
+     * Turn the NAMES a spreadsheet contains into the ids the columns hold.
+     *
+     * 🔑 Nobody's export has FreeITSM's internal ids in it. Without this, the
+     * single most obvious mapping anybody would make — a "Type" column full of
+     * the words Printer, Monitor, Headset — fails on every row with
+     * "Unknown asset type id: Printer", which reads as a bug rather than as
+     * something the file is missing.
+     *
+     * ⚠️ An unknown NAME is an error, never an auto-create. Otherwise the first
+     * typo in a spreadsheet quietly invents an asset type called "Televsion"
+     * and nobody notices until the type list is a mess. It goes to the holding
+     * area instead, which is the whole point of having one.
+     *
+     * A numeric value is still accepted as an id, so an export from another
+     * FreeITSM keeps working.
+     */
+    private static function resolveLookups(PDO $conn, array $core, ?int $tenantId): array
+    {
+        $lookups = [
+            'asset_type_id'   => ['asset_types',        'asset type'],
+            'asset_status_id' => ['asset_status_types', 'asset status'],
+            'location_id'     => ['asset_locations',    'location'],
+            'supplier_id'     => ['suppliers',          'supplier'],
+        ];
+
+        foreach ($lookups as $col => [$table, $label]) {
+            if (!isset($core[$col]) || $core[$col] === '') {
+                continue;
+            }
+            $raw = trim((string)$core[$col]);
+            if (ctype_digit($raw)) {
+                continue;   // already an id; AssetsService will validate it
+            }
+
+            // Case-insensitive, and scoped to what this company can see —
+            // config lists are "global defaults + this company's own".
+            $sql = "SELECT id FROM {$table} WHERE LOWER(name) = LOWER(?)";
+            $params = [$raw];
+            if (self::hasTenantColumn($conn, $table)) {
+                $sql .= " AND (tenant_id IS NULL" . ($tenantId !== null ? " OR tenant_id = ?" : "") . ")";
+                if ($tenantId !== null) {
+                    $params[] = $tenantId;
+                }
+            }
+            // A company's own entry wins over a global default of the same name.
+            $sql .= self::hasTenantColumn($conn, $table) ? " ORDER BY tenant_id IS NULL LIMIT 1" : " LIMIT 1";
+
+            $stmt = $conn->prepare($sql);
+            $stmt->execute($params);
+            $id = $stmt->fetchColumn();
+
+            if ($id === false) {
+                throw new ServiceError('validation', 'invalid_field',
+                    "No {$label} called \"{$raw}\". Create it first, or map that column to nothing.");
+            }
+            $core[$col] = (int)$id;
+        }
+        return $core;
+    }
+
+    /** Not every lookup table is company-scoped (suppliers may not be). */
+    private static function hasTenantColumn(PDO $conn, string $table): bool
+    {
+        static $cache = [];
+        if (!isset($cache[$table])) {
+            try {
+                $conn->query("SELECT tenant_id FROM {$table} LIMIT 1");
+                $cache[$table] = true;
+            } catch (Exception $e) {
+                $cache[$table] = false;
+            }
+        }
+        return $cache[$table];
     }
 
     /** Split a source row into core columns and custom field values. */

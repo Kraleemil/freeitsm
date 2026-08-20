@@ -255,6 +255,44 @@ try {
     $notes->execute([$a1]);
     ok('the unmapped Notes column went nowhere', (int)$notes->fetchColumn() === 0);
 
+    // ================================================================
+    echo "\n--- 🔑 a spreadsheet says \"Printer\", not \"20\" ---\n";
+    // ================================================================
+
+    $byName = csvRows($tmp, "Name,Type\nZZIMP-20,zzimp Television\n");
+    $nmap   = ['Name' => ['target_kind' => 'core', 'target_key' => 'hostname'],
+               'Type' => ['target_kind' => 'core', 'target_key' => 'asset_type_id']];
+    $rn = AssetImportService::run($conn, $ctx, $byName['rows'], $nmap,
+                                  ['match_keys' => ['hostname'], 'source_name' => 'zzimp-name.csv'], 'live');
+    ok('an asset TYPE given by name is resolved', $rn['created_count'] === 1, json_encode($rn));
+    $t20 = (int)$conn->query("SELECT asset_type_id FROM assets WHERE hostname='ZZIMP-20'")->fetchColumn();
+    ok('...to the right id', $t20 === $typeId, "got {$t20} want {$typeId}");
+
+    $caseless = csvRows($tmp, "Name,Type\nZZIMP-21,ZZIMP TELEVISION\n");
+    $rc = AssetImportService::run($conn, $ctx, $caseless['rows'], $nmap,
+                                  ['match_keys' => ['hostname'], 'source_name' => 'zzimp-case.csv'], 'live');
+    ok('matching a name ignores case', $rc['created_count'] === 1, json_encode($rc));
+
+    // ⚠️ The important half: an unknown name must NOT quietly create a type.
+    $typo = csvRows($tmp, "Name,Type\nZZIMP-22,Televsion\n");
+    $rt = AssetImportService::run($conn, $ctx, $typo['rows'], $nmap,
+                                  ['match_keys' => ['hostname'], 'source_name' => 'zzimp-typo.csv'], 'live');
+    ok('a TYPO in a type name is an error, not a new type', $rt['error_count'] === 1, json_encode($rt));
+    $invented = (int)$conn->query("SELECT COUNT(*) FROM asset_types WHERE name='Televsion'")->fetchColumn();
+    ok('...and no type called "Televsion" was invented', $invented === 0, "found {$invented}");
+    $held2 = AssetImportService::unresolved($conn);
+    $typoRow = null;
+    foreach ($held2 as $h) { if (($h['display_name'] ?? '') === 'ZZIMP-22') { $typoRow = $h; break; } }
+    ok('...and it says exactly what is missing',
+        $typoRow && strpos($typoRow['detail'], 'No asset type called "Televsion"') !== false,
+        $typoRow['detail'] ?? 'not parked');
+
+    $numeric = csvRows($tmp, "Name,Type\nZZIMP-23,{$typeId}\n");
+    $rnum = AssetImportService::run($conn, $ctx, $numeric['rows'], $nmap,
+                                   ['match_keys' => ['hostname'], 'source_name' => 'zzimp-num.csv'], 'live');
+    ok('a numeric id still works (an export from another FreeITSM)',
+        $rnum['created_count'] === 1, json_encode($rnum));
+
     echo "\n--- suggestions ---\n";
     $sug = AssetImportService::suggestMapping($conn, ['Hostname', 'Serial Number', 'zzimp Screen size', 'Wibble'], 1);
     ok('a core column is suggested', ($sug['Hostname']['target_key'] ?? null) === 'hostname', json_encode($sug['Hostname'] ?? null));
