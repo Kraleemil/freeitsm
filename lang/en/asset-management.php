@@ -208,6 +208,9 @@ return [
         'name_required'     => 'An asset needs a name.',
         // ⚠️ Plain characters, not entities — this goes to confirm().
         'rename_reported_confirm' => "This asset reports in automatically, and it is recognised by its name.\n\nRenaming it here means the next report will not find it and will create a second, duplicate record. Rename it on the machine itself instead.\n\nRename it anyway?",
+        // The import twin. Ends with the actual fix rather than just a warning:
+        // a second match key makes renaming safe for good.
+        'rename_imported_confirm' => "This asset came from an import.\n\nIf the same file is imported again with the old name in it, this asset will not be found and a second, duplicate record will be created.\n\nTwo ways to avoid that: change the name in the spreadsheet as well, or tick a serial number or asset tag as a second \"what identifies a row\" column on the import, so it is still recognised after a rename.\n\nRename it anyway?",
 
         // Custom fields on the asset itself. (Detail section keys follow.)
         'cf_heading'        => 'Other details',

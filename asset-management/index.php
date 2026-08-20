@@ -2011,8 +2011,26 @@ $translationNamespaces = ['common', 'asset-management'];
                     el.value = selectedAsset.hostname || '';
                     return;
                 }
-                if (value !== (selectedAsset.hostname || '') && assetLooksReported(selectedAsset)) {
-                    if (!confirm(window.t('asset-management.detail.rename_reported_confirm'))) {
+                // 🔑 TWO ways an asset can be recognised by its name, and both
+                // break the same way when it is renamed here.
+                //
+                // The agent upserts on the name, so a renamed machine is not
+                // recognised by its next report. An IMPORT matches on whatever
+                // its match keys are, so a renamed asset is not found by the
+                // next import of the same file. Either way you get a second,
+                // duplicate record.
+                //
+                // The import case had no warning at all until #1144, because an
+                // imported television has none of the hardware data that flags
+                // an agent asset — the more dangerous half was the silent one.
+                if (value !== (selectedAsset.hostname || '')) {
+                    let warning = null;
+                    if (assetLooksReported(selectedAsset)) {
+                        warning = window.t('asset-management.detail.rename_reported_confirm');
+                    } else if (selectedAsset.from_import) {
+                        warning = window.t('asset-management.detail.rename_imported_confirm');
+                    }
+                    if (warning && !confirm(warning)) {
                         el.value = selectedAsset.hostname || '';
                         return;
                     }

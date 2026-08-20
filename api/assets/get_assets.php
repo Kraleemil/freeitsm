@@ -200,6 +200,36 @@ try {
         unset($a);
     }
 
+    // Which assets have ever been touched by a live import.
+    //
+    // Drives the rename warning (#1144): an imported asset is recognised by
+    // whatever the import matches on, so renaming one here means the next
+    // import of the same file will not find it and creates a SECOND record —
+    // the same failure as renaming an agent-reported machine, and previously
+    // with no warning at all because an imported television has none of the
+    // hardware data that flags an agent asset.
+    //
+    // ONE query for the whole list, as a set — not a per-row lookup.
+    try {
+        $importedIds = $conn->query(
+            "SELECT DISTINCT e.asset_id
+               FROM asset_import_run_entries e
+               JOIN asset_import_runs r ON r.id = e.run_id
+              WHERE r.mode = 'live' AND e.asset_id IS NOT NULL"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        if ($importedIds) {
+            $importedIds = array_flip(array_map('intval', $importedIds));
+            foreach ($assets as &$a) {
+                if (isset($importedIds[(int)$a['id']])) {
+                    $a['from_import'] = true;
+                }
+            }
+            unset($a);
+        }
+    } catch (Exception $e) {
+        // Import tables not present on this install — no flag, no warning.
+    }
+
     // Custom field values for the fields offered as columns
     // (docs/design/flexible-asset-fields.md §8).
     //
