@@ -206,6 +206,8 @@ return [
         'saved'             => 'Saved.',
         'save_failed'       => 'Could not save that.',
         'name_required'     => 'An asset needs a name.',
+        'rename_title'      => 'Rename this asset?',
+        'rename_ok'         => 'Rename',
         // ⚠️ Plain characters, not entities — this goes to confirm().
         'rename_reported_confirm' => "This asset reports in automatically, and it is recognised by its name.\n\nRenaming it here means the next report will not find it and will create a second, duplicate record. Rename it on the machine itself instead.\n\nRename it anyway?",
         // The import twin. Ends with the actual fix rather than just a warning:

@@ -2030,7 +2030,16 @@ $translationNamespaces = ['common', 'asset-management'];
                     } else if (selectedAsset.from_import) {
                         warning = window.t('asset-management.detail.rename_imported_confirm');
                     }
-                    if (warning && !confirm(warning)) {
+                    // ⚠️ The SHARED confirm, not the browser's. showConfirm takes
+                    // an options OBJECT and returns a promise; its body is a <p>
+                    // with white-space: pre-wrap, so the blank lines in these
+                    // messages survive.
+                    if (warning && !(await showConfirm({
+                        title:    window.t('asset-management.detail.rename_title'),
+                        message:  warning,
+                        okLabel:  window.t('asset-management.detail.rename_ok'),
+                        okClass:  'danger'
+                    }))) {
                         el.value = selectedAsset.hostname || '';
                         return;
                     }
@@ -2462,7 +2471,12 @@ $translationNamespaces = ['common', 'asset-management'];
 
         async function cfRemoveSet(setId) {
             const set = cfState.sets.find(s => s.id === setId);
-            if (set && !confirm(cfd('cf_remove_confirm', { name: set.name }))) return;
+            if (set && !(await showConfirm({
+                title:   cfd('cf_remove_set'),
+                message: cfd('cf_remove_confirm', { name: set.name }),
+                okLabel: cfd('cf_remove_set'),
+                okClass: 'danger'
+            }))) return;
             await cfSetMembership(setId, 'detach');
         }
 

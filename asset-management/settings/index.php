@@ -3073,7 +3073,12 @@ $translationNamespaces = ['common', 'asset-management'];
             if (!f) return;
             // The wording says the values are KEPT, because that is the fact
             // that decides whether somebody dares press the button.
-            if (!confirm(cfT('cf_retire_confirm', { name: f.label }))) return;
+            if (!(await showConfirm({
+                title:   cfT('cf_retire'),
+                message: cfT('cf_retire_confirm', { name: f.label }),
+                okLabel: cfT('cf_retire'),
+                okClass: 'danger'
+            }))) return;
             try {
                 const res  = await fetch(API_BASE + 'delete_asset_field.php', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3162,7 +3167,12 @@ $translationNamespaces = ['common', 'asset-management'];
         async function cfDeleteSet(id) {
             const s = cfData.sets.find(x => x.id === id);
             if (!s) return;
-            if (!confirm(cfT('cf_set_delete_confirm', { name: s.name }))) return;
+            if (!(await showConfirm({
+                title:   window.t('asset-management.common.delete'),
+                message: cfT('cf_set_delete_confirm', { name: s.name }),
+                okLabel: window.t('asset-management.common.delete'),
+                okClass: 'danger'
+            }))) return;
             try {
                 const res  = await fetch(API_BASE + 'delete_asset_field_set.php', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
