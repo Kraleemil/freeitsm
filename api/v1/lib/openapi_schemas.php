@@ -260,13 +260,24 @@ return array (
           'format' => 'date-time',
           'nullable' => true,
         ),
-        'last_boot_at' => 
+        'last_boot_at' =>
         array (
           'type' => 'string',
           'format' => 'date-time',
           'nullable' => true,
         ),
-        'assigned_users' => 
+        // Custom asset fields. Keyed by the field's stable key; the value's type
+        // follows the field's own type (string / number / boolean / date, or an
+        // integer id for a link field). A field the asset does not carry is
+        // ABSENT rather than null, so "not recorded" stays distinguishable from
+        // "recorded as no". An asset with none returns {}.
+        'fields' =>
+        array (
+          'type' => 'object',
+          'description' => 'Custom field values, keyed by field key. Absent keys mean the field is not recorded on this asset.',
+          'additionalProperties' => true,
+        ),
+        'assigned_users' =>
         array (
           'type' => 'array',
           'items' => 

@@ -200,6 +200,61 @@ try {
         unset($a);
     }
 
+    // Custom field values for the fields offered as columns
+    // (docs/design/flexible-asset-fields.md §8).
+    //
+    // ⚠️ ONE query for the whole list, not one per asset. 566 assets must cost
+    // one extra round trip, which is why TypedFields::readValues() takes a list
+    // of ids and has no per-owner variant.
+    //
+    // 🔑 Only the fields ticked "offer as a column" are fetched — and a value is
+    // written onto the row only if it EXISTS. A field left blank stays absent
+    // rather than becoming '' or 0, so the table can still tell "not set" apart
+    // from "no" or "zero".
+    require_once '../../includes/services/asset_fields.php';
+    // A yes/no field is sent as the WORD the column filter will group on, so
+    // t() is needed here. API endpoints do not bootstrap it (that is a PHP
+    // fatal served as HTTP 200 if you forget), so it is loaded explicitly —
+    // same as api/assets/email_handover.php.
+    require_once '../../includes/i18n.php';
+    I18n::initFromSession();
+    if ($assets && AssetFieldsService::schemaReady($conn)) {
+        $listFields = [];
+        foreach (AssetFieldsService::catalogue($conn, (int)$_SESSION['analyst_id']) as $f) {
+            if (!empty($f['show_in_list'])) {
+                $listFields[$f['field_key']] = [
+                    'id'       => (int)$f['id'],
+                    'key'      => $f['field_key'],
+                    'label'    => $f['label'],
+                    'type'     => $f['field_type'],
+                    'required' => false,
+                    'config'   => $f['config'] ? (json_decode($f['config'], true) ?: []) : [],
+                    'ref_kind' => null,
+                ];
+            }
+        }
+        if ($listFields) {
+            $ids    = array_map(static fn($a) => (int)$a['id'], $assets);
+            $values = AssetFieldsService::readForAssets($conn, $ids, $listFields);
+            foreach ($assets as &$a) {
+                $vals = $values[(int)$a['id']] ?? [];
+                foreach ($listFields as $key => $def) {
+                    if (!array_key_exists($key, $vals)) {
+                        continue;   // absent means NOT SET; see above
+                    }
+                    $v = $vals[$key];
+                    // Booleans become the words the column filter will show, so
+                    // "Yes"/"No"/(blank) are three distinguishable buckets.
+                    if ($def['type'] === 'boolean') {
+                        $v = $v ? t('asset-management.common.yes') : t('asset-management.common.no');
+                    }
+                    $a['cf_' . $key] = $v;
+                }
+            }
+            unset($a);
+        }
+    }
+
     echo json_encode([
         'success' => true,
         'assets' => $assets,

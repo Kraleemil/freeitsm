@@ -124,7 +124,47 @@ function apiSerializeAsset(PDO $conn, array $r): array {
         'first_seen'   => apiIsoDate($r['first_seen']),
         'last_seen'    => apiIsoDate($r['last_seen']),
         'last_boot_at' => apiIsoDate($r['last_boot_utc']),
+        // Custom fields (docs/design/flexible-asset-fields.md §8).
+        //
+        // ⚠️ ADDITIVE ONLY. Everything above is a published contract, so this
+        // arrives as a new object and nothing existing moves or changes shape.
+        //
+        // 🔑 Keyed by field_key, and a field the asset does not carry is simply
+        // ABSENT — never null, never a default. A consumer must be able to tell
+        // "not recorded" from "recorded as no", which is the same rule the UI
+        // follows. An asset with no custom fields returns {}.
+        // ⚠️ Cast HERE, not inside the function: an empty PHP array encodes as
+        // `[]`, and `"fields": []` is a different shape from `"fields": {}` to
+        // every strongly-typed client. (The cast cannot live in the function —
+        // it is declared `: array`, and returning stdClass from it is a fatal.)
+        'fields' => (object)apiAssetCustomFields($conn, (int)$r['id'],
+                                         $r['asset_type_id'] !== null ? (int)$r['asset_type_id'] : null),
     ];
+}
+
+/**
+ * Custom field values for one asset, as { field_key: value }.
+ *
+ * ⚠️ Per-asset, because the serializer is per-asset — so a LIST endpoint pays
+ * one query per row. Acceptable at the page sizes this API returns, and the
+ * batched reader (AssetFieldsService::readForAssets) is there for when it is
+ * not. Flagged rather than hidden: if list latency ever matters, this is the
+ * line to change.
+ */
+function apiAssetCustomFields(PDO $conn, int $assetId, ?int $assetTypeId): array {
+    static $ready = null;
+    if ($ready === null) {
+        require_once dirname(__DIR__, 3) . '/includes/services/asset_fields.php';
+        $ready = AssetFieldsService::schemaReady($conn);
+    }
+    if (!$ready) {
+        return [];
+    }
+    $defs = AssetFieldsService::fieldsForAsset($conn, $assetId, $assetTypeId);
+    if (!$defs) {
+        return [];
+    }
+    return AssetFieldsService::valuesForAsset($conn, $assetId, $defs);
 }
 
 /**

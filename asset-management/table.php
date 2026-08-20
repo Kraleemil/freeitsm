@@ -27,6 +27,43 @@ $current_page = 'table';
 $path_prefix = '../';
 $dtShowPdf = true;
 $translationNamespaces = ['common', 'asset-management'];
+
+/**
+ * Custom field columns, resolved SERVER-SIDE and handed to asset-table.js as a
+ * global.
+ *
+ * ⚠️ Not fetched by the JS, deliberately. createDataTable() hangs its boot off
+ * DOMContentLoaded, so awaiting anything before calling it means the event has
+ * already fired and the table never builds at all. Rendering the descriptors
+ * with the page removes the race entirely and saves a round trip.
+ *
+ * Only fields ticked "offer as a column" appear — the catalogue could be large,
+ * and a table with forty columns nobody asked for is worse than one with none.
+ */
+require_once '../includes/services/asset_fields.php';
+$assetCustomColumns = [];
+try {
+    $cfConn = connectToDatabase();
+    if (AssetFieldsService::schemaReady($cfConn)) {
+        foreach (AssetFieldsService::catalogue($cfConn, (int)$_SESSION['analyst_id']) as $f) {
+            if (empty($f['show_in_list'])) {
+                continue;
+            }
+            $assetCustomColumns[] = [
+                // 🔑 Prefixed, so a custom field called "model" can never collide
+                // with the built-in column of the same name.
+                'key'   => 'cf_' . $f['field_key'],
+                'label' => $f['label'],
+                // The shared engine sorts and filters by these three only.
+                'type'  => in_array($f['field_type'], ['number'], true) ? 'number'
+                           : ($f['field_type'] === 'date' ? 'date' : 'string'),
+            ];
+        }
+    }
+} catch (Exception $e) {
+    // A table with no custom columns beats no table at all.
+    $assetCustomColumns = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
@@ -56,8 +93,9 @@ $translationNamespaces = ['common', 'asset-management'];
         <?php include '../includes/data-table-skeleton.php'; ?>
     </div>
 
-    <script src="../assets/js/data-table.js?v=2"></script>
-    <script src="../assets/js/asset-table.js?v=4"></script>
+    <script>window.assetCustomColumns = <?php echo json_encode($assetCustomColumns, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
+    <script src="../assets/js/data-table.js?v=3"></script>
+    <script src="../assets/js/asset-table.js?v=5"></script>
     <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
     <script src="../assets/js/mobile.js?v=22"></script>
 </body>

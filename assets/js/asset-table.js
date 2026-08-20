@@ -34,6 +34,28 @@
         { key: 'warranty_expiry',   label: tt('field.warranty_expiry'),     type: 'date',   defaultVisible: false, defaultOrder: 18 },
     ];
 
+    /**
+     * Custom field columns (docs/design/flexible-asset-fields.md §8).
+     *
+     * Handed over by table.php as a global rather than fetched here: the shared
+     * engine boots on DOMContentLoaded, so an await before createDataTable()
+     * would mean the event had already fired and the table never built.
+     *
+     * Hidden by default. Somebody who ticked "offer as a column" said it should
+     * be AVAILABLE, not that everybody should have it forced on — the column
+     * picker is where it gets turned on, and each analyst's choice is already
+     * remembered.
+     */
+    (window.assetCustomColumns || []).forEach((c, i) => {
+        COLUMNS.push({
+            key: c.key,
+            label: c.label,
+            type: c.type,
+            defaultVisible: false,
+            defaultOrder: 100 + i,   // after every built-in, whatever gets added later
+        });
+    });
+
     createDataTable({
         accent: '#0078d4',
         prefApi: '../api/system/',
