@@ -1028,6 +1028,9 @@ CREATE TABLE IF NOT EXISTS `tenants` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `name`              VARCHAR(150) NOT NULL,
     `slug`              VARCHAR(100) NULL,
+    -- Short code standing in for this company in a ticket number ({COMPANY}).
+    -- NULL means one is derived from the name.
+    `ticket_code`       VARCHAR(12) NULL,
     `is_default`        TINYINT(1) NOT NULL DEFAULT 0,
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

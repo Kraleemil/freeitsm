@@ -196,6 +196,65 @@ try {
     ok('...and moves no counter', $before === $after, "{$before} -> {$after}");
 
     // ================================================================
+    echo "\n--- the company code behind {COMPANY} ---\n";
+    // ================================================================
+
+    ok('a code that was typed wins',
+        TicketNumbering::codeFor(['name' => 'Acme Ltd', 'slug' => 'acme-limited', 'ticket_code' => 'ACM1']) === 'ACM1');
+    ok('...then the slug',
+        TicketNumbering::codeFor(['name' => 'Acme Ltd', 'slug' => 'acme-limited', 'ticket_code' => null]) === 'ACMELIMITED');
+    ok('...then the name, three letters',
+        TicketNumbering::codeFor(['name' => 'Acme Ltd', 'slug' => null, 'ticket_code' => null]) === 'ACM');
+    ok('an empty code is not a code',
+        TicketNumbering::codeFor(['name' => 'Acme Ltd', 'slug' => null, 'ticket_code' => '   ']) === 'ACM');
+    ok('a name with no letters gives nothing rather than nonsense',
+        TicketNumbering::codeFor(['name' => '123 456', 'slug' => null, 'ticket_code' => null]) === '');
+
+    ok('a code is upper-cased and stripped', TicketNumbering::cleanCode('ed-moz 99!') === 'EDMOZ99',
+        TicketNumbering::cleanCode('ed-moz 99!'));
+    ok('a code is capped at twelve', TicketNumbering::cleanCode(str_repeat('A', 30)) === str_repeat('A', 12));
+
+    // 🔴 THE WHOLE POINT. Two companies sharing a code means two companies
+    // producing the same ticket numbers under per-company counting, and
+    // ticket_number is unique across the entire install.
+    $clashRows = [
+        ['name' => 'Acme Ltd',    'slug' => null, 'ticket_code' => null],
+        ['name' => 'Acme Group',  'slug' => null, 'ticket_code' => null],
+        ['name' => 'Beta Ltd',    'slug' => null, 'ticket_code' => null],
+    ];
+    $codes = array_map(fn($r) => TicketNumbering::codeFor($r), $clashRows);
+    ok('two similarly-named companies DO derive the same code',
+        $codes[0] === $codes[1] && $codes[0] !== $codes[2], json_encode($codes));
+    ok('...and an explicit code separates them',
+        TicketNumbering::codeFor(['name' => 'Acme Group', 'slug' => null, 'ticket_code' => 'ACG']) !== $codes[0]);
+
+    // codeClashes() against the real table: it must agree with itself, whatever
+    // this install happens to contain.
+    $clashes = TicketNumbering::codeClashes($conn);
+    $seen = [];
+    $dupFound = false;
+    foreach ($conn->query("SELECT id, name, slug, ticket_code FROM tenants WHERE is_active = 1") as $t) {
+        $c = TicketNumbering::codeFor($t);
+        if (isset($seen[$c])) $dupFound = true;
+        $seen[$c] = true;
+    }
+    ok('codeClashes agrees with the codes it derives',
+        $dupFound === (count($clashes) > 0) || array_key_exists('', $clashes),
+        json_encode(array_keys($clashes)));
+
+    // 🔑 A format carrying {COMPANY} renders the company's code, and a company
+    // that does not exist renders nothing rather than an id.
+    $realTenant = (int)$conn->query("SELECT id FROM tenants ORDER BY id LIMIT 1")->fetchColumn();
+    $realCode   = TicketNumbering::codeFor(
+        $conn->query("SELECT name, slug, ticket_code FROM tenants WHERE id = {$realTenant}")->fetch(PDO::FETCH_ASSOC)
+    );
+    ok('{COMPANY} renders the code',
+        TicketNumbering::render('ZZNUM{COMPANY}-{####}', 1, $conn, null, null, $realTenant) === "ZZNUM{$realCode}-0001",
+        TicketNumbering::render('ZZNUM{COMPANY}-{####}', 1, $conn, null, null, $realTenant));
+    ok('a company that is not there renders nothing, not an id',
+        TicketNumbering::render('ZZNUM{COMPANY}-{####}', 1, $conn, null, null, 999999) === 'ZZNUM-0001');
+
+    // ================================================================
     echo "\n--- planning a renumber (writes nothing) ---\n";
     // ================================================================
     //

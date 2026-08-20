@@ -127,6 +127,8 @@ class TicketNumbering
     public static function next(PDO $conn, ?int $ticketTypeId = null, ?int $tenantId = null): string
     {
         $cfg = self::config($conn);
+        // NULL means the default company, not "no company" — see resolveTenant().
+        $tenantId = self::resolveTenant($conn, $tenantId);
 
         if (($cfg['ticket_number_style'] ?? 'random') === 'random') {
             return self::randomNumber($conn);
@@ -219,12 +221,51 @@ class TicketNumbering
         return substr($clean, 0, 3);
     }
 
+
+    /**
+     * A ticket's company, with NULL read as what it actually means.
+     *
+     * 🔴 A NULL `tenant_id` DOES NOT MEAN "no company". Throughout FreeITSM it
+     * means the DEFAULT company — the silent one a single-company install never
+     * sees. Ed's own install has 16 tickets stored that way alongside 84 stored
+     * with the default company's real id, because the two have been written by
+     * different code paths over the years.
+     *
+     * Left unresolved, those 16 would draw from a counter of their own AND
+     * render {COMPANY} as nothing, so per-company numbering would produce
+     * "-00001" for them while their neighbours got "DEF-00001". Resolving here,
+     * once, at the two places a number is decided, is what keeps the two halves
+     * of the same company on the same sequence.
+     */
+    public static function resolveTenant(?PDO $conn, ?int $tenantId): ?int
+    {
+        if ($tenantId !== null || !$conn) {
+            return $tenantId;
+        }
+        static $defaultId = false;          // false = not looked up yet
+        if ($defaultId === false) {
+            try {
+                $id = $conn->query("SELECT id FROM tenants WHERE is_default = 1 LIMIT 1")->fetchColumn();
+                $defaultId = ($id === false) ? null : (int)$id;
+            } catch (Exception $e) {
+                $defaultId = null;          // no tenancy tables — single company, nothing to resolve
+            }
+        }
+        return $defaultId;
+    }
     /**
      * A short code for a company, for {COMPANY}.
      *
-     * Prefers the slug an administrator has already chosen over anything
-     * derived, so the code in a ticket number matches the one they see
-     * everywhere else. Falls back to the name the same way {TYPE} does.
+     * 🔑 THE CODE IS SET, NOT GUESSED. `tenants.ticket_code` is what an
+     * administrator typed and can see; only when it is empty does FreeITSM
+     * derive one, so an install that never thinks about this still gets
+     * something sensible.
+     *
+     * ⚠️ A DERIVED CODE CAN COLLIDE. "Acme Ltd" and "Acme Group" both derive
+     * ACM, and under per-company counting that means two companies producing
+     * the same ticket numbers. Deriving is a convenience, never a guarantee —
+     * codeClashes() is what proves an install is safe, and the numbering screen
+     * refuses per-company counting until it is.
      */
     private static function companyCode(?PDO $conn, ?int $tenantId): string
     {
@@ -232,18 +273,84 @@ class TicketNumbering
             return '';
         }
         try {
-            $stmt = $conn->prepare("SELECT name, slug FROM tenants WHERE id = ?");
+            $stmt = $conn->prepare("SELECT name, slug, ticket_code FROM tenants WHERE id = ?");
             $stmt->execute([$tenantId]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
         } catch (Exception $e) {
-            return '';
+            // An install that has not run db_verify since this column arrived.
+            // Fall back rather than break every ticket number on the install.
+            try {
+                $stmt = $conn->prepare("SELECT name, slug FROM tenants WHERE id = ?");
+                $stmt->execute([$tenantId]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+            } catch (Exception $e2) {
+                return '';
+            }
         }
-        $slug = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($row['slug'] ?? '')));
+        return self::codeFor($row);
+    }
+
+    /**
+     * The effective code for a company row — what {COMPANY} would render.
+     *
+     * Separate from companyCode() so the settings screen can show somebody the
+     * code they are about to get before anything is saved, using the very same
+     * rule that will be applied for real.
+     */
+    public static function codeFor(array $tenant): string
+    {
+        $explicit = self::cleanCode((string)($tenant['ticket_code'] ?? ''));
+        if ($explicit !== '') {
+            return $explicit;
+        }
+        // A slug is close enough to a chosen name to beat anything derived.
+        $slug = self::cleanCode((string)($tenant['slug'] ?? ''));
         if ($slug !== '') {
-            return substr($slug, 0, 12);
+            return $slug;
         }
-        $clean = strtoupper(preg_replace('/[^A-Za-z]/', '', (string)($row['name'] ?? '')));
+        $clean = strtoupper(preg_replace('/[^A-Za-z]/', '', (string)($tenant['name'] ?? '')));
         return substr($clean, 0, 3);
+    }
+
+    /** Letters and digits, upper case, at most 12 — the shape a code may take. */
+    public static function cleanCode(string $raw): string
+    {
+        return substr(strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $raw)), 0, 12);
+    }
+
+    /**
+     * Companies that would produce the SAME ticket numbers as each other.
+     *
+     * 🔴 Two companies sharing a code is not a cosmetic problem under
+     * per-company counting: each counts from 1, both render the same string,
+     * and `tickets.ticket_number` is unique across the whole install — so the
+     * second company's tickets would burn numbers climbing over the first
+     * company's, and the sequence people were promised would be a fiction.
+     *
+     * @return array<string, string[]> code => company names sharing it
+     */
+    public static function codeClashes(PDO $conn): array
+    {
+        try {
+            $rows = $conn->query("SELECT id, name, slug, ticket_code FROM tenants WHERE is_active = 1")
+                         ->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            return [];
+        }
+        $byCode = [];
+        foreach ($rows as $r) {
+            $code = self::codeFor($r);
+            // A company with no usable code at all (a name of digits, say) is
+            // its own kind of problem and is reported under an empty key.
+            $byCode[$code][] = (string)$r['name'];
+        }
+        $clashes = [];
+        foreach ($byCode as $code => $names) {
+            if (count($names) > 1 || $code === '') {
+                $clashes[$code] = $names;
+            }
+        }
+        return $clashes;
     }
 
     /**
@@ -508,7 +615,9 @@ class TicketNumbering
 
         foreach ($rows as $r) {
             $typeId   = $r['ticket_type_id'] !== null ? (int)$r['ticket_type_id'] : null;
-            $tenantId = $r['tenant_id']      !== null ? (int)$r['tenant_id']      : null;
+            // NULL means the default company — resolved here so the two ways a
+            // default-company ticket has been stored land on ONE sequence.
+            $tenantId = self::resolveTenant($conn, $r["tenant_id"] !== null ? (int)$r["tenant_id"] : null);
 
             // ⚠️ The ticket's OWN date, not today's, for both the counter it
             // draws from and the year in its number. A 2024 ticket must not come

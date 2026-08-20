@@ -172,6 +172,7 @@ $translationNamespaces = ['common', 'system'];
                     <tr>
                         <th><?php echo htmlspecialchars(t('system.companies.col_name')); ?></th>
                         <th><?php echo htmlspecialchars(t('system.companies.col_domains')); ?></th>
+                        <th id="codeColHead" style="display:none;"><?php echo htmlspecialchars(t('system.companies.col_ticket_code')); ?></th>
                         <th><?php echo htmlspecialchars(t('system.companies.col_status')); ?></th>
                         <th style="text-align:right;"><?php echo htmlspecialchars(t('system.companies.col_actions')); ?></th>
                     </tr>
@@ -211,6 +212,17 @@ $translationNamespaces = ['common', 'system'];
                     <label><?php echo htmlspecialchars(t('system.companies.field_name')); ?></label>
                     <div class="hint"><?php echo htmlspecialchars(t('system.companies.field_name_hint')); ?></div>
                     <input type="text" id="fName" placeholder="<?php echo htmlspecialchars(t('system.companies.field_name_placeholder')); ?>">
+                </div>
+                <?php /* The short code that stands in for this company in a ticket
+                         number. Shown only when it can matter — one company means
+                         {COMPANY} has nothing to distinguish. */ ?>
+                <div class="form-field" id="ticketCodeSection" style="display: none;">
+                    <label><?php echo htmlspecialchars(t('system.companies.field_code')); ?></label>
+                    <div class="hint"><?php echo htmlspecialchars(t('system.companies.field_code_hint')); ?></div>
+                    <input type="text" id="fCode" maxlength="12" autocomplete="off" spellcheck="false"
+                           style="text-transform: uppercase; max-width: 200px;"
+                           placeholder="<?php echo htmlspecialchars(t('system.companies.field_code_placeholder')); ?>">
+                    <div class="hint" id="codeDerivedHint" style="margin-top:6px;"></div>
                 </div>
                 <div class="checkbox-field">
                     <input type="checkbox" id="fActive" checked>
@@ -290,21 +302,79 @@ $translationNamespaces = ['common', 'system'];
         return domains.map(d => '<span class="domain-chip">' + esc(d) + '</span>').join('');
     }
 
+    /** Whether the ticket code is worth showing at all. One company means
+        {COMPANY} has nothing to tell apart, so the column and the field stay out
+        of the way entirely. Adding a company counts, because that is the moment
+        it starts to matter. */
+    function codeRelevant(adding) { return companies.length > 1 || !!adding; }
+
+    /** Companies whose effective code is shared with another — the thing that
+        would quietly break per-company numbering. Worked out here as well as on
+        the server so the list can mark them without a round trip. */
+    function clashingCodes() {
+        const seen = {}, clash = {};
+        companies.forEach(c => {
+            const code = (c.effective_ticket_code || '');
+            if (seen[code]) clash[code] = true;
+            seen[code] = true;
+        });
+        return clash;
+    }
+
     function renderCompanies() {
         const body = document.getElementById('companiesBody');
+        const showCode = codeRelevant(false);
+        document.getElementById('codeColHead').style.display = showCode ? '' : 'none';
         if (!companies.length) {
-            body.innerHTML = '<tr class="empty-row"><td colspan="4">' + window.t('system.companies.no_companies', { add: '<strong>' + window.t('system.companies.add_strong') + '</strong>' }) + '</td></tr>';
+            body.innerHTML = '<tr class="empty-row"><td colspan="5">' + window.t('system.companies.no_companies', { add: '<strong>' + window.t('system.companies.add_strong') + '</strong>' }) + '</td></tr>';
             return;
         }
-        body.innerHTML = companies.map(c => `
+        const clash = clashingCodes();
+        body.innerHTML = companies.map(c => {
+            const code = c.effective_ticket_code || '';
+            // A derived code is shown in a lighter weight than one that was
+            // typed, so "FreeITSM guessed this" and "somebody chose this" are
+            // not presented as the same fact.
+            const derived = !c.ticket_code;
+            const cell = !showCode ? '' : `<td>${code
+                ? `<code style="font-size:12px;${derived ? 'opacity:.65;' : ''}">${esc(code)}</code>`
+                  + (clash[code] ? ` <span title="${esc(window.t('system.companies.code_clash'))}" style="color: var(--danger-text, #c0392b);">&#9888;</span>` : '')
+                : '<span style="opacity:.5;">&mdash;</span>'}</td>`;
+            return `
             <tr>
                 <td><strong>${esc(c.name)}</strong>${c.is_default ? '<span class="badge-default">' + window.t('system.companies.default') + '</span>' : ''}</td>
                 <td>${renderDomainCell(c.domains)}</td>
+                ${cell}
                 <td><span class="status-badge ${c.is_active ? 'on' : 'off'}">${c.is_active ? window.t('system.companies.active') : window.t('system.companies.inactive')}</span></td>
                 <td style="text-align:right;">
                     <button class="table-action-btn" data-edit="${c.id}">${window.t('system.companies.edit')}</button>
                 </td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
+    }
+
+    /** The code that will be used if the box is left empty.
+     *
+     * ⚠️ For an EXISTING company this comes from the server, never from a rule
+     * repeated here: the real rule also considers the company's slug, and a
+     * second copy of it in JavaScript would eventually disagree. A brand-new
+     * company has no slug and is not saved yet, so there it is derived from the
+     * name — the one case where the two rules cannot differ. */
+    function updateDerivedHint(existing) {
+        const hint = document.getElementById('codeDerivedHint');
+        if (!hint) return;
+        if (document.getElementById('fCode').value.trim() !== '') { hint.textContent = ''; return; }
+        if (existing) {
+            hint.textContent = existing.effective_ticket_code
+                ? window.t('system.companies.field_code_derived', { code: existing.effective_ticket_code })
+                : window.t('system.companies.field_code_underivable');
+            return;
+        }
+        const derived = document.getElementById('fName').value.trim()
+            .replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3);
+        hint.textContent = derived
+            ? window.t('system.companies.field_code_derived', { code: derived })
+            : window.t('system.companies.field_code_underivable');
     }
 
     // ---------- Modal ----------
@@ -317,6 +387,16 @@ $translationNamespaces = ['common', 'system'];
         active.checked = c ? !!c.is_active : true;
         // The default company is always active and can't be deactivated.
         active.disabled = !!(c && c.is_default);
+
+        // Ticket code — only where it can matter, and only ever pre-filled with
+        // what was actually saved, so an empty box always means "derive one".
+        const codeSection = document.getElementById('ticketCodeSection');
+        const codeInput   = document.getElementById('fCode');
+        codeInput.value = (c && c.ticket_code) ? c.ticket_code : '';
+        codeSection.style.display = codeRelevant(!c) ? '' : 'none';
+        updateDerivedHint(c || null);
+        codeInput.oninput = function () { updateDerivedHint(c || null); };
+        document.getElementById('fName').oninput = function () { updateDerivedHint(c || null); };
 
         // Email domains: only when editing an existing company on a multi-company
         // install (shared-intake routing is meaningless with a single company).
@@ -580,7 +660,10 @@ $translationNamespaces = ['common', 'system'];
         const payload = {
             id: document.getElementById('companyId').value || 0,
             name: document.getElementById('fName').value.trim(),
-            is_active: document.getElementById('fActive').checked ? 1 : 0
+            is_active: document.getElementById('fActive').checked ? 1 : 0,
+            // Sent even when the section is hidden — an empty string means
+            // "derive one", which is the same answer the server would reach.
+            ticket_code: document.getElementById('fCode').value.trim()
         };
         if (!payload.name) {
             showToast(window.t('system.companies.required_name'), 'error');
