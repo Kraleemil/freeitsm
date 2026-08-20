@@ -673,6 +673,21 @@ $translationNamespaces = ['common', 'asset-management'];
             margin: 0 0 16px 0; font-size: 13px; line-height: 1.5;
             color: var(--text-muted, #666);
         }
+        /* .modal-content is a flex column capped at 80vh, so a <form> wrapping
+           the whole dialog has to become that column itself — otherwise
+           .modal-body cannot scroll and the footer is pushed off the bottom. */
+        .modal-form {
+            display: flex; flex-direction: column;
+            flex: 1; min-height: 0;
+        }
+        /* This page had no .form-hint (it lives on the settings page). Defined
+           here rather than borrowed, because there is no shared modal CSS. */
+        /* Same values as the settings page's copy — --text-dim, not
+           --text-muted — so a hint reads identically in both places. */
+        .form-hint {
+            margin-top: 4px; font-size: 12px; line-height: 1.4;
+            color: var(--text-dim, #888);
+        }
         .new-asset-next { margin: 4px 0 0 0; }
         /* Separates the built-in columns from the type's own fields. Without it
            "Manufacturer" and "Make" read as the same question asked twice. */
@@ -1192,49 +1207,57 @@ $translationNamespaces = ['common', 'asset-management'];
             <div class="modal-header">
                 <span><?php echo htmlspecialchars(t('asset-management.new.heading')); ?></span>
             </div>
-            <form id="newAssetForm">
-                <p class="new-asset-intro"><?php echo t('asset-management.new.intro'); ?></p>
-                <div class="form-group">
-                    <label for="naName"><?php echo htmlspecialchars(t('asset-management.new.name')); ?></label>
-                    <input type="text" id="naName" required maxlength="50" autocomplete="off"
-                           placeholder="<?php echo htmlspecialchars(t('asset-management.new.name_ph')); ?>">
-                    <div class="form-hint"><?php echo htmlspecialchars(t('asset-management.new.name_hint')); ?></div>
+            <?php /* ⚠️ header / modal-body / modal-footer is THIS PAGE's modal
+                     structure — see #assignUserModal directly below. The first
+                     version of this dialog used `.modal-actions` and no
+                     `.modal-body`, copied from the settings page, where those
+                     classes do exist. Neither is defined here, so the content
+                     got no padding at all and the buttons sat on top of it.
+                     There is no shared modal stylesheet: each module defines
+                     its own, so markup cannot be moved between them. */ ?>
+            <form id="newAssetForm" class="modal-form">
+                <div class="modal-body">
+                    <p class="new-asset-intro"><?php echo t('asset-management.new.intro'); ?></p>
+                    <div class="form-group">
+                        <label class="form-label" for="naName"><?php echo htmlspecialchars(t('asset-management.new.name')); ?></label>
+                        <input type="text" class="search-box" id="naName" required maxlength="50" autocomplete="off"
+                               placeholder="<?php echo htmlspecialchars(t('asset-management.new.name_ph')); ?>">
+                        <div class="form-hint"><?php echo htmlspecialchars(t('asset-management.new.name_hint')); ?></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="naType"><?php echo htmlspecialchars(t('asset-management.field.type')); ?></label>
+                        <select class="search-box" id="naType"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="naStatus"><?php echo htmlspecialchars(t('asset-management.field.status')); ?></label>
+                        <select class="search-box" id="naStatus"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="naLocation"><?php echo htmlspecialchars(t('asset-management.field.location')); ?></label>
+                        <select class="search-box" id="naLocation"></select>
+                    </div>
+                    <?php /* The built-in columns every asset has, whatever it is.
+                             Headed, because the type's own fields follow and the
+                             two can legitimately look similar (Manufacturer here,
+                             "Make" below) — unlabelled, that reads as the same
+                             question asked twice. */ ?>
+                    <div class="na-group-title"><?php echo htmlspecialchars(t('asset-management.new.builtin')); ?></div>
+                    <div class="form-group">
+                        <label class="form-label" for="naManufacturer"><?php echo htmlspecialchars(t('asset-management.field.manufacturer')); ?></label>
+                        <input type="text" class="search-box" id="naManufacturer" maxlength="50" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="naModel"><?php echo htmlspecialchars(t('asset-management.field.model')); ?></label>
+                        <input type="text" class="search-box" id="naModel" maxlength="50" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="naSerial"><?php echo htmlspecialchars(t('asset-management.detail.service_tag')); ?></label>
+                        <input type="text" class="search-box" id="naSerial" maxlength="50" autocomplete="off">
+                    </div>
+                    <?php /* The chosen type's own fields, rendered live. */ ?>
+                    <div class="new-asset-next" id="naNext" style="display:none;"></div>
                 </div>
-                <div class="form-group">
-                    <label for="naType"><?php echo htmlspecialchars(t('asset-management.field.type')); ?></label>
-                    <select id="naType"></select>
-                </div>
-                <div class="form-group">
-                    <label for="naStatus"><?php echo htmlspecialchars(t('asset-management.field.status')); ?></label>
-                    <select id="naStatus"></select>
-                </div>
-                <div class="form-group">
-                    <label for="naLocation"><?php echo htmlspecialchars(t('asset-management.field.location')); ?></label>
-                    <select id="naLocation"></select>
-                </div>
-                <?php /* The built-in columns every asset has, whatever it is.
-                         Headed, because the type's own fields follow and the two
-                         can legitimately look similar (Manufacturer here, "Make"
-                         below) — unlabelled, that reads as the same question
-                         asked twice. */ ?>
-                <div class="na-group-title"><?php echo htmlspecialchars(t('asset-management.new.builtin')); ?></div>
-                <div class="form-group">
-                    <label for="naManufacturer"><?php echo htmlspecialchars(t('asset-management.field.manufacturer')); ?></label>
-                    <input type="text" id="naManufacturer" maxlength="50" autocomplete="off">
-                </div>
-                <div class="form-group">
-                    <label for="naModel"><?php echo htmlspecialchars(t('asset-management.field.model')); ?></label>
-                    <input type="text" id="naModel" maxlength="50" autocomplete="off">
-                </div>
-                <div class="form-group">
-                    <label for="naSerial"><?php echo htmlspecialchars(t('asset-management.detail.service_tag')); ?></label>
-                    <input type="text" id="naSerial" maxlength="50" autocomplete="off">
-                </div>
-                <?php /* Told, not implied: the fields somebody just designed for
-                         this type are coming, and where. Otherwise the modal
-                         looks like the whole story. */ ?>
-                <div class="new-asset-next" id="naNext" style="display:none;"></div>
-                <div class="modal-actions">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeNewAssetModal()"><?php echo htmlspecialchars(t('asset-management.common.cancel')); ?></button>
                     <button type="submit" class="btn btn-primary" id="naSaveBtn"><?php echo htmlspecialchars(t('asset-management.common.save')); ?></button>
                 </div>
