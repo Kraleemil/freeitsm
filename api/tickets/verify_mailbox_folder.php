@@ -108,7 +108,8 @@ try {
         curl_close($ch);
 
         if ($httpCode !== 200) {
-            echo json_encode(['success' => false, 'error' => 'Failed to refresh token']);
+            // The provider says WHY in the body — pass it on rather than throwing it away.
+            echo json_encode(['success' => false, 'error' => oauthTokenErrorMessage($response, $httpCode)]);
             exit;
         }
 

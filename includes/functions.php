@@ -356,4 +356,47 @@ function wf_emit(string $entity, string $action, int $id, ?string $name = null):
         error_log('wf_emit(' . $entity . '.' . $action . ') error: ' . $e->getMessage());
     }
 }
+
+/**
+ * Turn a refused OAuth token response into something an administrator can act on.
+ *
+ * 🔴 WHY THIS EXISTS. Mail collection stopped on a live install and the only
+ * thing FreeITSM said was "Failed to refresh token. HTTP Code: 401". The
+ * provider had, in the very response body being thrown away, said exactly what
+ * was wrong: "AADSTS7000222: The provided client secret keys for app '…' are
+ * expired." One is a mystery costing an afternoon; the other is a five-minute
+ * job in the Azure portal.
+ *
+ * An expired client secret is not an unusual event — Azure secrets last at most
+ * 24 months and are routinely created with a 6- or 12-month life — so this is a
+ * thing every install will eventually hit, and it must not present as "something
+ * went wrong".
+ *
+ * ⚠️ The provider's text is passed through as-is rather than matched against a
+ * list of known codes. A message we don't recognise is exactly the case where
+ * the provider's own words are worth most, and a lookup table would replace it
+ * with "Unknown error".
+ *
+ * @param string|false $response the raw body from the token endpoint
+ * @param int          $httpCode the status it came back with
+ */
+function oauthTokenErrorMessage($response, int $httpCode): string
+{
+    $body = is_string($response) ? json_decode($response, true) : null;
+
+    if (is_array($body) && !empty($body['error_description'])) {
+        // Microsoft appends a Trace ID, Correlation ID and Timestamp to every
+        // description. Useful when raising a support case with them, noise when
+        // reading it on a settings page — so the sentence is kept and the
+        // identifiers dropped.
+        $desc = preg_replace('/\s*(Trace ID|Correlation ID|Timestamp):.*$/s', '', trim($body['error_description']));
+        return 'The mail provider refused the login (HTTP ' . $httpCode . '): ' . $desc;
+    }
+    if (is_array($body) && !empty($body['error'])) {
+        return 'The mail provider refused the login (HTTP ' . $httpCode . '): ' . $body['error'];
+    }
+    // No usable body at all — say so plainly rather than implying we know more.
+    return 'The mail provider refused the login (HTTP ' . $httpCode . ') and gave no reason. '
+         . 'Check the client secret and the app registration have not expired.';
+}
 ?>

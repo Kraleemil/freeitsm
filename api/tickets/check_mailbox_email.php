@@ -72,14 +72,12 @@ try {
         try {
             $accessToken = mailboxAppOnlyToken($conn, $mailbox);
         } catch (Exception $e) {
-            echo json_encode(['success' => false, 'error' => 'App-only authentication failed: ' . $e->getMessage()]);
-            exit;
+            failMailboxCheck($conn, $mailboxId, 'App-only authentication failed: ' . $e->getMessage());
         }
     } else {
         // Delegated (Microsoft sign-in) or Google: requires a stored token.
         if (empty($mailbox['token_data'])) {
-            echo json_encode(['success' => false, 'error' => 'Mailbox is not authenticated. Please authenticate first.']);
-            exit;
+            failMailboxCheck($conn, $mailboxId, 'Mailbox is not authenticated. Please authenticate first.');
         }
 
         // Clean token data by removing any null bytes or control characters
@@ -109,17 +107,16 @@ try {
                 $accessToken = getValidAccessToken($conn, $mailbox, $tokenData);
             }
         } catch (Exception $e) {
-            echo json_encode([
-                'success' => false,
-                'error' => $e->getMessage(),
-                'debug' => [
-                    'has_access_token' => isset($tokenData['access_token']),
-                    'has_refresh_token' => isset($tokenData['refresh_token']),
-                    'expires_at' => $tokenData['expires_at'] ?? 'not set',
-                    'current_time' => time()
-                ]
-            ]);
-            exit;
+            // 🔴 THE ONE THAT WENT UNNOTICED FOR EIGHTEEN HOURS: an expired Azure
+            // client secret. The message now carries the provider's own words
+            // (see oauthTokenErrorMessage), and RECORDING it is what lets the
+            // mailbox row say so on its own rather than waiting to be clicked.
+            failMailboxCheck($conn, $mailboxId, $e->getMessage(), ['debug' => [
+                'has_access_token'  => isset($tokenData['access_token']),
+                'has_refresh_token' => isset($tokenData['refresh_token']),
+                'expires_at'        => $tokenData['expires_at'] ?? 'not set',
+                'current_time'      => time(),
+            ]]);
         }
 
         // SAFETY (delegated Microsoft): make sure we're reading the RIGHT inbox. The
@@ -130,15 +127,13 @@ try {
         if ($provider === 'microsoft') {
             $mailbox = mailboxBackfillIdentity($conn, $mailbox, $accessToken);
             if ($mismatchError = mailboxIdentityMismatch($mailbox)) {
-                echo json_encode(['success' => false, 'error' => $mismatchError]);
-                exit;
+                failMailboxCheck($conn, $mailboxId, $mismatchError);
             }
         }
     }
 
     if (!$accessToken) {
-        echo json_encode(['success' => false, 'error' => 'Failed to obtain valid access token. Please re-authenticate.']);
-        exit;
+        failMailboxCheck($conn, $mailboxId, 'Failed to obtain valid access token. Please re-authenticate.');
     }
 
     // Fetch emails — branch by provider
@@ -300,8 +295,12 @@ try {
         logMailboxActivity($conn, $mailboxId, $activityEntries);
     }
 
-    // Update last checked time
-    updateLastChecked($conn, $mailboxId);
+    // Record how it went. ⚠️ A check that FOUND mail and could not save it has
+    // not worked, whatever its status says — that is exactly the shape the
+    // client-secret outage took on its way out: "1 found, 0 saved", success:true,
+    // and the reason sitting unread in an array. So per-email failures are
+    // recorded as the mailbox's last error too.
+    recordMailboxCheckOutcome($conn, $mailboxId, $errors ? implode(' | ', $errors) : null);
 
     $message = "Processed {$savedCount} imported";
     if ($rejectedCount > 0) {
@@ -323,6 +322,13 @@ try {
     ]);
 
 } catch (Exception $e) {
+    // The check itself fell over — record it so the mailbox can say so
+    // without somebody having to click Check and read the response.
+    // ⚠️ Guarded: this catch also covers failures BEFORE the connection or the
+    // mailbox id exist, and recording an outage must never become the outage.
+    if (isset($conn) && !empty($mailboxId)) {
+        recordMailboxCheckOutcome($conn, $mailboxId, $e->getMessage());
+    }
     echo json_encode([
         'success' => false,
         'error' => $e->getMessage()
@@ -401,7 +407,8 @@ function refreshAccessToken($mailbox, $refreshToken) {
     curl_close($ch);
 
     if ($httpCode !== 200) {
-        throw new Exception('Failed to refresh token. HTTP Code: ' . $httpCode);
+        // The provider says WHY in the body — pass it on rather than throwing it away.
+        throw new Exception(oauthTokenErrorMessage($response, $httpCode));
     }
 
     $tokenData = json_decode($response, true);
@@ -436,12 +443,60 @@ function saveTokenData($conn, $mailboxId, $tokenData) {
 // (shared with send_email.php and verify_mailbox_folder.php).
 
 /**
- * Update last checked datetime
+ * Record how a mail check went — stamping the time AND what went wrong.
+ *
+ * 🔴 WHY THIS EXISTS. A mailbox stopped collecting for eighteen hours and said
+ * nothing. The Azure client secret had expired; the provider said so plainly;
+ * FreeITSM discarded the sentence and left the mailbox looking green and
+ * "Authenticated" in the list. The only way to find out was to click Check and
+ * read the response.
+ *
+ * So an outcome is now written down. A clean check clears the error; a failed
+ * one keeps the provider's own words, and mailbox health turns that into a
+ * non-dismissible error on the mailbox row.
+ *
+ * ⚠️ PARTIAL FAILURE COUNTS AS FAILURE. The same outage also produced checks
+ * that returned success while saving nothing — "1 email found, 0 saved" with
+ * the reason buried in an errors array nobody was reading. A check that fetched
+ * mail it could not turn into tickets has not worked, whatever its status said.
+ *
+ * @param ?string $error null on a clean run; the reason otherwise.
+ */
+function recordMailboxCheckOutcome($conn, $mailboxId, ?string $error = null) {
+    try {
+        $stmt = $conn->prepare(
+            "UPDATE target_mailboxes
+                SET last_checked_datetime = UTC_TIMESTAMP(),
+                    last_error            = ?,
+                    last_error_datetime   = " . ($error === null ? "NULL" : "UTC_TIMESTAMP()") . "
+              WHERE id = ?"
+        );
+        // 1000 characters is plenty for any provider sentence and stops a stack
+        // trace or an HTML error page filling the column.
+        $stmt->execute([$error === null ? null : mb_substr($error, 0, 1000), $mailboxId]);
+    } catch (Exception $e) {
+        // Never let recording a failure BE the failure — an install that has not
+        // run db_verify since these columns arrived must still collect mail.
+    }
+}
+
+/**
+ * Report a check that could not run at all: record it, say so, stop.
+ *
+ * One function rather than a recording line beside each of the eight exits,
+ * because the exit somebody forgets to update is exactly the silent one.
+ */
+function failMailboxCheck($conn, $mailboxId, string $error, array $extra = []) {
+    recordMailboxCheckOutcome($conn, $mailboxId, $error);
+    echo json_encode(array_merge(['success' => false, 'error' => $error], $extra));
+    exit;
+}
+
+/**
+ * Update last checked datetime (clean run).
  */
 function updateLastChecked($conn, $mailboxId) {
-    $sql = "UPDATE target_mailboxes SET last_checked_datetime = UTC_TIMESTAMP() WHERE id = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$mailboxId]);
+    recordMailboxCheckOutcome($conn, $mailboxId, null);
 }
 
 /**
@@ -665,8 +720,10 @@ function handleEmailAfterProcessing($accessToken, $messageId, $action, $folderNa
  * includes/ticket_numbering.php (GH #71). An emailed ticket must be numbered by
  * exactly the same rules as one raised by an analyst or through the portal.
  */
-function generateTicketNumber($conn) {
-    return TicketNumbering::next($conn, null, null);
+function generateTicketNumber($conn, ?int $tenantId = null) {
+    // ⚠️ THE COMPANY MUST BE PASSED IN — see the call site, where the routing
+    // decision now happens BEFORE the number is made rather than after it.
+    return TicketNumbering::next($conn, null, $tenantId);
 }
 
 /**
@@ -975,12 +1032,20 @@ function saveEmailToDatabase($conn, $email, $accessToken, $mailboxId) {
 
     // Create new ticket if needed
     if (!$ticketId) {
-        $ticketNumber = generateTicketNumber($conn);
 
         // Multi-tenancy: route the new ticket to a company. Pinned mailbox → its
         // company; shared intake → sender-domain match → that company, else triage
         // (NULL). Always the Default company on a single-company install.
+        //
+        // 🔴 THIS MUST COME BEFORE THE NUMBER IS MADE. Under per-company ticket
+        // numbering the number carries the company's code and draws from that
+        // company's own counter — so numbering first, as this used to, gave every
+        // emailed ticket the DEFAULT company's number no matter who it was routed
+        // to. Email is the busiest intake path on an MSP install, which is exactly
+        // where per-company numbering is chosen.
         $ticketTenantId = resolveTicketTenantForEmail($conn, $mailboxId, $fromAddress);
+
+        $ticketNumber = generateTicketNumber($conn, $ticketTenantId);
 
         // Where the ticket came from, as configured on THIS mailbox (#79). Per
         // mailbox rather than one global "Email", because a helpdesk address and a

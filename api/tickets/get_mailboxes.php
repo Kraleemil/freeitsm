@@ -27,6 +27,7 @@ try {
                    target_mailbox, auth_mode, authenticated_as, authenticated_addresses, email_folder, max_emails_per_check, mark_as_read,
                    rejected_action, imported_action, imported_folder,
                    is_active, tenant_id, default_origin_id, health_dismissed, created_datetime, last_checked_datetime,
+                   last_error, last_error_datetime,
                    CASE WHEN token_data IS NOT NULL AND token_data != '' THEN 1 ELSE 0 END as is_authenticated
             FROM target_mailboxes
             ORDER BY name";

@@ -114,6 +114,23 @@ function mailboxHealthProblems(array $mb, array $context = []): array
         }
     }
 
+    // 🔴 THE CHECK THAT WOULD HAVE SAVED EIGHTEEN HOURS. A mailbox whose last
+    // check failed used to look identical to one working perfectly: green badge,
+    // "Authenticated", recent timestamp. The reason was written down nowhere and
+    // the only way to see it was to click Check and read the response.
+    //
+    // Never dismissible. Mail not arriving is a fault, not a preference — and it
+    // clears itself the moment a check succeeds, so it cannot nag once fixed.
+    if (!empty($mb['last_error'])) {
+        $when = !empty($mb['last_error_datetime'])
+            ? ' (' . date('j M Y H:i', strtotime((string)$mb['last_error_datetime'])) . ')'
+            : '';
+        $add($problems, 'last_check_failed', 'error',
+            'The last check for mail failed',
+            'Mail is not being collected from this mailbox' . $when . '. '
+            . 'The mail provider said: "' . trim((string)$mb['last_error']) . '"');
+    }
+
     // --- Collected fine, but the tickets are wrong -------------------------
 
     // The #79 case. Not an error: a ticket without an origin is a working

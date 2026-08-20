@@ -59,6 +59,7 @@ class TicketNumbering
         '{MM}'    => 'two-digit month',
         '{DD}'    => 'two-digit day',
         '{TYPE}'  => "the ticket type's short code, if it has one",
+        '{COMPANY}' => "the company's ticket code, set under System → Companies",
     ];
 
     // ====================================================================
@@ -134,18 +135,50 @@ class TicketNumbering
             return self::randomNumber($conn);
         }
 
-        // ⚠️ Ten attempts, then give up loudly. A sequential number can still
-        // collide — two requests can read the same counter, and an install that
-        // has just been renumbered may have gaps — so uniqueness is proven
-        // against the table rather than assumed from the counter.
-        for ($attempt = 0; $attempt < 10; $attempt++) {
+        // Uniqueness is proven against the TABLE, never assumed from the counter:
+        // two requests can read the same counter, and a renumbered install has
+        // gaps. So a claimed number that turns out to be taken is normal.
+        //
+        // 🔴 WHAT IS NOT NORMAL, AND USED TO BE FATAL: a counter that has fallen
+        // BEHIND the estate. Restore a database backup, or renumber 106 tickets
+        // while the counter says 50, and every claim collides — one at a time,
+        // ten times, and then mail collection stops with "could not generate a
+        // unique ticket number". A service desk must not stop accepting email
+        // because a counter is out of step, so instead of crawling forward one
+        // number per attempt we JUMP, doubling the stride each time. Fifty-seven
+        // taken numbers are cleared in six attempts rather than never.
+        //
+        // Only ever forward: the wind uses GREATEST, so a jump can never hand a
+        // lower number to a request that overtakes us.
+        $step = 1;
+        for ($attempt = 0; $attempt < 40; $attempt++) {
             $seq    = self::claimNext($conn, $cfg, $ticketTypeId, $tenantId);
-            $number = self::render($cfg["ticket_number_format"], $seq, $conn, $ticketTypeId, null, $tenantId);
+            $number = self::render($cfg['ticket_number_format'], $seq, $conn, $ticketTypeId, null, $tenantId);
             if (!self::inUse($conn, $number)) {
                 return $number;
             }
+            self::windCounterTo($conn, self::counterKey($cfg, $ticketTypeId, $tenantId), $seq + $step);
+            $step = min($step * 2, 65536);
         }
-        throw new Exception('Could not generate a unique ticket number after 10 attempts.');
+
+        throw new Exception(
+            'Could not find an unused ticket number. The numbering counter looks far behind the '
+            . 'tickets that already exist — check Tickets → Settings → Ticket numbering.'
+        );
+    }
+
+    /**
+     * Move a counter forward to at least $value. Never backwards.
+     *
+     * Shared by the collision jump above and by applyRenumber(), so there is one
+     * statement in the codebase that decides what "wind a counter on" means.
+     */
+    private static function windCounterTo(PDO $conn, string $key, int $value): void
+    {
+        $conn->prepare(
+            "INSERT INTO ticket_number_counters (counter_key, next_value) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE next_value = GREATEST(next_value, VALUES(next_value))"
+        )->execute([$key, $value]);
     }
 
     /** Today's format: three letters, three digits, five digits. */
@@ -744,12 +777,8 @@ class TicketNumbering
             // SAME transaction. Miss one and the next new ticket on that counter
             // collides with a renumbered one, which is worse than never having
             // renumbered at all.
-            $wind = $conn->prepare(
-                "INSERT INTO ticket_number_counters (counter_key, next_value) VALUES (?, ?)
-                 ON DUPLICATE KEY UPDATE next_value = GREATEST(next_value, VALUES(next_value))"
-            );
-            foreach ($plan['seqs'] as $key => $seq) {
-                $wind->execute([$key, $seq]);
+            foreach ($plan["seqs"] as $key => $seq) {
+                self::windCounterTo($conn, $key, $seq);
             }
 
             $conn->commit();

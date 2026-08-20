@@ -262,7 +262,8 @@ function refreshAccessToken($mailbox, $refreshToken) {
     curl_close($ch);
 
     if ($httpCode !== 200) {
-        throw new Exception('Failed to refresh token. HTTP Code: ' . $httpCode);
+        // The provider says WHY in the body — pass it on rather than throwing it away.
+        throw new Exception(oauthTokenErrorMessage($response, $httpCode));
     }
 
     $tokenData = json_decode($response, true);

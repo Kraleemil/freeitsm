@@ -33,7 +33,11 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $sweep = function () use ($conn): void {
     $conn->query("DELETE FROM ticket_number_history WHERE ticket_number LIKE 'ZZNUM%'");
-    $conn->query("DELETE FROM ticket_number_counters WHERE counter_key IN ('t:ty999999','t')");
+    // 🔴 NEVER 't'. That is the counter every ticket on the install draws from,
+    // and a test that deletes it leaves the estate numbered above a counter that
+    // has gone back to the start — which stops mail collection dead. Both keys
+    // here name entities that cannot exist.
+    $conn->query("DELETE FROM ticket_number_counters WHERE counter_key IN ('t:ty999999','t:co999999')");
     // ⚠️ The renumber tests make REAL ticket rows. Sweep them by their number
     // AND their history, in that order, or a failed run leaves orphans behind
     // that the next run then tries to renumber.
@@ -44,6 +48,19 @@ $sweep();
 TicketNumbering::forget();
 
 $countBefore = (int)$conn->query("SELECT COUNT(*) FROM tickets")->fetchColumn();
+
+// 🔴 THE ASSERTION THAT MATTERS MOST IN THIS FILE, and it is about the test
+// suite rather than the product. These tests write real counter rows. If one
+// ever writes the PRODUCTION key, it silently breaks the install it was run on
+// — that is exactly what happened, and it took mail collection down.
+//
+// So the live counter is photographed before the run and compared after.
+$liveCountersBefore = [];
+foreach ($conn->query("SELECT counter_key, next_value FROM ticket_number_counters") as $row) {
+    if (strpos($row['counter_key'], '999999') === false) {
+        $liveCountersBefore[$row['counter_key']] = (int)$row['next_value'];
+    }
+}
 
 try {
     // ================================================================
@@ -368,11 +385,30 @@ try {
     $ins->execute(['ZZNUM-OLD-B', 'ZZNUM renumber test B', '2024-11-20 09:00:00']);
     $idB = (int)$conn->lastInsertId();
 
-    $realRows = [
-        $mk($idA, 'ZZNUM-OLD-A', null, null, '2024-03-04 09:00:00'),
-        $mk($idB, 'ZZNUM-OLD-B', null, null, '2024-11-20 09:00:00'),
+    // ⚠️ THE WRITING TESTS MUST NEVER TOUCH A REAL COUNTER KEY.
+    //
+    // 🔴 This bit me for real. The renumber tests below call applyRenumber(),
+    // which winds a counter — and under the default `global` scope the counter
+    // key is literally 't', the one every ticket on the install draws from. A
+    // test run reset Ed's live counter to a test value while 106 renumbered
+    // tickets sat above it, and mail collection stopped: every new number
+    // collided with one that already existed.
+    //
+    // So the writing tests run under `per_company` with a company that cannot
+    // exist, giving the key 't:co999999'. {COMPANY} renders empty for it, so the
+    // expected numbers are unchanged and only the KEY differs. The read-only
+    // planning tests keep the global scope, because planning writes nothing.
+    $applyCfg = [
+        'ticket_number_style'  => 'sequential',
+        'ticket_number_format' => 'ZZNUM{COMPANY}-{#####}',
+        'ticket_number_scope'  => 'per_company',
     ];
-    $plan = TicketNumbering::planRenumber($conn, $seqCfg, $realRows);
+    $FAKECO = 999999;
+    $realRows = [
+        $mk($idA, "ZZNUM-OLD-A", null, $FAKECO, "2024-03-04 09:00:00"),
+        $mk($idB, "ZZNUM-OLD-B", null, $FAKECO, "2024-11-20 09:00:00"),
+    ];
+    $plan = TicketNumbering::planRenumber($conn, $applyCfg, $realRows);
     TicketNumbering::applyRenumber($conn, $plan);
 
     $numA = $conn->query("SELECT ticket_number FROM tickets WHERE id = {$idA}")->fetchColumn();
@@ -391,14 +427,14 @@ try {
 
     // 🔑 And the counter was wound past what the run issued — otherwise the
     // next new ticket would collide with a renumbered one.
-    $counter = (int)$conn->query("SELECT next_value FROM ticket_number_counters WHERE counter_key = 't'")->fetchColumn();
+    $counter = (int)$conn->query("SELECT next_value FROM ticket_number_counters WHERE counter_key = 't:co999999'")->fetchColumn();
     ok('the counter was wound past the run', $counter === 3, (string)$counter);
 
     // Renumbering the same tickets again into the same scheme is a no-op —
     // they already match, so no second history row is written.
-    $again = TicketNumbering::planRenumber($conn, $seqCfg,
-        [$mk($idA, 'ZZNUM-00001', null, null, '2024-03-04 09:00:00'),
-         $mk($idB, 'ZZNUM-00002', null, null, '2024-11-20 09:00:00')]);
+    $again = TicketNumbering::planRenumber($conn, $applyCfg,
+        [$mk($idA, "ZZNUM-00001", null, $FAKECO, "2024-03-04 09:00:00"),
+         $mk($idB, "ZZNUM-00002", null, $FAKECO, "2024-11-20 09:00:00")]);
     ok('running it twice changes nothing the second time',
         $again['changing'] === 0 && $again['skipped'] === 2);
 
@@ -413,10 +449,9 @@ try {
     // B alone to be numbered from 1: it wants ZZNUM-00001, which would silently
     // redirect every reply quoting A's old number onto B.
     $second = TicketNumbering::planRenumber($conn,
-        ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{#####}',
-         'ticket_number_start' => '5'],
-        [$mk($idA, 'ZZNUM-00001', null, null, '2024-03-04 09:00:00'),
-         $mk($idB, 'ZZNUM-00002', null, null, '2024-11-20 09:00:00')]);
+        $applyCfg + ["ticket_number_start" => "5"],
+        [$mk($idA, "ZZNUM-00001", null, $FAKECO, "2024-03-04 09:00:00"),
+         $mk($idB, "ZZNUM-00002", null, $FAKECO, "2024-11-20 09:00:00")]);
     TicketNumbering::applyRenumber($conn, $second);
     ok('a second renumber moves them on again',
         $conn->query("SELECT ticket_number FROM tickets WHERE id = {$idA}")->fetchColumn() === 'ZZNUM-00005');
@@ -460,6 +495,15 @@ $sweep();
 echo "\n";
 $countAfter = (int)$conn->query("SELECT COUNT(*) FROM tickets")->fetchColumn();
 ok('no tickets were created or destroyed', $countAfter === $countBefore, "{$countBefore} -> {$countAfter}");
+
+$liveCountersAfter = [];
+foreach ($conn->query("SELECT counter_key, next_value FROM ticket_number_counters") as $row) {
+    if (strpos($row['counter_key'], '999999') === false) {
+        $liveCountersAfter[$row['counter_key']] = (int)$row['next_value'];
+    }
+}
+ok('🔴 NO REAL COUNTER WAS TOUCHED', $liveCountersAfter === $liveCountersBefore,
+    json_encode(['before' => $liveCountersBefore, 'after' => $liveCountersAfter]));
 
 echo "\n" . str_repeat('=', 52) . "\n";
 echo ($fail === 0 ? 'ALL GREEN' : 'FAILURES') . ": {$pass} passed, {$fail} failed\n";

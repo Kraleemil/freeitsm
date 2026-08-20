@@ -1178,6 +1178,11 @@ CREATE TABLE IF NOT EXISTS `target_mailboxes` (
     -- deliberate choice (no origin wanted, receive-only IMAP) stops nagging. Only
     -- warnings can appear here; errors are never dismissible.
     `health_dismissed`      TEXT NULL,
+    -- What the last check said when it did NOT work: the provider's own words,
+    -- so a mailbox that has stopped collecting can say why rather than just
+    -- going quiet. Cleared on the next clean check.
+    `last_error`            TEXT NULL,
+    `last_error_datetime`   DATETIME NULL,
     `created_datetime`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `last_checked_datetime` DATETIME NULL,
     PRIMARY KEY (`id`),

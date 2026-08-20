@@ -82,7 +82,7 @@ try {
         : (isMultiTenant($conn) ? null : getDefaultTenantId($conn));
 
     // Generate unique ticket number
-    $ticketNumber = generateTicketNumber($conn);
+    $ticketNumber = generateTicketNumber($conn, $ticketTenantId);
 
     // Create ticket. The status resolves to the CONFIGURED default rather than the
     // literal name 'Open', which an admin may rename or translate (#79). The
@@ -271,6 +271,10 @@ try {
  * so the call sites in this file keep reading naturally; the format, the
  * counter and the uniqueness check all live in one place.
  */
-function generateTicketNumber($conn) {
-    return TicketNumbering::next($conn, null, null);
+function generateTicketNumber($conn, ?int $tenantId = null) {
+    // ⚠️ THE COMPANY MUST BE PASSED IN. Under per-company numbering the number
+    // carries that company's code and draws from its own counter, so numbering
+    // before working out whose ticket it is would put every portal ticket on the
+    // default company's sequence whatever the portal user's company is.
+    return TicketNumbering::next($conn, null, $tenantId);
 }

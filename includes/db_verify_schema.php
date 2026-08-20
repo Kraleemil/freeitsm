@@ -900,6 +900,11 @@ return [
         'default_origin_id'       => 'INT NULL',
         // JSON array of mailbox-health warning keys the admin has acknowledged.
         'health_dismissed'        => 'TEXT NULL',
+        // What the last check said when it did NOT work — the provider's own
+        // words, so a mailbox that has stopped collecting can say why instead of
+        // just going quiet. Cleared on the next clean check.
+        'last_error'              => 'TEXT NULL',
+        'last_error_datetime'     => 'DATETIME NULL',
         'created_datetime'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'last_checked_datetime'   => 'DATETIME NULL',
     ],
