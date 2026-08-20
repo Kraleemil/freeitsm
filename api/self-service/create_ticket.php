@@ -6,6 +6,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/ticket_numbering.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/html_sanitise.php';
 require_once '../../includes/ticket_recordings.php';
@@ -264,19 +265,12 @@ try {
 /**
  * Generate a unique random ticket number (format: XXX-YYY-ZZZZZ)
  */
+/**
+ * ⚠️ One of THREE copies of this, now all delegating to the single engine in
+ * includes/ticket_numbering.php (GH #71). Left as a wrapper rather than deleted
+ * so the call sites in this file keep reading naturally; the format, the
+ * counter and the uniqueness check all live in one place.
+ */
 function generateTicketNumber($conn) {
-    $maxAttempts = 10;
-    for ($i = 0; $i < $maxAttempts; $i++) {
-        $letters = chr(rand(65, 90)) . chr(rand(65, 90)) . chr(rand(65, 90));
-        $numbers1 = rand(0, 9) . rand(0, 9) . rand(0, 9);
-        $numbers2 = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
-        $ticketNumber = $letters . '-' . $numbers1 . '-' . $numbers2;
-
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM tickets WHERE ticket_number = ?");
-        $stmt->execute([$ticketNumber]);
-        if (!$stmt->fetchColumn()) {
-            return $ticketNumber;
-        }
-    }
-    throw new Exception('Failed to generate unique ticket number');
+    return TicketNumbering::next($conn, null, null);
 }

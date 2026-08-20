@@ -7,6 +7,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/ticket_numbering.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/ticket_reply.php';
@@ -659,37 +660,25 @@ function handleEmailAfterProcessing($accessToken, $messageId, $action, $folderNa
 /**
  * Generate unique ticket number
  */
+/**
+ * ⚠️ The third of three copies, now delegating to the single engine in
+ * includes/ticket_numbering.php (GH #71). An emailed ticket must be numbered by
+ * exactly the same rules as one raised by an analyst or through the portal.
+ */
 function generateTicketNumber($conn) {
-    $maxAttempts = 10;
-    $attempt = 0;
-
-    while ($attempt < $maxAttempts) {
-        $letters = chr(rand(65, 90)) . chr(rand(65, 90)) . chr(rand(65, 90));
-        $numbers1 = rand(0, 9) . rand(0, 9) . rand(0, 9);
-        $numbers2 = rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9) . rand(0, 9);
-
-        $ticketNumber = $letters . '-' . $numbers1 . '-' . $numbers2;
-
-        $checkSql = "SELECT COUNT(*) FROM tickets WHERE ticket_number = ?";
-        $checkStmt = $conn->prepare($checkSql);
-        $checkStmt->execute([$ticketNumber]);
-        $exists = $checkStmt->fetchColumn();
-
-        if (!$exists) {
-            return $ticketNumber;
-        }
-
-        $attempt++;
-    }
-
-    throw new Exception('Failed to generate unique ticket number');
+    return TicketNumbering::next($conn, null, null);
 }
 
 /**
  * Extract ticket reference from subject
  */
 function extractTicketReference($subject) {
-    if (preg_match('/\[SDREF:([A-Z]{3}-\d{3}-\d{5})\]/i', $subject, $matches)) {
+    // ⚠️ FORMAT-AGNOSTIC, and it has to stay that way. This used to look for
+    // [A-Z]{3}-\d{3}-\d{5} — the shape of the old random numbers. Now that an
+    // install can choose its own format, a shape-matching parser would stop
+    // recognising every email it had ever sent the moment the format changed.
+    // Capture whatever is in the tag; the DATABASE decides if it is real.
+    if (preg_match(TicketNumbering::REF_PATTERN, $subject, $matches)) {
         return $matches[1];
     }
     return null;
@@ -708,17 +697,19 @@ function extractTicketReference($subject) {
  * the redirect belongs here rather than at each call site.
  */
 function findTicketByNumber($conn, $ticketNumber) {
-    $sql = "SELECT id FROM tickets WHERE ticket_number = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->execute([$ticketNumber]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$result) {
+    // 🔑 Looks in ticket_number_history as well as tickets (GH #71). A ticket
+    // that has been RENUMBERED keeps every number it has ever had, for exactly
+    // the same reason merges are followed below: the emails quoting the old one
+    // live in customers' inboxes forever. Without this, renumbering would turn
+    // every historical reply into a brand-new ticket, silently.
+    $foundId = TicketNumbering::findTicketId($conn, $ticketNumber);
+    if ($foundId === null) {
         return null;
     }
 
     require_once __DIR__ . '/../../includes/ticket_merge.php';
-    $liveId = resolveMergedTicket($conn, (int)$result['id']);
-    if ($liveId !== (int)$result['id']) {
+    $liveId = resolveMergedTicket($conn, $foundId);
+    if ($liveId !== $foundId) {
         error_log("Inbound reply quoted $ticketNumber, which was merged — routing to ticket $liveId");
     }
     return $liveId;
@@ -1219,7 +1210,7 @@ function stripInboundThread($bodyContent) {
     }
 
     // 3. Legacy SDREF marker text from older emails
-    if ($stripped === null && preg_match('/\[\*{3}\s*SDREF:[A-Z]{3}-\d{3}-\d{5}\s*REPLY ABOVE THIS LINE\s*\*{3}\]/i', $bodyContent, $matches, PREG_OFFSET_CAPTURE)) {
+    if ($stripped === null && preg_match(TicketNumbering::REF_LINE_PATTERN, $bodyContent, $matches, PREG_OFFSET_CAPTURE)) {
         $s = trim(substr($bodyContent, 0, $matches[0][1]));
         if (!empty($s)) $stripped = $s;
     }

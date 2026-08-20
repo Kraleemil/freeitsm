@@ -6,6 +6,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/ticket_numbering.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/messaging/messaging.php';
 
@@ -129,7 +130,7 @@ function stripQuotedThread($body) {
     }
 
     // 3. Legacy SDREF marker text from older emails
-    if ($stripped === null && preg_match('/\[\*{3}\s*SDREF:[A-Z]{3}-\d{3}-\d{5}\s*REPLY ABOVE THIS LINE\s*\*{3}\]/i', $body, $matches, PREG_OFFSET_CAPTURE)) {
+    if ($stripped === null && preg_match(TicketNumbering::REF_LINE_PATTERN, $body, $matches, PREG_OFFSET_CAPTURE)) {
         $s = trim(substr($body, 0, $matches[0][1]));
         if (!empty($s)) $stripped = $s;
     }

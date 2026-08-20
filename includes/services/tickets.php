@@ -35,6 +35,7 @@
 
 require_once __DIR__ . '/../service_context.php';
 require_once __DIR__ . '/../tenancy.php';
+require_once __DIR__ . '/../ticket_numbering.php';
 require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 
 class TicketsService
@@ -172,7 +173,12 @@ class TicketsService
                 }
             }
 
-            $ticketNumber = self::generateTicketNumber($conn);
+            // The ticket type and company are passed so the per-type and
+            // per-company sequence options can actually use them.
+            // ⚠️ $tenantId, not a guessed name. An isset() on a variable that
+            // does not exist here would quietly pass null and put every company
+            // on the same counter — working, but wrong, and invisible.
+            $ticketNumber = TicketNumbering::next($conn, $typeId, $tenantId);
 
             $conn->prepare(
                 "INSERT INTO tickets (
@@ -686,20 +692,11 @@ class TicketsService
         )->execute([$ticketId, $analystId, $field, $old, $new]);
     }
 
-    /** Unique random ticket number (XXX-###-#####), same format as the UI. */
-    private static function generateTicketNumber(PDO $conn): string
-    {
-        for ($attempt = 0; $attempt < 10; $attempt++) {
-            $letters = chr(rand(65, 90)) . chr(rand(65, 90)) . chr(rand(65, 90));
-            $ticketNumber = $letters . '-' . rand(100, 999) . '-' . str_pad((string)rand(0, 99999), 5, '0', STR_PAD_LEFT);
-            $check = $conn->prepare("SELECT COUNT(*) FROM tickets WHERE ticket_number = ?");
-            $check->execute([$ticketNumber]);
-            if (!(int)$check->fetchColumn()) {
-                return $ticketNumber;
-            }
-        }
-        throw new Exception('Failed to generate unique ticket number');
-    }
+    // generateTicketNumber() moved to includes/ticket_numbering.php (GH #71).
+    // It existed here AND in api/self-service/create_ticket.php AND in
+    // api/tickets/check_mailbox_email.php — three copies, so a configurable
+    // format reaching one of them would have given analyst-raised, portal and
+    // emailed tickets three different schemes.
 
     /** Resolve a status by name or id. Returns [id, name, is_closed] or null. */
     private static function resolveStatus(PDO $conn, array $in): ?array

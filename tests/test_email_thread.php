@@ -6,6 +6,7 @@
 session_start();
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/ticket_numbering.php';
 
 $ticketId = 45;
 $conn = connectToDatabase();
@@ -82,7 +83,7 @@ function stripForDisplay($body) {
         if (!empty($s)) $stripped = $s;
     }
     // Legacy SDREF marker
-    if ($stripped === null && preg_match('/\[\*{3}\s*SDREF:[A-Z]{3}-\d{3}-\d{5}\s*REPLY ABOVE THIS LINE\s*\*{3}\]/i', $body, $m, PREG_OFFSET_CAPTURE)) {
+    if ($stripped === null && preg_match(TicketNumbering::REF_LINE_PATTERN, $body, $m, PREG_OFFSET_CAPTURE)) {
         $s = trim(substr($body, 0, $m[0][1]));
         if (!empty($s)) $stripped = $s;
     }

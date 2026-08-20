@@ -16,6 +16,7 @@ set_error_handler(function($severity, $message, $file, $line) {
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/ticket_numbering.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/mailbox_graph.php';
@@ -536,7 +537,7 @@ function stripThreadFromBody($body) {
     // Look for the marker pattern in the HTML
     // The marker text is: [*** SDREF:XXX-XXX-XXXXX REPLY ABOVE THIS LINE ***]
     // It's wrapped in a div with data-reply-marker="true"
-    $markerPattern = '/\[\*{3}\s*SDREF:[A-Z]{3}-\d{3}-\d{5}\s*REPLY ABOVE THIS LINE\s*\*{3}\]/i';
+    $markerPattern = TicketNumbering::REF_LINE_PATTERN;
 
     // Try to find the marker div first (from our own compose)
     $divPattern = '/<div[^>]*data-reply-marker="true"[^>]*>.*?<\/div>/is';
@@ -638,7 +639,7 @@ function stripQuotedContent($body) {
     }
 
     // 3. Legacy SDREF marker text from older emails
-    if (preg_match('/\[\*{3}\s*SDREF:[A-Z]{3}-\d{3}-\d{5}\s*REPLY ABOVE THIS LINE\s*\*{3}\]/i', $body, $matches, PREG_OFFSET_CAPTURE)) {
+    if (preg_match(TicketNumbering::REF_LINE_PATTERN, $body, $matches, PREG_OFFSET_CAPTURE)) {
         $stripped = trim(substr($body, 0, $matches[0][1]));
         if (!empty($stripped)) return $stripped;
     }
