@@ -668,6 +668,18 @@ $translationNamespaces = ['common', 'asset-management'];
             color: var(--text-dim, #888);
         }
 
+        /* Add-an-asset modal (#1132) */
+        .new-asset-intro {
+            margin: 0 0 16px 0; font-size: 13px; line-height: 1.5;
+            color: var(--text-muted, #666);
+        }
+        .new-asset-next {
+            margin: 4px 0 0 0; padding: 10px 12px; border-radius: 6px;
+            background: var(--surface-3, #f8f9fa);
+            border: 1px solid var(--border-soft, #eee);
+            font-size: 12px; color: var(--text-muted, #666);
+        }
+
         /* Custom fields (docs/design/flexible-asset-fields.md) */
         .custom-fields-section {
             border-top: 1px solid var(--border, #e0e0e0);
@@ -1124,6 +1136,14 @@ $translationNamespaces = ['common', 'asset-management'];
                              loose links would sit at opposite ends of it with the
                              count stranded in the middle. */ ?>
                     <span class="asset-count-actions">
+                        <?php /* Adding an asset by hand (#1132). Until now the only
+                                 ways in were the inventory agent, Intune, vCenter and
+                                 the REST API — every one of which assumes the thing
+                                 reports for itself. A television never will. It sits
+                                 with Scan and Assign tags because it is the same kind
+                                 of occasional job, and a promoted button here would
+                                 compete with the search box people use constantly. */ ?>
+                        <a class="assets-tag-link" href="#" onclick="openNewAssetModal(); return false;"><?php echo htmlspecialchars(t('asset-management.list.add_asset')); ?></a>
                         <a class="assets-tag-link" href="scanner.php"><?php echo htmlspecialchars(t('asset-management.list.scan')); ?></a>
                         <a class="assets-tag-link" href="assign-tags.php"><?php echo htmlspecialchars(t('asset-management.list.assign_tags')); ?></a>
                     </span>
@@ -1152,6 +1172,62 @@ $translationNamespaces = ['common', 'asset-management'];
             <div class="empty-state">
                 <?php echo htmlspecialchars(t('asset-management.detail.select_prompt')); ?>
             </div>
+        </div>
+    </div>
+
+    <?php /* New asset (#1132).
+             CORE FIELDS ONLY, deliberately. Custom fields are filled in on the
+             asset itself where there is room and the "3 of 3 filled in" counter
+             says what is outstanding — a modal is the wrong place to answer
+             eight questions. The agent-synced hardware columns (CPU, BIOS,
+             memory…) are absent too: typing them in would be overwritten by the
+             next sync on anything that does report for itself. */ ?>
+    <div class="modal" id="newAssetModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span><?php echo htmlspecialchars(t('asset-management.new.heading')); ?></span>
+            </div>
+            <form id="newAssetForm">
+                <p class="new-asset-intro"><?php echo t('asset-management.new.intro'); ?></p>
+                <div class="form-group">
+                    <label for="naName"><?php echo htmlspecialchars(t('asset-management.new.name')); ?></label>
+                    <input type="text" id="naName" required maxlength="50" autocomplete="off"
+                           placeholder="<?php echo htmlspecialchars(t('asset-management.new.name_ph')); ?>">
+                    <div class="form-hint"><?php echo htmlspecialchars(t('asset-management.new.name_hint')); ?></div>
+                </div>
+                <div class="form-group">
+                    <label for="naType"><?php echo htmlspecialchars(t('asset-management.field.type')); ?></label>
+                    <select id="naType"></select>
+                </div>
+                <div class="form-group">
+                    <label for="naStatus"><?php echo htmlspecialchars(t('asset-management.field.status')); ?></label>
+                    <select id="naStatus"></select>
+                </div>
+                <div class="form-group">
+                    <label for="naLocation"><?php echo htmlspecialchars(t('asset-management.field.location')); ?></label>
+                    <select id="naLocation"></select>
+                </div>
+                <div class="form-group">
+                    <label for="naManufacturer"><?php echo htmlspecialchars(t('asset-management.field.manufacturer')); ?></label>
+                    <input type="text" id="naManufacturer" maxlength="50" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="naModel"><?php echo htmlspecialchars(t('asset-management.field.model')); ?></label>
+                    <input type="text" id="naModel" maxlength="50" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="naSerial"><?php echo htmlspecialchars(t('asset-management.detail.service_tag')); ?></label>
+                    <input type="text" id="naSerial" maxlength="50" autocomplete="off">
+                </div>
+                <?php /* Told, not implied: the fields somebody just designed for
+                         this type are coming, and where. Otherwise the modal
+                         looks like the whole story. */ ?>
+                <div class="new-asset-next" id="naNext" style="display:none;"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeNewAssetModal()"><?php echo htmlspecialchars(t('asset-management.common.cancel')); ?></button>
+                    <button type="submit" class="btn btn-primary" id="naSaveBtn"><?php echo htmlspecialchars(t('asset-management.common.save')); ?></button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1821,6 +1897,100 @@ $translationNamespaces = ['common', 'asset-management'];
                 console.error('Error loading assigned users:', error);
             }
         }
+
+        // ════════════════════════════════════════════════════════════════
+        //  Adding an asset by hand (#1132)
+        //
+        //  The inventory agent, Intune and vCenter cover everything that
+        //  reports for itself. This covers everything that does not: printers,
+        //  monitors, headsets, televisions.
+        // ════════════════════════════════════════════════════════════════
+
+        function openNewAssetModal() {
+            const typeSel = document.getElementById('naType');
+            const statSel = document.getElementById('naStatus');
+            const locSel  = document.getElementById('naLocation');
+
+            const none = `<option value="">${window.t('asset-management.common.none_option')}</option>`;
+            typeSel.innerHTML = none + assetTypes.map(t =>
+                `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+            statSel.innerHTML = none + assetStatusTypes.map(s =>
+                `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+            locSel.innerHTML  = buildLocationOptions(null);
+
+            document.getElementById('newAssetForm').reset();
+            typeSel.value = ''; statSel.value = ''; locSel.value = '';
+            naSyncNext();
+            typeSel.onchange = naSyncNext;
+
+            document.getElementById('newAssetModal').classList.add('active');
+            document.getElementById('naName').focus();
+        }
+
+        function closeNewAssetModal() {
+            document.getElementById('newAssetModal').classList.remove('active');
+        }
+
+        /**
+         * Say what happens after Save when the chosen type carries custom
+         * fields, so the modal never reads as the whole story.
+         */
+        async function naSyncNext() {
+            const box    = document.getElementById('naNext');
+            const typeId = parseInt(document.getElementById('naType').value, 10) || 0;
+            if (!typeId) { box.style.display = 'none'; return; }
+            try {
+                const res  = await fetch(`${API_BASE}get_asset_fields.php`);
+                const data = await res.json();
+                if (!data.success || !data.schema_ready) { box.style.display = 'none'; return; }
+
+                const setIds = (data.type_sets && data.type_sets[typeId]) || [];
+                let n = 0;
+                setIds.forEach(sid => {
+                    const set = (data.sets || []).find(s => s.id === sid);
+                    if (set) n += (set.fields || []).length;
+                });
+                if (!n) { box.style.display = 'none'; return; }
+                box.textContent = window.t('asset-management.new.next_fields', { n: n });
+                box.style.display = '';
+            } catch (e) {
+                box.style.display = 'none';   // never block a create over a hint
+            }
+        }
+
+        document.getElementById('newAssetForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const btn = document.getElementById('naSaveBtn');
+            btn.disabled = true;   // a duplicate hostname is refused, but a
+                                   // double-click should not even ask twice
+            try {
+                const res = await fetch(`${API_BASE}create_asset.php`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        hostname:        document.getElementById('naName').value.trim(),
+                        asset_type_id:   document.getElementById('naType').value,
+                        asset_status_id: document.getElementById('naStatus').value,
+                        location_id:     document.getElementById('naLocation').value,
+                        manufacturer:    document.getElementById('naManufacturer').value.trim(),
+                        model:           document.getElementById('naModel').value.trim(),
+                        service_tag:     document.getElementById('naSerial').value.trim()
+                    })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                closeNewAssetModal();
+                showToast(window.t('asset-management.new.created'), 'success');
+                // Land ON the new asset, with its custom fields ready to fill in
+                // — that is the whole reason the modal does not ask for them.
+                await loadAssets();
+                selectAsset(data.id);
+            } catch (err) {
+                showToast(err.message || window.t('asset-management.new.failed'), 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        });
 
         // ════════════════════════════════════════════════════════════════
         //  Custom fields on the asset

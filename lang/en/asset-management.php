@@ -180,6 +180,7 @@ return [
         'print_labels'       => 'Print labels',
         'assign_tags'        => 'Assign tags',
         'scan'               => 'Scan',
+        'add_asset'          => 'Add',
     ],
 
     // Asset detail panel (right pane)
@@ -201,7 +202,7 @@ return [
         'tab_software'      => 'Software',
         'tab_tickets'       => 'Tickets',
 
-        // Custom fields on the asset itself.
+        // Custom fields on the asset itself. (Detail section keys follow.)
         'cf_heading'        => 'Other details',
         'cf_filled'         => '{filled} of {total} filled in',
         'cf_none'           => 'Nothing extra is recorded for this kind of asset.',
@@ -218,6 +219,26 @@ return [
         'cf_save_failed'    => 'Could not save that.',
         'cf_yes'            => 'Yes',
         'cf_no'             => 'No',
+    ],
+
+    // Adding an asset by hand (#1132). Everything that reports for itself
+    // arrives through the agent, Intune or vCenter; this is for everything that
+    // does not.
+    'new' => [
+        'heading'     => 'Add an asset',
+        'intro'       => 'For equipment that cannot report for itself &mdash; a printer, a monitor, a headset, a television. Anything running the inventory script, or synced from Intune or vCenter, appears on its own.',
+        'name'        => 'Name',
+        'name_ph'     => 'MTG-TV-01',
+        'name_hint'   => 'What it is called in the list. For a computer this is its hostname, and it must be unique.',
+        'next_fields' => 'This type also records {n} other detail(s). You will be taken to the asset to fill them in.',
+        'created'     => 'Asset added.',
+        'failed'      => 'Could not add that asset.',
+        // ⚠️ LITERAL characters, not HTML entities. Most strings in this file
+        // land in markup, but this one goes to showToast(), which assigns
+        // textContent — so "&ldquo;" would appear on screen exactly like that.
+        // The service's own wording is a published REST error body telling you
+        // to send a PATCH, which is no use to anybody looking at a toast.
+        'duplicate'   => 'There is already an asset called “{name}”. Names must be unique — search for it in the list, or give this one a different name.',
     ],
 
     // Assign-user modal

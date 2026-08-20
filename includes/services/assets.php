@@ -95,7 +95,9 @@ class AssetsService
     /**
      * Create an asset (identified by its unique hostname). Returns the new id.
      * $creationNote is the audit new_value for the 'asset_created' row (the API
-     * records the acting key; the UI has no create path).
+     * records the acting key, the UI records the analyst — see
+     * api/assets/create_asset.php, added in #1132 because a television cannot
+     * run the inventory agent).
      */
     public static function createAsset(PDO $conn, ActorContext $ctx, array $in, string $creationNote, ?int $tenantId = null): int
     {
