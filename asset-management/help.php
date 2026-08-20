@@ -148,6 +148,16 @@ $translationNamespaces = ['common', 'asset-management'];
                             <p><?php echo htmlspecialchars(t('asset-management.help.card_assignment_desc')); ?></p>
                         </div>
                     </div>
+                    <?php /* Its own guide rather than a section here: custom
+                             fields + import is a large feature, and folded in it
+                             would be the longest section on the page and bury
+                             the inventory-script material everybody arrives
+                             for. Signposted from the top so it is findable. */ ?>
+                    <div class="help-note" style="margin-top: 18px;">
+                        <strong><?php echo htmlspecialchars(t('asset-management.help.overview_cf_lead')); ?></strong>
+                        <?php echo t('asset-management.help.overview_cf_body'); ?>
+                        <a href="help-custom-fields.php"><?php echo htmlspecialchars(t('asset-management.help.cf_link')); ?> &rarr;</a>
+                    </div>
                 </div>
 
                 <!-- Section 2: Asset Detail View -->
@@ -160,6 +170,7 @@ $translationNamespaces = ['common', 'asset-management'];
                     <div class="help-list">
                         <div><strong>Header</strong> &mdash; Hostname, service tag, assigned user, and a View History button for the full audit trail</div>
                         <div><strong>Info grid</strong> &mdash; Type, status, manufacturer, model, CPU, memory, operating system, feature release, build number, and BIOS</div>
+                        <div><strong>Other details</strong> &mdash; your own <a href="help-custom-fields.php">custom fields</a> for this kind of asset, grouped by set with a &ldquo;3 of 3 filled in&rdquo; count. Only appears when the asset&rsquo;s type records something extra.</div>
                         <div><strong>Storage</strong> &mdash; Drive cards showing capacity, usage percentage with colour-coded bars (green &lt; 75%, amber 75&ndash;90%, red &gt; 90%), and file system</div>
                         <div><strong>Devices tab</strong> &mdash; Every device from Windows Device Manager, grouped by category (Display adapters, Network adapters, etc.) with driver info and status badges. Use the search box to filter.</div>
                         <div><strong>Software tab</strong> &mdash; All installed applications and system components with publisher and version. Toggle between Applications, Components, and All.</div>
@@ -186,6 +197,7 @@ $translationNamespaces = ['common', 'asset-management'];
 
                     <p style="margin-top: 14px;"><strong>Customise the columns</strong></p>
                     <p>The default visible set is Hostname, Type, Status, Manufacturer, Model, OS and Assigned users. Click the <strong>Columns</strong> button on the toolbar to open a drawer where you can tick to show / hide and drag the ⋮⋮ handles to reorder. You can also drag the table headers themselves to reorder columns directly. The available hidden-by-default columns include Feature release, Build, Service tag, CPU, CPU speed, Memory and BIOS.</p>
+                    <p><strong>Your own fields appear here too.</strong> Any <a href="help-custom-fields.php">custom field</a> marked <em>Offer as a column</em> joins the same drawer, and sorts, filters and exports exactly like a built-in one. Filtering a yes/no field keeps <em>Yes</em>, <em>No</em> and <em>not filled in</em> as three separate choices, so filtering to <em>No</em> never sweeps up assets that simply have not got the field.</p>
                     <p>Visible columns, column order and sort direction <strong>persist per analyst</strong> &mdash; saved against your account via <code>user_preferences</code> so you keep the same layout when you sign in on another machine. Search and active filters are deliberately transient session state.</p>
 
                     <p style="margin-top: 14px;"><strong>Export</strong></p>
