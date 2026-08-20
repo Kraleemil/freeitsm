@@ -4,52 +4,44 @@
  * Falls back per-key to lang/en/common.php for anything missing here.
  */
 return [
-    // Left-panel visibility preference — shared labels (mirrors lang/en/common.php).
     'left_panel' => [
         'tab'        => 'Panel izquierdo',
         'visibility' => 'Visibilidad',
         'always'     => 'Siempre visible',
         'hover'      => 'Mostrar al pasar el cursor',
     ],
-
-    'save'         => 'Guardar',
-    'cancel'       => 'Cancelar',
-    'delete'       => 'Eliminar',
-    'add'          => 'Añadir',
-    'edit'         => 'Editar',
-    'close'        => 'Cerrar',
-    'copy'         => 'Copiar',
-    'copied'       => 'Copiado',
-    'retry'        => 'Reintentar',
-    'export'       => 'Exportar',
-    'back'         => 'Atrás',
-    'open'         =>  'Abrir',
-    'apply'        => 'Aplicar',
-
-    'yes'          => 'Sí',
-    'no'           => 'No',
-    'ok'           => 'OK',
-    'loading'      => 'Cargando…',
-    'saving'       => 'Guardando…',
-    'saved'        => 'Guardado',
-    'unsaved'      => 'Sin guardar',
-    'unsaved_changes' => 'Cambios sin guardar',
-    'failed'       => 'Fallido',
-
-    'just_now'     => 'ahora mismo',
-    'today'        => 'Hoy',
-    'yesterday'    => 'Ayer',
-
-    'required'     => 'Obligatorio',
-    'optional'     => 'Opcional',
-    'select_one'   => 'Seleccionar…',
-    'search'       => 'Buscar',
-
+    'save'                => 'Guardar',
+    'cancel'              => 'Cancelar',
+    'delete'              => 'Eliminar',
+    'add'                 => 'Añadir',
+    'edit'                => 'Editar',
+    'close'               => 'Cerrar',
+    'copy'                => 'Copiar',
+    'copied'              => 'Copiado',
+    'retry'               => 'Reintentar',
+    'export'              => 'Exportar',
+    'back'                => 'Atrás',
+    'open'                => 'Abrir',
+    'apply'               => 'Aplicar',
+    'yes'                 => 'Sí',
+    'no'                  => 'No',
+    'ok'                  => 'OK',
+    'loading'             => 'Cargando…',
+    'saving'              => 'Guardando…',
+    'saved'               => 'Guardado',
+    'unsaved'             => 'Sin guardar',
+    'unsaved_changes'     => 'Cambios sin guardar',
+    'failed'              => 'Fallido',
+    'just_now'            => 'ahora mismo',
+    'today'               => 'Hoy',
+    'yesterday'           => 'Ayer',
+    'required'            => 'Obligatorio',
+    'optional'            => 'Opcional',
+    'select_one'          => 'Seleccionar…',
+    'search'              => 'Buscar',
     'error_generic'       => 'Algo salió mal.',
     'error_network'       => 'Error de red',
     'error_not_logged_in' => 'Debe iniciar sesión.',
-
-    // Home / landing page (index.php)
     'home' => [
         'header_title'     => 'Mesa de servicio',
         'browser_title'    => 'Mesa de servicio - ITSM',
@@ -57,36 +49,100 @@ return [
         'welcome_subtitle' => 'Seleccione un módulo para empezar',
         'footer'           => 'Mesa de servicio ITSM',
     ],
-
-    // Waffle module-switcher panel (shared header)
     'waffle' => [
         'title' => 'Módulos ITSM',
     ],
-
-    // Per-module display name + one-line description.
     'modules' => [
-        'watchtower'     => ['name' => 'Vigía',         'description' => 'Panel unificado de atención para todos los módulos'],
-        'tickets'        => ['name' => 'Tickets',       'description' => 'Gestione solicitudes de soporte, correos e incidencias de usuarios'],
-        'assets'         => ['name' => 'Activos',       'description' => 'Realice seguimiento de activos de TI y asignaciones a usuarios'],
-        'knowledge'      => ['name' => 'Conocimiento',  'description' => 'Cree y consulte artículos de la base de conocimiento'],
-        'changes'        => ['name' => 'Cambios',       'description' => 'Planifique, controle y gestione cambios de TI'],
-        'calendar'       => ['name' => 'Calendario',    'description' => 'Realice seguimiento de eventos, plazos y agendas'],
-        'morning-checks' => ['name' => 'Comprobaciones','description' => 'Registre comprobaciones diarias de infraestructura'],
-        'reporting'      => ['name' => 'Informes',      'description' => 'Consulte registros del sistema y analíticas'],
-        'software'       => ['name' => 'Software',      'description' => 'Consulte el inventario de software y licencias'],
-        'forms'          => ['name' => 'Formularios',   'description' => 'Diseñe formularios personalizados y vea envíos'],
-        'contracts'      => ['name' => 'Contratos',     'description' => 'Gestione proveedores, contactos y contratos'],
-        'service-status' => ['name' => 'Estado',        'description' => 'Supervise la salud de los servicios y registre incidentes'],
-        'wiki'           => ['name' => 'Wiki',          'description' => 'Consulte la documentación del código generada automáticamente'],
-        'lms'            => ['name' => 'LMS',           'description' => 'Sistema de gestión de aprendizaje con reproductor SCORM'],
-        'process-mapper' => ['name' => 'Procesos',      'description' => 'Herramienta visual de diagramas de flujo y mapeo de procesos'],
-        'tasks'          => ['name' => 'Tareas',        'description' => 'Tablero Kanban y vista de lista para seguir tareas'],
-        'cmdb'           => ['name' => 'CMDB',          'description' => 'Base de datos de gestión de configuración'],
-        'network-mapper' => ['name' => 'Red',           'description' => 'Diseñe y documente diagramas de red'],
-        'system'         => ['name' => 'Sistema',       'description' => 'Administración y configuración del sistema'],
+        'watchtower' => [
+            'name'        => 'Vigía',
+            'description' => 'Panel unificado de atención para todos los módulos',
+        ],
+        'tickets' => [
+            'name'        => 'Tickets',
+            'description' => 'Gestione solicitudes de soporte, correos e incidencias de usuarios',
+        ],
+        'assets' => [
+            'name'        => 'Activos',
+            'description' => 'Realice seguimiento de activos de TI y asignaciones a usuarios',
+        ],
+        'knowledge' => [
+            'name'        => 'Conocimiento',
+            'description' => 'Cree y consulte artículos de la base de conocimiento',
+        ],
+        'changes' => [
+            'name'        => 'Cambios',
+            'description' => 'Planifique, controle y gestione cambios de TI',
+        ],
+        'calendar' => [
+            'name'        => 'Calendario',
+            'description' => 'Realice seguimiento de eventos, plazos y agendas',
+        ],
+        'morning-checks' => [
+            'name'        => 'Comprobaciones',
+            'description' => 'Registre comprobaciones diarias de infraestructura',
+        ],
+        'reporting' => [
+            'name'        => 'Informes',
+            'description' => 'Consulte registros del sistema y analíticas',
+        ],
+        'software' => [
+            'name'        => 'Software',
+            'description' => 'Consulte el inventario de software y licencias',
+        ],
+        'forms' => [
+            'name'        => 'Formularios',
+            'description' => 'Diseñe formularios personalizados y vea envíos',
+        ],
+        'contracts' => [
+            'name'        => 'Contratos',
+            'description' => 'Gestione proveedores, contactos y contratos',
+        ],
+        'service-status' => [
+            'name'        => 'Estado',
+            'description' => 'Supervise la salud de los servicios y registre incidentes',
+        ],
+        'wiki' => [
+            'name'        => 'Wiki',
+            'description' => 'Consulte la documentación del código generada automáticamente',
+        ],
+        'lms' => [
+            'name'        => 'LMS',
+            'description' => 'Sistema de gestión de aprendizaje con reproductor SCORM',
+        ],
+        'process-mapper' => [
+            'name'        => 'Procesos',
+            'description' => 'Herramienta visual de diagramas de flujo y mapeo de procesos',
+        ],
+        'tasks' => [
+            'name'        => 'Tareas',
+            'description' => 'Tablero Kanban y vista de lista para seguir tareas',
+        ],
+        'cmdb' => [
+            'name'        => 'CMDB',
+            'description' => 'Base de datos de gestión de configuración',
+        ],
+        'network-mapper' => [
+            'name'        => 'Red',
+            'description' => 'Diseñe y documente diagramas de red',
+        ],
+        'system' => [
+            'name'        => 'Sistema',
+            'description' => 'Administración y configuración del sistema',
+        ],
+        'problems' => [
+            'name'        => 'Gestión de problemas',
+            'name_short'  => 'Problemas',
+            'description' => 'Investigue la causa raíz de las incidencias recurrentes',
+        ],
+        'war-room' => [
+            'name'        => 'Sala de crisis',
+            'description' => 'Chat de respaldo para cuando Teams o Slack no estén disponibles',
+        ],
+        'workflow' => [
+            'name'        => 'Flujos de trabajo',
+            'description' => 'Automatización entre módulos: desencadenantes, condiciones y acciones',
+        ],
     ],
-
-    // Account / user menu in the shared header
     'account' => [
         'mail_check'      => 'Comprobar correos nuevos',
         'change_password' => 'Cambiar contraseña',
@@ -96,9 +152,9 @@ return [
         'logout_confirm'  => '¿Seguro que desea cerrar sesión?',
         'badge_off'       => 'Desactivado',
         'badge_on'        => 'Activado',
+        'preferences'     => 'Preferencias',
+        'appearance'      => 'Apariencia',
     ],
-
-    // Change-password modal
     'password_modal' => [
         'title'            => 'Cambiar contraseña',
         'current_password' => 'Contraseña actual',
@@ -106,18 +162,13 @@ return [
         'confirm_password' => 'Confirmar nueva contraseña',
         'submit'           => 'Cambiar contraseña',
     ],
-
-    // MFA modal
     'mfa_modal' => [
         'title' => 'Autenticación multifactor',
     ],
-
-    // Calendar primitives — months, weekdays, navigation.
     'calendar' => [
-        'previous' => 'Anterior',
-        'next'     => 'Siguiente',
-        'today'    => 'Hoy',
-
+        'previous'   => 'Anterior',
+        'next'       => 'Siguiente',
+        'today'      => 'Hoy',
         'months' => [
             'january'   => 'enero',
             'february'  => 'febrero',
@@ -132,7 +183,6 @@ return [
             'november'  => 'noviembre',
             'december'  => 'diciembre',
         ],
-
         'weekdays' => [
             'monday'    => 'lunes',
             'tuesday'   => 'martes',
@@ -141,6 +191,120 @@ return [
             'friday'    => 'viernes',
             'saturday'  => 'sábado',
             'sunday'    => 'domingo',
+        ],
+        'view_month' => 'Mes',
+        'view_week'  => 'Semana',
+        'view_day'   => 'Día',
+    ],
+    'ai' => [
+        'provider'            => 'Proveedor',
+        'provider_anthropic'  => 'Anthropic (Claude)',
+        'provider_openai'     => 'OpenAI (GPT)',
+        'provider_openrouter' => 'OpenRouter (una clave, muchos modelos)',
+        'openrouter_note'     => 'Con OpenRouter, una sola clave da acceso a cientos de modelos. Tenga en cuenta que las peticiones se enrutan a través del servicio de OpenRouter.',
+        'model'               => 'Modelo',
+        'model_placeholder'   => 'Escriba o elija un modelo…',
+        'model_set'           => 'Modelo',
+        'loading_models'      => 'Cargando la lista de modelos…',
+        'no_models'           => 'No hay modelos coincidentes: puede escribir cualquier identificador de modelo',
+        'openrouter_pricing'  => 'Precios por cada millón de tokens (entrada / salida).',
+        'models_stale'        => 'en caché',
+        'api_key'             => 'Clave de API',
+        'api_key_help'        => 'Se guarda cifrada. Déjelo en blanco para conservar la clave guardada.',
+        'api_key_set'         => 'Hay una clave guardada. Déjelo en blanco para conservarla.',
+        'verify_ssl'          => 'Verificar el certificado SSL',
+        'verify_ssl_help'     => 'Déjelo activado en producción. Desactívelo solo si su servidor no puede validar el certificado del proveedor.',
+        'save'                => 'Guardar',
+        'test'                => 'Probar',
+        'testing'             => 'Probando…',
+        'test_ok'             => 'Conexión correcta',
+        'test_failed'         => 'La prueba ha fallado',
+        'saved'               => 'Guardado',
+        'save_failed'         => 'No se ha podido guardar',
+    ],
+    'dismiss'             => 'Descartar',
+    'documents' => [
+        'heading'         => 'Documentos',
+        'count_one'       => '1 documento',
+        'count_many'      => '{n} documentos',
+        'none'            => 'Todavía no hay documentos adjuntos.',
+        'drop'            => 'Arrastre un archivo aquí, o haga clic para elegir uno',
+        'drop_or'         => 'o pegue debajo un enlace al documento en su gestor documental',
+        'link_url'        => 'https://enlace-a-su-documento',
+        'link_title'      => '¿Qué es? (opcional)',
+        'add_link'        => 'Añadir enlace',
+        'open'            => 'Abrir',
+        'download'        => 'Descargar',
+        'remove'          => 'Quitar',
+        'remove_confirm'  => '¿Quitar «{name}» de este registro?',
+        'removed_last'    => 'Era el último sitio donde estaba adjunto, así que el documento se ha eliminado.',
+        'also_on'         => 'También en {label}',
+        'uploading'       => 'Subiendo…',
+        'show_more'       => 'Mostrar más',
+        'failed'          => 'Algo ha salido mal.',
+        'by'              => 'por {name}',
+        'loading'         => 'Cargando…',
+        'close'           => 'Cerrar',
+        'info_title'      => 'Detalles del documento',
+        'attached_to'     => 'Adjunto a',
+        'attached_none'   => 'No está adjunto a nada que usted pueda ver.',
+        'attached_hidden' => 'Y {n} registro(s) más a los que no tiene acceso.',
+        'kind_link'       => 'Un enlace a un documento externo',
+        'idx_ok'          => 'Se puede buscar: {n} caracteres de texto indexados.',
+        'idx_pending'     => 'Todavía no se puede buscar: aún se está leyendo el texto.',
+        'idx_unsupported' => 'No se puede leer su contenido, así que solo se pueden buscar su nombre y su descripción.',
+        'idx_failed'      => 'No se ha podido leer su contenido.',
+        'find_existing'   => 'O adjunte un documento que ya esté en FreeITSM: empiece a escribir su nombre',
+        'find_none'       => 'No hay documentos que coincidan, que usted pueda ver y que no estén ya aquí.',
+        'currently_on'    => 'actualmente en {where}',
+    ],
+    'notifications' => [
+        'title'       => 'Notificaciones',
+        'aria'        => 'Notificaciones',
+        'mark_all'    => 'Marcar todo como leído',
+        'empty'       => 'No hay nada nuevo.',
+        'loading'     => 'Cargando…',
+        'load_failed' => 'No se han podido cargar las notificaciones.',
+        'someone'     => 'Alguien',
+        'just_now'    => 'ahora mismo',
+        'minutes'     => 'hace {n} min',
+        'hours'       => 'hace {n} h',
+        'days'        => 'hace {n} d',
+        'event' => [
+            'ticket' => [
+                'assigned'         => '{actor} se lo ha asignado a usted',
+                'reply_received'   => 'El solicitante ha respondido',
+                'note_added'       => '{actor} ha añadido una nota',
+                'status_changed'   => '{actor} ha cambiado el estado',
+                'priority_changed' => '{actor} ha cambiado la prioridad',
+                'created'          => 'Creado por {actor}',
+            ],
+            'sla' => [
+                'warning'  => 'Se acerca a su objetivo de SLA',
+                'breached' => 'Objetivo de SLA incumplido',
+            ],
+            'task' => [
+                'created'   => '{actor} le ha creado una tarea',
+                'completed' => '{actor} ha completado una tarea',
+            ],
+        ],
+        'pref' => [
+            'ticket' => [
+                'assigned'         => 'Se me asigna un ticket',
+                'reply_received'   => 'Un solicitante responde a mi ticket',
+                'note_added'       => 'Alguien añade una nota a mi ticket',
+                'status_changed'   => 'Alguien cambia el estado de mi ticket',
+                'priority_changed' => 'Alguien cambia la prioridad de mi ticket',
+                'created'          => 'Se crea un ticket',
+            ],
+            'sla' => [
+                'warning'  => 'Mi ticket se acerca a su objetivo de SLA',
+                'breached' => 'Mi ticket incumple su objetivo de SLA',
+            ],
+            'task' => [
+                'created'   => 'Se me crea una tarea',
+                'completed' => 'Se completa una tarea mía',
+            ],
         ],
     ],
 ];

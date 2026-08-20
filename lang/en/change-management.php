@@ -416,7 +416,14 @@ return [
 
         'delete_confirm' => 'Delete "{name}"?',
         'delete_section_confirm' => 'Delete "{name}"?',
-        'delete_section_fields' => "Delete \"{name}\"?\n\n{count} field{plural} will become unplaced and won't appear on the change form until you drag {them} into another section.",
+        // 🔴 One string per plural form, NOT one string with {plural} and {them}
+        // filled in from JavaScript. Those were being passed the literal English
+        // words 's' and 'it'/'them', so EVERY other locale rendered an English
+        // pronoun in the middle of its own sentence — and any language whose verb
+        // agrees with the count could not be written correctly at all. Spanish
+        // came out as "2 campos quedarás", which is the wrong person entirely.
+        'delete_section_fields_one'  => "Delete \"{name}\"?\n\n1 field will become unplaced and won't appear on the change form until you drag it into another section.",
+        'delete_section_fields_many' => "Delete \"{name}\"?\n\n{count} fields will become unplaced and won't appear on the change form until you drag them into another section.",
     ],
 
     'toast' => [

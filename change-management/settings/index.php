@@ -795,11 +795,14 @@ $translationNamespaces = ['common', 'change-management'];
             if (!section) return;
             const fieldsInSection = layout.fields.filter(f => f.section_id === sectionId);
             if (fieldsInSection.length > 0) {
-                const msg = window.t('change-management.settings.delete_section_fields', {
+                // Pick the string by count rather than passing English words in as
+                // placeholder values - see lang/en/change-management.php.
+                const n = fieldsInSection.length;
+                const msg = window.t(n === 1
+                    ? 'change-management.settings.delete_section_fields_one'
+                    : 'change-management.settings.delete_section_fields_many', {
                     name: section.name,
-                    count: fieldsInSection.length,
-                    plural: fieldsInSection.length === 1 ? '' : 's',
-                    them: fieldsInSection.length === 1 ? 'it' : 'them'
+                    count: n
                 });
                 if (!(await showConfirm({ title: window.t('change-management.settings.delete_section'), message: msg, okLabel: window.t('change-management.settings.delete'), okClass: 'danger' }))) return;
             } else if (!(await showConfirm({ title: window.t('change-management.settings.delete'), message: window.t('change-management.settings.delete_section_confirm', { name: section.name }), okLabel: window.t('change-management.settings.delete'), okClass: 'danger' }))) return;
