@@ -543,9 +543,21 @@ function renderFolders() {
 
     let html = '';
 
-    // All Tickets folder
+    // All Tickets folder (GH #73) — expandable, with a count per status, exactly
+    // as departments and analysts already are.
+    //
+    // 🔑 The counts were ALREADY being sent: get_ticket_counts.php has returned
+    // `overall_statuses` all along and nothing consumed it. It is scoped by the
+    // same $ttSql as total_count, so the children sum to the parent rather than
+    // being a second, differently-filtered count that quietly disagrees.
+    //
+    // The leading 📁/📂 comes from CSS on .folder-item and now earns its place
+    // here: on this row it is the expand indicator, the same as on a department.
+    const allExpanded  = !!expandedFolders['all'];
+    const allStatusMap = folderCounts.overall_statuses || {};
     html += `
-        <div class="folder-item ${currentFilter.type === 'all' ? 'active' : ''}" data-folder-key="all" onclick="selectFolder('all')">
+        <div class="folder-item ${allExpanded ? 'expanded' : ''} ${currentFilter.type === 'all' ? 'active' : ''}"
+             data-folder-key="all" onclick="toggleFolder('all', null, { kind: 'all' })">
             <div class="folder-name">
                 <span class="folder-icon">📬</span>
                 <span>${escapeHtml(t('tickets.list.all_tickets'))}</span>
@@ -553,6 +565,20 @@ function renderFolders() {
             <span class="folder-count">${folderCounts.total_count || 0}</span>
         </div>
     `;
+    html += `<div class="subfolder-group ${allExpanded ? 'expanded' : ''}"><div class="subfolder-group-inner">`;
+    (folderCounts.statuses || []).forEach(s => {
+        const status = s.name;
+        const count  = allStatusMap[status] || 0;
+        const subActive = currentFilter.type === 'all_status' && currentFilter.status === status;
+        html += `
+            <div class="subfolder-item drop-zone ${subActive ? 'active' : ''} ${count === 0 ? 'empty' : ''}"
+                 data-drop-type="all_status" data-status="${escapeHtml(status)}">
+                <span>${escapeHtml(status)}</span>
+                <span class="folder-count">${count}</span>
+            </div>
+        `;
+    });
+    html += `</div></div>`;
 
     // Unassigned folder — semantics depend on grouping mode (no department vs no analyst)
     const unassignedCount = folderGrouping === 'analyst'
@@ -685,7 +711,10 @@ function updateActiveFolderClasses() {
     if (!list) return;
     list.querySelectorAll('.folder-item, .subfolder-item').forEach(el => el.classList.remove('active'));
 
-    if (currentFilter.type === 'all') {
+    if (currentFilter.type === 'all_status') {
+        const sel = `.subfolder-item[data-drop-type="all_status"][data-status="${CSS.escape(currentFilter.status)}"]`;
+        list.querySelector(sel)?.classList.add('active');
+    } else if (currentFilter.type === 'all') {
         list.querySelector('[data-folder-key="all"]')?.classList.add('active');
     } else if (currentFilter.type === 'unassigned') {
         list.querySelector('[data-drop-type="unassigned"]')?.classList.add('active');
@@ -726,8 +755,16 @@ function toggleFolder(folderId, groupId, opts = {}) {
 
     // Targeted class flip on the existing nodes so the CSS grid-row transition fires.
     const list = document.getElementById('folderList');
-    const dataAttr = kind === 'analyst' ? 'data-analyst-id' : 'data-dept-id';
-    const folderRow = list?.querySelector(`.folder-item[data-drop-type="${kind}"][${dataAttr}="${groupId}"]`);
+    // ⚠️ The All Tickets row is found by its folder-key: unlike a department or
+    // an analyst it has no id and is not a drop target, so the generic
+    // [data-drop-type][data-id] lookup below cannot see it.
+    let folderRow;
+    if (kind === 'all') {
+        folderRow = list?.querySelector('.folder-item[data-folder-key="all"]');
+    } else {
+        const dataAttr = kind === 'analyst' ? 'data-analyst-id' : 'data-dept-id';
+        folderRow = list?.querySelector(`.folder-item[data-drop-type="${kind}"][${dataAttr}="${groupId}"]`);
+    }
     const subGroup = folderRow?.nextElementSibling;
     folderRow?.classList.toggle('expanded', willBeExpanded);
     if (subGroup && subGroup.classList.contains('subfolder-group')) {
@@ -735,7 +772,12 @@ function toggleFolder(folderId, groupId, opts = {}) {
     }
 
     if (selectAfter) {
-        if (kind === 'analyst') {
+        if (kind === 'all') {
+            // Clicking All Tickets still selects All Tickets, exactly as before.
+            // Expanding is additive: it must not change what you are looking at.
+            currentFilter = { type: 'all' };
+            document.getElementById('emailListTitle').textContent = t('tickets.list.all_tickets');
+        } else if (kind === 'analyst') {
             currentFilter = { type: 'analyst', id: groupId };
             const an = folderCounts.analysts?.find(a => a.id == groupId);
             document.getElementById('emailListTitle').textContent = an ? an.name : 'Analyst';
@@ -778,6 +820,16 @@ function selectDeptStatus(deptId, status) {
     currentFilter = { type: 'dept_status', dept_id: deptId, status: status };
     const dept = folderCounts.departments.find(d => d.id == deptId);
     document.getElementById('emailListTitle').textContent = `${dept ? dept.name : 'Department'} - ${status}`;
+
+    updateActiveFolderClasses();
+    loadEmails();
+}
+
+// Select a status across every ticket (GH #73) — the All Tickets equivalent of
+// selectDeptStatus / selectAnalystStatus.
+function selectAllStatus(status) {
+    currentFilter = { type: 'all_status', status: status };
+    document.getElementById('emailListTitle').textContent = `${t('tickets.list.all_tickets')} - ${status}`;
 
     updateActiveFolderClasses();
     loadEmails();
@@ -881,7 +933,9 @@ function attachFolderDropHandlers() {
             e.stopPropagation();
             const dropType = el.dataset.dropType;
             const status = el.dataset.status;
-            if (dropType === 'analyst_status') {
+            if (dropType === 'all_status') {
+                if (status) selectAllStatus(status);
+            } else if (dropType === 'analyst_status') {
                 const analystId = parseInt(el.dataset.analystId, 10);
                 if (analystId && status) selectAnalystStatus(analystId, status);
             } else {
@@ -999,6 +1053,12 @@ async function handleTicketDrop(targetEl, ticketId, ticketNumber) {
         const dept = folderCounts.departments.find(d => d.id == payload.department_id);
         newDeptName = dept ? dept.name : null;
         toastMsg = `${ticketNumber || 'Ticket'} → ${newDeptName || 'Department'}`;
+    } else if (dropType === 'all_status') {
+        // Only the status. Dropping onto a status under All Tickets says nothing
+        // about department or owner, so it must not quietly change either.
+        payload.status = targetEl.dataset.status;
+        newStatusName = payload.status;
+        toastMsg = `${ticketNumber || 'Ticket'} → ${payload.status}`;
     } else if (dropType === 'dept_status') {
         payload.department_id = parseInt(targetEl.dataset.deptId, 10);
         payload.status = targetEl.dataset.status;
@@ -1078,7 +1138,11 @@ async function loadEmails() {
     try {
         let url = API_BASE + 'get_emails.php?';
 
-        if (currentFilter.type === 'unassigned') {
+        if (currentFilter.type === 'all_status') {
+            // Status alone, with no department or assignee — get_emails.php already
+            // supports exactly this, which is why GH #73 needed no backend work.
+            url += `status=${encodeURIComponent(currentFilter.status)}`;
+        } else if (currentFilter.type === 'unassigned') {
             // "Unassigned" semantics depend on the active grouping
             url += folderGrouping === 'analyst' ? 'assignee_id=unassigned' : 'department_id=unassigned';
         } else if (currentFilter.type === 'department') {
