@@ -71,6 +71,9 @@ $schema = require __DIR__ . '/../../includes/db_verify_schema.php';
 
 // Primary key definitions: table => pk_column (defaults to 'id')
 $primaryKeys = [
+    // ⚠️ No auto-increment id on purpose: counter_key being the PK is what lets
+    // the read-and-increment happen in one statement (#1147).
+    'ticket_number_counters'    => 'counter_key',
     'attachment_text'           => 'attachment_id',
     'document_text'             => 'document_id',
     'system_settings'           => 'setting_key',
@@ -680,6 +683,16 @@ try {
         if (!$fkExists('document_access_log', 'fk_document_access_document')) {
             try { $conn->exec("ALTER TABLE document_access_log ADD CONSTRAINT fk_document_access_document FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE"); } catch (Exception $e) {}
         }
+    }
+
+    // Ticket numbering (#1147). ticket_number_history is defined BEFORE the
+    // tickets table in freeitsm.sql, so its FK cannot be inline there — same
+    // reason as fk_assets_supplier.
+    if ($tableExists('ticket_number_history') && $tableExists('tickets')
+        && !$fkExists('ticket_number_history', 'fk_tnh_ticket')) {
+        try {
+            $conn->exec("ALTER TABLE ticket_number_history ADD CONSTRAINT fk_tnh_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE");
+        } catch (Exception $e) {}
     }
 
     // An asset type's icon (#1146). SET NULL, never CASCADE: retiring a glyph

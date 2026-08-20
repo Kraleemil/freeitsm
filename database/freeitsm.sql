@@ -767,6 +767,64 @@ CREATE TABLE IF NOT EXISTS `sla_cron_runs` (
     KEY `idx_sla_cron_ip_started` (`client_ip`, `started_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ============================================================================
+-- Ticket numbering (GH discussion #71).
+--
+-- The format an install issues is configurable, so two things have to be true
+-- forever: a number must never be issued twice, and a number that has EVER been
+-- issued must keep resolving to its ticket.
+-- ============================================================================
+
+-- One row per sequence. Which sequences exist depends on the settings: one
+-- globally, or one per ticket type, or per company, and optionally a fresh one
+-- each year or month.
+--
+-- 🔑 The reset period is part of the KEY rather than a stored date. A yearly
+-- reset is simply a different counter each year, so nothing has to notice
+-- midnight on 31 December and no job has to zero anything.
+--
+-- ⚠️ No AUTO_INCREMENT id, deliberately: `counter_key` is the primary key so
+-- the INSERT … ON DUPLICATE KEY UPDATE … LAST_INSERT_ID(next_value + 1) trick
+-- reads and increments in ONE statement. A SELECT followed by an UPDATE would
+-- race, and the collision would only show up under load.
+CREATE TABLE IF NOT EXISTS `ticket_number_counters` (
+    `counter_key`       VARCHAR(64) NOT NULL,
+    `next_value`        BIGINT NOT NULL DEFAULT 1,
+    `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`counter_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Every number a ticket has ever had, other than its current one.
+--
+-- 🔴 THIS IS WHAT MAKES RENUMBERING SAFE, and it is not optional. Every
+-- notification FreeITSM has ever sent carries [SDREF:<number>] in its subject,
+-- and those emails sit in customers' inboxes forever. Renumber a ticket without
+-- this and a reply to any older email matches nothing: it silently becomes a
+-- new ticket. No error, no warning, across the whole estate at once.
+--
+-- Exactly the same principle the ticket MERGE code already relies on — an old
+-- identifier keeps working because the emails quoting it do.
+--
+-- ⚠️ A retired number is also never handed to a DIFFERENT ticket: the uniqueness
+-- check reads this table as well as `tickets`. Reusing one would route somebody's
+-- reply onto a stranger's ticket, which is worse than not matching at all.
+CREATE TABLE IF NOT EXISTS `ticket_number_history` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `ticket_id`         INT NOT NULL,
+    `ticket_number`     VARCHAR(50) NOT NULL,
+    -- Why it changed: 'renumber' today; a future migration tool can say its own.
+    `reason`            VARCHAR(30) NOT NULL DEFAULT 'renumber',
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    -- The lookup that runs on every inbound email, and the guarantee that one
+    -- retired number cannot be recorded twice.
+    UNIQUE KEY `uq_tnh_number` (`ticket_number`),
+    KEY `ix_tnh_ticket` (`ticket_id`)
+    -- fk_tnh_ticket (ticket_id -> tickets.id, CASCADE) is added in db_verify.php:
+    -- the `tickets` table is defined LATER in this file, so the FK cannot be
+    -- inline here. Same reason as fk_assets_supplier.
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `tickets` (
     `id`                    INT NOT NULL AUTO_INCREMENT,
     `tenant_id`             INT NULL,

@@ -48,6 +48,8 @@ return [
     ['sla_notifications_sent', 'uq_sla_notif_sent', 'unique', '(`ticket_id`,`target_type`,`trigger_type`)'],
     ['sla_cron_runs', 'idx_sla_cron_started', 'key', '(`started_at`)'],
     ['sla_cron_runs', 'idx_sla_cron_ip_started', 'key', '(`client_ip`,`started_at`)'],
+    ['ticket_number_history', 'uq_tnh_number', 'unique', '(`ticket_number`)'],
+    ['ticket_number_history', 'ix_tnh_ticket', 'key', '(`ticket_id`)'],
     ['tickets', 'uq_tickets_number', 'unique', '(`ticket_number`)'],
     ['tickets', 'ix_tickets_merged_into_id', 'key', '(`merged_into_id`)'],
     ['tickets', 'ix_tickets_snoozed_until', 'key', '(`snoozed_until`)'],

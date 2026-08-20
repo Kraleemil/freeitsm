@@ -505,6 +505,26 @@ return [
         'notes'          => 'TEXT NULL',
     ],
 
+    // --- Ticket numbering (GH #71) ------------------------------------------
+    // ⚠️ ticket_number_counters has NO auto-increment id: counter_key is the
+    // primary key, which is what lets the read-and-increment be one statement.
+    'ticket_number_counters' => [
+        'counter_key'      => 'VARCHAR(64) NOT NULL',
+        'next_value'       => 'BIGINT NOT NULL DEFAULT 1',
+        'updated_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+        // ⚠️ The PK is declared in db_verify.php's $primaryKeys map, NOT here —
+        // this array is columns only, and a 'PRIMARY KEY' entry would be built
+        // as a column literally called that.
+    ],
+
+    'ticket_number_history' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'ticket_id'        => 'INT NOT NULL',
+        'ticket_number'    => 'VARCHAR(50) NOT NULL',
+        'reason'           => "VARCHAR(30) NOT NULL DEFAULT 'renumber'",
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     'tickets' => [
         'id'                    => 'INT NOT NULL AUTO_INCREMENT',
         'tenant_id'             => 'INT NULL',
