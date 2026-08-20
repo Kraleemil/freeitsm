@@ -460,7 +460,17 @@ $translationNamespaces = ['common', 'asset-management'];
             margin-top: 8px;
         }
 
-        /* Modal Styles */
+        /* Modal Styles
+           ⚠️ These OVERRIDE the shared definitions in assets/css/inbox.css,
+           which this page already loads. inbox.css is the canonical source for
+           .modal / .modal-content / .modal-header / .modal-body / .modal-footer
+           / .modal-actions, and the house rule is not to redefine them.
+           The overrides here narrow the dialog (500px / 80vh vs 900px / 90vh)
+           and drop the entrance transition; because .modal-content ends up
+           without a scroll container, .modal-actions cannot stick to it, so
+           every modal on this page must use the header / body / footer layout.
+           Left in place deliberately — removing them resizes every dialog on
+           this page and needs its own look-over. */
         .modal {
             display: none;
             position: fixed;
@@ -697,8 +707,11 @@ $translationNamespaces = ['common', 'asset-management'];
             font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
             text-transform: uppercase; color: var(--text-muted, #666);
         }
-        .na-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; padding: 0; }
-        .na-grid .info-item { display: flex; flex-direction: column; gap: 4px; }
+        /* In the dialog a custom field is a .form-group like any other, so it
+           needs no grid — it stacks with Manufacturer and Model. Only the
+           number+unit pair needs a row, and the unit must not stretch. */
+        #naNext .cf-numrow { display: flex; align-items: center; gap: 8px; }
+        #naNext .cf-numrow .search-box { flex: 1 1 auto; min-width: 0; }
 
         /* Custom fields (docs/design/flexible-asset-fields.md) */
         .custom-fields-section {
@@ -1207,14 +1220,26 @@ $translationNamespaces = ['common', 'asset-management'];
             <div class="modal-header">
                 <span><?php echo htmlspecialchars(t('asset-management.new.heading')); ?></span>
             </div>
-            <?php /* ⚠️ header / modal-body / modal-footer is THIS PAGE's modal
-                     structure — see #assignUserModal directly below. The first
-                     version of this dialog used `.modal-actions` and no
-                     `.modal-body`, copied from the settings page, where those
-                     classes do exist. Neither is defined here, so the content
-                     got no padding at all and the buttons sat on top of it.
-                     There is no shared modal stylesheet: each module defines
-                     its own, so markup cannot be moved between them. */ ?>
+            <?php /* ⚠️ header / .modal-body / .modal-footer — the canonical
+                     3-pane modal layout documented in assets/css/inbox.css,
+                     which this page loads. See #assignUserModal below.
+
+                     inbox.css offers TWO layouts and says when each applies:
+                       - fields directly in .modal-content  → .modal-actions
+                       - header / body / footer (this one)  → .modal-footer
+                     .modal-actions is sticky against .modal-content as the
+                     scroll container. This page OVERRIDES .modal-content
+                     locally (500px / 80vh, no overflow), so it is not a scroll
+                     container — which is why the first version of this dialog,
+                     written with .modal-actions and no .modal-body, had its
+                     buttons sitting on top of the content and no padding at all.
+
+                     🔑 The local overrides at ~line 464 are the actual problem:
+                     inbox.css already defines .modal / .modal-content /
+                     .modal-body / .modal-footer, and redefining them is what
+                     makes markup non-portable between two pages of the same
+                     module. Not unpicked here — it would resize every modal on
+                     this page. */ ?>
             <form id="newAssetForm" class="modal-form">
                 <div class="modal-body">
                     <p class="new-asset-intro"><?php echo t('asset-management.new.intro'); ?></p>
@@ -2011,9 +2036,13 @@ $translationNamespaces = ['common', 'asset-management'];
                             }, 'create');
                         }).join('');
                     if (!rows) return;
+                    // No grid wrapper: cfFieldRow emits .form-group rows in
+                    // create mode, so they stack exactly like Manufacturer and
+                    // Model above. A two-column grid here made the custom fields
+                    // half-width and visibly a different kind of thing.
                     blocks.push(`
                         <div class="na-group-title">${escapeHtml(set.name)}</div>
-                        <div class="asset-info-grid na-grid">${rows}</div>`);
+                        ${rows}`);
                 });
 
                 if (!blocks.length) { box.style.display = 'none'; return; }
@@ -2201,8 +2230,20 @@ $translationNamespaces = ['common', 'asset-management'];
          */
         function cfFieldRow(f, mode) {
             const create = (mode === 'create');
-            const label = `<span class="info-label">${escapeHtml(f.label)}${f.required ? '<span class="cf-req">*</span>' : ''}</span>`;
-            const hint  = f.help_text ? `<span class="cf-hint">${escapeHtml(f.help_text)}</span>` : '';
+
+            // 🔑 The CLASSES change with the mode, not just the save handler.
+            // On the asset page these are detail-grid rows; in the dialog they
+            // must be indistinguishable from the built-in form fields sitting
+            // right above them, or a custom field reads as something bolted on.
+            // Sharing the renderer is about the TYPE rules — three-state
+            // booleans, unit suffixes, date modes — not about the chrome.
+            const c = create
+                ? { wrap: 'form-group', label: 'form-label', input: 'search-box',  hint: 'form-hint' }
+                : { wrap: 'info-item',  label: 'info-label', input: 'info-value-input', hint: 'cf-hint' };
+            const sel = create ? c.input : 'info-value-select';
+
+            const label = `<label class="${c.label}">${escapeHtml(f.label)}${f.required ? '<span class="cf-req">*</span>' : ''}</label>`;
+            const hint  = f.help_text ? `<span class="${c.hint}">${escapeHtml(f.help_text)}</span>` : '';
             // In the dialog a required field is marked `required`, so the browser
             // blocks submit. Without it the asset would be created and only THEN
             // the values rejected — leaving a half-made record behind.
@@ -2216,7 +2257,7 @@ $translationNamespaces = ['common', 'asset-management'];
                     // ⚠️ THREE states, not two. "Not set" is a real option and
                     // must stay reachable — absent is not No.
                     control = `
-                        <select class="info-value-select" ${save}>
+                        <select class="${sel}" ${save}>
                             <option value=""  ${f.value === null  ? 'selected' : ''}>${cfd('cf_not_set')}</option>
                             <option value="1" ${f.value === true  ? 'selected' : ''}>${cfd('cf_yes')}</option>
                             <option value="0" ${f.value === false ? 'selected' : ''}>${cfd('cf_no')}</option>
@@ -2224,7 +2265,7 @@ $translationNamespaces = ['common', 'asset-management'];
                     break;
                 case 'dropdown':
                     control = `
-                        <select class="info-value-select" ${save}>
+                        <select class="${sel}" ${save}>
                             <option value="">${cfd('cf_not_set')}</option>
                             ${(f.options || []).map(o =>
                                 `<option value="${escapeHtml(o.option_value)}" ${f.value === o.option_value ? 'selected' : ''}>${escapeHtml(o.option_value)}</option>`
@@ -2233,7 +2274,7 @@ $translationNamespaces = ['common', 'asset-management'];
                     break;
                 case 'number': {
                     const step = f.config && f.config.decimals ? (1 / Math.pow(10, f.config.decimals)) : 1;
-                    const input = `<input type="number" step="${step}" class="info-value-input" value="${f.value !== null ? f.value : ''}" ${save}>`;
+                    const input = `<input type="number" step="${step}" class="${c.input}" value="${f.value !== null ? f.value : ''}" ${save}>`;
                     // .info-item is a COLUMN, so a bare sibling span drops onto
                     // its own line under the box. The unit belongs beside the
                     // number it qualifies, hence the row wrapper.
@@ -2245,7 +2286,7 @@ $translationNamespaces = ['common', 'asset-management'];
                 case 'date': {
                     const mode = (f.config && f.config.date_mode) || 'date';
                     const input = mode === 'time' ? 'time' : (mode === 'datetime' ? 'datetime-local' : 'date');
-                    control = `<input type="${input}" class="info-value-input" value="${cfDateValue(f.value, mode)}" ${save}>`;
+                    control = `<input type="${input}" class="${c.input}" value="${cfDateValue(f.value, mode)}" ${save}>`;
                     break;
                 }
                 case 'ref':
@@ -2258,18 +2299,18 @@ $translationNamespaces = ['common', 'asset-management'];
                     control = `<span class="info-value">${f.value_label ? escapeHtml(f.value_label) : (f.value !== null ? '#' + f.value : '-')}</span>`;
                     break;
                 case 'url':
-                    control = `<input type="url" class="info-value-input" value="${escapeHtml(f.value || '')}" ${save}>`;
+                    control = `<input type="url" class="${c.input}" value="${escapeHtml(f.value || '')}" ${save}>`;
                     break;
                 case 'email':
-                    control = `<input type="email" class="info-value-input" value="${escapeHtml(f.value || '')}" ${save}>`;
+                    control = `<input type="email" class="${c.input}" value="${escapeHtml(f.value || '')}" ${save}>`;
                     break;
                 default:
                     control = (f.config && f.config.multiline)
-                        ? `<textarea class="info-value-input" rows="2" ${save}>${escapeHtml(f.value || '')}</textarea>`
-                        : `<input type="text" class="info-value-input" value="${escapeHtml(f.value || '')}" ${save}>`;
+                        ? `<textarea class="${c.input}" rows="2" ${save}>${escapeHtml(f.value || '')}</textarea>`
+                        : `<input type="text" class="${c.input}" value="${escapeHtml(f.value || '')}" ${save}>`;
             }
 
-            return `<div class="info-item">${label}${control}${hint}</div>`;
+            return `<div class="${c.wrap}">${label}${control}${hint}</div>`;
         }
 
         /** Stored 'Y-m-d H:i:s' -> what the matching input element expects. */
