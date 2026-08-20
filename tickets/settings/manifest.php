@@ -180,6 +180,16 @@ return [
             'grant'     => 'Manage the on-call rota',
         ],
         [
+            // Configurable ticket numbering (GH #71). Sensitive: renumbering
+            // rewrites the reference on every existing ticket.
+            'id'           => 'numbering',
+            'cap'          => Cap::TICKETS_NUMBERING,
+            'label_key'    => 'tickets.settings.tabs.numbering',
+            'grant'        => 'Choose how ticket numbers are made, and renumber existing tickets',
+            'sensitive'    => true,
+            'setting_keys' => ['ticket_number_style', 'ticket_number_format', 'ticket_number_start', 'ticket_number_scope', 'ticket_number_reset', 'ticket_number_renumber'],
+        ],
+        [
             'id'           => 'general',
             'cap'          => Cap::TICKETS_GENERAL,
             'label_key'    => 'tickets.settings.tabs.general',

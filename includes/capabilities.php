@@ -203,6 +203,7 @@ final class Cap
     const TICKETS_EMAIL_TEMPLATES = 'tickets.email_templates';
     const TICKETS_REPLY_TEMPLATES = 'tickets.reply_templates';  // SHARED canned responses only
     const TICKETS_MERGE           = 'tickets.merge';            // install-wide merge policy
+    const TICKETS_NUMBERING       = 'tickets.numbering';        // how ticket numbers are made
     const TICKETS_GENERAL         = 'tickets.general';
     const TICKETS_PRIVACY         = 'tickets.privacy';          // what requesters see of their own ticket
     const TICKETS_REPLY_CLEANUP   = 'tickets.reply_cleanup';    // AI provider + API key

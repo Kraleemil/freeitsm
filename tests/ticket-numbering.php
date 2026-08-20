@@ -34,6 +34,11 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $sweep = function () use ($conn): void {
     $conn->query("DELETE FROM ticket_number_history WHERE ticket_number LIKE 'ZZNUM%'");
     $conn->query("DELETE FROM ticket_number_counters WHERE counter_key IN ('t:ty999999','t')");
+    // ⚠️ The renumber tests make REAL ticket rows. Sweep them by their number
+    // AND their history, in that order, or a failed run leaves orphans behind
+    // that the next run then tries to renumber.
+    $conn->query("DELETE h FROM ticket_number_history h JOIN tickets t ON t.id = h.ticket_id WHERE t.subject LIKE 'ZZNUM renumber test%'");
+    $conn->query("DELETE FROM tickets WHERE subject LIKE 'ZZNUM renumber test%'");
 };
 $sweep();
 TicketNumbering::forget();
@@ -189,6 +194,196 @@ try {
         json_encode($prev));
     $after = (int)$conn->query("SELECT next_value FROM ticket_number_counters WHERE counter_key='t:ty999999'")->fetchColumn();
     ok('...and moves no counter', $before === $after, "{$before} -> {$after}");
+
+    // ================================================================
+    echo "\n--- planning a renumber (writes nothing) ---\n";
+    // ================================================================
+    //
+    // ⚠️ planRenumber() normally reads EVERY ticket. These tests hand it a set
+    // of their own instead, so a bug here cannot rewrite the real estate.
+
+    $mk = function (int $id, string $num, ?int $type, ?int $tenant, string $when): array {
+        return ['id' => $id, 'ticket_number' => $num, 'ticket_type_id' => $type,
+                'tenant_id' => $tenant, 'created_datetime' => $when];
+    };
+    $fakeRows = [
+        $mk(9001, 'AAA-111-11111', null, null, '2024-03-04 09:00:00'),
+        $mk(9002, 'BBB-222-22222', null, null, '2024-11-20 09:00:00'),
+        $mk(9003, 'CCC-333-33333', null, null, '2025-01-06 09:00:00'),
+    ];
+    $seqCfg = ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{#####}'];
+
+    $plan = TicketNumbering::planRenumber($conn, $seqCfg, $fakeRows);
+    ok('plans every ticket', $plan['total'] === 3 && $plan['changing'] === 3 && $plan['skipped'] === 0,
+        json_encode([$plan['total'], $plan['changing'], $plan['skipped']]));
+    ok('numbers run oldest first',
+        array_column($plan['planned'], 'to') === ['ZZNUM-00001', 'ZZNUM-00002', 'ZZNUM-00003'],
+        json_encode(array_column($plan['planned'], 'to')));
+    ok('keeps the old number so history can be written',
+        $plan['planned'][0]['from'] === 'AAA-111-11111');
+    ok('says what the next new ticket would get', $plan['next_after'] === 'ZZNUM-00004',
+        (string)$plan['next_after']);
+
+    // 🔑 The whole point of $at: a 2024 ticket must not come back stamped 2026.
+    $plan = TicketNumbering::planRenumber($conn,
+        ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{YYYY}-{####}'],
+        $fakeRows);
+    ok('a ticket keeps its OWN year, not today\'s',
+        array_column($plan['planned'], 'to') === ['ZZNUM-2024-0001', 'ZZNUM-2024-0002', 'ZZNUM-2025-0003'],
+        json_encode(array_column($plan['planned'], 'to')));
+
+    // ...and with a yearly reset each year is its own counter, so numbering
+    // starts again — which is the only reason to carry the year at all.
+    $plan = TicketNumbering::planRenumber($conn,
+        ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{YYYY}-{####}',
+         'ticket_number_reset' => 'yearly'],
+        $fakeRows);
+    ok('a yearly reset starts each year again',
+        array_column($plan['planned'], 'to') === ['ZZNUM-2024-0001', 'ZZNUM-2024-0002', 'ZZNUM-2025-0001'],
+        json_encode(array_column($plan['planned'], 'to')));
+
+    $plan = TicketNumbering::planRenumber($conn, $seqCfg,
+        [$mk(9001, 'ZZNUM-00001', null, null, '2024-03-04 09:00:00'),
+         $mk(9002, 'BBB-222-22222', null, null, '2024-11-20 09:00:00')]);
+    ok('a ticket already in the scheme is left alone',
+        $plan['skipped'] === 1 && $plan['changing'] === 1
+        && $plan['planned'][0]['to'] === 'ZZNUM-00002',
+        json_encode($plan['planned']));
+
+    echo "\n--- planning REFUSES what would break references ---\n";
+
+    // 🔴 The one outcome that must never reach the database: two tickets the
+    // same number. Counting per type without {TYPE} in the format does exactly
+    // that, and it is not obvious from the settings screen.
+    $threw = false;
+    try {
+        TicketNumbering::planRenumber($conn,
+            ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{#####}',
+             'ticket_number_scope' => 'per_type'],
+            [$mk(9001, 'A', 1, null, '2024-03-04 09:00:00'), $mk(9002, 'B', 2, null, '2024-03-05 09:00:00')]);
+    } catch (Exception $e) { $threw = str_contains($e->getMessage(), '{TYPE}'); }
+    ok('per-type counting without {TYPE} is refused', $threw);
+
+    $threw = false;
+    try {
+        TicketNumbering::planRenumber($conn,
+            ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{#####}',
+             'ticket_number_scope' => 'per_company'],
+            [$mk(9001, 'A', null, 1, '2024-03-04 09:00:00')]);
+    } catch (Exception $e) { $threw = str_contains($e->getMessage(), '{COMPANY}'); }
+    ok('per-company counting without {COMPANY} is refused', $threw);
+
+    // 🔑 And the guard that does not rely on me having thought of the cause:
+    // {TYPE} IS in the format, but both types were deleted years ago so it
+    // renders empty and the numbers collide anyway.
+    $threw = false; $msg = '';
+    try {
+        TicketNumbering::planRenumber($conn,
+            ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM{TYPE}-{#####}',
+             'ticket_number_scope' => 'per_type'],
+            [$mk(9001, 'A', 888881, null, '2024-03-04 09:00:00'),
+             $mk(9002, 'B', 888882, null, '2024-03-05 09:00:00')]);
+    } catch (Exception $e) { $threw = true; $msg = $e->getMessage(); }
+    ok('a duplicate number is caught however it arose', $threw
+        && str_contains($msg, 'more than one ticket'), $msg);
+
+    ok('the random style cannot be renumbered into',
+        (function () use ($conn, $fakeRows) {
+            try { TicketNumbering::planRenumber($conn, ['ticket_number_style' => 'random'], $fakeRows); }
+            catch (Exception $e) { return str_contains($e->getMessage(), 'sequential'); }
+            return false;
+        })());
+
+    // ================================================================
+    echo "\n--- carrying a renumber out, for real ---\n";
+    // ================================================================
+    //
+    // ⚠️ Real rows this time, but ONLY ones this test made. applyRenumber()
+    // touches nothing outside the plan it is given.
+
+    $ins = $conn->prepare(
+        "INSERT INTO tickets (ticket_number, subject, created_datetime) VALUES (?, ?, ?)"
+    );
+    $ins->execute(['ZZNUM-OLD-A', 'ZZNUM renumber test A', '2024-03-04 09:00:00']);
+    $idA = (int)$conn->lastInsertId();
+    $ins->execute(['ZZNUM-OLD-B', 'ZZNUM renumber test B', '2024-11-20 09:00:00']);
+    $idB = (int)$conn->lastInsertId();
+
+    $realRows = [
+        $mk($idA, 'ZZNUM-OLD-A', null, null, '2024-03-04 09:00:00'),
+        $mk($idB, 'ZZNUM-OLD-B', null, null, '2024-11-20 09:00:00'),
+    ];
+    $plan = TicketNumbering::planRenumber($conn, $seqCfg, $realRows);
+    TicketNumbering::applyRenumber($conn, $plan);
+
+    $numA = $conn->query("SELECT ticket_number FROM tickets WHERE id = {$idA}")->fetchColumn();
+    $numB = $conn->query("SELECT ticket_number FROM tickets WHERE id = {$idB}")->fetchColumn();
+    ok('the tickets carry their new numbers', $numA === 'ZZNUM-00001' && $numB === 'ZZNUM-00002',
+        "{$numA} / {$numB}");
+
+    // 🔑 THE ASSERTION THE WHOLE FEATURE RESTS ON. An email quoting the old
+    // number is still delivered to the right ticket, for ever.
+    ok('the OLD number still finds the ticket',
+        TicketNumbering::findTicketId($conn, 'ZZNUM-OLD-A') === $idA);
+    ok('...and the new one does too',
+        TicketNumbering::findTicketId($conn, 'ZZNUM-00001') === $idA);
+    ok('a retired number counts as in use, so nobody else gets it',
+        TicketNumbering::inUse($conn, 'ZZNUM-OLD-B'));
+
+    // 🔑 And the counter was wound past what the run issued — otherwise the
+    // next new ticket would collide with a renumbered one.
+    $counter = (int)$conn->query("SELECT next_value FROM ticket_number_counters WHERE counter_key = 't'")->fetchColumn();
+    ok('the counter was wound past the run', $counter === 3, (string)$counter);
+
+    // Renumbering the same tickets again into the same scheme is a no-op —
+    // they already match, so no second history row is written.
+    $again = TicketNumbering::planRenumber($conn, $seqCfg,
+        [$mk($idA, 'ZZNUM-00001', null, null, '2024-03-04 09:00:00'),
+         $mk($idB, 'ZZNUM-00002', null, null, '2024-11-20 09:00:00')]);
+    ok('running it twice changes nothing the second time',
+        $again['changing'] === 0 && $again['skipped'] === 2);
+
+    $hist = (int)$conn->query(
+        "SELECT COUNT(*) FROM ticket_number_history WHERE ticket_id IN ({$idA},{$idB})"
+    )->fetchColumn();
+    ok('exactly one history row per renumbered ticket', $hist === 2, (string)$hist);
+
+
+    // 🔴 THE BRANCH THAT PROTECTS OLD EMAIL THREADS. Renumber both again from 5,
+    // so ZZNUM-00001 becomes a number ticket A has RETIRED. Then ask for ticket
+    // B alone to be numbered from 1: it wants ZZNUM-00001, which would silently
+    // redirect every reply quoting A's old number onto B.
+    $second = TicketNumbering::planRenumber($conn,
+        ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{#####}',
+         'ticket_number_start' => '5'],
+        [$mk($idA, 'ZZNUM-00001', null, null, '2024-03-04 09:00:00'),
+         $mk($idB, 'ZZNUM-00002', null, null, '2024-11-20 09:00:00')]);
+    TicketNumbering::applyRenumber($conn, $second);
+    ok('a second renumber moves them on again',
+        $conn->query("SELECT ticket_number FROM tickets WHERE id = {$idA}")->fetchColumn() === 'ZZNUM-00005');
+    ok('and BOTH old numbers still find the ticket',
+        TicketNumbering::findTicketId($conn, 'ZZNUM-OLD-A') === $idA
+        && TicketNumbering::findTicketId($conn, 'ZZNUM-00001') === $idA);
+
+    $threw = false; $msg = '';
+    try {
+        TicketNumbering::planRenumber($conn, $seqCfg,
+            [$mk($idB, 'ZZNUM-00006', null, null, '2024-11-20 09:00:00')]);
+    } catch (Exception $e) { $threw = true; $msg = $e->getMessage(); }
+    ok('a number ANOTHER ticket retired is refused',
+        $threw && str_contains($msg, 'used by another ticket'), $msg);
+
+    // ...but a ticket taking back its OWN retired number is fine — that is
+    // simply a renumber being undone, and nothing is redirected anywhere.
+    $undo = TicketNumbering::planRenumber($conn,
+        ['ticket_number_style' => 'sequential', 'ticket_number_format' => 'ZZNUM-{#####}',
+         'ticket_number_start' => '2'],
+        [$mk($idB, 'ZZNUM-00006', null, null, '2024-11-20 09:00:00')]);
+    ok('a ticket may take back its own retired number',
+        $undo['planned'][0]['to'] === 'ZZNUM-00002', json_encode($undo['planned']));
+
+    $conn->exec("DELETE FROM ticket_number_history WHERE ticket_id IN ({$idA},{$idB})");
+    $conn->exec("DELETE FROM tickets WHERE id IN ({$idA},{$idB})");
 
     echo "\n--- random style still works (the default) ---\n";
     TicketNumbering::withSettings(['ticket_number_style' => 'random']);

@@ -138,7 +138,7 @@ class TicketNumbering
         // against the table rather than assumed from the counter.
         for ($attempt = 0; $attempt < 10; $attempt++) {
             $seq    = self::claimNext($conn, $cfg, $ticketTypeId, $tenantId);
-            $number = self::render($cfg['ticket_number_format'], $seq, $conn, $ticketTypeId);
+            $number = self::render($cfg["ticket_number_format"], $seq, $conn, $ticketTypeId, null, $tenantId);
             if (!self::inUse($conn, $number)) {
                 return $number;
             }
@@ -166,7 +166,7 @@ class TicketNumbering
      * 🔑 `{####}` pads to at least four digits and NEVER truncates — the width
      * is a floor, so an install that outgrows it just gets longer numbers.
      */
-    public static function render(string $format, int $seq, ?PDO $conn = null, ?int $ticketTypeId = null): string
+    public static function render(string $format, int $seq, ?PDO $conn = null, ?int $ticketTypeId = null, ?DateTimeImmutable $at = null, ?int $tenantId = null): string
     {
         $out = $format;
 
@@ -175,15 +175,20 @@ class TicketNumbering
             return str_pad((string)$seq, strlen($m[1]), '0', STR_PAD_LEFT);
         }, $out);
 
-        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        // $at lets a RENUMBER stamp a ticket with its OWN year rather than this
+        // one. A 2024 ticket relabelled INC-2026-00003 would be actively wrong.
+        $now = $at ?: new DateTimeImmutable("now", new DateTimeZone("UTC"));
         $out = str_replace(
             ['{YYYY}', '{YY}', '{MM}', '{DD}'],
             [$now->format('Y'), $now->format('y'), $now->format('m'), $now->format('d')],
             $out
         );
 
-        if (strpos($out, '{TYPE}') !== false) {
-            $out = str_replace('{TYPE}', self::typeCode($conn, $ticketTypeId), $out);
+        if (strpos($out, "{TYPE}") !== false) {
+            $out = str_replace("{TYPE}", self::typeCode($conn, $ticketTypeId), $out);
+        }
+        if (strpos($out, "{COMPANY}") !== false) {
+            $out = str_replace("{COMPANY}", self::companyCode($conn, $tenantId), $out);
         }
         return $out;
     }
@@ -211,6 +216,33 @@ class TicketNumbering
             return '';
         }
         $clean = strtoupper(preg_replace('/[^A-Za-z]/', '', $name));
+        return substr($clean, 0, 3);
+    }
+
+    /**
+     * A short code for a company, for {COMPANY}.
+     *
+     * Prefers the slug an administrator has already chosen over anything
+     * derived, so the code in a ticket number matches the one they see
+     * everywhere else. Falls back to the name the same way {TYPE} does.
+     */
+    private static function companyCode(?PDO $conn, ?int $tenantId): string
+    {
+        if (!$conn || !$tenantId) {
+            return '';
+        }
+        try {
+            $stmt = $conn->prepare("SELECT name, slug FROM tenants WHERE id = ?");
+            $stmt->execute([$tenantId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (Exception $e) {
+            return '';
+        }
+        $slug = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($row['slug'] ?? '')));
+        if ($slug !== '') {
+            return substr($slug, 0, 12);
+        }
+        $clean = strtoupper(preg_replace('/[^A-Za-z]/', '', (string)($row['name'] ?? '')));
         return substr($clean, 0, 3);
     }
 
@@ -252,16 +284,17 @@ class TicketNumbering
      * reset is simply a different counter each year, so nothing has to notice
      * midnight on the 31st of December or run a job to zero anything.
      */
-    public static function counterKey(array $cfg, ?int $ticketTypeId, ?int $tenantId): string
+    public static function counterKey(array $cfg, ?int $ticketTypeId, ?int $tenantId, ?DateTimeImmutable $at = null): string
     {
-        $parts = ['t'];
+        $parts = ["t"];
         if (($cfg['ticket_number_scope'] ?? 'global') === 'per_type') {
             $parts[] = 'ty' . (int)$ticketTypeId;
         } elseif (($cfg['ticket_number_scope'] ?? 'global') === 'per_company') {
             $parts[] = 'co' . (int)$tenantId;
         }
-        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
-        if (($cfg['ticket_number_reset'] ?? 'never') === 'yearly') {
+        // $at again: a renumber must put a 2024 ticket on the 2024 counter.
+        $now = $at ?: new DateTimeImmutable("now", new DateTimeZone("UTC"));
+        if (($cfg["ticket_number_reset"] ?? "never") === "yearly") {
             $parts[] = $now->format('Y');
         } elseif (($cfg['ticket_number_reset'] ?? 'never') === 'monthly') {
             $parts[] = $now->format('Ym');
@@ -356,8 +389,13 @@ class TicketNumbering
             }
             return $out;
         }
+        // ⚠️ A preview has no ticket, so {TYPE} and {COMPANY} would render as
+        // nothing and an administrator would be shown "-00001" and conclude the
+        // token is broken. Stand-ins make the SHAPE readable, which is the only
+        // thing a preview is for.
+        $format = str_replace(["{TYPE}", "{COMPANY}"], ["INC", "ACME"], $cfg["ticket_number_format"]);
         for ($i = 0; $i < $count; $i++) {
-            $out[] = self::render($cfg['ticket_number_format'], $start + $i);
+            $out[] = self::render($format, $start + $i);
         }
         return $out;
     }
@@ -367,7 +405,7 @@ class TicketNumbering
      *
      * @return string[] problems, empty when the format is usable
      */
-    public static function validateFormat(string $format): array
+    public static function validateFormat(string $format, string $scope = "global"): array
     {
         $problems = [];
         if (trim($format) === '') {
@@ -385,10 +423,230 @@ class TicketNumbering
         if (preg_match('/\s/', $format)) {
             $problems[] = 'Spaces cannot be used in a ticket number.';
         }
+        // 🔑 A SCOPE THAT NOTHING IN THE FORMAT DISTINGUISHES IS A COLLISION.
+        // Counting separately per ticket type gives type 1 and type 2 their own
+        // runs of numbers — and then renders both as TICKET-000001 unless the
+        // format says which is which. Live creation survives it (it proves
+        // uniqueness against the table and simply burns numbers), but the
+        // per-type counting the administrator asked for silently does nothing.
+        if ($scope === "per_type" && strpos($format, "{TYPE}") === false) {
+            $problems[] = "Counting separately for each ticket type needs {TYPE} in the format, or every type produces the same numbers.";
+        }
+        if ($scope === "per_company" && strpos($format, "{COMPANY}") === false) {
+            $problems[] = "Counting separately for each company needs {COMPANY} in the format, or every company produces the same numbers.";
+        }
         if (mb_strlen(self::render($format, 999999)) > 50) {
             // The column is VARCHAR(50).
             $problems[] = 'That format is too long — a ticket number can be at most 50 characters.';
         }
         return $problems;
+    }
+
+    // ====================================================================
+    //  Renumbering an existing estate
+    //
+    //  🔴 THE RISKIEST THING IN THIS FILE. It rewrites the reference on every
+    //  ticket, and those references are quoted in emails, change records,
+    //  knowledge articles and customers' own spreadsheets.
+    //
+    //  🔑 IT IS ONLY SAFE BECAUSE OF ticket_number_history. Every old number is
+    //  kept and keeps resolving to its ticket for ever, so a reply to a
+    //  two-year-old email still lands in the right place. That is the same
+    //  principle ticket merges already rely on. Without it, renumbering would
+    //  silently turn every historical reply into a new ticket.
+    //
+    //  It lives here rather than in the endpoint so it can be TESTED. A tool
+    //  this destructive proving itself only by being run on real data is not
+    //  a proof at all.
+    // ====================================================================
+
+    /**
+     * Work out what a renumber would do, and refuse it if the answer is unsafe.
+     * Writes nothing.
+     *
+     * @return array{total:int, changing:int, skipped:int, planned:array, seqs:array, next_after:?string}
+     * @throws Exception if the plan would produce a number twice, or reuse a
+     *                   number another ticket has retired.
+     *
+     * @param ?array $rows the tickets to plan over. Defaults to ALL of them,
+     *        which is what the tool does; tests pass a set of their own so a
+     *        run cannot rewrite the real estate.
+     */
+    public static function planRenumber(PDO $conn, array $cfg, ?array $rows = null): array
+    {
+        $cfg = array_merge(self::DEFAULTS, $cfg);
+
+        if (($cfg['ticket_number_style'] ?? 'random') !== 'sequential') {
+            throw new Exception('Renumbering only makes sense with a sequential format. Choose one, save, then come back.');
+        }
+        $problems = self::validateFormat($cfg['ticket_number_format'], $cfg['ticket_number_scope'] ?? 'global');
+        if ($problems) {
+            throw new Exception(implode(' ', $problems));
+        }
+
+        // Oldest first, so the numbers run in the order the tickets happened.
+        // ⚠️ ORDER BY the creation date, then id — id alone is nearly the same
+        // and not quite, once merges and imports have moved things around.
+        $rows = $rows ?? $conn->query(
+            "SELECT id, ticket_number, ticket_type_id, tenant_id, created_datetime
+               FROM tickets
+           ORDER BY created_datetime, id"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        $planned = [];
+        $skipped = 0;
+        $start   = max(1, (int)($cfg['ticket_number_start'] ?? 1));
+
+        // 🔑 ONE SEQUENCE PER COUNTER KEY, not one for the whole run. Under
+        // "count separately for each ticket type" a single shared sequence would
+        // renumber everything from one run of numbers and then leave every
+        // type's counter still sitting at 1 — so the next new incident would be
+        // handed a number a renumbered ticket already has. The keys here are
+        // exactly the ones live ticket creation uses, which is what makes them
+        // line up.
+        $seqs = [];
+
+        foreach ($rows as $r) {
+            $typeId   = $r['ticket_type_id'] !== null ? (int)$r['ticket_type_id'] : null;
+            $tenantId = $r['tenant_id']      !== null ? (int)$r['tenant_id']      : null;
+
+            // ⚠️ The ticket's OWN date, not today's, for both the counter it
+            // draws from and the year in its number. A 2024 ticket must not come
+            // back as INC-2026-000001.
+            $at  = new DateTimeImmutable($r['created_datetime'] ?: 'now', new DateTimeZone('UTC'));
+            $key = self::counterKey($cfg, $typeId, $tenantId, $at);
+            if (!isset($seqs[$key])) {
+                $seqs[$key] = $start;
+            }
+
+            $newNumber = self::render($cfg['ticket_number_format'], $seqs[$key], $conn, $typeId, $at, $tenantId);
+            $seqs[$key]++;
+
+            // Already in the target scheme? Leave it entirely alone — renumbering
+            // a ticket to the number it already has would still write a history
+            // row, and history is what old email replies are matched against.
+            if ($r['ticket_number'] === $newNumber) {
+                $skipped++;
+                continue;
+            }
+            $planned[] = ['id' => (int)$r['id'], 'from' => $r['ticket_number'], 'to' => $newNumber];
+        }
+
+        self::assertPlanSafe($conn, $planned);
+
+        // What the next brand-new ticket would get — the one number an
+        // administrator wants to see afterwards.
+        //
+        // ⚠️ Only meaningful when everything shares ONE sequence. Counting per
+        // type or per company means the answer depends on which type or company
+        // the next ticket happens to be, so there is no single number and we say
+        // nothing rather than picking one and being wrong.
+        $nextAfter = (($cfg['ticket_number_scope'] ?? 'global') === 'global')
+            ? self::render($cfg['ticket_number_format'], $seqs[self::counterKey($cfg, null, null)] ?? $start)
+            : null;
+
+        return [
+            'total'      => count($rows),
+            'changing'   => count($planned),
+            'skipped'    => $skipped,
+            'planned'    => $planned,
+            'seqs'       => $seqs,
+            'next_after' => $nextAfter,
+        ];
+    }
+
+    /**
+     * The guard that does not depend on me having thought of the cause.
+     *
+     * 🔴 A renumber that writes two tickets the same reference is the worst
+     * outcome this tool has: replies would land on whichever row matched first,
+     * for ever. validateFormat() already refuses the causes that are knowable
+     * from the settings alone — but a {TYPE} that renders empty because that
+     * type was deleted years ago is not one of them.
+     *
+     * So the plan is checked for what it IS, not for how it was built.
+     */
+    private static function assertPlanSafe(PDO $conn, array $planned): void
+    {
+        $byNumber = [];
+        foreach ($planned as $p) {
+            if (isset($byNumber[$p['to']])) {
+                throw new Exception(
+                    'That format would give more than one ticket the number ' . $p['to']
+                    . '. Nothing has been changed. Add {TYPE} or {COMPANY} to the format, '
+                    . 'or count everything in one sequence.'
+                );
+            }
+            $byNumber[$p['to']] = $p['id'];
+        }
+        if (!$byNumber) {
+            return;
+        }
+
+        // A planned number that a DIFFERENT ticket has retired is equally fatal:
+        // ticket_number_history is what makes old references keep working, so
+        // handing one to somebody else would silently redirect an old thread.
+        $numbers = array_keys($byNumber);
+        for ($i = 0; $i < count($numbers); $i += 500) {
+            $slice = array_slice($numbers, $i, 500);
+            $in    = implode(',', array_fill(0, count($slice), '?'));
+            $stmt  = $conn->prepare(
+                "SELECT ticket_number, ticket_id FROM ticket_number_history WHERE ticket_number IN ($in)"
+            );
+            $stmt->execute($slice);
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $h) {
+                // Its own old number coming back round is fine — that is just a
+                // renumber being undone. Somebody else's is not.
+                if ((int)$h['ticket_id'] !== (int)$byNumber[$h['ticket_number']]) {
+                    throw new Exception(
+                        'The number ' . $h['ticket_number'] . ' was used by another ticket in the past '
+                        . 'and still has to keep working. Nothing has been changed. '
+                        . 'Try a different format, or start counting from a higher number.'
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Carry out a plan from planRenumber().
+     *
+     * ⚠️ ONE TRANSACTION for the whole run. A half-renumbered estate would have
+     * two schemes in it and a counter that matched neither.
+     */
+    public static function applyRenumber(PDO $conn, array $plan): void
+    {
+        $conn->beginTransaction();
+        try {
+            $hist = $conn->prepare(
+                "INSERT INTO ticket_number_history (ticket_id, ticket_number, reason) VALUES (?, ?, 'renumber')"
+            );
+            $upd = $conn->prepare("UPDATE tickets SET ticket_number = ? WHERE id = ?");
+
+            foreach ($plan['planned'] as $p) {
+                // History FIRST. If anything fails after this the transaction
+                // rolls back, but the ORDER matters for the unique key: the old
+                // number is recorded before it stops being the ticket's own.
+                $hist->execute([$p['id'], $p['from']]);
+                $upd->execute([$p['to'], $p['id']]);
+            }
+
+            // 🔑 Wind EVERY counter the run touched past what it issued, in the
+            // SAME transaction. Miss one and the next new ticket on that counter
+            // collides with a renumbered one, which is worse than never having
+            // renumbered at all.
+            $wind = $conn->prepare(
+                "INSERT INTO ticket_number_counters (counter_key, next_value) VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE next_value = GREATEST(next_value, VALUES(next_value))"
+            );
+            foreach ($plan['seqs'] as $key => $seq) {
+                $wind->execute([$key, $seq]);
+            }
+
+            $conn->commit();
+        } catch (Throwable $e) {
+            $conn->rollBack();
+            throw $e;
+        }
     }
 }

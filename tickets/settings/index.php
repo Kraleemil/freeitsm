@@ -387,6 +387,17 @@ $translationNamespaces = ['common', 'tickets'];
             margin-bottom: 18px;
             background: var(--surface-2, #f9f9f9);
         }
+        /* ⚠️ A DISABLED BUTTON THAT LOOKS LIVE IS WORSE THAN NO GUARD AT ALL.
+           inbox.css styles .btn but has no disabled state, so `Renumber` — which
+           stays off until a preview has been looked at — rendered as a bright,
+           inviting primary button that silently did nothing when clicked. Scoped
+           to this tab rather than made global, so no other settings page changes
+           appearance for a fix that belongs to one destructive control. */
+        #numbering-tab .btn:disabled,
+        #numbering-tab .btn[disabled] {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
         .tpl-baseurl label { display: block; font-weight: 600; margin-bottom: 6px; }
         .tpl-baseurl-row { display: flex; gap: 8px; align-items: center; max-width: 620px; }
         /* Matches .form-group input in inbox.css deliberately — including leaving
@@ -1373,6 +1384,105 @@ $translationNamespaces = ['common', 'tickets'];
         <?php endif; ?>
 
         <?php if (settingsTabVisible($visibleTabs, 'general')): ?>
+        <?php /* Ticket numbering (GH #71).
+                 Ordered so the consequential decisions come first: what the
+                 number LOOKS like, then what each counter counts, then the
+                 renumbering tool last and clearly separated — it rewrites the
+                 reference on every existing ticket. */ ?>
+        <div class="tab-content<?php echo $activeTabId === 'numbering' ? ' active' : ''; ?>" id="numbering-tab" data-capability="<?php echo Cap::TICKETS_NUMBERING; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('tickets.settings.numbering.heading')); ?></h2>
+            </div>
+            <p style="margin-bottom: 20px; color: var(--text-muted, #666);"><?php echo t('tickets.settings.numbering.intro'); ?></p>
+
+            <form id="numberingForm" style="max-width: 700px;">
+                <div class="form-group">
+                    <label><?php echo htmlspecialchars(t('tickets.settings.numbering.style')); ?></label>
+                    <label style="display:block;margin-top:10px;font-weight:400;">
+                        <input type="radio" name="numStyle" value="sequential" onchange="numSync()">
+                        <strong><?php echo htmlspecialchars(t('tickets.settings.numbering.style_sequential')); ?></strong>
+                        <small style="display:block;margin-left:22px;color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.numbering.style_sequential_help')); ?></small>
+                    </label>
+                    <label style="display:block;margin-top:10px;font-weight:400;">
+                        <input type="radio" name="numStyle" value="random" onchange="numSync()">
+                        <strong><?php echo htmlspecialchars(t('tickets.settings.numbering.style_random')); ?></strong>
+                        <small style="display:block;margin-left:22px;color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.numbering.style_random_help')); ?></small>
+                    </label>
+                </div>
+
+                <div id="numSequentialOnly">
+                    <div class="form-group">
+                        <label for="numFormat"><?php echo htmlspecialchars(t('tickets.settings.numbering.format')); ?></label>
+                        <input type="text" id="numFormat" oninput="numPreview()" autocomplete="off" spellcheck="false">
+                        <small style="color: var(--text-muted, #666);"><?php echo t('tickets.settings.numbering.format_help'); ?></small>
+                        <div id="numFormatError" style="display:none;margin-top:6px;color: var(--danger-text, #c0392b);font-size:13px;"></div>
+                    </div>
+
+                    <?php /* The live preview. Somebody should never have to create
+                             a ticket to find out what a format does. */ ?>
+                    <div class="info-box" style="margin:6px 0 18px 0;padding:12px 14px;border-radius:6px;background: var(--accent-soft, #eff6ff);border-left:4px solid var(--accent, #0078d4);">
+                        <small style="display:block;margin-bottom:6px;color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.numbering.preview_label')); ?></small>
+                        <strong id="numPreviewOut" style="font-family: ui-monospace, Consolas, monospace;">&mdash;</strong>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numStart"><?php echo htmlspecialchars(t('tickets.settings.numbering.start')); ?></label>
+                        <input type="number" id="numStart" min="1" step="1" oninput="numPreview()" style="max-width:200px;">
+                        <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.numbering.start_help')); ?></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numScope"><?php echo htmlspecialchars(t('tickets.settings.numbering.scope')); ?></label>
+                        <select id="numScope" style="max-width:340px;" onchange="numPreview()">
+                            <option value="global"><?php echo htmlspecialchars(t('tickets.settings.numbering.scope_global')); ?></option>
+                            <option value="per_type"><?php echo htmlspecialchars(t('tickets.settings.numbering.scope_per_type')); ?></option>
+                            <option value="per_company"><?php echo htmlspecialchars(t('tickets.settings.numbering.scope_per_company')); ?></option>
+                        </select>
+                        <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.numbering.scope_help')); ?></small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numReset"><?php echo htmlspecialchars(t('tickets.settings.numbering.reset')); ?></label>
+                        <select id="numReset" style="max-width:340px;">
+                            <option value="never"><?php echo htmlspecialchars(t('tickets.settings.numbering.reset_never')); ?></option>
+                            <option value="yearly"><?php echo htmlspecialchars(t('tickets.settings.numbering.reset_yearly')); ?></option>
+                            <option value="monthly"><?php echo htmlspecialchars(t('tickets.settings.numbering.reset_monthly')); ?></option>
+                        </select>
+                        <small style="color: var(--text-muted, #666);"><?php echo t('tickets.settings.numbering.reset_help'); ?></small>
+                    </div>
+                </div>
+
+                <?php /* ⚠️ The one thing an administrator MUST understand before
+                         changing anything, so it sits above the Save button and
+                         not in a help page. */ ?>
+                <div class="info-box" style="margin:18px 0;padding:12px 14px;border-radius:6px;background: var(--accent-soft, #eff6ff);border-left:4px solid var(--accent, #0078d4);">
+                    <small><?php echo t('tickets.settings.numbering.existing_note'); ?></small>
+                </div>
+
+                <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
+            </form>
+
+            <?php /* ── Renumbering ─────────────────────────────────────────
+                     Deliberately below a rule and its own heading: it is a
+                     MIGRATION tool, not part of choosing a format. */ ?>
+            <hr style="margin:32px 0;border:0;border-top:1px solid var(--border, #e0e0e0);">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('tickets.settings.numbering.renumber_heading')); ?></h2>
+            </div>
+            <p style="margin-bottom: 16px; color: var(--text-muted, #666); max-width:700px;"><?php echo t('tickets.settings.numbering.renumber_intro'); ?></p>
+
+            <div class="info-box" style="max-width:700px;margin-bottom:16px;padding:12px 14px;border-radius:6px;background: var(--warning-bg, #fff8e6);border-left:4px solid var(--warning-border, #d18b00);color: var(--warning-text, #6b4e00);">
+                <small><?php echo t('tickets.settings.numbering.renumber_safety'); ?></small>
+            </div>
+
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <button type="button" class="btn btn-outline" onclick="numRenumber('preview')"><?php echo htmlspecialchars(t('tickets.settings.numbering.renumber_preview')); ?></button>
+                <button type="button" class="btn btn-primary" id="numRenumberGo" onclick="numRenumber('live')" disabled><?php echo htmlspecialchars(t('tickets.settings.numbering.renumber_go')); ?></button>
+                <small id="numRenumberHint" style="color: var(--text-dim, #888);"><?php echo htmlspecialchars(t('tickets.settings.numbering.renumber_preview_first')); ?></small>
+            </div>
+            <div id="numRenumberOut" style="margin-top:16px;max-width:700px;"></div>
+        </div>
+
         <div class="tab-content<?php echo $activeTabId === 'general' ? ' active' : ''; ?>" id="general-tab" data-capability="<?php echo Cap::TICKETS_GENERAL; ?>">
             <div class="section-header">
                 <h2><?php echo htmlspecialchars(t('tickets.settings.headings.general_settings')); ?></h2>
@@ -5467,6 +5577,197 @@ $translationNamespaces = ['common', 'tickets'];
         }
 
         // General settings form submission
+        // ════════════════════════════════════════════════════════════════
+        //  Ticket numbering (GH #71)
+        //
+        //  ⚠️ Every DOM touch is guarded: this <script> runs even when the tab
+        //  is not rendered, because the TAB is capability-gated and the script
+        //  is not. One addEventListener on a null element throws and silently
+        //  kills every function defined after it.
+        // ════════════════════════════════════════════════════════════════
+
+        function numT(k, v) { return window.t('tickets.settings.numbering.' + k, v); }
+        function numEl(id)  { return document.getElementById(id); }
+        function numPresent() { return !!numEl('numbering-tab'); }
+
+        function numStyle() {
+            const r = document.querySelector('input[name="numStyle"]:checked');
+            return r ? r.value : 'random';
+        }
+
+        /** Hide the format controls when the style is random — they do nothing there. */
+        function numSync() {
+            const box = numEl('numSequentialOnly');
+            if (box) box.style.display = numStyle() === 'sequential' ? '' : 'none';
+            numPreview();
+        }
+
+        let numPreviewTimer = null;
+        function numPreview() {
+            if (!numPresent()) return;
+            // Debounced: this fires on every keystroke in the format box.
+            clearTimeout(numPreviewTimer);
+            numPreviewTimer = setTimeout(numPreviewNow, 220);
+        }
+
+        async function numPreviewNow() {
+            const out = numEl('numPreviewOut');
+            const err = numEl('numFormatError');
+            if (!out) return;
+            try {
+                const res = await fetch(API_TICKETS + 'numbering_preview.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        style:  numStyle(),
+                        format: numEl("numFormat").value,
+                        start:  parseInt(numEl("numStart").value, 10) || 1,
+                        // The scope changes what counts as a valid format, so the
+                        // preview has to know about it or it would pass a format
+                        // that Save then rejects.
+                        scope:  numEl("numScope").value
+                    })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                if (data.problems && data.problems.length) {
+                    err.textContent = data.problems.join(' ');
+                    err.style.display = '';
+                    out.textContent = '—';
+                } else {
+                    err.style.display = 'none';
+                    out.textContent = (data.examples || []).join('   ');
+                }
+            } catch (e) {
+                out.textContent = '—';
+            }
+        }
+
+        async function numLoad() {
+            if (!numPresent()) return;
+            try {
+                const res  = await fetch(API_SETTINGS + 'get_system_settings.php');
+                const data = await res.json();
+                const s    = (data && data.settings) ? data.settings : {};
+
+                const style = s.ticket_number_style || 'random';
+                const radio = document.querySelector(`input[name="numStyle"][value="${style}"]`);
+                if (radio) radio.checked = true;
+                numEl('numFormat').value = s.ticket_number_format || 'TICKET-{######}';
+                numEl('numStart').value  = s.ticket_number_start  || '1';
+                numEl('numScope').value  = s.ticket_number_scope  || 'global';
+                numEl('numReset').value  = s.ticket_number_reset  || 'never';
+                numSync();
+            } catch (e) {
+                // ⚠️ Leave the controls as they are rather than showing defaults
+                // as if they were the saved values — an unloaded setting that
+                // looks like a real one gets saved back as fact.
+            }
+        }
+
+        if (numPresent()) {
+            numEl('numberingForm').addEventListener('submit', async function (e) {
+                e.preventDefault();
+                const settings = {
+                    ticket_number_style:  numStyle(),
+                    ticket_number_format: numEl('numFormat').value.trim(),
+                    ticket_number_start:  String(parseInt(numEl('numStart').value, 10) || 1),
+                    ticket_number_scope:  numEl('numScope').value,
+                    ticket_number_reset:  numEl('numReset').value
+                };
+                // ⚠️ Refuse to save a format the preview has already said is
+                // wrong. Live ticket creation would survive it — it proves each
+                // number unique against the table — but the per-type counting
+                // that was just asked for would silently do nothing.
+                const check = await fetch(API_TICKETS + 'numbering_preview.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        style: settings.ticket_number_style,
+                        format: settings.ticket_number_format,
+                        start: parseInt(settings.ticket_number_start, 10) || 1,
+                        scope: settings.ticket_number_scope
+                    })
+                }).then(r => r.json()).catch(() => null);
+                if (check && check.problems && check.problems.length) {
+                    showToast(check.problems.join(' '), 'error');
+                    return;
+                }
+                try {
+                    const res = await fetch(API_SETTINGS + 'save_system_settings.php', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ settings })
+                    });
+                    const data = await res.json();
+                    if (!data.success) throw new Error(data.error);
+                    showToast(numT('saved'), 'success');
+                    // The renumber tool reads the SAVED settings, so a preview
+                    // taken before this save is stale.
+                    numSetRenumbered(false);
+                } catch (err) {
+                    showToast(err.message || 'Error', 'error');
+                }
+            });
+            document.addEventListener('DOMContentLoaded', numLoad);
+        }
+
+        /** Renumbering stays disabled until a preview has been looked at. */
+        function numSetRenumbered(ready) {
+            const btn  = numEl('numRenumberGo');
+            const hint = numEl('numRenumberHint');
+            if (!btn) return;
+            btn.disabled = !ready;
+            if (hint) hint.style.display = ready ? 'none' : '';
+        }
+
+        async function numRenumber(mode) {
+            if (!numPresent()) return;
+            if (mode === 'live') {
+                const ok = await showConfirm({
+                    title:   numT('renumber_confirm_title'),
+                    message: numT('renumber_confirm'),
+                    okLabel: numT('renumber_go'),
+                    okClass: 'danger'
+                });
+                if (!ok) return;
+            }
+            const out = numEl('numRenumberOut');
+            out.innerHTML = '<small style="color: var(--text-muted, #666);">…</small>';
+            try {
+                const res = await fetch(API_TICKETS + 'numbering_renumber.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                const row = p => `<div style="font-family: ui-monospace, Consolas, monospace; font-size:12px;">
+                        ${escapeHtml(p.from)} &rarr; <strong>${escapeHtml(p.to)}</strong></div>`;
+                const gap = data.changing > 10
+                    ? `<div style="color: var(--text-dim, #888); font-size:12px; margin:6px 0;">…</div>` : '';
+
+                out.innerHTML = `
+                    <div class="info-box" style="padding:12px 14px;border-radius:6px;background: var(--surface-2, #fafafa);border:1px solid var(--border-soft, #eee);">
+                        <strong>${mode === 'preview' ? numT('renumber_preview_heading') : numT('renumber_done_heading')}</strong>
+                        <div style="margin:8px 0;">${numT('renumber_summary', {
+                            changing: data.changing, total: data.total, skipped: data.skipped })}</div>
+                        ${(data.first || []).map(row).join('')}
+                        ${gap}
+                        ${data.changing > 5 ? (data.last || []).map(row).join('') : ''}
+                        ${data.next_after ? `<div style="margin-top:10px;color: var(--text-muted, #666);font-size:12px;">${numT("renumber_next_after", { number: escapeHtml(data.next_after) })}</div>` : ""}
+                    </div>`;
+
+                if (mode === 'preview') {
+                    numSetRenumbered(data.changing > 0);
+                } else {
+                    numSetRenumbered(false);
+                    showToast(numT('renumber_done_heading'), 'success');
+                }
+            } catch (e) {
+                out.innerHTML = `<div style="color: var(--danger-text, #c0392b);">${escapeHtml(e.message || 'Error')}</div>`;
+                numSetRenumbered(false);
+            }
+        }
+
         document.getElementById('generalSettingsForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 

@@ -579,6 +579,7 @@ return [
         'page_title' => 'Service Desk - Settings',
         // Tab labels along the top of the page
         'tabs' => [
+            'numbering'       => 'Ticket numbering',
             'departments'     => 'Departments',
             'teams'           => 'Teams',
             'ticket_types'    => 'Ticket types',
@@ -1319,6 +1320,57 @@ return [
         'rota_weekends' => 'Include weekends on the rota',
 
         // General tab.
+        // ── Ticket numbering (GH #71) ──────────────────────────────────────
+        // The wording leads with what a number is FOR — being said out loud and
+        // written down — because that is the whole reason the request was made.
+        'numbering' => [
+            'heading'   => 'Ticket numbering',
+            'intro'     => 'Every ticket gets a reference. It is the thing people read out on the phone, write on a form and search for six months later, so it is worth it being something a person can say. You choose the shape here.',
+
+            'style'                 => 'How numbers are made',
+            'style_sequential'      => 'Counting up',
+            'style_sequential_help' => 'TICKET-000001, TICKET-000002, and so on. Easy to say, easy to recognise, and the order tells you which came first.',
+            'style_random'          => 'Random',
+            'style_random_help'     => 'Three letters and eight digits, like CKQ-418-73926. This is what FreeITSM has always done. Nobody can guess how many tickets you have, but nobody can read one out either.',
+
+            'format'      => 'What a number looks like',
+            'format_help' => 'Put <code>{######}</code> where the digits should go &mdash; one hash per digit. Anything else is kept as you type it. You can also use <code>{YYYY}</code> or <code>{YY}</code> for the year, <code>{MM}</code> and <code>{DD}</code>, and <code>{TYPE}</code> or <code>{COMPANY}</code> for a short code taken from the ticket type or the company. For example <code>INC-{YYYY}-{#####}</code>.',
+            'preview_label' => 'The next few would look like',
+
+            'start'      => 'Start counting from',
+            'start_help' => 'Useful if you are moving from another system and want to carry on where it left off.',
+
+            'scope'            => 'Count separately for',
+            'scope_global'     => 'One sequence for everything',
+            'scope_per_type'   => 'Each ticket type',
+            'scope_per_company' => 'Each company',
+            "scope_help"       => "Counting per ticket type gives incidents and requests their own runs of numbers, which is how most large service desks do it. If you count separately, the format has to say which is which — put {TYPE} or {COMPANY} in it, or every group would produce the same numbers.",
+
+            'reset'         => 'Start again',
+            'reset_never'   => 'Never — keep counting',
+            'reset_yearly'  => 'Every year',
+            'reset_monthly' => 'Every month',
+            'reset_help'    => 'Only useful if the year or month is part of the number, otherwise you will get duplicates. Combine with something like <code>INC-{YYYY}-{#####}</code>.',
+
+            // ⚠️ The two things somebody must understand before changing this,
+            // said plainly and above the Save button rather than in a help page.
+            'existing_note' => '<strong>Nothing already numbered changes.</strong> Existing tickets keep the reference they have, and every reference FreeITSM has ever issued goes on working &mdash; including in replies to old emails. If you want existing tickets renumbered too, there is a tool for that below. <strong>You will not run out of digits:</strong> the width you choose is a minimum, so ticket 1,000,001 simply gets a digit longer rather than breaking.',
+            'saved'         => 'Ticket numbering saved.',
+
+            'renumber_heading' => 'Renumber existing tickets',
+            'renumber_intro'   => 'Rewrites the reference on every existing ticket into the scheme above, oldest first. Mainly useful just after moving from another system, when you want everything to look consistent.',
+            'renumber_safety'  => '<strong>Old references keep working.</strong> Every number a ticket has ever had is remembered, so a reply to an email quoting the old one still lands on the right ticket &mdash; exactly as it does when tickets are merged. A retired number is never given to a different ticket either. This is not something you can undo, though, so look at the preview first.',
+            'renumber_preview' => 'Preview',
+            'renumber_go'      => 'Renumber',
+            'renumber_preview_first' => 'Preview first — the button turns on once you have seen what it would do.',
+            'renumber_preview_heading' => 'Preview only &mdash; nothing has been changed.',
+            'renumber_done_heading'    => 'Tickets renumbered.',
+            'renumber_summary'  => '{changing} of {total} ticket(s) would be renumbered. {skipped} already match.',
+            'renumber_next_after' => 'The next new ticket would be {number}.',
+            'renumber_confirm_title' => 'Renumber every ticket?',
+            'renumber_confirm' => "This rewrites the reference on every existing ticket.\n\nOld references keep working, so replies to old emails still find the right ticket. But the numbers people have written down, put on forms and saved in their own spreadsheets will no longer be the ones shown in FreeITSM.\n\nThis cannot be undone. Carry on?",
+        ],
+
         'general' => [
             'system_name'         => 'System name',
             'system_name_placeholder' => 'e.g., Service Desk Ticketing System',
