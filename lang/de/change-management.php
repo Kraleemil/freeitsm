@@ -370,9 +370,6 @@ return [
         'modal_save'                 => 'Speichern',
         'delete_confirm'             => '"{name}" löschen?',
         'delete_section_confirm'     => '"{name}" löschen?',
-        'delete_section_fields'      => '"{name}" löschen?
-
-{count} Feld{plural} wird nicht platziert und erscheint nicht im Change-Formular, bis Sie {them} in einen anderen Abschnitt ziehen.',
         'delete_section_fields_one'  => '„{name}“ löschen?
 
 1 Feld wird nicht mehr zugeordnet sein und erscheint erst wieder im Änderungsformular, wenn Sie es in einen anderen Abschnitt ziehen.',
