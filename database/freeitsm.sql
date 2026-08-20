@@ -1889,6 +1889,12 @@ CREATE TABLE IF NOT EXISTS `asset_types` (
     `description`       VARCHAR(255) NULL,
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `display_order`     INT NOT NULL DEFAULT 0,
+    -- The glyph shown beside every asset of this type (#1146). Points at the
+    -- SAME library the CMDB's classes use (`cmdb_icons`) rather than a second
+    -- one: a printer must not look different depending on which module you are
+    -- in, and the 66 glyphs already there were paid for and half-unused.
+    -- NULL = no icon, which is every type until somebody picks one.
+    `icon_id`           INT NULL,
     -- Multi-tenancy: NULL = global default type (shared by every company); set =
     -- a type a company added for itself. Existing rows stay NULL, so a
     -- single-company install is unaffected. (Config meaning of tenant_id: NULL =

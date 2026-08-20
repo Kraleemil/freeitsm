@@ -546,6 +546,11 @@ return [
         // Tab intros
         'asset_types_intro'    => 'The categories you sort assets into &mdash; laptop, desktop, server, monitor, phone and so on. Every asset is given a type, which drives how the list is grouped and filtered.',
         'asset_statuses_intro' => 'The lifecycle states an asset can be in &mdash; for example In use, In stock, In repair or Retired. Each asset is set to one status so you can see at a glance where it is in its life.',
+        // Asset type icons (#1146).
+        'type_icon'            => 'Icon',
+        'type_icon_none'       => 'No icon',
+        'type_icon_hint'       => 'Shown beside every asset of this type, so a list of equipment can be read at a glance. The same set of icons is used for configuration items, so a printer looks like a printer everywhere.',
+
         'tab_locations'        => 'Locations',
         'tab_suppliers'        => 'Suppliers',
 

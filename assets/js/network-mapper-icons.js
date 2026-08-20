@@ -98,6 +98,39 @@
         iot:            '<rect x="6" y="6" width="12" height="12" rx="1"/><rect x="9" y="9" width="6" height="6"/><line x1="6" y1="9" x2="3" y2="9"/><line x1="6" y1="12" x2="3" y2="12"/><line x1="6" y1="15" x2="3" y2="15"/><line x1="18" y1="9" x2="21" y2="9"/><line x1="18" y1="12" x2="21" y2="12"/><line x1="18" y1="15" x2="21" y2="15"/><line x1="9" y1="6" x2="9" y2="3"/><line x1="12" y1="6" x2="12" y2="3"/><line x1="15" y1="6" x2="15" y2="3"/><line x1="9" y1="18" x2="9" y2="21"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="15" y1="18" x2="15" y2="21"/>',
         printer:        '<polyline points="6 9 6 3 18 3 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/>',
 
+        // ---- Peripherals & Displays ----
+        // Added for asset types (#1146). The estate is full of things that are
+        // not computers, and the library had no glyph for any of them.
+        //
+        // ⚠️ `display` exists because `monitor` is a GAUGE — a monitoring dial
+        // under Ops, labelled "Monitor / gauge". An asset type called Monitor
+        // picking it would show a speedometer. `workstation` is close to a
+        // screen but reads as a PC; this one is deliberately wider and thinner
+        // in the bezel so the two are distinguishable at 20px.
+        // Widescreen with a WIDE FLAT FOOT — workstation has a centre post, and
+        // at 16px a centre post is the only thing telling them apart, so this
+        // one deliberately has none.
+        display:        '<rect x="1.5" y="5" width="21" height="11" rx="1.5"/><line x1="6" y1="20" x2="18" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/>',
+        television:     '<rect x="2" y="6" width="20" height="12" rx="1.5"/><line x1="7" y1="21" x2="10" y2="18"/><line x1="17" y1="21" x2="14" y2="18"/><circle cx="18.5" cy="15" r="0.7" fill="currentColor"/>',
+        // Body + one big lens + two rays. The arrow version was unreadable at
+        // 16px; a single large circle survives shrinking, fine detail does not.
+        projector:      '<rect x="2" y="7" width="13" height="10" rx="1.5"/><circle cx="8.5" cy="12" r="3.2"/><path d="M18 10.5h3"/><path d="M18 13.5h3"/>',
+        // Big lens on a stalk with a clip foot. The previous circle-plus-legs
+        // collapsed into a blob.
+        webcam:         '<circle cx="12" cy="9" r="5.5"/><circle cx="12" cy="9" r="2"/><line x1="12" y1="14.5" x2="12" y2="17"/><path d="M6 20h12l-1.5-3h-9L6 20z"/>',
+        headset:        '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2" y="13" width="4" height="6" rx="1.5"/><rect x="18" y="13" width="4" height="6" rx="1.5"/><path d="M20 19v1a2 2 0 0 1-2 2h-4"/>',
+        keyboard:       '<rect x="2" y="6" width="20" height="12" rx="1.5"/><line x1="6" y1="10" x2="6.01" y2="10"/><line x1="10" y1="10" x2="10.01" y2="10"/><line x1="14" y1="10" x2="14.01" y2="10"/><line x1="18" y1="10" x2="18.01" y2="10"/><line x1="8" y1="14.5" x2="16" y2="14.5"/>',
+        mouse:          '<rect x="6" y="2" width="12" height="20" rx="6"/><line x1="12" y1="6" x2="12" y2="10"/>',
+        speaker:        '<rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="15" r="3.2"/><circle cx="12" cy="7" r="1.4"/>',
+        // A low slab with PORTS on the front edge. Key dots made it a keyboard.
+        dock:           '<rect x="2" y="11" width="20" height="6" rx="1.5"/><rect x="5" y="13" width="2.4" height="2" rx="0.4"/><rect x="9" y="13" width="2.4" height="2" rx="0.4"/><rect x="13" y="13" width="2.4" height="2" rx="0.4"/><path d="M8 11V8h8v3"/>',
+        scanner:        '<rect x="2" y="12" width="20" height="8" rx="1.5"/><path d="M5 12V6a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v6"/><line x1="7" y1="16" x2="17" y2="16"/>',
+        camera:         '<path d="M3 8h3l2-2.5h8L18 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.6"/>',
+        // The handset sits ACROSS the top as a separate bar — the arch version
+        // read as a scanner lid.
+        'desk-phone':   '<rect x="3" y="11" width="18" height="9" rx="1.5"/><rect x="5" y="4" width="14" height="3.5" rx="1.75"/><line x1="7" y1="15" x2="7.01" y2="15"/><line x1="11" y1="15" x2="11.01" y2="15"/><line x1="15" y1="15" x2="15.01" y2="15"/>',
+        ups:            '<rect x="4" y="4" width="16" height="16" rx="1.5"/><polyline points="13 8 10 13 12.5 13 11 17"/><line x1="8" y1="8" x2="8.01" y2="8"/>',
+
         // ---- Monitoring & Ops ----
         monitor:        '<path d="M3 12a9 9 0 0 1 18 0"/><line x1="12" y1="12" x2="16" y2="8"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
         alert:          '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
@@ -183,6 +216,23 @@
         iot:     { label: 'IoT device',       category: 'endpoint' },
         printer: { label: 'Printer',          category: 'endpoint' },
 
+        // Peripherals & displays (#1146). ⚠️ 'display' is the screen; 'monitor'
+        // below is the monitoring GAUGE and is labelled so nobody picks it for
+        // a monitor asset by mistake.
+        display:      { label: 'Display / screen', category: 'peripheral' },
+        television:   { label: 'Television',       category: 'peripheral' },
+        projector:    { label: 'Projector',        category: 'peripheral' },
+        webcam:       { label: 'Webcam',           category: 'peripheral' },
+        headset:      { label: 'Headset',          category: 'peripheral' },
+        keyboard:     { label: 'Keyboard',         category: 'peripheral' },
+        mouse:        { label: 'Mouse',            category: 'peripheral' },
+        speaker:      { label: 'Speaker',          category: 'peripheral' },
+        dock:         { label: 'Docking station',  category: 'peripheral' },
+        scanner:      { label: 'Scanner',          category: 'peripheral' },
+        camera:       { label: 'Camera',           category: 'peripheral' },
+        'desk-phone': { label: 'Desk phone',       category: 'peripheral' },
+        ups:          { label: 'UPS',              category: 'peripheral' },
+
         monitor: { label: 'Monitor / gauge',  category: 'ops' },
         alert:   { label: 'Alert',            category: 'ops' },
         log:     { label: 'Log',              category: 'ops' },
@@ -210,6 +260,7 @@
         { key: 'containers', label: 'Containers' },
         { key: 'app',        label: 'Applications & Data' },
         { key: 'endpoint',   label: 'Endpoints' },
+        { key: 'peripheral', label: 'Peripherals & Displays' },
         { key: 'ops',        label: 'Monitoring & Ops' },
         { key: 'people',     label: 'People & Org' },
         { key: 'files',      label: 'Files & Generic' }

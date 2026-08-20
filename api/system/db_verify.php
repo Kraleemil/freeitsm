@@ -682,6 +682,14 @@ try {
         }
     }
 
+    // An asset type's icon (#1146). SET NULL, never CASCADE: retiring a glyph
+    // from the library must not delete the asset type that was using it.
+    if ($tableExists('asset_types') && $tableExists('cmdb_icons') && !$fkExists('asset_types', 'fk_asset_types_icon')) {
+        try {
+            $conn->exec("ALTER TABLE asset_types ADD CONSTRAINT fk_asset_types_icon FOREIGN KEY (icon_id) REFERENCES cmdb_icons (id) ON DELETE SET NULL");
+        } catch (Exception $e) {}
+    }
+
     // Custom asset fields. Cascades everywhere EXCEPT asset_field_values.field_id,
     // which is deliberately RESTRICT: a field is retired by setting is_deleted,
     // never dropped, because dropping it would silently destroy every answer ever
@@ -2916,6 +2924,22 @@ try {
             ['storage',        'Storage',          140],
             ['workstation',    'Workstation',      150],
             ['printer',        'Printer',          160],
+            // Peripherals & displays (#1146) — added so ASSET TYPES have
+            // something to pick. ⚠️ 'display' is the screen; 'monitor' below is
+            // the monitoring GAUGE, which is why it is labelled that way.
+            ['display',        'Display / screen', 170],
+            ['television',     'Television',       171],
+            ['projector',      'Projector',        172],
+            ['webcam',         'Webcam',           173],
+            ['headset',        'Headset',          174],
+            ['keyboard',       'Keyboard',         175],
+            ['mouse',          'Mouse',            176],
+            ['speaker',        'Speaker',          177],
+            ['dock',           'Docking station',  178],
+            ['scanner',        'Scanner',          179],
+            ['camera',         'Camera',           180],
+            ['desk-phone',     'Desk phone',       181],
+            ['ups',            'UPS',              182],
             ['person',         'Person',           170],
             ['team',           'Team',             180],
             ['document',       'Document',         190],

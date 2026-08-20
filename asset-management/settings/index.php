@@ -21,6 +21,24 @@ $settingsManifest = settingsManifestFor('assets');
 $visibleTabs      = settingsVisibleTabs(connectToDatabase(), (int) $_SESSION['analyst_id'], $settingsManifest);
 $activeTabId      = settingsFirstTabId($visibleTabs);
 
+/**
+ * The shared icon library, for the asset-type icon picker (#1146).
+ *
+ * ⚠️ Read here rather than fetched from api/cmdb/*: the glyphs are shared
+ * reference data, and an assets administrator has no reason to hold CMDB module
+ * access. Gating an asset-type icon behind the CMDB would be a permission bug
+ * dressed up as reuse.
+ */
+$assetTypeIcons = [];
+try {
+    $assetTypeIcons = connectToDatabase()->query(
+        "SELECT id, icon_key, label FROM cmdb_icons WHERE is_active = 1 ORDER BY display_order, label"
+    )->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // No icon table on this install — the picker renders empty and everything
+    // else on the page still works.
+}
+
 $current_page = 'settings';
 $path_prefix = '../../';
 $translationNamespaces = ['common', 'asset-management'];
@@ -330,6 +348,30 @@ $translationNamespaces = ['common', 'asset-management'];
             font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
             text-transform: uppercase; color: var(--text-muted, #666);
         }
+
+        /* ── Asset type icon picker ────────────────────────────────── */
+        .ic-picked { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .ic-preview { display: inline-flex; width: 24px; height: 24px; color: var(--accent, #0078d4); }
+        .ic-name { font-size: 13px; color: var(--text-muted, #666); flex: 1; }
+        .ic-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+            gap: 4px; max-height: 190px; overflow-y: auto;
+            border: 1px solid var(--border, #e0e0e0); border-radius: 6px; padding: 6px;
+        }
+        .ic-tile {
+            display: flex; align-items: center; justify-content: center;
+            height: 34px; border: 1px solid transparent; border-radius: 5px;
+            background: none; cursor: pointer; color: var(--text-muted, #666);
+        }
+        .ic-tile:hover { background: var(--surface-hover, #f0f0f0); color: var(--text, #333); }
+        .ic-tile.selected {
+            border-color: var(--accent, #0078d4);
+            background: var(--accent-soft, #e7f1fb);
+            color: var(--accent, #0078d4);
+        }
+        /* An icon inline in a list row. Sits on the text baseline rather than
+           forcing the row taller. */
+        .ic-inline { vertical-align: -3px; margin-right: 7px; color: var(--text-muted, #666); flex-shrink: 0; }
 
         /* ── Import tab ────────────────────────────────────────────── */
         .imp-filerow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -1069,6 +1111,22 @@ $translationNamespaces = ['common', 'asset-management'];
                     <label for="itemOrder"><?php echo htmlspecialchars(t('asset-management.settings.display_order')); ?></label>
                     <input type="number" id="itemOrder" value="0" min="0">
                 </div>
+                <?php /* Icon picker (#1146). Asset TYPES only — the same modal
+                         is reused for statuses, so the whole row is hidden for
+                         those. Glyphs come from the shared library the CMDB's
+                         classes already use; a printer must not look different
+                         depending on which module you are in. */ ?>
+                <div class="form-group" id="itemIconRow" style="display:none;">
+                    <label><?php echo htmlspecialchars(t('asset-management.settings.type_icon')); ?></label>
+                    <input type="hidden" id="itemIconId" value="">
+                    <div class="ic-picked">
+                        <span id="itemIconPreview" class="ic-preview"></span>
+                        <span id="itemIconName" class="ic-name"></span>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="icClear()"><?php echo htmlspecialchars(t('asset-management.settings.type_icon_none')); ?></button>
+                    </div>
+                    <div class="ic-grid" id="itemIconGrid"></div>
+                    <div class="form-hint"><?php echo htmlspecialchars(t('asset-management.settings.type_icon_hint')); ?></div>
+                </div>
                 <div class="form-group">
                     <label class="toggle-label">
                         <span class="toggle-switch">
@@ -1498,6 +1556,7 @@ $translationNamespaces = ['common', 'asset-management'];
             document.getElementById('itemDescription').value = '';
             document.getElementById('itemOrder').value = '0';
             document.getElementById('itemActive').checked = true;
+            icSetup(type, null);
             document.getElementById('editModal').classList.add('active');
         }
 
@@ -1513,6 +1572,7 @@ $translationNamespaces = ['common', 'asset-management'];
             document.getElementById('itemDescription').value = item.description || '';
             document.getElementById('itemOrder').value = item.display_order || 0;
             document.getElementById('itemActive').checked = item.is_active;
+            icSetup(type, item.icon_id || null);
             document.getElementById('editModal').classList.add('active');
         }
 
@@ -1553,7 +1613,10 @@ $translationNamespaces = ['common', 'asset-management'];
                 name: document.getElementById('itemName').value.trim(),
                 description: document.getElementById('itemDescription').value.trim(),
                 display_order: parseInt(document.getElementById('itemOrder').value) || 0,
-                is_active: document.getElementById('itemActive').checked ? 1 : 0
+                is_active: document.getElementById('itemActive').checked ? 1 : 0,
+                // Asset types only; the same modal serves statuses, where the
+                // row is hidden and this stays empty.
+                icon_id: document.getElementById('itemIconId').value || null
             };
             if (id) payload.id = parseInt(id);
 
@@ -2287,6 +2350,94 @@ $translationNamespaces = ['common', 'asset-management'];
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  Asset type icons (#1146)
+        //
+        //  Glyphs come from the SHARED library (assets/js/network-mapper-icons.js
+        //  + the cmdb_icons table) that the CMDB's classes already use. A second
+        //  library would drift, and a printer would look different depending on
+        //  which module you were in.
+        // ════════════════════════════════════════════════════════════════
+
+        let icIconsById = null;   // id -> {key, label}
+
+        /** Show the picker for asset types; hide it for anything else. */
+        function icSetup(type, selectedId) {
+            const row = document.getElementById('itemIconRow');
+            if (!row) return;
+            const isType = (type === 'asset-type');
+            row.style.display = isType ? '' : 'none';
+            document.getElementById('itemIconId').value = isType && selectedId ? selectedId : '';
+            if (isType) {
+                icRenderGrid();
+                icShowSelected();
+            }
+        }
+
+        /**
+         * The library, rendered server-side into a global by this page.
+         *
+         * ⚠️ NOT fetched from api/cmdb/*: the glyphs are shared reference data,
+         * and an assets administrator has no reason to hold CMDB module access.
+         * Gating an asset-type icon behind the CMDB would be a permission bug
+         * dressed up as reuse.
+         */
+        function icLoadIcons() {
+            if (icIconsById) return icIconsById;
+            icIconsById = {};
+            (window.assetTypeIcons || []).forEach(i => {
+                icIconsById[i.id] = { key: i.icon_key, label: i.label };
+            });
+            return icIconsById;
+        }
+
+        function icRenderGrid() {
+            const grid = document.getElementById('itemIconGrid');
+            if (!grid) return;
+            const icons = icLoadIcons();
+            const keys = Object.keys(icons);
+            if (!keys.length) { grid.innerHTML = ''; return; }
+            grid.innerHTML = keys.map(id => {
+                const i = icons[id];
+                // ⚠️ nmRenderIcon returns an <svg> string, not text — it is our
+                // own markup from a fixed library, never user input.
+                return `<button type="button" class="ic-tile" data-icon-id="${id}"
+                                title="${escapeHtml(i.label)}" onclick="icPick(${id})">
+                            ${window.nmRenderIcon ? window.nmRenderIcon(i.key, 22) : ''}
+                        </button>`;
+            }).join('');
+            icShowSelected();
+        }
+
+        function icPick(id) {
+            document.getElementById('itemIconId').value = id;
+            icShowSelected();
+        }
+
+        function icClear() {
+            document.getElementById('itemIconId').value = '';
+            icShowSelected();
+        }
+
+        function icShowSelected() {
+            const id = document.getElementById('itemIconId').value;
+            const icons = icIconsById || {};
+            const chosen = id ? icons[id] : null;
+            const prev = document.getElementById('itemIconPreview');
+            const name = document.getElementById('itemIconName');
+            if (prev) prev.innerHTML = chosen && window.nmRenderIcon ? window.nmRenderIcon(chosen.key, 24) : '';
+            if (name) name.textContent = chosen ? chosen.label : window.t('asset-management.settings.type_icon_none');
+            document.querySelectorAll('.ic-tile').forEach(t => {
+                t.classList.toggle('selected', t.dataset.iconId === String(id));
+            });
+        }
+
+        /** An asset type's icon, for the settings list. '' when it has none. */
+        function icFor(item, size) {
+            if (!item || !item.icon_key || !window.nmRenderIcon) return '';
+            return window.nmRenderIcon(item.icon_key, size || 16, 'class="ic-inline"');
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -3447,6 +3598,8 @@ $translationNamespaces = ['common', 'asset-management'];
     <?php endif; ?>
 
     <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
+    <script>window.assetTypeIcons = <?php echo json_encode($assetTypeIcons, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
+    <script src="../../assets/js/network-mapper-icons.js?v=2"></script>
     <script src="../../assets/js/mobile.js?v=22"></script>
 </body>
 </html>

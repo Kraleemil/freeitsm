@@ -1385,6 +1385,7 @@ return [
         'description'       => 'VARCHAR(255) NULL',
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
+        'icon_id'           => 'INT NULL',
         // Multi-tenancy config: NULL = global default type, set = a company's own.
         'tenant_id'         => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',

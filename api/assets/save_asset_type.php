@@ -33,6 +33,9 @@ try {
     $description   = $data['description'] ?? '';
     $display_order = (int)($data['display_order'] ?? 0);
     $is_active     = !empty($data['is_active']) ? 1 : 0;
+    // NULL = no icon. An empty string from the picker means "none", not 0 —
+    // and 0 would fail the foreign key rather than clearing the icon.
+    $icon_id       = !empty($data['icon_id']) ? (int)$data['icon_id'] : null;
 
     if ($name === '') {
         throw new Exception('Name is required');
@@ -91,11 +94,11 @@ try {
             }
         }
 
-        $stmt = $conn->prepare("UPDATE asset_types SET name = ?, description = ?, display_order = ?, is_active = ? WHERE id = ?");
-        $stmt->execute([$name, $description, $display_order, $is_active, $id]);
+        $stmt = $conn->prepare("UPDATE asset_types SET name = ?, description = ?, display_order = ?, is_active = ?, icon_id = ? WHERE id = ?");
+        $stmt->execute([$name, $description, $display_order, $is_active, $icon_id, $id]);
     } else {
-        $stmt = $conn->prepare("INSERT INTO asset_types (name, description, display_order, is_active, tenant_id) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$name, $description, $display_order, $is_active, $scopeTenant]);
+        $stmt = $conn->prepare("INSERT INTO asset_types (name, description, display_order, is_active, icon_id, tenant_id) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$name, $description, $display_order, $is_active, $icon_id, $scopeTenant]);
     }
 
     wf_emit('asset_type', $id ? 'updated' : 'created', $id ? (int)$id : (int)$conn->lastInsertId(), $name);

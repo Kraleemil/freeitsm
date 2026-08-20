@@ -713,6 +713,10 @@ $translationNamespaces = ['common', 'asset-management'];
         #naNext .cf-numrow { display: flex; align-items: center; gap: 8px; }
         #naNext .cf-numrow .search-box { flex: 1 1 auto; min-width: 0; }
 
+        /* Asset type icons (#1146) */
+        .asset-type-icon { vertical-align: -2px; margin-right: 7px; color: var(--text-muted, #666); flex-shrink: 0; }
+        .asset-detail-hostname .asset-type-icon { vertical-align: -2px; margin-right: 10px; color: var(--accent, #0078d4); }
+
         /* Custom fields (docs/design/flexible-asset-fields.md) */
         .custom-fields-section {
             border-top: 1px solid var(--border, #e0e0e0);
@@ -1517,6 +1521,20 @@ $translationNamespaces = ['common', 'asset-management'];
         }
 
         // Render assets list
+        /**
+         * The icon for an asset's type, as an <svg> string (#1146).
+         *
+         * Returns '' for no type, no icon, or a library that failed to load —
+         * so the list is byte-identical on an install that has never picked one.
+         * The markup is our own, from a fixed library, never user input.
+         */
+        function assetTypeIcon(typeId, size) {
+            if (!typeId || !window.nmRenderIcon) return '';
+            const t = assetTypes.find(x => x.id == typeId);
+            if (!t || !t.icon_key) return '';
+            return window.nmRenderIcon(t.icon_key, size || 15, 'class="asset-type-icon"');
+        }
+
         function renderAssetsList() {
             const container = document.getElementById('assetsList');
             const countEl = document.getElementById('assetCount');
@@ -1532,7 +1550,13 @@ $translationNamespaces = ['common', 'asset-management'];
             container.innerHTML = assets.map(asset => `
                 <div class="asset-item ${selectedAssetId == asset.id ? 'selected' : ''} ${assetSelection.has(asset.id) ? 'multi-selected' : ''}"
                      data-asset-id="${asset.id}" onclick="handleAssetRowClick(event, ${asset.id})">
-                    <div class="asset-hostname">${escapeHtml(asset.hostname)}</div>
+                    <?php /* The type's icon (#1146) — the whole point of the
+                             feature. 576 rows of near-identical text become
+                             scannable, and a television stops looking like a
+                             laptop. Absent when the type has no icon, or has no
+                             type at all, so nothing shifts for an install that
+                             never sets one. */ ?>
+                    <div class="asset-hostname">${assetTypeIcon(asset.asset_type_id)}${escapeHtml(asset.hostname)}</div>
                     <div class="asset-meta">
                         ${asset.asset_tag ? `<span class="asset-tag-chip">${escapeHtml(asset.asset_tag)}</span>` : ''}
                         <span class="${asset.user_count > 0 ? 'asset-assigned' : 'asset-unassigned'}">
@@ -1671,7 +1695,7 @@ $translationNamespaces = ['common', 'asset-management'];
             detailContainer.innerHTML = `
                 <div class="asset-detail-sticky">
                     <div class="asset-detail-header">
-                        <h2 class="asset-detail-hostname">${escapeHtml(selectedAsset.hostname)}</h2>
+                        <h2 class="asset-detail-hostname">${assetTypeIcon(selectedAsset.asset_type_id, 20)}${escapeHtml(selectedAsset.hostname)}</h2>
                         <div class="asset-detail-subtitle">${window.t('asset-management.detail.service_tag')}: ${escapeHtml(selectedAsset.service_tag) || '-'}</div>
                         <div style="margin-top: 10px;">
                             <button class="btn btn-outline btn-sm" onclick="openHistoryModal(${selectedAsset.id})">${window.t('asset-management.detail.view_history')}</button>
@@ -3104,6 +3128,7 @@ $translationNamespaces = ['common', 'asset-management'];
              outside rather than editing it — the wrap-don't-edit rule. Every
              behaviour inside is gated on matchMedia(768px), so on desktop it is
              inert. (#936) */ ?>
+    <script src="../assets/js/network-mapper-icons.js?v=2"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
 </body>
 </html>

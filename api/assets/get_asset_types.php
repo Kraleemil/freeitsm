@@ -44,12 +44,23 @@ try {
     // single-company / part-migrated install this returns every row, as before.
     $rows = getTenantConfigRows(
         $conn, 'asset_types', 'asset_type', $activeId,
-        'id, name, description, is_active, display_order, tenant_id, created_datetime',
+        'id, name, description, is_active, display_order, icon_id, tenant_id, created_datetime',
         '', 'display_order, name'
     );
+    // The icon's KEY, not just its id — every consumer wants to draw it, and
+    // nobody should have to fetch the library to turn 42 into "printer".
+    $iconKeys = [];
+    try {
+        $iconKeys = $conn->query("SELECT id, icon_key FROM cmdb_icons")->fetchAll(PDO::FETCH_KEY_PAIR);
+    } catch (Exception $e) {
+        // No CMDB icon table on this install — types simply have no icons.
+    }
+
     foreach ($rows as &$r) {
         $r['is_active'] = (bool)$r['is_active'];
         $r['scope']     = ($r['tenant_id'] === null) ? 'global' : 'company';
+        $r['icon_id']   = isset($r['icon_id']) && $r['icon_id'] !== null ? (int)$r['icon_id'] : null;
+        $r['icon_key']  = $r['icon_id'] !== null ? ($iconKeys[$r['icon_id']] ?? null) : null;
     }
     unset($r);
 
