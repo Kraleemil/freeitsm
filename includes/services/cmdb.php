@@ -21,6 +21,13 @@
  * against the option list, dates parsed, object_ref existence + target-class +
  * no self-reference). Delete removes the whole descendant tree explicitly.
  *
+ * ⚠️ The TYPING rules themselves (what a 'number' accepts, how a date is parsed,
+ * what a reference must point at) live in includes/typed_fields.php, shared with
+ * the flexible asset fields. This file decides only WHICH properties apply to a
+ * class and WHERE their values are stored — plus every authorisation rule, which
+ * deliberately never moves into a general-purpose layer. See
+ * docs/design/flexible-asset-fields.md §7.1.
+ *
  * Property input — two accepted shapes (the service normalises both):
  *   - `properties`: { property_key: value }   (the API's canonical map)
  *   - `property_values`: [{ property_id, value }]   (the UI's id-addressed list;
@@ -29,6 +36,7 @@
 
 require_once __DIR__ . '/../service_context.php';
 require_once __DIR__ . '/../tenancy.php';
+require_once __DIR__ . '/../typed_fields.php';
 require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 
 class CmdbService
@@ -394,7 +402,11 @@ class CmdbService
         }
         $own = ($ownTenant === null) ? getDefaultTenantId($conn) : $ownTenant;
         foreach (self::classDefs($conn, $classId) as $key => $def) {
-            if (($def['property_type'] ?? '') !== 'object_ref') {
+            // ⚠️ Reads the canonical TypedFields shape, NOT the raw column:
+            // classDefs() maps 'object_ref' -> type 'ref' + kind 'cmdb_object'.
+            // If this test stops matching, cross-company references stop being
+            // checked SILENTLY — hence both halves, not just the type.
+            if (($def['type'] ?? '') !== 'ref' || ($def['ref_kind'] ?? '') !== 'cmdb_object') {
                 continue;
             }
             if (!array_key_exists($key, $values)) {
@@ -427,7 +439,18 @@ class CmdbService
         return $row;
     }
 
-    /** Property definitions for a class, keyed by property_key. */
+    /**
+     * Property definitions for a class, keyed by property_key, in the canonical
+     * TypedFields shape.
+     *
+     * 🔑 Resolving WHICH fields a thing has is the module's job, not the
+     * engine's — the CMDB answers it from a class, where Assets answers it from
+     * the field sets attached to a type plus any attached to the one asset.
+     * Only the shape is shared.
+     *
+     * The CMDB's `object_ref` is the engine's `ref` with a `cmdb_object` kind,
+     * and `target_class_id` is that kind's target discriminator.
+     */
     private static function classDefs(PDO $conn, int $classId): array
     {
         $stmt = $conn->prepare(
@@ -437,9 +460,49 @@ class CmdbService
         $stmt->execute([$classId]);
         $defs = [];
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $d) {
-            $defs[$d['property_key']] = $d;
+            $isRef = ($d['property_type'] === 'object_ref');
+            $defs[$d['property_key']] = [
+                'id'         => (int)$d['id'],
+                'key'        => $d['property_key'],
+                'label'      => $d['label'],
+                'type'       => $isRef ? 'ref' : $d['property_type'],
+                'required'   => ((int)$d['is_required'] === 1),
+                'config'     => [],
+                'ref_kind'   => $isRef ? 'cmdb_object' : null,
+                'ref_target' => ($isRef && $d['target_class_id'] !== null) ? (int)$d['target_class_id'] : null,
+            ];
         }
         return $defs;
+    }
+
+    /**
+     * Where CMDB property values live, for TypedFields.
+     *
+     * `self_kind` says which reference kind counts as "the same table as the
+     * owner", so the no-self-reference rule fires for a CI pointing at itself
+     * and NOT for, say, an asset whose linked user happens to share its id.
+     */
+    private static function valueSchema(int $classId): array
+    {
+        return [
+            'value_table'  => 'cmdb_object_properties',
+            'owner_column' => 'object_id',
+            'def_column'   => 'property_id',
+            'columns'      => [
+                'text'    => 'value_text',
+                'number'  => 'value_number',
+                'date'    => 'value_date',
+                'boolean' => 'value_boolean',
+                'ref'     => 'value_object_id',
+            ],
+            'self_kind'    => 'cmdb_object',
+            // A closure, not [self::class, ...]: the method is private, and a
+            // closure created in class scope keeps access to it.
+            'options'      => static function (PDO $conn, int $propertyId): array {
+                return self::propertyOptionValues($conn, $propertyId);
+            },
+            'unknown_hint' => "See GET /cmdb/classes/{$classId}.",
+        ];
     }
 
     /**
@@ -479,95 +542,28 @@ class CmdbService
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    /** Validate + write property values (keyed by property_key). Unknown keys -> 422. */
+    /**
+     * Validate + write property values (keyed by property_key). Unknown keys -> 422.
+     *
+     * The typing, validation and storage rules live in TypedFields (see
+     * includes/typed_fields.php); this decides only WHICH properties apply and
+     * WHERE they are stored.
+     */
     private static function writeProperties(PDO $conn, int $objectId, int $classId, array $values): void
     {
-        $defs = self::classDefs($conn, $classId);
-        $del = $conn->prepare("DELETE FROM cmdb_object_properties WHERE object_id = ? AND property_id = ?");
-        $ins = $conn->prepare(
-            "INSERT INTO cmdb_object_properties
-                 (object_id, property_id, value_text, value_number, value_date, value_boolean, value_object_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+        TypedFields::writeValues(
+            $conn,
+            self::valueSchema($classId),
+            $objectId,
+            self::classDefs($conn, $classId),
+            $values
         );
-
-        foreach ($values as $key => $rawValue) {
-            if (!isset($defs[$key])) {
-                throw new ServiceError('validation', 'invalid_field', "Unknown property '{$key}' for this class. See GET /cmdb/classes/{$classId}.");
-            }
-            $def = $defs[$key];
-            $pid = (int)$def['id'];
-            $del->execute([$objectId, $pid]);
-
-            if ($rawValue === null || $rawValue === '') {
-                continue; // clear this property
-            }
-
-            $vText = null; $vNumber = null; $vDate = null; $vBool = null; $vObj = null;
-            switch ($def['property_type']) {
-                case 'text':
-                    $vText = (string)$rawValue;
-                    break;
-                case 'dropdown':
-                    $vText = (string)$rawValue;
-                    $allowed = self::propertyOptionValues($conn, $pid);
-                    if ($allowed && !in_array($vText, $allowed, true)) {
-                        throw new ServiceError('validation', 'invalid_field', "Property '{$def['label']}' must be one of: " . implode(', ', $allowed));
-                    }
-                    break;
-                case 'number':
-                    if (!is_numeric($rawValue)) {
-                        throw new ServiceError('validation', 'invalid_field', "Property '{$def['label']}' expects a number.");
-                    }
-                    $vNumber = (float)$rawValue;
-                    break;
-                case 'date':
-                    $vDate = self::parseDate((string)$rawValue, $key);
-                    break;
-                case 'boolean':
-                    $vBool = ($rawValue === true || $rawValue === 1 || $rawValue === '1' || $rawValue === 'true') ? 1 : 0;
-                    break;
-                case 'object_ref':
-                    $vObj = (int)$rawValue;
-                    if ($vObj <= 0) {
-                        continue 2;
-                    }
-                    if ($vObj === $objectId) {
-                        throw new ServiceError('validation', 'invalid_field', "Property '{$def['label']}' can't reference its own object.");
-                    }
-                    $rs = $conn->prepare("SELECT class_id FROM cmdb_objects WHERE id = ?");
-                    $rs->execute([$vObj]);
-                    $refClassId = $rs->fetchColumn();
-                    if ($refClassId === false) {
-                        throw new ServiceError('validation', 'invalid_field', "Property '{$def['label']}' references an object that doesn't exist.");
-                    }
-                    if ($def['target_class_id'] !== null && (int)$refClassId !== (int)$def['target_class_id']) {
-                        throw new ServiceError('validation', 'invalid_field', "Property '{$def['label']}' can only reference objects of its target class.");
-                    }
-                    break;
-                default:
-                    throw new ServiceError('validation', 'invalid_field', "Unknown property type: {$def['property_type']}");
-            }
-
-            $ins->execute([$objectId, $pid, $vText, $vNumber, $vDate, $vBool, $vObj]);
-        }
     }
 
     /** Required-property enforcement — create/update asymmetry. */
     private static function checkRequired(PDO $conn, int $classId, array $values, bool $isCreate): void
     {
-        foreach (self::classDefs($conn, $classId) as $key => $def) {
-            if ((int)$def['is_required'] !== 1) {
-                continue;
-            }
-            if (array_key_exists($key, $values)) {
-                $v = $values[$key];
-                if ($v === null || $v === '' || (is_array($v) && empty($v))) {
-                    throw new ServiceError('validation', 'missing_field', "Required property missing: {$def['label']}");
-                }
-            } elseif ($isCreate) {
-                throw new ServiceError('validation', 'missing_field', "Required property missing: {$def['label']}");
-            }
-        }
+        TypedFields::checkRequired(self::classDefs($conn, $classId), $values, $isCreate);
     }
 
     /** Parent validation incl. the cycle walk. */
@@ -625,15 +621,6 @@ class CmdbService
         return $ids;
     }
 
-    /** Parse a date/time to 'Y-m-d H:i:s' UTC (throwing twin of apiParseDate; 400 on bad input). */
-    private static function parseDate(string $value, string $field): string
-    {
-        $v = trim($value);
-        try {
-            $dt = new DateTimeImmutable($v, new DateTimeZone('UTC'));
-            return $dt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
-        } catch (Exception $e) {
-            throw new ServiceError('bad_request', 'invalid_parameter', "'{$field}' is not a valid date/time. Use ISO 8601, e.g. 2026-07-02T09:00:00Z.");
-        }
-    }
+    // parseDate() moved to TypedFields::parseDate() — its only caller was the
+    // property coercion that now lives there. Same UTC output, same message.
 }
