@@ -48,6 +48,16 @@ return [
             'grant'     => 'Manage asset types',
         ],
         [
+            // Recording things that are not computers (printers, headsets, TVs).
+            // Gates DESIGNING the fields; filling one in is plain module access,
+            // exactly as designing the handover document is gated but printing
+            // one is not.
+            'id'        => 'custom-fields',
+            'cap'       => Cap::ASSETS_FIELDS,
+            'label_key' => 'asset-management.settings.tab_custom_fields',
+            'grant'     => 'Design custom asset fields and field sets',
+        ],
+        [
             'id'        => 'asset-statuses',
             'cap'       => Cap::ASSETS_STATUSES,
             'label_key' => 'asset-management.settings.tab_asset_statuses',

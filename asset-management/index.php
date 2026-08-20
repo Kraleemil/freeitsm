@@ -668,6 +668,46 @@ $translationNamespaces = ['common', 'asset-management'];
             color: var(--text-dim, #888);
         }
 
+        /* Custom fields (docs/design/flexible-asset-fields.md) */
+        .custom-fields-section {
+            border-top: 1px solid var(--border, #e0e0e0);
+        }
+        .custom-fields-section .section-header { display: flex; align-items: baseline; gap: 10px; }
+        .cf-count { font-size: 12px; color: var(--text-muted, #666); }
+        .cf-set { padding-bottom: 4px; }
+        .cf-set-head { padding: 10px 20px 0 20px; }
+        .cf-setname { font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
+                      text-transform: uppercase; color: var(--text-muted, #666); }
+        /* A set attached to THIS asset alone. Visible and removable, so the
+           extra fields are never magic. */
+        .cf-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 6px 3px 10px; border-radius: 999px;
+            background: var(--surface-3, #f8f9fa);
+            border: 1px solid var(--border, #e0e0e0);
+            font-size: 12px; color: var(--text, #333);
+        }
+        .cf-chip-x {
+            border: 0; background: none; cursor: pointer; line-height: 1;
+            font-size: 15px; color: var(--text-muted, #666); padding: 0 2px;
+        }
+        .cf-chip-x:hover { color: var(--danger-text, #c0392b); }
+        .cf-req { color: var(--danger-text, #c0392b); margin-left: 3px; }
+        .cf-numrow { display: flex; align-items: center; gap: 6px; }
+        .cf-numrow .info-value-input { flex: 1 1 auto; min-width: 0; }
+        .cf-unit { font-size: 12px; color: var(--text-muted, #666); flex-shrink: 0; }
+        .cf-hint { display: block; font-size: 11px; color: var(--text-muted, #666); margin-top: 3px; }
+        .cf-empty { padding: 14px 20px; font-size: 13px; color: var(--text-faint, #999); }
+        .cf-toggle {
+            margin: 4px 20px 12px 20px; padding: 0; border: 0; background: none;
+            /* ⚠️ --link does NOT exist. This module's link colour is --accent,
+               which is what every other control on this page already uses. */
+            cursor: pointer; font-size: 12px; color: var(--accent, #0066cc);
+        }
+        .cf-toggle:hover { text-decoration: underline; }
+        .cf-addset { padding: 0 20px 16px 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .cf-addset-hint { flex-basis: 100%; font-size: 11px; color: var(--text-muted, #666); }
+
         /* Disk Usage Section */
         .disks-section {
             border-top: 1px solid var(--border, #e0e0e0);
@@ -1613,6 +1653,18 @@ $translationNamespaces = ['common', 'asset-management'];
                             <input type="date" class="info-value-input" value="${selectedAsset.warranty_expiry || ''}" onchange="updateAssetField('warranty_expiry', this.value)">
                         </div>
                     </div>
+                    <?php /* Custom fields (docs/design/flexible-asset-fields.md).
+                             Sits between the built-in details and Storage: it is
+                             more of the same question ("what is this thing?"),
+                             not a separate topic, so it does not earn a tab.
+                             Empty for a plain laptop, and silent when so. */ ?>
+                    <div class="custom-fields-section" id="customFieldsSection" style="display:none;">
+                        <div class="section-header">
+                            <span class="section-title">${window.t('asset-management.detail.cf_heading')}</span>
+                            <span class="cf-count" id="cfCount"></span>
+                        </div>
+                        <div id="assetCustomFields"></div>
+                    </div>
                     <div class="disks-section">
                         <div class="section-header">
                             <span class="section-title">${window.t('asset-management.detail.storage')}</span>
@@ -1658,6 +1710,7 @@ $translationNamespaces = ['common', 'asset-management'];
             loadInstalledSoftware(assetId);
             loadIntuneDevice(assetId);
             loadAssetTickets(assetId);
+            loadCustomFields(assetId);
 
             // ⚠️ MOUNTED, not re-pointed. This detail pane rebuilds its whole DOM
             // on every asset you click, so the previous panel's element is already
@@ -1766,6 +1819,235 @@ $translationNamespaces = ['common', 'asset-management'];
                 }
             } catch (error) {
                 console.error('Error loading assigned users:', error);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  Custom fields on the asset
+        //  docs/design/flexible-asset-fields.md §5.2
+        // ════════════════════════════════════════════════════════════════
+
+        let cfState = { assetId: 0, sets: [], available: [], showBlanks: false };
+
+        function cfd(key, vars) { return window.t('asset-management.detail.' + key, vars); }
+
+        async function loadCustomFields(assetId) {
+            const section = document.getElementById('customFieldsSection');
+            if (!section) return;
+            try {
+                const res  = await fetch(`${API_BASE}get_asset_custom_fields.php?asset_id=${assetId}`);
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                cfState = {
+                    assetId:    assetId,
+                    sets:       data.sets || [],
+                    available:  data.available_sets || [],
+                    showBlanks: false,
+                    filled:     data.filled || 0,
+                    total:      data.total || 0
+                };
+
+                // Hidden entirely when this kind of asset records nothing extra
+                // AND there is nothing to add — an empty panel on 560 laptops is
+                // noise. It appears the moment there is either.
+                const nothing = !cfState.sets.length && !cfState.available.length;
+                section.style.display = nothing ? 'none' : '';
+                if (nothing) return;
+
+                renderCustomFields();
+            } catch (e) {
+                section.style.display = '';
+                document.getElementById('assetCustomFields').innerHTML =
+                    `<div class="cf-empty">${escapeHtml(e.message || '')}</div>`;
+            }
+        }
+
+        function renderCustomFields() {
+            // "6 of 8 filled in" is always shown, zeroes included: a field
+            // nobody has filled in and a panel that failed to load must never
+            // look the same.
+            const count = document.getElementById('cfCount');
+            if (count) {
+                count.textContent = cfState.total
+                    ? cfd('cf_filled', { filled: cfState.filled, total: cfState.total })
+                    : '';
+            }
+
+            const blanks = cfState.total - cfState.filled;
+            const parts  = [];
+
+            cfState.sets.forEach(set => {
+                const rows = set.fields
+                    .filter(f => cfState.showBlanks || f.value !== null)
+                    .map(f => cfFieldRow(f)).join('');
+
+                // A set attached to THIS asset alone gets a removable chip, so
+                // "why does this TV have a field its type doesn't?" answers
+                // itself on the page.
+                const chip = set.via === 'asset'
+                    ? `<span class="cf-chip" title="${escapeHtml(cfd('cf_via_asset'))}">${escapeHtml(set.name)}
+                         <button type="button" class="cf-chip-x" onclick="cfRemoveSet(${set.id})"
+                                 aria-label="${escapeHtml(cfd('cf_remove_set'))}">&times;</button>
+                       </span>`
+                    : `<span class="cf-setname">${escapeHtml(set.name)}</span>`;
+
+                parts.push(`
+                    <div class="cf-set">
+                        <div class="cf-set-head">${chip}</div>
+                        <div class="asset-info-grid">${rows}</div>
+                    </div>`);
+            });
+
+            if (blanks > 0) {
+                parts.push(`
+                    <button type="button" class="cf-toggle" onclick="cfToggleBlanks()">
+                        ${cfState.showBlanks ? cfd('cf_hide_blanks') : cfd('cf_show_blanks', { n: blanks })}
+                    </button>`);
+            }
+
+            if (cfState.available.length) {
+                parts.push(`
+                    <div class="cf-addset">
+                        <select id="cfAddSetSelect">
+                            ${cfState.available.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+                        </select>
+                        <button type="button" class="btn btn-outline btn-sm" onclick="cfAddSet()">${cfd('cf_add_set')}</button>
+                        <div class="cf-addset-hint">${cfd('cf_add_set_hint')}</div>
+                    </div>`);
+            }
+
+            if (!cfState.sets.length) {
+                parts.unshift(`<div class="cf-empty">${cfd('cf_none')}<br><span class="cf-hint">${cfd('cf_none_hint')}</span></div>`);
+            }
+
+            document.getElementById('assetCustomFields').innerHTML = parts.join('');
+        }
+
+        /** One editable row. The control matches the field's declared type. */
+        function cfFieldRow(f) {
+            const label = `<span class="info-label">${escapeHtml(f.label)}${f.required ? '<span class="cf-req">*</span>' : ''}</span>`;
+            const hint  = f.help_text ? `<span class="cf-hint">${escapeHtml(f.help_text)}</span>` : '';
+            const save  = `onchange="cfSave('${f.key}', this)"`;
+            let control;
+
+            switch (f.type) {
+                case 'boolean':
+                    // ⚠️ THREE states, not two. "Not set" is a real option and
+                    // must stay reachable — absent is not No.
+                    control = `
+                        <select class="info-value-select" ${save}>
+                            <option value=""  ${f.value === null  ? 'selected' : ''}>${cfd('cf_not_set')}</option>
+                            <option value="1" ${f.value === true  ? 'selected' : ''}>${cfd('cf_yes')}</option>
+                            <option value="0" ${f.value === false ? 'selected' : ''}>${cfd('cf_no')}</option>
+                        </select>`;
+                    break;
+                case 'dropdown':
+                    control = `
+                        <select class="info-value-select" ${save}>
+                            <option value="">${cfd('cf_not_set')}</option>
+                            ${(f.options || []).map(o =>
+                                `<option value="${escapeHtml(o.option_value)}" ${f.value === o.option_value ? 'selected' : ''}>${escapeHtml(o.option_value)}</option>`
+                            ).join('')}
+                        </select>`;
+                    break;
+                case 'number': {
+                    const step = f.config && f.config.decimals ? (1 / Math.pow(10, f.config.decimals)) : 1;
+                    const input = `<input type="number" step="${step}" class="info-value-input" value="${f.value !== null ? f.value : ''}" ${save}>`;
+                    // .info-item is a COLUMN, so a bare sibling span drops onto
+                    // its own line under the box. The unit belongs beside the
+                    // number it qualifies, hence the row wrapper.
+                    control = (f.config && f.config.unit)
+                        ? `<span class="cf-numrow">${input}<span class="cf-unit">${escapeHtml(f.config.unit)}</span></span>`
+                        : input;
+                    break;
+                }
+                case 'date': {
+                    const mode = (f.config && f.config.date_mode) || 'date';
+                    const input = mode === 'time' ? 'time' : (mode === 'datetime' ? 'datetime-local' : 'date');
+                    control = `<input type="${input}" class="info-value-input" value="${cfDateValue(f.value, mode)}" ${save}>`;
+                    break;
+                }
+                case 'ref':
+                    // Read-only for now: picking a person or another asset needs
+                    // a searchable picker, which is its own piece of work. The
+                    // value still displays, so an imported link is visible.
+                    control = `<span class="info-value">${f.value_label ? escapeHtml(f.value_label) : (f.value !== null ? '#' + f.value : '-')}</span>`;
+                    break;
+                case 'url':
+                    control = `<input type="url" class="info-value-input" value="${escapeHtml(f.value || '')}" ${save}>`;
+                    break;
+                case 'email':
+                    control = `<input type="email" class="info-value-input" value="${escapeHtml(f.value || '')}" ${save}>`;
+                    break;
+                default:
+                    control = (f.config && f.config.multiline)
+                        ? `<textarea class="info-value-input" rows="2" ${save}>${escapeHtml(f.value || '')}</textarea>`
+                        : `<input type="text" class="info-value-input" value="${escapeHtml(f.value || '')}" ${save}>`;
+            }
+
+            return `<div class="info-item">${label}${control}${hint}</div>`;
+        }
+
+        /** Stored 'Y-m-d H:i:s' -> what the matching input element expects. */
+        function cfDateValue(v, mode) {
+            if (!v) return '';
+            const s = String(v).replace(' ', 'T');
+            if (mode === 'time')     return s.substring(11, 16);
+            if (mode === 'datetime') return s.substring(0, 16);
+            return s.substring(0, 10);
+        }
+
+        async function cfSave(key, el) {
+            const raw = el.value;
+            // An empty control CLEARS the field. Sent as '' rather than omitted,
+            // because omitting it would mean "leave alone" — a different thing.
+            try {
+                const res = await fetch(`${API_BASE}save_asset_custom_fields.php`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_id: cfState.assetId, values: { [key]: raw } })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                showToast(cfd('cf_saved'), 'success');
+                await loadCustomFields(cfState.assetId);
+            } catch (e) {
+                showToast(e.message || cfd('cf_save_failed'), 'error');
+                // Put the stored value back, so the screen never shows a value
+                // the database does not hold.
+                await loadCustomFields(cfState.assetId);
+            }
+        }
+
+        function cfToggleBlanks() {
+            cfState.showBlanks = !cfState.showBlanks;
+            renderCustomFields();
+        }
+
+        async function cfAddSet() {
+            const sel = document.getElementById('cfAddSetSelect');
+            if (!sel || !sel.value) return;
+            await cfSetMembership(parseInt(sel.value, 10), 'attach');
+        }
+
+        async function cfRemoveSet(setId) {
+            const set = cfState.sets.find(s => s.id === setId);
+            if (set && !confirm(cfd('cf_remove_confirm', { name: set.name }))) return;
+            await cfSetMembership(setId, 'detach');
+        }
+
+        async function cfSetMembership(setId, action) {
+            try {
+                const res = await fetch(`${API_BASE}set_asset_field_set.php`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_id: cfState.assetId, set_id: setId, action })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                showToast(cfd('cf_saved'), 'success');
+                await loadCustomFields(cfState.assetId);
+            } catch (e) {
+                showToast(e.message || cfd('cf_save_failed'), 'error');
             }
         }
 

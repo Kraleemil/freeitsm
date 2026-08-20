@@ -682,6 +682,34 @@ try {
         }
     }
 
+    // Custom asset fields. Cascades everywhere EXCEPT asset_field_values.field_id,
+    // which is deliberately RESTRICT: a field is retired by setting is_deleted,
+    // never dropped, because dropping it would silently destroy every answer ever
+    // recorded against it. The FK is what makes that a hard guarantee rather than
+    // a convention. See docs/design/flexible-asset-fields.md §3.1.
+    $assetFieldFks = [
+        ['asset_fields',           'fk_asset_fields_tenant',       'tenants',           'tenant_id',             'id', 'CASCADE'],
+        ['asset_field_options',    'fk_asset_field_options_field', 'asset_fields',      'field_id',              'id', 'CASCADE'],
+        ['asset_field_sets',       'fk_asset_field_sets_tenant',   'tenants',           'tenant_id',             'id', 'CASCADE'],
+        ['asset_field_set_fields', 'fk_afsf_set',                  'asset_field_sets',  'set_id',                'id', 'CASCADE'],
+        ['asset_field_set_fields', 'fk_afsf_field',                'asset_fields',      'field_id',              'id', 'CASCADE'],
+        ['asset_type_field_sets',  'fk_atfs_type',                 'asset_types',       'asset_type_id',         'id', 'CASCADE'],
+        ['asset_type_field_sets',  'fk_atfs_set',                  'asset_field_sets',  'set_id',                'id', 'CASCADE'],
+        ['asset_field_set_assets', 'fk_afsa_asset',                'assets',            'asset_id',              'id', 'CASCADE'],
+        ['asset_field_set_assets', 'fk_afsa_set',                  'asset_field_sets',  'set_id',                'id', 'CASCADE'],
+        ['asset_field_set_assets', 'fk_afsa_analyst',              'analysts',          'created_by_analyst_id', 'id', 'SET NULL'],
+        ['asset_field_values',     'fk_afv_asset',                 'assets',            'asset_id',              'id', 'CASCADE'],
+        ['asset_field_values',     'fk_afv_field',                 'asset_fields',      'field_id',              'id', null],
+    ];
+    foreach ($assetFieldFks as [$table, $name, $refTable, $col, $refCol, $onDelete]) {
+        if ($tableExists($table) && $tableExists($refTable) && !$fkExists($table, $name)) {
+            $action = $onDelete ? " ON DELETE {$onDelete}" : '';
+            try {
+                $conn->exec("ALTER TABLE {$table} ADD CONSTRAINT {$name} FOREIGN KEY ({$col}) REFERENCES {$refTable} ({$refCol}){$action}");
+            } catch (Exception $e) {}
+        }
+    }
+
     // RBAC Layer 2. Cascades keep the join tables clean: deleting a role, an
     // analyst or a team removes the assignments that pointed at it.
     if ($tableExists('rbac_role_capabilities') && $tableExists('rbac_roles')) {

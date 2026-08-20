@@ -1482,6 +1482,79 @@ return [
         'driver_date'       => 'DATE NULL',
     ],
 
+    // --- Custom asset fields (docs/design/flexible-asset-fields.md) ---------
+    // The catalogue, the sets that bundle fields, the two ways a set attaches
+    // (to a type, or to one asset), and the answers.
+
+    'asset_fields' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'field_key'         => 'VARCHAR(100) NOT NULL',
+        'label'             => 'VARCHAR(150) NOT NULL',
+        'field_type'        => 'VARCHAR(20) NOT NULL',
+        'config'            => 'LONGTEXT NULL',
+        'help_text'         => 'VARCHAR(500) NULL',
+        'is_unique'         => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'is_searchable'     => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'show_in_list'      => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'tenant_id'         => 'INT NULL',
+        'is_deleted'        => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    'asset_field_options' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'field_id'          => 'INT NOT NULL',
+        'option_value'      => 'VARCHAR(255) NOT NULL',
+        'colour'            => 'VARCHAR(7) NULL',
+        'display_order'     => 'INT NOT NULL DEFAULT 0',
+    ],
+
+    'asset_field_sets' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'name'              => 'VARCHAR(150) NOT NULL',
+        'description'       => 'VARCHAR(500) NULL',
+        'display_order'     => 'INT NOT NULL DEFAULT 0',
+        'tenant_id'         => 'INT NULL',
+        'is_deleted'        => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    'asset_field_set_fields' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'set_id'            => 'INT NOT NULL',
+        'field_id'          => 'INT NOT NULL',
+        'sort_order'        => 'INT NOT NULL DEFAULT 0',
+        'is_required'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'default_value'     => 'VARCHAR(255) NULL',
+    ],
+
+    'asset_type_field_sets' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'asset_type_id'     => 'INT NOT NULL',
+        'set_id'            => 'INT NOT NULL',
+        'sort_order'        => 'INT NOT NULL DEFAULT 0',
+    ],
+
+    'asset_field_set_assets' => [
+        'id'                    => 'INT NOT NULL AUTO_INCREMENT',
+        'asset_id'              => 'INT NOT NULL',
+        'set_id'                => 'INT NOT NULL',
+        'created_by_analyst_id' => 'INT NULL',
+        'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    'asset_field_values' => [
+        'id'            => 'INT NOT NULL AUTO_INCREMENT',
+        'asset_id'      => 'INT NOT NULL',
+        'field_id'      => 'INT NOT NULL',
+        'seq'           => 'INT NOT NULL DEFAULT 0',
+        'value_text'    => 'TEXT NULL',
+        'value_number'  => 'DECIMAL(20,4) NULL',
+        'value_date'    => 'DATETIME NULL',
+        'value_boolean' => 'TINYINT(1) NULL',
+        'value_ref_id'  => 'INT NULL',
+    ],
+
     'asset_dashboard_widgets' => [
         'id'                    => 'INT NOT NULL AUTO_INCREMENT',
         'title'                 => 'VARCHAR(100) NOT NULL',

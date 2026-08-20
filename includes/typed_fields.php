@@ -309,6 +309,101 @@ final class TypedFields
         }
     }
 
+    // ---------------------------------------------------------------- read --
+
+    /**
+     * Values for MANY owners in ONE query, pivoted to [ownerId => [key => value]].
+     *
+     * ⚠️ There is no per-owner variant on purpose. A list of 500 assets must cost
+     * one query, not 500 — see docs/design/flexible-asset-fields.md §4.4. If you
+     * find yourself calling this in a loop, collect the ids and call it once.
+     *
+     * 🔑 Owners with no values simply do not appear in the result, and fields
+     * with no value do not appear in an owner's map. Absent means NOT SET, and
+     * callers must keep it distinguishable from "no" / zero / empty — never
+     * `?? false` a boolean field into existence. See §4.5.
+     *
+     * Reference fields come back as the raw target id. Turning that into a NAME
+     * is the module's job, deliberately: the CMDB filters those joins by company,
+     * and a generic labeller would happily read across one.
+     *
+     * @param array $defs      Canonical definitions, keyed by field key.
+     * @param array $ownerIds  Owner row ids.
+     * @return array [ownerId => [field key => value]]
+     */
+    public static function readValues(PDO $conn, array $schema, array $defs, array $ownerIds): array
+    {
+        $ownerIds = array_values(array_unique(array_map('intval', $ownerIds)));
+        if (!$ownerIds || !$defs) {
+            return [];
+        }
+
+        $byId = [];
+        foreach ($defs as $def) {
+            $byId[(int)$def['id']] = $def;
+        }
+
+        $cols     = $schema['columns'];
+        $valTable = $schema['value_table'];
+        $ownerCol = $schema['owner_column'];
+        $defCol   = $schema['def_column'];
+        $select   = implode(', ', array_map(fn($c) => "`{$c}`", array_values($cols)));
+
+        $ph = implode(',', array_fill(0, count($ownerIds), '?'));
+        $stmt = $conn->prepare(
+            "SELECT `{$ownerCol}` AS owner_id, `{$defCol}` AS def_id, {$select}
+               FROM `{$valTable}` WHERE `{$ownerCol}` IN ({$ph})"
+        );
+        $stmt->execute($ownerIds);
+
+        $out = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $defId = (int)$row['def_id'];
+            if (!isset($byId[$defId])) {
+                continue;   // a value for a field no longer attached here
+            }
+            $def   = $byId[$defId];
+            $class = self::storageClass($def['type']);
+            $raw   = $row[$cols[$class] ?? ''] ?? null;
+            if ($raw === null) {
+                continue;
+            }
+            $out[(int)$row['owner_id']][$def['key']] = self::castOut($def['type'], $raw);
+        }
+        return $out;
+    }
+
+    /** Stored string -> the PHP type a caller expects. */
+    private static function castOut(string $type, $raw)
+    {
+        switch ($type) {
+            case 'number':  return (float)$raw;
+            case 'boolean': return ((int)$raw === 1);
+            case 'ref':     return (int)$raw;
+            default:        return (string)$raw;
+        }
+    }
+
+    /**
+     * Display labels for reference values, by kind.
+     *
+     * 🔒 Opt-in and caller-driven, NOT folded into readValues(): resolving a
+     * reference to a name reads another table, and whether the caller may see
+     * those rows is the caller's question. Pass only ids you have already
+     * decided the actor may see.
+     *
+     * @return array [id => label] — ids with no row are simply absent.
+     */
+    public static function refLabels(PDO $conn, string $kind, array $ids): array
+    {
+        $handler = self::refKind($kind);
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$handler || !$ids || empty($handler['labels'])) {
+            return [];
+        }
+        return ($handler['labels'])($conn, $ids);
+    }
+
     // ---------------------------------------------------------------- dates --
 
     /**
@@ -352,5 +447,61 @@ TypedFields::registerRefKind('cmdb_object', [
         $stmt->execute([$id]);
         $classId = $stmt->fetchColumn();
         return ($classId === false) ? false : (int)$classId;
+    },
+    'labels'       => function (PDO $conn, array $ids) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $conn->prepare("SELECT id, name FROM cmdb_objects WHERE id IN ({$ph})");
+        $stmt->execute($ids);
+        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    },
+]);
+
+/**
+ * A person in the directory — "who has this headset", "who owns this TV".
+ *
+ * No target discriminator: a user is a user. `exists` therefore returns 0 (a
+ * real "found, nothing to narrow on") rather than the id, so that a field with
+ * no ref_target passes and one with a ref_target set can never match — there is
+ * nothing sensible to narrow a user by.
+ */
+TypedFields::registerRefKind('user', [
+    'label'        => 'person',
+    'target_label' => '',
+    'exists'       => function (PDO $conn, int $id) {
+        $stmt = $conn->prepare("SELECT 1 FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetchColumn() === false ? false : 0;
+    },
+    'labels'       => function (PDO $conn, array $ids) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $conn->prepare(
+            "SELECT id, COALESCE(NULLIF(display_name, ''), email) FROM users WHERE id IN ({$ph})"
+        );
+        $stmt->execute($ids);
+        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    },
+]);
+
+/**
+ * Another asset — "the dock this monitor is plugged into". The discriminator is
+ * the asset's TYPE, so a field can be narrowed to "must point at a Docking
+ * Station" the same way a CMDB property narrows to a class.
+ */
+TypedFields::registerRefKind('asset', [
+    'label'        => 'asset',
+    'target_label' => 'asset type',
+    'exists'       => function (PDO $conn, int $id) {
+        $stmt = $conn->prepare("SELECT asset_type_id FROM assets WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_NUM);
+        return ($row === false) ? false : (int)($row[0] ?? 0);
+    },
+    'labels'       => function (PDO $conn, array $ids) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $conn->prepare(
+            "SELECT id, COALESCE(NULLIF(hostname, ''), CONCAT('#', id)) FROM assets WHERE id IN ({$ph})"
+        );
+        $stmt->execute($ids);
+        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
     },
 ]);

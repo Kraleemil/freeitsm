@@ -235,6 +235,68 @@ $translationNamespaces = ['common', 'asset-management'];
 
         .loc-empty { color: var(--text-faint, #999); padding: 16px 12px; }
 
+        /* ── Custom fields tab ─────────────────────────────────────── */
+        .cf-notice {
+            padding: 14px 16px;
+            border: 1px solid var(--border, #e0e0e0);
+            /* ⚠️ --warning does NOT exist; the real tokens are the
+               --warning-bg / -border / -text trio. A phantom token is invisible
+               until somebody looks at it in dark mode. */
+            border-left: 3px solid var(--warning-border, #d18b00);
+            border-radius: 6px;
+            background: var(--warning-bg, #fff8e6);
+            color: var(--warning-text, #6b4e00);
+            font-size: 13px;
+            margin-bottom: 18px;
+        }
+        .cf-block {
+            border: 1px solid var(--border, #e0e0e0);
+            border-radius: 8px;
+            padding: 18px 20px;
+            margin-bottom: 22px;
+            background: var(--surface, #fff);
+        }
+        .cf-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .cf-block-title { margin: 0 0 4px 0; font-size: 15px; font-weight: 600; color: var(--text, #333); }
+        .cf-block-intro { margin: 0 0 14px 0; font-size: 13px; color: var(--text-muted, #666); line-height: 1.5; }
+        .cf-typebar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+        .cf-typebar label { font-size: 13px; color: var(--text-muted, #666); }
+        .cf-typebar select { min-width: 220px; }
+        .cf-typeactions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+        /* A field on the selected type. The set it arrives from is shown on
+           every row, because "why is this here?" is the question this screen
+           gets asked most. */
+        .cf-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border-soft, #eee);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            background: var(--surface-2, #fafafa);
+        }
+        .cf-row-name { font-weight: 600; color: var(--text, #333); font-size: 13px; }
+        .cf-row-kind { font-size: 12px; color: var(--text-muted, #666); }
+        .cf-row-from { margin-left: auto; font-size: 11px; color: var(--text-muted, #666); }
+        .cf-req { color: var(--danger-text, #c0392b); margin-left: 3px; }
+        .cf-empty { color: var(--text-faint, #999); padding: 14px 12px; font-size: 13px; }
+        .cf-warn { color: var(--danger-text, #c0392b); }
+        .cf-scope { font-size: 11px; color: var(--text-muted, #666); }
+
+        /* Field/set pickers inside the modals. */
+        .cf-picker {
+            max-height: 260px; overflow-y: auto;
+            border: 1px solid var(--border, #e0e0e0); border-radius: 6px; padding: 6px;
+        }
+        .cf-pick {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 8px; border-radius: 4px; font-size: 13px; color: var(--text, #333);
+        }
+        .cf-pick:hover { background: var(--surface-hover, #f0f0f0); }
+        .cf-pick input[type="checkbox"] { flex-shrink: 0; }
+        .cf-pick-kind { color: var(--text-muted, #666); font-size: 12px; }
+        .cf-pick-req { margin-left: auto; font-size: 11px; color: var(--text-muted, #666); display: flex; align-items: center; gap: 4px; }
+
         /* ── Suppliers tab ─────────────────────────────────────────── */
         .supplier-toolbar {
             display: flex;
@@ -370,6 +432,93 @@ $translationNamespaces = ['common', 'asset-management'];
             </table>
         </div>
 
+        <?php endif; ?>
+
+        <?php if (settingsTabVisible($visibleTabs, 'custom-fields')): ?>
+        <?php /*
+            Custom asset fields. Three sections, deliberately in this order:
+
+            1. BY ASSET TYPE — the guided path, and the only one most people
+               need. "What gets recorded against a Television?" Adding a field
+               here quietly creates or reuses a set behind the scenes, so
+               somebody who never wants to think about sets never meets one.
+            2. ALL FIELDS — the catalogue, because a field is defined once and
+               reused. This is what makes one search span every asset type.
+            3. FIELD SETS — the bundles. Last, because they only start to make
+               sense once you want to reuse a handful of fields, which is
+               exactly when somebody comes looking for them.
+        */ ?>
+        <div class="tab-content<?php echo $activeTabId === 'custom-fields' ? ' active' : ''; ?>" id="custom-fields-tab" data-capability="<?php echo Cap::ASSETS_FIELDS; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('asset-management.settings.tab_custom_fields')); ?></h2>
+            </div>
+            <p class="settings-description" style="margin-bottom: 18px;">
+                <?php echo t('asset-management.settings.cf_intro'); ?>
+            </p>
+
+            <?php /* Told, never implied — an install that has not run Database
+                     Verification must not read as "you have no fields". */ ?>
+            <div id="cfNotReady" class="cf-notice" style="display:none;">
+                <?php echo t('asset-management.settings.cf_not_ready'); ?>
+            </div>
+
+            <div id="cfBody" style="display:none;">
+                <!-- 1. By asset type -->
+                <div class="cf-block">
+                    <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.cf_sec_types')); ?></h3>
+                    <p class="cf-block-intro"><?php echo t('asset-management.settings.cf_sec_types_intro'); ?></p>
+                    <div class="cf-typebar">
+                        <label for="cfTypeSelect"><?php echo htmlspecialchars(t('asset-management.settings.cf_choose_type')); ?></label>
+                        <select id="cfTypeSelect" onchange="cfRenderType()"></select>
+                    </div>
+                    <div id="cfTypeFields"></div>
+                    <div class="cf-typeactions">
+                        <button class="btn btn-outline btn-sm" onclick="cfOpenFieldModal(null, true)"><?php echo htmlspecialchars(t('asset-management.settings.cf_add_field')); ?></button>
+                        <button class="btn btn-outline btn-sm" onclick="cfOpenAttachSet()"><?php echo htmlspecialchars(t('asset-management.settings.cf_type_add_set')); ?></button>
+                    </div>
+                </div>
+
+                <!-- 2. The catalogue -->
+                <div class="cf-block">
+                    <div class="cf-block-head">
+                        <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.cf_sec_catalogue')); ?></h3>
+                        <button class="add-btn" onclick="cfOpenFieldModal(null, false)"><?php echo htmlspecialchars(t('asset-management.settings.cf_add_field')); ?></button>
+                    </div>
+                    <p class="cf-block-intro"><?php echo t('asset-management.settings.cf_sec_catalogue_intro'); ?></p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.cf_col_field')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.cf_col_kind')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.cf_col_used')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.common.actions')); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cfFieldList"></tbody>
+                    </table>
+                </div>
+
+                <!-- 3. Sets -->
+                <div class="cf-block">
+                    <div class="cf-block-head">
+                        <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.cf_sec_sets')); ?></h3>
+                        <button class="add-btn" onclick="cfOpenSetModal(null)"><?php echo htmlspecialchars(t('asset-management.settings.cf_add_set')); ?></button>
+                    </div>
+                    <p class="cf-block-intro"><?php echo t('asset-management.settings.cf_sec_sets_intro'); ?></p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.cf_set_name')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.cf_set_fields')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.cf_col_used')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.common.actions')); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cfSetList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         <?php endif; ?>
 
         <?php if (settingsTabVisible($visibleTabs, 'asset-statuses')): ?>
@@ -718,6 +867,145 @@ $translationNamespaces = ['common', 'asset-management'];
         </div>
     </div>
 
+    <?php /* ── Custom fields: field editor ──────────────────────────────
+             The "kind of information" row rewrites the rows beneath it, so a
+             number offers a unit and a dropdown offers its choices — rather
+             than showing every option for every type and letting people guess
+             which apply. */ ?>
+    <div class="modal" id="cfFieldModal">
+        <div class="modal-content">
+            <div class="modal-header" id="cfFieldModalTitle"><?php echo htmlspecialchars(t('asset-management.settings.cf_new_field')); ?></div>
+            <form id="cfFieldForm">
+                <input type="hidden" id="cfFieldId">
+                <input type="hidden" id="cfFieldAttachToType" value="0">
+                <div class="form-group">
+                    <label for="cfFieldLabel"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_label')); ?></label>
+                    <input type="text" id="cfFieldLabel" required autocomplete="off"
+                           placeholder="<?php echo htmlspecialchars(t('asset-management.settings.cf_field_label_ph')); ?>">
+                    <div class="form-hint" id="cfFieldKeyNote" style="display:none;"></div>
+                </div>
+                <div class="form-group">
+                    <label for="cfFieldType"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_type')); ?></label>
+                    <select id="cfFieldType" onchange="cfSyncFieldModal()"></select>
+                    <?php /* Shown INSTEAD of letting somebody try and be refused —
+                             a locked control that explains itself beats an error. */ ?>
+                    <div class="form-hint cf-warn" id="cfTypeLocked" style="display:none;"></div>
+                </div>
+
+                <div class="form-group cf-forType cf-forType-number">
+                    <label for="cfFieldUnit"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_unit')); ?></label>
+                    <input type="text" id="cfFieldUnit" autocomplete="off"
+                           placeholder="<?php echo htmlspecialchars(t('asset-management.settings.cf_field_unit_ph')); ?>">
+                </div>
+                <div class="form-group cf-forType cf-forType-number">
+                    <label for="cfFieldDecimals"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_decimals')); ?></label>
+                    <input type="number" id="cfFieldDecimals" min="0" max="4" value="0">
+                </div>
+                <div class="form-group cf-forType cf-forType-date">
+                    <label for="cfFieldDateMode"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_date_mode')); ?></label>
+                    <select id="cfFieldDateMode">
+                        <option value="date"><?php echo htmlspecialchars(t('asset-management.settings.cf_date_date')); ?></option>
+                        <option value="time"><?php echo htmlspecialchars(t('asset-management.settings.cf_date_time')); ?></option>
+                        <option value="datetime"><?php echo htmlspecialchars(t('asset-management.settings.cf_date_datetime')); ?></option>
+                    </select>
+                </div>
+                <div class="form-group cf-forType cf-forType-dropdown">
+                    <label for="cfFieldOptions"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_options')); ?></label>
+                    <textarea id="cfFieldOptions" rows="5"
+                              placeholder="<?php echo htmlspecialchars(t('asset-management.settings.cf_field_options_ph')); ?>"></textarea>
+                </div>
+                <div class="form-group cf-forType cf-forType-ref">
+                    <label for="cfFieldRefKind"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_ref_kind')); ?></label>
+                    <select id="cfFieldRefKind">
+                        <option value="user"><?php echo htmlspecialchars(t('asset-management.settings.cf_ref_user')); ?></option>
+                        <option value="asset"><?php echo htmlspecialchars(t('asset-management.settings.cf_ref_asset')); ?></option>
+                        <option value="cmdb_object"><?php echo htmlspecialchars(t('asset-management.settings.cf_ref_cmdb_object')); ?></option>
+                    </select>
+                </div>
+                <div class="form-group cf-forType cf-forType-text">
+                    <label class="toggle-label">
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="cfFieldMultiline">
+                            <span class="toggle-slider"></span>
+                        </span>
+                        <?php echo htmlspecialchars(t('asset-management.settings.cf_field_multiline')); ?>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="cfFieldHelp"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_help')); ?></label>
+                    <input type="text" id="cfFieldHelp" autocomplete="off"
+                           placeholder="<?php echo htmlspecialchars(t('asset-management.settings.cf_field_help_ph')); ?>">
+                </div>
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="cfFieldInList">
+                            <span class="toggle-slider"></span>
+                        </span>
+                        <?php echo htmlspecialchars(t('asset-management.settings.cf_field_in_list')); ?>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="toggle-label">
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="cfFieldUnique">
+                            <span class="toggle-slider"></span>
+                        </span>
+                        <?php echo htmlspecialchars(t('asset-management.settings.cf_field_unique')); ?>
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="cfCloseFieldModal()"><?php echo htmlspecialchars(t('asset-management.common.cancel')); ?></button>
+                    <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('asset-management.common.save')); ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom fields: set editor -->
+    <div class="modal" id="cfSetModal">
+        <div class="modal-content">
+            <div class="modal-header" id="cfSetModalTitle"><?php echo htmlspecialchars(t('asset-management.settings.cf_new_set')); ?></div>
+            <form id="cfSetForm">
+                <input type="hidden" id="cfSetId">
+                <div class="form-group">
+                    <label for="cfSetName"><?php echo htmlspecialchars(t('asset-management.settings.cf_set_name')); ?></label>
+                    <input type="text" id="cfSetName" required autocomplete="off"
+                           placeholder="<?php echo htmlspecialchars(t('asset-management.settings.cf_set_name_ph')); ?>">
+                </div>
+                <div class="form-group">
+                    <label for="cfSetDesc"><?php echo htmlspecialchars(t('asset-management.settings.cf_set_desc')); ?></label>
+                    <textarea id="cfSetDesc" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label><?php echo htmlspecialchars(t('asset-management.settings.cf_set_fields')); ?></label>
+                    <div id="cfSetFieldPicker" class="cf-picker"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="cfCloseSetModal()"><?php echo htmlspecialchars(t('asset-management.common.cancel')); ?></button>
+                    <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('asset-management.common.save')); ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom fields: attach a set to the selected asset type -->
+    <div class="modal" id="cfAttachSetModal">
+        <div class="modal-content">
+            <div class="modal-header"><?php echo htmlspecialchars(t('asset-management.settings.cf_type_add_set')); ?></div>
+            <form id="cfAttachSetForm">
+                <div class="form-group">
+                    <div id="cfAttachSetPicker" class="cf-picker"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="cfCloseAttachSet()"><?php echo htmlspecialchars(t('asset-management.common.cancel')); ?></button>
+                    <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('asset-management.common.save')); ?></button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const API_BASE = '../../api/assets/';
         const API_SETTINGS = '../../api/settings/';
@@ -752,7 +1040,10 @@ $translationNamespaces = ['common', 'asset-management'];
         const ASSET_EYE_OFF_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
         document.addEventListener('DOMContentLoaded', function() {
-            loadItems('asset-type');
+            // ⚠️ Custom fields waits for the asset TYPES: its "by asset type"
+            // picker is built from allItems['asset-type'], and racing it would
+            // render an empty dropdown that looks like "you have no types".
+            loadItems('asset-type').then(cfLoad);
             loadItems('asset-status');
             loadLocations();
             loadSuppliers();
@@ -1729,6 +2020,465 @@ $translationNamespaces = ['common', 'asset-management'];
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // ════════════════════════════════════════════════════════════════
+        //  Custom asset fields
+        //
+        //  One fetch fills all three sections, so the catalogue, the sets and
+        //  the per-type view can never disagree about what exists.
+        // ════════════════════════════════════════════════════════════════
+
+        let cfData = { fields: [], sets: [], type_sets: {}, schema_ready: false };
+
+        /**
+         * ⚠️ This whole block runs even when the tab is NOT rendered — the tab is
+         * gated by a capability, the <script> is not. Every DOM touch below is
+         * therefore guarded, because one addEventListener on a null element
+         * throws and silently kills every function defined after it. That is
+         * exactly how the notification bell broke: the throw was one line above
+         * the try, so the fetch never ran AND the catch never fired.
+         */
+        function cfPresent() { return !!document.getElementById('custom-fields-tab'); }
+
+        function cfOn(id, ev, fn) {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener(ev, fn);
+        }
+
+        function cfT(key, vars) { return window.t('asset-management.settings.' + key, vars); }
+
+        /** The analyst-facing name for a field type. */
+        function cfKindName(type) {
+            return cfT('cf_type_' + type);
+        }
+
+        async function cfLoad() {
+            if (!cfPresent()) return;   // tab not rendered for this analyst
+            try {
+                const res = await fetch(API_BASE + 'get_asset_fields.php');
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'load failed');
+
+                cfData = data;
+                // ⚠️ Not-ready is a STATE, not an empty list. An install that has
+                // pulled the update but not run Database Verification must be told
+                // why there is nothing here — otherwise "no fields yet" is a lie
+                // that survives until somebody files a bug.
+                document.getElementById('cfNotReady').style.display = data.schema_ready ? 'none' : '';
+                document.getElementById('cfBody').style.display     = data.schema_ready ? '' : 'none';
+                if (!data.schema_ready) return;
+
+                cfFillTypeSelect();
+                cfRenderType();
+                cfRenderCatalogue();
+                cfRenderSets();
+            } catch (e) {
+                showToast(cfT('cf_save_failed'), 'error');
+            }
+        }
+
+        function cfFillTypeSelect() {
+            const sel = document.getElementById('cfTypeSelect');
+            const keep = sel.value;
+            const types = allItems['asset-type'] || [];
+            sel.innerHTML = types.map(t =>
+                `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+            if (keep && types.some(t => String(t.id) === keep)) sel.value = keep;
+        }
+
+        /** Which sets, and therefore which fields, the selected type carries. */
+        function cfRenderType() {
+            const typeId = parseInt(document.getElementById('cfTypeSelect').value, 10) || 0;
+            const box    = document.getElementById('cfTypeFields');
+            const setIds = (cfData.type_sets && cfData.type_sets[typeId]) || [];
+
+            const rows = [];
+            setIds.forEach(sid => {
+                const set = cfData.sets.find(s => s.id === sid);
+                if (!set) return;
+                (set.fields || []).forEach(f => {
+                    rows.push(`
+                        <div class="cf-row">
+                            <span class="cf-row-name">${escapeHtml(f.label)}${f.is_required ? '<span class="cf-req">*</span>' : ''}</span>
+                            <span class="cf-row-kind">${escapeHtml(cfKindName(f.field_type))}</span>
+                            <span class="cf-row-from">${cfT('cf_col_from')}: ${escapeHtml(set.name)}</span>
+                        </div>`);
+                });
+            });
+
+            box.innerHTML = rows.length
+                ? rows.join('')
+                : `<div class="cf-empty">${cfT('cf_type_none')}</div>`;
+        }
+
+        function cfRenderCatalogue() {
+            const tbody = document.getElementById('cfFieldList');
+            if (!cfData.fields.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="cf-empty">${cfT('cf_type_none')}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = cfData.fields.map(f => {
+                const scope = f.scope === 'company'
+                    ? ` <span class="cf-scope">(${escapeHtml(window.t('common.company') || 'company')})</span>` : '';
+                const used = f.set_count > 0
+                    ? cfT('cf_used_by', { n: f.set_count })
+                    : `<span class="cf-empty" style="padding:0;">${cfT('cf_used_by_none')}</span>`;
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(f.label)}</strong>${scope}</td>
+                        <td>${escapeHtml(cfKindName(f.field_type))}</td>
+                        <td>${used}</td>
+                        <td>
+                            <button class="action-btn" onclick="cfOpenFieldModal(${f.id}, false)">${window.t('asset-management.common.edit')}</button>
+                            <button class="action-btn delete" onclick="cfRetireField(${f.id})">${cfT('cf_retire')}</button>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function cfRenderSets() {
+            const tbody = document.getElementById('cfSetList');
+            if (!cfData.sets.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="cf-empty">${cfT('cf_type_none')}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = cfData.sets.map(s => {
+                const names = (s.fields || []).map(f => escapeHtml(f.label)).join(', ');
+                // Both counts are shown even at zero: "on 0 types" and "we did
+                // not look" must never render the same way.
+                const used = [
+                    cfT('cf_set_used_types', { n: s.type_count }),
+                    s.asset_count > 0 ? cfT('cf_set_used_assets', { n: s.asset_count }) : ''
+                ].filter(Boolean).join('<br>');
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(s.name)}</strong></td>
+                        <td>${names || `<span class="cf-empty" style="padding:0;">&mdash;</span>`}</td>
+                        <td>${used}</td>
+                        <td>
+                            <button class="action-btn" onclick="cfOpenSetModal(${s.id})">${window.t('asset-management.common.edit')}</button>
+                            <button class="action-btn delete" onclick="cfDeleteSet(${s.id})">${window.t('asset-management.common.delete')}</button>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        // ── Field editor ────────────────────────────────────────────────
+
+        function cfOpenFieldModal(id, attachToType) {
+            const f = id ? cfData.fields.find(x => x.id === id) : null;
+
+            document.getElementById('cfFieldId').value = id || '';
+            document.getElementById('cfFieldAttachToType').value = attachToType ? '1' : '0';
+            document.getElementById('cfFieldModalTitle').textContent = f ? cfT('cf_edit_field') : cfT('cf_new_field');
+
+            const typeSel = document.getElementById('cfFieldType');
+            typeSel.innerHTML = (cfData.types || []).map(tp =>
+                `<option value="${tp}">${escapeHtml(cfKindName(tp))}</option>`).join('');
+
+            document.getElementById('cfFieldLabel').value    = f ? f.label : '';
+            typeSel.value                                    = f ? f.field_type : 'text';
+            document.getElementById('cfFieldHelp').value     = (f && f.help_text) || '';
+            document.getElementById('cfFieldInList').checked = !!(f && f.show_in_list);
+            document.getElementById('cfFieldUnique').checked = !!(f && f.is_unique);
+
+            const cfg = (f && f.config) || {};
+            document.getElementById('cfFieldUnit').value      = cfg.unit || '';
+            document.getElementById('cfFieldDecimals').value  = cfg.decimals != null ? cfg.decimals : 0;
+            document.getElementById('cfFieldDateMode').value  = cfg.date_mode || 'date';
+            document.getElementById('cfFieldRefKind').value   = cfg.ref_kind || 'user';
+            document.getElementById('cfFieldMultiline').checked = !!cfg.multiline;
+            document.getElementById('cfFieldOptions').value =
+                f && f.options ? f.options.map(o => o.option_value).join('\n') : '';
+
+            // 🔑 The key is shown, and shown as FIXED, on an existing field —
+            // an import that maps onto it must not silently break when somebody
+            // renames the label.
+            const note = document.getElementById('cfFieldKeyNote');
+            if (f) {
+                note.innerHTML = cfT('cf_field_key_note', { key: escapeHtml(f.field_key) });
+                note.style.display = '';
+            } else {
+                note.style.display = 'none';
+            }
+
+            // Locked type: say so up front rather than letting somebody try.
+            const locked = document.getElementById('cfTypeLocked');
+            if (f && f.type_locked) {
+                locked.textContent = cfT('cf_type_locked', { n: f.value_count });
+                locked.style.display = '';
+                typeSel.disabled = true;
+            } else {
+                locked.style.display = 'none';
+                typeSel.disabled = false;
+            }
+
+            cfSyncFieldModal();
+            document.getElementById('cfFieldModal').classList.add('active');
+        }
+
+        /** Show only the settings that belong to the chosen kind of information. */
+        function cfSyncFieldModal() {
+            const type = document.getElementById('cfFieldType').value;
+            document.querySelectorAll('.cf-forType').forEach(el => {
+                el.style.display = el.classList.contains('cf-forType-' + type) ? '' : 'none';
+            });
+        }
+
+        function cfCloseFieldModal() {
+            document.getElementById('cfFieldModal').classList.remove('active');
+        }
+
+        cfOn('cfFieldForm', 'submit', async function (e) {
+            e.preventDefault();
+            const id   = parseInt(document.getElementById('cfFieldId').value, 10) || 0;
+            const type = document.getElementById('cfFieldType').value;
+
+            const config = {};
+            if (type === 'number') {
+                const unit = document.getElementById('cfFieldUnit').value.trim();
+                if (unit) config.unit = unit;
+                config.decimals = parseInt(document.getElementById('cfFieldDecimals').value, 10) || 0;
+            } else if (type === 'date') {
+                config.date_mode = document.getElementById('cfFieldDateMode').value;
+            } else if (type === 'ref') {
+                config.ref_kind = document.getElementById('cfFieldRefKind').value;
+            } else if (type === 'text' && document.getElementById('cfFieldMultiline').checked) {
+                config.multiline = true;
+            }
+
+            const payload = {
+                label:         document.getElementById('cfFieldLabel').value.trim(),
+                field_type:    type,
+                config:        config,
+                help_text:     document.getElementById('cfFieldHelp').value.trim(),
+                show_in_list:  document.getElementById('cfFieldInList').checked,
+                is_unique:     document.getElementById('cfFieldUnique').checked
+            };
+            if (id) payload.id = id;
+            if (type === 'dropdown') {
+                payload.options = document.getElementById('cfFieldOptions').value
+                    .split('\n').map(s => s.trim()).filter(Boolean);
+            }
+
+            try {
+                const res  = await fetch(API_BASE + 'save_asset_field.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                // 🔑 THE GUIDED PATH. Adding a field from the type view attaches
+                // it to that type immediately, creating a set behind the scenes
+                // if the type has none. Somebody who never wants to think about
+                // field sets never has to meet one.
+                if (document.getElementById('cfFieldAttachToType').value === '1') {
+                    await cfAttachFieldToCurrentType(data.id);
+                }
+
+                cfCloseFieldModal();
+                showToast(cfT('cf_saved'), 'success');
+                await cfLoad();
+            } catch (err) {
+                showToast(err.message || cfT('cf_save_failed'), 'error');
+            }
+        });
+
+        /**
+         * Put a field onto the selected asset type without the analyst having to
+         * know what a set is. Reuses the type's first set if it has one;
+         * otherwise makes one named after the type.
+         */
+        async function cfAttachFieldToCurrentType(fieldId) {
+            const typeId  = parseInt(document.getElementById('cfTypeSelect').value, 10) || 0;
+            if (!typeId) return;
+            const typeName = (allItems['asset-type'].find(t => t.id === typeId) || {}).name || '';
+            const existing = (cfData.type_sets && cfData.type_sets[typeId]) || [];
+
+            let setId = existing[0] || 0;
+            let fields = [];
+
+            if (setId) {
+                const set = cfData.sets.find(s => s.id === setId);
+                fields = (set && set.fields ? set.fields : []).map((f, i) => ({
+                    field_id: f.field_id, sort_order: i, is_required: f.is_required,
+                    default_value: f.default_value
+                }));
+            }
+            fields.push({ field_id: fieldId, sort_order: fields.length, is_required: false });
+
+            const body = { name: setId ? undefined : typeName, fields: fields };
+            if (setId) {
+                const set = cfData.sets.find(s => s.id === setId);
+                body.id = setId;
+                body.name = set.name;
+                body.description = set.description;
+            }
+
+            const res  = await fetch(API_BASE + 'save_asset_field_set.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error);
+
+            if (!setId) {
+                await fetch(API_BASE + 'save_type_field_sets.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_type_id: typeId, set_ids: [data.id] })
+                });
+            }
+        }
+
+        async function cfRetireField(id) {
+            const f = cfData.fields.find(x => x.id === id);
+            if (!f) return;
+            // The wording says the values are KEPT, because that is the fact
+            // that decides whether somebody dares press the button.
+            if (!confirm(cfT('cf_retire_confirm', { name: f.label }))) return;
+            try {
+                const res  = await fetch(API_BASE + 'delete_asset_field.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                showToast(cfT('cf_saved'), 'success');
+                await cfLoad();
+            } catch (err) {
+                showToast(err.message || cfT('cf_save_failed'), 'error');
+            }
+        }
+
+        // ── Set editor ──────────────────────────────────────────────────
+
+        function cfOpenSetModal(id) {
+            const s = id ? cfData.sets.find(x => x.id === id) : null;
+            document.getElementById('cfSetId').value   = id || '';
+            document.getElementById('cfSetName').value = s ? s.name : '';
+            document.getElementById('cfSetDesc').value = (s && s.description) || '';
+            document.getElementById('cfSetModalTitle').textContent = s ? cfT('cf_edit_set') : cfT('cf_new_set');
+
+            const chosen = {};
+            (s && s.fields ? s.fields : []).forEach(f => { chosen[f.field_id] = f; });
+
+            document.getElementById('cfSetFieldPicker').innerHTML = cfData.fields.map(f => {
+                const on  = !!chosen[f.id];
+                const req = on && chosen[f.id].is_required;
+                return `
+                    <label class="cf-pick">
+                        <input type="checkbox" value="${f.id}" ${on ? 'checked' : ''}>
+                        <span>${escapeHtml(f.label)}</span>
+                        <span class="cf-pick-kind">${escapeHtml(cfKindName(f.field_type))}</span>
+                        <span class="cf-pick-req">
+                            <input type="checkbox" class="cf-pick-required" ${req ? 'checked' : ''}>
+                            ${cfT('cf_set_required')}
+                        </span>
+                    </label>`;
+            }).join('') || `<div class="cf-empty">${cfT('cf_used_by_none')}</div>`;
+
+            document.getElementById('cfSetModal').classList.add('active');
+        }
+
+        function cfCloseSetModal() {
+            document.getElementById('cfSetModal').classList.remove('active');
+        }
+
+        cfOn('cfSetForm', 'submit', async function (e) {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('cfSetId').value, 10) || 0;
+
+            const fields = [];
+            document.querySelectorAll('#cfSetFieldPicker .cf-pick').forEach((row, i) => {
+                const box = row.querySelector('input[type="checkbox"]');
+                if (!box.checked) return;
+                fields.push({
+                    field_id:    parseInt(box.value, 10),
+                    sort_order:  fields.length,
+                    is_required: row.querySelector('.cf-pick-required').checked
+                });
+            });
+
+            const payload = {
+                name:        document.getElementById('cfSetName').value.trim(),
+                description: document.getElementById('cfSetDesc').value.trim(),
+                fields:      fields
+            };
+            if (id) payload.id = id;
+
+            try {
+                const res  = await fetch(API_BASE + 'save_asset_field_set.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                cfCloseSetModal();
+                showToast(cfT('cf_saved'), 'success');
+                await cfLoad();
+            } catch (err) {
+                showToast(err.message || cfT('cf_save_failed'), 'error');
+            }
+        });
+
+        async function cfDeleteSet(id) {
+            const s = cfData.sets.find(x => x.id === id);
+            if (!s) return;
+            if (!confirm(cfT('cf_set_delete_confirm', { name: s.name }))) return;
+            try {
+                const res  = await fetch(API_BASE + 'delete_asset_field_set.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                showToast(cfT('cf_saved'), 'success');
+                await cfLoad();
+            } catch (err) {
+                showToast(err.message || cfT('cf_save_failed'), 'error');
+            }
+        }
+
+        // ── Attaching whole sets to the selected type ───────────────────
+
+        function cfOpenAttachSet() {
+            const typeId = parseInt(document.getElementById('cfTypeSelect').value, 10) || 0;
+            const on     = (cfData.type_sets && cfData.type_sets[typeId]) || [];
+            document.getElementById('cfAttachSetPicker').innerHTML = cfData.sets.map(s => `
+                <label class="cf-pick">
+                    <input type="checkbox" value="${s.id}" ${on.includes(s.id) ? 'checked' : ''}>
+                    <span>${escapeHtml(s.name)}</span>
+                    <span class="cf-pick-kind">${(s.fields || []).length}</span>
+                </label>`).join('') || `<div class="cf-empty">${cfT('cf_used_by_none')}</div>`;
+            document.getElementById('cfAttachSetModal').classList.add('active');
+        }
+
+        function cfCloseAttachSet() {
+            document.getElementById('cfAttachSetModal').classList.remove('active');
+        }
+
+        cfOn('cfAttachSetForm', 'submit', async function (e) {
+            e.preventDefault();
+            const typeId = parseInt(document.getElementById('cfTypeSelect').value, 10) || 0;
+            const setIds = Array.from(
+                document.querySelectorAll('#cfAttachSetPicker input[type="checkbox"]:checked')
+            ).map(b => parseInt(b.value, 10));
+
+            try {
+                const res  = await fetch(API_BASE + 'save_type_field_sets.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_type_id: typeId, set_ids: setIds })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                cfCloseAttachSet();
+                showToast(cfT('cf_saved'), 'success');
+                await cfLoad();
+            } catch (err) {
+                showToast(err.message || cfT('cf_save_failed'), 'error');
+            }
+        });
     </script>
 
     <?php if (settingsTabVisible($visibleTabs, 'handover')): ?>

@@ -2089,6 +2089,177 @@ CREATE TABLE IF NOT EXISTS `asset_devices` (
     CONSTRAINT `fk_asset_devices_asset` FOREIGN KEY (`asset_id`) REFERENCES `assets` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ============================================================================
+-- Custom asset fields — recording things that are not Windows computers.
+--
+-- The `assets` columns above describe a PC, because that is what the agent
+-- reports. A printer, a headset or a television needs different columns, and
+-- which ones differs per customer, so they are user-defined rather than
+-- hard-coded: a field is DECLARED here and its answers are stored one row per
+-- asset per field, typed.
+--
+-- Typing, validation and storage rules are shared with the CMDB's property
+-- system via includes/typed_fields.php. Only the definition and value tables
+-- are separate — see docs/design/flexible-asset-fields.md §2.3 for why.
+-- ============================================================================
+
+-- The catalogue. 🔑 A field is defined ONCE, install-wide, and then attached to
+-- as many asset types as want it — so a television's "IP address" is the SAME
+-- field as a network device's and one report can span both. (The CMDB scopes
+-- properties per class, which is right for 8 classes and wrong for "absolutely
+-- anything".)
+CREATE TABLE IF NOT EXISTS `asset_fields` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    -- Stable machine key. NEVER changes: import mappings and saved reports point
+    -- at it, so renaming the LABEL from "Size" to "Screen size" must not break a
+    -- nightly import.
+    `field_key`         VARCHAR(100) NOT NULL,
+    `label`             VARCHAR(150) NOT NULL,
+    -- One of TypedFields::TYPES. ⚠️ Cannot be changed once values exist — a
+    -- presentational variant is a MODE inside `config` (text/textarea is `text`
+    -- + config.multiline; date/time/datetime is `date` + config.date_mode), so
+    -- that flipping one keeps the field's identity and every answer given to it.
+    `field_type`        VARCHAR(20) NOT NULL,
+    -- Per-type JSON settings: multiline, decimals, unit, date_mode, ref_kind…
+    `config`            LONGTEXT NULL,
+    `help_text`         VARCHAR(500) NULL,
+    `is_unique`         TINYINT(1) NOT NULL DEFAULT 0,
+    `is_searchable`     TINYINT(1) NOT NULL DEFAULT 0,
+    `show_in_list`      TINYINT(1) NOT NULL DEFAULT 0,
+    -- Multi-tenancy: NULL = a global default field shared by every company; set
+    -- = one a company added for itself. Same convention as asset_types.
+    `tenant_id`         INT NULL,
+    -- ⚠️ SOFT delete, never hard. asset_field_values.field_id points here, so
+    -- dropping the row silently destroys every answer ever recorded against it.
+    -- form_fields learned this the hard way; see its own comment.
+    `is_deleted`        TINYINT(1) NOT NULL DEFAULT 0,
+    `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    -- ⚠️ Does NOT dedupe GLOBAL fields: MySQL treats NULLs as distinct, so two
+    -- tenant_id-NULL rows may share a key as far as this index is concerned.
+    -- Global-key dedup is enforced in application code, exactly as asset_types
+    -- documents for the same reason.
+    UNIQUE KEY `uq_asset_fields_tenant_key` (`tenant_id`, `field_key`),
+    CONSTRAINT `fk_asset_fields_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Allowed values for a `dropdown` field. Mirrors cmdb_class_property_options,
+-- colour included, so a coloured pill renders the same in both modules.
+CREATE TABLE IF NOT EXISTS `asset_field_options` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `field_id`          INT NOT NULL,
+    `option_value`      VARCHAR(255) NOT NULL,
+    `colour`            VARCHAR(7) NULL,
+    `display_order`     INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `ix_asset_field_options_field` (`field_id`),
+    CONSTRAINT `fk_asset_field_options_field` FOREIGN KEY (`field_id`) REFERENCES `asset_fields` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 🔑 A field SET is a bundle you ATTACH, not a copy you make. "Peripheral
+-- basics" = Serial + Warranty end, attached to Headset, Webcam and Keyboard;
+-- add a field to the set and all three gain it at once. Without sets the same
+-- two fields get re-declared fourteen times and adding a fifteenth means
+-- editing fourteen types.
+CREATE TABLE IF NOT EXISTS `asset_field_sets` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `name`              VARCHAR(150) NOT NULL,
+    `description`       VARCHAR(500) NULL,
+    `display_order`     INT NOT NULL DEFAULT 0,
+    `tenant_id`         INT NULL,
+    `is_deleted`        TINYINT(1) NOT NULL DEFAULT 0,
+    `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_asset_field_sets_tenant` (`tenant_id`),
+    CONSTRAINT `fk_asset_field_sets_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What is in a set. 🔑 `is_required` lives HERE, not on the field: a serial
+-- number may be required for laptops and optional for keyboards — same field,
+-- different obligation.
+CREATE TABLE IF NOT EXISTS `asset_field_set_fields` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `set_id`            INT NOT NULL,
+    `field_id`          INT NOT NULL,
+    `sort_order`        INT NOT NULL DEFAULT 0,
+    `is_required`       TINYINT(1) NOT NULL DEFAULT 0,
+    `default_value`     VARCHAR(255) NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_asset_field_set_field` (`set_id`, `field_id`),
+    KEY `ix_afsf_field` (`field_id`),
+    CONSTRAINT `fk_afsf_set` FOREIGN KEY (`set_id`) REFERENCES `asset_field_sets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_afsf_field` FOREIGN KEY (`field_id`) REFERENCES `asset_fields` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A set attached to an asset TYPE — every Television gets these fields.
+CREATE TABLE IF NOT EXISTS `asset_type_field_sets` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `asset_type_id`     INT NOT NULL,
+    `set_id`            INT NOT NULL,
+    `sort_order`        INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_asset_type_field_set` (`asset_type_id`, `set_id`),
+    KEY `ix_atfs_set` (`set_id`),
+    CONSTRAINT `fk_atfs_type` FOREIGN KEY (`asset_type_id`) REFERENCES `asset_types` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_atfs_set` FOREIGN KEY (`set_id`) REFERENCES `asset_field_sets` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A set attached to ONE asset — the pilot case. Ten televisions, three of them
+-- trialled as smart TVs: tick "Smart TV" on those three and only those three
+-- show IP address, MAC address and Netflix enabled. The other seven do not
+-- carry empty fields, they carry no fields.
+--
+-- 🔑 It attaches a SET, never a loose field. If any asset could invent its own
+-- field, no two assets would be comparable and "list every smart TV's IP
+-- address" becomes unanswerable. The constraint is the feature.
+CREATE TABLE IF NOT EXISTS `asset_field_set_assets` (
+    `id`                    INT NOT NULL AUTO_INCREMENT,
+    `asset_id`              INT NOT NULL,
+    `set_id`                INT NOT NULL,
+    `created_by_analyst_id` INT NULL,
+    `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_asset_field_set_asset` (`asset_id`, `set_id`),
+    KEY `ix_afsa_set` (`set_id`),
+    CONSTRAINT `fk_afsa_asset` FOREIGN KEY (`asset_id`) REFERENCES `assets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_afsa_set` FOREIGN KEY (`set_id`) REFERENCES `asset_field_sets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_afsa_analyst` FOREIGN KEY (`created_by_analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The answers. One row per asset per field. 🔑 NO ROW MEANS NOT SET — which is
+-- exactly what a wide table cannot express: a `smart_tv_ip` column would sit
+-- empty on every laptop in the estate forever.
+--
+-- No tenant_id: inherited from the asset, as cmdb_object_properties and
+-- ticket_assets inherit theirs.
+CREATE TABLE IF NOT EXISTS `asset_field_values` (
+    `id`            INT NOT NULL AUTO_INCREMENT,
+    `asset_id`      INT NOT NULL,
+    `field_id`      INT NOT NULL,
+    -- Always 0 today. Reserved so that multi-value fields can be added later
+    -- without surgery on the unique key: Database Verification restores columns
+    -- and primary keys, not changes to an existing UNIQUE index.
+    `seq`           INT NOT NULL DEFAULT 0,
+    `value_text`    TEXT NULL,
+    `value_number`  DECIMAL(20,4) NULL,
+    `value_date`    DATETIME NULL,
+    `value_boolean` TINYINT(1) NULL,
+    -- ⚠️ Polymorphic — which table this points at is decided by the field's
+    -- `config.ref_kind` and the registry in includes/typed_fields.php. No FK is
+    -- possible, so a dangling reference is caught by a sweep, never by a hook.
+    -- Same rule as the `documents` block.
+    `value_ref_id`  INT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_asset_field_value` (`asset_id`, `field_id`, `seq`),
+    -- The filter indexes cmdb_object_properties never got. Without these,
+    -- "every asset whose Warranty Provider is X" scans every value in the table.
+    KEY `ix_afv_field_text` (`field_id`, `value_text`(64)),
+    KEY `ix_afv_field_number` (`field_id`, `value_number`),
+    KEY `ix_afv_field_date` (`field_id`, `value_date`),
+    CONSTRAINT `fk_afv_asset` FOREIGN KEY (`asset_id`) REFERENCES `assets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_afv_field` FOREIGN KEY (`field_id`) REFERENCES `asset_fields` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `asset_dashboard_widgets` (
     `id`                    INT NOT NULL AUTO_INCREMENT,
     `title`                 VARCHAR(100) NOT NULL,
