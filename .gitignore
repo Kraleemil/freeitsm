@@ -103,6 +103,12 @@ uploads/*
 uploads/documents/*
 !uploads/documents/.htaccess
 !uploads/documents/web.config
+# Same shape for asset import files. uploadStoreFile() writes both guards on
+# first use, but a fresh clone must ship them rather than wait for an upload.
+!uploads/asset-imports/
+uploads/asset-imports/*
+!uploads/asset-imports/.htaccess
+!uploads/asset-imports/web.config
 
 # Module-specific runtime content (attachments, uploaded LMS courses, etc.)
 # These are populated by the running app and are tenant-specific — never commit.

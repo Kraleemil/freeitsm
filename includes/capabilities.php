@@ -74,6 +74,7 @@ final class Cap
     const ASSETS_LOCATIONS = 'assets.locations';
     const ASSETS_SUPPLIERS = 'assets.suppliers';
     const ASSETS_FIELDS    = 'assets.fields';      // designing custom asset fields
+    const ASSETS_IMPORT    = 'assets.import';      // bulk-importing assets from a file
     const ASSETS_WARRANTY  = 'assets.warranty';
     const ASSETS_HANDOVER  = 'assets.handover';    // designing the handover document
     const ASSETS_VCENTER   = 'assets.vcenter';     // credentials

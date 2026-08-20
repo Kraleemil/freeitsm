@@ -537,6 +537,78 @@ return [
         'tab_locations'        => 'Locations',
         'tab_suppliers'        => 'Suppliers',
 
+        // ── Import ─────────────────────────────────────────────────────────
+        // The wording leads with the thing people skip: what identifies a row.
+        // Get that wrong and every run duplicates the estate, which is the one
+        // failure a spreadsheet import is famous for.
+        'tab_import'           => 'Import',
+        'imp_intro'            => 'Bring assets in from a spreadsheet &mdash; a stock list from a supplier, an export from another system, or whatever somebody has been keeping. Map the columns once and the same file can be imported again whenever it is updated, without creating everything a second time.',
+        'imp_not_ready'        => 'Importing needs a database update first. Go to <strong>System &rarr; Database Verification</strong> and run it, then come back.',
+
+        'imp_step_file'        => '1. The file',
+        'imp_step_file_intro'  => 'A CSV with a heading row. Anything a spreadsheet can save.',
+        'imp_read'             => 'Read',
+        'imp_pick_file'        => 'Choose a file first.',
+        'imp_file_read'        => 'Read <strong>{file}</strong> &mdash; {rows} row(s), {cols} column(s).',
+        'imp_truncated'        => 'Only the first {max} rows will be imported &mdash; split the file and run it again for the rest.',
+
+        'imp_step_map'         => '2. Where each column goes',
+        'imp_step_map_intro'   => 'The first few values from your file are shown beside each column, so a wrong guess is obvious before it does any damage. Anything left as <em>Do not import</em> is ignored completely.',
+        'imp_col_source'       => 'Column in your file',
+        'imp_col_sample'       => 'First few values',
+        'imp_col_target'       => 'Goes to',
+        'imp_ignore'           => 'Do not import',
+        'imp_group_core'       => 'Built-in details',
+        'imp_group_fields'     => 'Custom fields',
+        'imp_ignored'          => '{n} column(s) will be ignored:',
+
+        'imp_step_match'       => '3. What identifies a row',
+        'imp_step_match_intro' => '<strong>This is the setting that matters.</strong> It is how FreeITSM decides whether a row in your file is a new asset or one it already has. Tick the columns that are genuinely unique to one piece of equipment, in the order they should be tried. Get it wrong and importing the same file next month creates everything a second time. If a row matches <em>more than one</em> existing asset nothing is changed and the row is set aside for you to look at &mdash; guessing there is how records get quietly overwritten.',
+        'imp_need_match'       => 'Tick at least one column that identifies a row.',
+        'imp_write_mode'       => 'When an asset already has a value',
+        'imp_write_fill'       => 'Leave it alone, only fill in blanks',
+        'imp_write_overwrite'  => 'Replace it with the file&rsquo;s value',
+        'imp_unknown_option'   => 'A value not on a field&rsquo;s list of choices',
+        'imp_unknown_reject'   => 'Set the row aside',
+        'imp_unknown_add'      => 'Add it to the choices',
+        'imp_default_type'     => 'Asset type for rows that do not say',
+
+        'imp_step_go'          => '4. Check, then import',
+        'imp_step_go_intro'    => 'A preview does every single check and writes nothing at all. It tells you exactly what the real run would do, row by row.',
+        'imp_preview'          => 'Preview',
+        'imp_go'               => 'Import',
+        'imp_preview_first'    => 'Preview first &mdash; the Import button turns on once you have seen what it would do.',
+        'imp_preview_heading'  => 'Preview only &mdash; nothing has been written.',
+        'imp_live_heading'     => 'Imported.',
+        'imp_done'             => 'Import finished.',
+        'imp_failed'           => 'That did not work.',
+        'imp_no_rows'          => 'No rows.',
+        'imp_row_n'            => 'row {n}',
+
+        // The outcome of one row. Deliberately plain words.
+        'imp_act_create'       => 'New',
+        'imp_act_update'       => 'Updated',
+        'imp_act_unchanged'    => 'No change',
+        'imp_act_conflict'     => 'Ambiguous',
+        'imp_act_skip'         => 'Skipped',
+        'imp_act_error'        => 'Problem',
+        'imp_act_deactivate'   => 'Gone',
+
+        'imp_held'             => 'Rows needing attention',
+        'imp_held_intro'       => 'Rows that could not be imported are kept here with what your file actually said, rather than being thrown away or guessed at. Fix the spreadsheet and import it again, or make whatever was missing and re-run &mdash; then mark the row done to clear it from this list.',
+        'imp_held_count'       => '{n} waiting',
+        'imp_held_none'        => 'Nothing waiting',
+        'imp_held_empty'       => 'Nothing needs attention.',
+        'imp_resolve'          => 'Done',
+
+        'imp_history'          => 'Past imports',
+        'imp_no_runs'          => 'Nothing has been imported yet.',
+        'imp_col_when'         => 'When',
+        'imp_col_file'         => 'File',
+        'imp_col_result'       => 'Result',
+        'imp_col_who'          => 'Run by',
+        'imp_run_summary'      => '{created} new, {updated} updated, {unchanged} unchanged, {problems} needing attention',
+
         // ── Custom asset fields ────────────────────────────────────────────
         // The screen deliberately leads with the guided path ("add a field to a
         // type") and lets field sets stay in the background until somebody

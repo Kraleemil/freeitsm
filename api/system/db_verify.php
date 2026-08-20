@@ -710,6 +710,27 @@ try {
         }
     }
 
+    // Asset import. A run OUTLIVES its profile (SET NULL): deleting the saved
+    // mapping must not erase the history of what it did, or the holding area of
+    // rows it could not import.
+    $assetImportFks = [
+        ['asset_import_profiles',    'fk_aip_tenant',      'tenants',               'tenant_id',             'id', 'CASCADE'],
+        ['asset_import_profiles',    'fk_aip_type',        'asset_types',           'default_asset_type_id', 'id', 'SET NULL'],
+        ['asset_import_profiles',    'fk_aip_status',      'asset_status_types',    'default_status_id',     'id', 'SET NULL'],
+        ['asset_import_profiles',    'fk_aip_set',         'asset_field_sets',      'apply_field_set_id',    'id', 'SET NULL'],
+        ['asset_import_mappings',    'fk_aim_profile',     'asset_import_profiles', 'profile_id',            'id', 'CASCADE'],
+        ['asset_import_runs',        'fk_air_profile',     'asset_import_profiles', 'profile_id',            'id', 'SET NULL'],
+        ['asset_import_run_entries', 'fk_aire_run',        'asset_import_runs',     'run_id',                'id', 'CASCADE'],
+    ];
+    foreach ($assetImportFks as [$table, $name, $refTable, $col, $refCol, $onDelete]) {
+        if ($tableExists($table) && $tableExists($refTable) && !$fkExists($table, $name)) {
+            $action = $onDelete ? " ON DELETE {$onDelete}" : '';
+            try {
+                $conn->exec("ALTER TABLE {$table} ADD CONSTRAINT {$name} FOREIGN KEY ({$col}) REFERENCES {$refTable} ({$refCol}){$action}");
+            } catch (Exception $e) {}
+        }
+    }
+
     // RBAC Layer 2. Cascades keep the join tables clean: deleting a role, an
     // analyst or a team removes the assignments that pointed at it.
     if ($tableExists('rbac_role_capabilities') && $tableExists('rbac_roles')) {

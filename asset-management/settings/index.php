@@ -297,6 +297,65 @@ $translationNamespaces = ['common', 'asset-management'];
         .cf-pick-kind { color: var(--text-muted, #666); font-size: 12px; }
         .cf-pick-req { margin-left: auto; font-size: 11px; color: var(--text-muted, #666); display: flex; align-items: center; gap: 4px; }
 
+        /* ── Import tab ────────────────────────────────────────────── */
+        .imp-filerow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .imp-info {
+            margin-top: 12px; padding: 10px 12px; border-radius: 6px;
+            background: var(--surface-2, #fafafa);
+            border: 1px solid var(--border-soft, #eee);
+            font-size: 13px; color: var(--text, #333);
+        }
+        .imp-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 16px; }
+        .imp-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .imp-hint { font-size: 12px; color: var(--text-dim, #888); }
+        .imp-badge {
+            font-size: 12px; padding: 2px 9px; border-radius: 999px;
+            background: var(--surface-3, #f8f9fa); border: 1px solid var(--border, #e0e0e0);
+            color: var(--text-muted, #666);
+        }
+        .imp-badge.attention {
+            background: var(--warning-bg, #fff8e6);
+            border-color: var(--warning-border, #d18b00);
+            color: var(--warning-text, #6b4e00);
+        }
+        /* One row's outcome. The colour carries the meaning at a glance; the
+           word carries it for anybody who cannot see the colour. */
+        .imp-act {
+            display: inline-block; min-width: 76px; text-align: center;
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.3px; padding: 2px 8px; border-radius: 4px;
+        }
+        .imp-act-create    { background: var(--success-bg, #e6f4ea); color: var(--success-text, #1e7e34); }
+        /* ⚠️ --info-bg / --info-text do NOT exist. The module's own soft accent
+           is the right "this is a change, not a problem" colour, and it already
+           tracks the theme. */
+        .imp-act-update    { background: var(--accent-soft, #e7f1fb); color: var(--accent, #10508a); }
+        .imp-act-unchanged { background: var(--surface-3, #f8f9fa);  color: var(--text-muted, #666); }
+        .imp-act-skip      { background: var(--surface-3, #f8f9fa);  color: var(--text-muted, #666); }
+        .imp-act-conflict,
+        .imp-act-error     { background: var(--danger-bg, #fdecea);  color: var(--danger-text, #c0392b); }
+        .imp-act-deactivate{ background: var(--warning-bg, #fff8e6); color: var(--warning-text, #6b4e00); }
+
+        .imp-tally { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+        .imp-tally span {
+            font-size: 12px; padding: 4px 10px; border-radius: 6px;
+            background: var(--surface-2, #fafafa); border: 1px solid var(--border-soft, #eee);
+            color: var(--text, #333);
+        }
+        .imp-rows { max-height: 340px; overflow-y: auto; margin-top: 10px; }
+        .imp-row {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 8px 10px; border-bottom: 1px solid var(--border-soft, #eee);
+            font-size: 13px;
+        }
+        .imp-row-main { flex: 1; min-width: 0; }
+        .imp-row-name { font-weight: 600; color: var(--text, #333); }
+        .imp-row-detail { color: var(--text-muted, #666); font-size: 12px; margin-top: 2px; word-break: break-word; }
+        .imp-row-raw {
+            margin-top: 4px; font-family: ui-monospace, Consolas, monospace;
+            font-size: 11px; color: var(--text-dim, #888); word-break: break-all;
+        }
+
         /* ── Suppliers tab ─────────────────────────────────────────── */
         .supplier-toolbar {
             display: flex;
@@ -432,6 +491,138 @@ $translationNamespaces = ['common', 'asset-management'];
             </table>
         </div>
 
+        <?php endif; ?>
+
+        <?php if (settingsTabVisible($visibleTabs, 'import')): ?>
+        <?php /*
+            Import. A wizard in four steps, in the order the decisions actually
+            get made:
+
+              1. the file            — what have you got?
+              2. the mapping         — where does each column go?
+              3. what identifies a row — the setting that decides whether run two
+                                        UPDATES or DUPLICATES. Given its own step
+                                        because it is the one people skip.
+              4. preview, then go    — the same run, stopped before it writes.
+
+            Below the wizard: past runs, and the holding area for rows that could
+            not be imported.
+        */ ?>
+        <div class="tab-content<?php echo $activeTabId === 'import' ? ' active' : ''; ?>" id="import-tab" data-capability="<?php echo Cap::ASSETS_IMPORT; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('asset-management.settings.tab_import')); ?></h2>
+            </div>
+            <p class="settings-description" style="margin-bottom: 18px;">
+                <?php echo t('asset-management.settings.imp_intro'); ?>
+            </p>
+
+            <div id="impNotReady" class="cf-notice" style="display:none;">
+                <?php echo t('asset-management.settings.imp_not_ready'); ?>
+            </div>
+
+            <div id="impBody" style="display:none;">
+                <!-- Step 1 — the file -->
+                <div class="cf-block">
+                    <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.imp_step_file')); ?></h3>
+                    <p class="cf-block-intro"><?php echo t('asset-management.settings.imp_step_file_intro'); ?></p>
+                    <div class="imp-filerow">
+                        <input type="file" id="impFile" accept=".csv,text/csv">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="impUpload()"><?php echo htmlspecialchars(t('asset-management.settings.imp_read')); ?></button>
+                    </div>
+                    <div id="impFileInfo" class="imp-info" style="display:none;"></div>
+                </div>
+
+                <!-- Steps 2-4 appear once a file has been read -->
+                <div id="impWizard" style="display:none;">
+                    <div class="cf-block">
+                        <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.imp_step_map')); ?></h3>
+                        <p class="cf-block-intro"><?php echo t('asset-management.settings.imp_step_map_intro'); ?></p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th><?php echo htmlspecialchars(t('asset-management.settings.imp_col_source')); ?></th>
+                                    <th><?php echo htmlspecialchars(t('asset-management.settings.imp_col_sample')); ?></th>
+                                    <th><?php echo htmlspecialchars(t('asset-management.settings.imp_col_target')); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody id="impMapList"></tbody>
+                        </table>
+                        <?php /* Unmapped columns are named out loud. A column that
+                                 silently goes nowhere is how half an import
+                                 disappears without anybody noticing. */ ?>
+                        <div id="impIgnored" class="imp-info" style="display:none;"></div>
+                    </div>
+
+                    <div class="cf-block">
+                        <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.imp_step_match')); ?></h3>
+                        <p class="cf-block-intro"><?php echo t('asset-management.settings.imp_step_match_intro'); ?></p>
+                        <div id="impMatchKeys" class="cf-picker"></div>
+
+                        <div class="imp-options">
+                            <div class="form-group">
+                                <label for="impWriteMode"><?php echo htmlspecialchars(t('asset-management.settings.imp_write_mode')); ?></label>
+                                <select id="impWriteMode">
+                                    <option value="fill"><?php echo htmlspecialchars(t('asset-management.settings.imp_write_fill')); ?></option>
+                                    <option value="overwrite"><?php echo htmlspecialchars(t('asset-management.settings.imp_write_overwrite')); ?></option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="impUnknownOption"><?php echo htmlspecialchars(t('asset-management.settings.imp_unknown_option')); ?></label>
+                                <select id="impUnknownOption">
+                                    <option value="reject"><?php echo htmlspecialchars(t('asset-management.settings.imp_unknown_reject')); ?></option>
+                                    <option value="add"><?php echo htmlspecialchars(t('asset-management.settings.imp_unknown_add')); ?></option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="impDefaultType"><?php echo htmlspecialchars(t('asset-management.settings.imp_default_type')); ?></label>
+                                <select id="impDefaultType"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cf-block">
+                        <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.imp_step_go')); ?></h3>
+                        <p class="cf-block-intro"><?php echo t('asset-management.settings.imp_step_go_intro'); ?></p>
+                        <div class="imp-actions">
+                            <button type="button" class="btn btn-outline" onclick="impRun('preview')"><?php echo htmlspecialchars(t('asset-management.settings.imp_preview')); ?></button>
+                            <?php /* Disabled until a preview has been seen. The
+                                     preview is not optional advice — it is the
+                                     only thing standing between a mis-mapped
+                                     column and 500 wrong records. */ ?>
+                            <button type="button" class="btn btn-primary" id="impGoBtn" onclick="impRun('live')" disabled><?php echo htmlspecialchars(t('asset-management.settings.imp_go')); ?></button>
+                            <span class="imp-hint" id="impGoHint"><?php echo htmlspecialchars(t('asset-management.settings.imp_preview_first')); ?></span>
+                        </div>
+                        <div id="impResult"></div>
+                    </div>
+                </div>
+
+                <!-- The holding area -->
+                <div class="cf-block">
+                    <div class="cf-block-head">
+                        <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.imp_held')); ?></h3>
+                        <span class="imp-badge" id="impHeldCount"></span>
+                    </div>
+                    <p class="cf-block-intro"><?php echo t('asset-management.settings.imp_held_intro'); ?></p>
+                    <div id="impHeldList"></div>
+                </div>
+
+                <!-- Past runs -->
+                <div class="cf-block">
+                    <h3 class="cf-block-title"><?php echo htmlspecialchars(t('asset-management.settings.imp_history')); ?></h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.imp_col_when')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.imp_col_file')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.imp_col_result')); ?></th>
+                                <th><?php echo htmlspecialchars(t('asset-management.settings.imp_col_who')); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody id="impRunList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         <?php endif; ?>
 
         <?php if (settingsTabVisible($visibleTabs, 'custom-fields')): ?>
@@ -1051,7 +1242,9 @@ $translationNamespaces = ['common', 'asset-management'];
             // ⚠️ Custom fields waits for the asset TYPES: its "by asset type"
             // picker is built from allItems['asset-type'], and racing it would
             // render an empty dropdown that looks like "you have no types".
-            loadItems('asset-type').then(cfLoad);
+            // Both wait for the asset TYPES: custom fields builds its per-type
+            // picker from them, and import builds its default-type dropdown.
+            loadItems('asset-type').then(() => { cfLoad(); impInit(); });
             loadItems('asset-status');
             loadLocations();
             loadSuppliers();
@@ -2027,6 +2220,315 @@ $translationNamespaces = ['common', 'asset-management'];
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  Import  (docs/design/flexible-asset-fields.md §6)
+        //
+        //  Upload -> map -> say what identifies a row -> preview -> go.
+        //  Nothing is written until the last step, and that step stays disabled
+        //  until a preview has actually been looked at.
+        // ════════════════════════════════════════════════════════════════
+
+        let impState = { stored: null, headers: [], suggested: {}, fields: [], core: [],
+                         matchKeys: [], sample: [], previewed: false };
+
+        function impT(k, v) { return window.t('asset-management.settings.' + k, v); }
+        function impPresent() { return !!document.getElementById('import-tab'); }
+
+        async function impInit() {
+            if (!impPresent()) return;
+            try {
+                const res  = await fetch(API_BASE + 'import_history.php?runs=1&unresolved=1');
+                const data = await res.json();
+                document.getElementById('impNotReady').style.display = data.schema_ready ? 'none' : '';
+                document.getElementById('impBody').style.display     = data.schema_ready ? '' : 'none';
+                if (!data.schema_ready) return;
+                impRenderRuns(data.runs || []);
+                impRenderHeld(data.unresolved || [], data.unresolved_count || 0);
+            } catch (e) { /* the tab still works for a fresh import */ }
+        }
+
+        async function impUpload() {
+            const input = document.getElementById('impFile');
+            if (!input.files || !input.files.length) {
+                showToast(impT('imp_pick_file'), 'error');
+                return;
+            }
+            const fd = new FormData();
+            fd.append('file', input.files[0]);
+            try {
+                const res  = await fetch(API_BASE + 'import_upload.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                impState = {
+                    stored: data.stored_file, sourceName: data.source_name,
+                    headers: data.headers || [], suggested: data.suggested || {},
+                    fields: data.fields || [], core: data.core || [],
+                    matchKeys: data.match_keys || [], sample: data.sample || [],
+                    previewed: false
+                };
+
+                const info = document.getElementById('impFileInfo');
+                let msg = impT('imp_file_read', { file: escapeHtml(data.source_name),
+                                                  rows: data.row_count,
+                                                  cols: (data.headers || []).length });
+                // ⚠️ A cap must SURFACE. "Imported 5000 rows" from an 8000-row
+                // file reads as complete success.
+                if (data.truncated) {
+                    msg += ' <strong>' + impT('imp_truncated', { max: data.max_rows }) + '</strong>';
+                }
+                info.innerHTML = msg;
+                info.style.display = '';
+
+                impRenderMapping();
+                impRenderMatchKeys();
+                impFillTypeSelect();
+                document.getElementById('impWizard').style.display = '';
+                document.getElementById('impResult').innerHTML = '';
+                impSetPreviewed(false);
+            } catch (e) {
+                showToast(e.message || impT('imp_failed'), 'error');
+            }
+        }
+
+        /** One row per source column, with its first few values so a wrong guess is obvious. */
+        function impRenderMapping() {
+            const tbody = document.getElementById('impMapList');
+            tbody.innerHTML = impState.headers.map(h => {
+                const sug = impState.suggested[h];
+                const opts = [`<option value="">${impT('imp_ignore')}</option>`];
+                opts.push(`<optgroup label="${impT('imp_group_core')}">`);
+                impState.core.forEach(c => {
+                    const on = sug && sug.target_kind === 'core' && sug.target_key === c;
+                    opts.push(`<option value="core:${c}" ${on ? 'selected' : ''}>${escapeHtml(impCoreLabel(c))}</option>`);
+                });
+                opts.push('</optgroup>');
+                if (impState.fields.length) {
+                    opts.push(`<optgroup label="${impT('imp_group_fields')}">`);
+                    impState.fields.forEach(f => {
+                        const on = sug && sug.target_kind === 'field' && sug.target_key === f.field_key;
+                        opts.push(`<option value="field:${escapeHtml(f.field_key)}" ${on ? 'selected' : ''}>${escapeHtml(f.label)}</option>`);
+                    });
+                    opts.push('</optgroup>');
+                }
+                const sample = impState.sample.map(r => r[h]).filter(v => v !== '' && v != null).slice(0, 3);
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(h)}</strong></td>
+                        <td class="cf-scope">${escapeHtml(sample.join(' · ')) || '&mdash;'}</td>
+                        <td>
+                            <select data-imp-source="${escapeHtml(h)}" onchange="impSyncIgnored()">
+                                ${opts.join('')}
+                            </select>
+                        </td>
+                    </tr>`;
+            }).join('');
+            impSyncIgnored();
+        }
+
+        function impCoreLabel(key) {
+            const map = {
+                hostname: 'asset-management.new.name',
+                asset_type_id: 'asset-management.field.type',
+                asset_status_id: 'asset-management.field.status',
+                location_id: 'asset-management.field.location',
+                manufacturer: 'asset-management.field.manufacturer',
+                model: 'asset-management.field.model',
+                service_tag: 'asset-management.detail.service_tag',
+                supplier_id: 'asset-management.field.supplier',
+                purchase_date: 'asset-management.field.purchase_date',
+                purchase_cost: 'asset-management.field.purchase_cost',
+                order_number: 'asset-management.field.order_number',
+                warranty_expiry: 'asset-management.field.warranty_expiry'
+            };
+            return map[key] ? window.t(map[key]) : key;
+        }
+
+        /** Name the columns going nowhere. Silence here is how half an import vanishes. */
+        function impSyncIgnored() {
+            const ignored = Array.from(document.querySelectorAll('[data-imp-source]'))
+                .filter(s => !s.value)
+                .map(s => s.getAttribute('data-imp-source'));
+            const box = document.getElementById('impIgnored');
+            if (!ignored.length) { box.style.display = 'none'; return; }
+            box.innerHTML = impT('imp_ignored', { n: ignored.length }) + ' ' +
+                            ignored.map(escapeHtml).join(', ');
+            box.style.display = '';
+            impSetPreviewed(false);   // the mapping changed, so the preview is stale
+        }
+
+        function impRenderMatchKeys() {
+            const box = document.getElementById('impMatchKeys');
+            box.innerHTML = impState.matchKeys.map((k, i) => `
+                <label class="cf-pick">
+                    <input type="checkbox" value="${k}" ${i === 0 ? 'checked' : ''} onchange="impSetPreviewed(false)">
+                    <span>${escapeHtml(impCoreLabel(k))}</span>
+                    <span class="cf-pick-kind">${escapeHtml(k)}</span>
+                </label>`).join('');
+        }
+
+        function impFillTypeSelect() {
+            const sel = document.getElementById('impDefaultType');
+            sel.innerHTML = `<option value="">${window.t('asset-management.common.none_option')}</option>` +
+                (allItems['asset-type'] || []).map(t =>
+                    `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+        }
+
+        /**
+         * 🔑 Go stays disabled until a preview has been run, and any change to
+         * the mapping or the match keys disables it again. The preview is the
+         * only thing between a mis-mapped column and hundreds of wrong records.
+         */
+        function impSetPreviewed(v) {
+            impState.previewed = !!v;
+            const btn  = document.getElementById('impGoBtn');
+            const hint = document.getElementById('impGoHint');
+            if (!btn) return;
+            btn.disabled = !v;
+            hint.style.display = v ? 'none' : '';
+        }
+
+        function impCollectMapping() {
+            const mapping = {};
+            document.querySelectorAll('[data-imp-source]').forEach(sel => {
+                const src = sel.getAttribute('data-imp-source');
+                if (!sel.value) { mapping[src] = null; return; }
+                const [kind, key] = sel.value.split(':');
+                mapping[src] = { target_kind: kind, target_key: key };
+            });
+            return mapping;
+        }
+
+        async function impRun(mode) {
+            const keys = Array.from(document.querySelectorAll('#impMatchKeys input:checked')).map(b => b.value);
+            if (!keys.length) {
+                showToast(impT('imp_need_match'), 'error');
+                return;
+            }
+            const btn = document.getElementById('impGoBtn');
+            btn.disabled = true;
+            try {
+                const res = await fetch(API_BASE + 'import_run.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        stored_file: impState.stored,
+                        source_name: impState.sourceName,
+                        mapping: impCollectMapping(),
+                        match_keys: keys,
+                        mode: mode,
+                        write_mode: document.getElementById('impWriteMode').value,
+                        on_unknown_option: document.getElementById('impUnknownOption').value,
+                        default_asset_type_id: document.getElementById('impDefaultType').value || null
+                    })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                impRenderResult(data.run, data.entries || [], mode);
+                if (mode === 'preview') {
+                    impSetPreviewed(true);
+                } else {
+                    showToast(impT('imp_done'), 'success');
+                    impSetPreviewed(false);   // that file is spent; preview again to re-run
+                    await impInit();
+                }
+            } catch (e) {
+                showToast(e.message || impT('imp_failed'), 'error');
+                impSetPreviewed(mode === 'preview' ? false : impState.previewed);
+            } finally {
+                if (mode !== 'live') btn.disabled = !impState.previewed;
+            }
+        }
+
+        function impRenderResult(run, entries, mode) {
+            // Every counter is shown, zeroes included: "0 conflicts" and "we did
+            // not check for conflicts" must never look the same.
+            const tally = ['create', 'update', 'unchanged', 'conflict', 'skip', 'error']
+                .map(a => `<span><strong>${run[impCountKey(a)]}</strong> ${impT('imp_act_' + a)}</span>`)
+                .join('');
+
+            const rows = entries.map(e => `
+                <div class="imp-row">
+                    <span class="imp-act imp-act-${escapeHtml(e.action)}">${impT('imp_act_' + e.action)}</span>
+                    <div class="imp-row-main">
+                        <div class="imp-row-name">${escapeHtml(e.display_name || e.source_ref || '&mdash;')}
+                            ${e.row_number ? `<span class="cf-scope">${impT('imp_row_n', { n: e.row_number })}</span>` : ''}</div>
+                        <div class="imp-row-detail">${escapeHtml(e.detail || '')}</div>
+                    </div>
+                </div>`).join('');
+
+            document.getElementById('impResult').innerHTML = `
+                <div class="imp-info"><strong>${mode === 'preview' ? impT('imp_preview_heading') : impT('imp_live_heading')}</strong></div>
+                <div class="imp-tally">${tally}</div>
+                <div class="imp-rows">${rows || `<div class="cf-empty">${impT('imp_no_rows')}</div>`}</div>`;
+        }
+
+        function impCountKey(action) {
+            return { create: 'created_count', update: 'updated_count', unchanged: 'unchanged_count',
+                     conflict: 'conflict_count', skip: 'skipped_count', error: 'error_count' }[action];
+        }
+
+        /** The holding area — rows that could not be imported, kept to be fixed. */
+        function impRenderHeld(rows, count) {
+            const badge = document.getElementById('impHeldCount');
+            badge.textContent = count ? impT('imp_held_count', { n: count }) : impT('imp_held_none');
+            badge.className = 'imp-badge' + (count ? ' attention' : '');
+
+            const list = document.getElementById('impHeldList');
+            if (!rows.length) {
+                list.innerHTML = `<div class="cf-empty">${impT('imp_held_empty')}</div>`;
+                return;
+            }
+            list.innerHTML = '<div class="imp-rows">' + rows.map(e => {
+                // The source row verbatim — the whole point of parking it.
+                const raw = Object.entries(e.raw_row || {})
+                    .map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(String(v))}`).join('  ');
+                return `
+                    <div class="imp-row">
+                        <span class="imp-act imp-act-${escapeHtml(e.action)}">${impT('imp_act_' + e.action)}</span>
+                        <div class="imp-row-main">
+                            <div class="imp-row-name">${escapeHtml(e.display_name || e.source_ref || '&mdash;')}
+                                <span class="cf-scope">${escapeHtml(e.source_name || '')}${e.row_number ? ' ' + impT('imp_row_n', { n: e.row_number }) : ''}</span></div>
+                            <div class="imp-row-detail">${escapeHtml(e.detail || '')}</div>
+                            <div class="imp-row-raw">${raw}</div>
+                        </div>
+                        <button class="action-btn" onclick="impResolve(${e.id})">${impT('imp_resolve')}</button>
+                    </div>`;
+            }).join('') + '</div>';
+        }
+
+        async function impResolve(id) {
+            try {
+                const res = await fetch(API_BASE + 'import_resolve.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                await impInit();
+            } catch (e) {
+                showToast(e.message || impT('imp_failed'), 'error');
+            }
+        }
+
+        function impRenderRuns(runs) {
+            const tbody = document.getElementById('impRunList');
+            if (!runs.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="cf-empty">${impT('imp_no_runs')}</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = runs.map(r => `
+                <tr>
+                    <td>${escapeHtml(r.started_datetime || '')}</td>
+                    <td>${escapeHtml(r.source_name || '&mdash;')}</td>
+                    <td>${impT('imp_run_summary', {
+                            created: r.created_count, updated: r.updated_count,
+                            unchanged: r.unchanged_count, problems: (+r.error_count) + (+r.conflict_count)
+                        })}</td>
+                    <td>${escapeHtml(r.analyst_name || '&mdash;')}</td>
+                </tr>`).join('');
         }
 
         // ════════════════════════════════════════════════════════════════

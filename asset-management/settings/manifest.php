@@ -58,6 +58,16 @@ return [
             'grant'     => 'Design custom asset fields and field sets',
         ],
         [
+            // Bulk import. Its own capability, and a sensitive one: an import
+            // can create or overwrite thousands of records in one go, which is
+            // a very different thing from editing one asset.
+            'id'        => 'import',
+            'cap'       => Cap::ASSETS_IMPORT,
+            'label_key' => 'asset-management.settings.tab_import',
+            'grant'     => 'Import assets in bulk from a file',
+            'sensitive' => true,
+        ],
+        [
             'id'        => 'asset-statuses',
             'cap'       => Cap::ASSETS_STATUSES,
             'label_key' => 'asset-management.settings.tab_asset_statuses',

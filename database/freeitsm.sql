@@ -2260,6 +2260,142 @@ CREATE TABLE IF NOT EXISTS `asset_field_values` (
     CONSTRAINT `fk_afv_field` FOREIGN KEY (`field_id`) REFERENCES `asset_fields` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ============================================================================
+-- Asset import — CSV now, an API source later.
+--
+-- 🔑 CSV and API are the SAME feature. A source produces rows of key => value;
+-- everything after that — map, reconcile, validate, apply, log — is shared, and
+-- only the front half differs (parse a file vs fetch and walk a JSON path).
+-- The schema is therefore written for both, and `source_kind` is the only
+-- column that knows the difference.
+--
+-- See docs/design/flexible-asset-fields.md §6.
+-- ============================================================================
+
+-- A saved, re-runnable import. The mapping is worth keeping precisely because
+-- the same spreadsheet arrives again next month.
+CREATE TABLE IF NOT EXISTS `asset_import_profiles` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `name`              VARCHAR(150) NOT NULL,
+    -- What is being imported INTO. Only 'asset' is built; the column exists from
+    -- day one so a CMDB import is a later commit rather than a new project —
+    -- which is also the parked "how does an estate get into the CMDB?" question.
+    `target`            VARCHAR(20) NOT NULL DEFAULT 'asset',
+    `source_kind`       VARCHAR(10) NOT NULL DEFAULT 'csv',   -- csv | api
+    -- JSON. csv: delimiter, encoding, has_header. api: url, auth, root path…
+    `source_config`     LONGTEXT NULL,
+    -- 🔑 ORDERED JSON list of the columns that identify a row — the single most
+    -- important setting here. See asset_import_run_entries for what happens on
+    -- 0 / 1 / many matches.
+    `match_keys`        LONGTEXT NULL,
+    -- What to do with a row that was in the source last time and is gone now.
+    -- Never a default guess: ignore | flag | deactivate.
+    `on_missing`        VARCHAR(20) NOT NULL DEFAULT 'ignore',
+    -- A dropdown value the field's option list does not have: reject | add.
+    `on_unknown_option` VARCHAR(10) NOT NULL DEFAULT 'reject',
+    -- fill = only populate blanks; overwrite = the source wins. The blunt
+    -- version of source precedence; per-field precedence is a later job.
+    `write_mode`        VARCHAR(10) NOT NULL DEFAULT 'fill',
+    -- Applied to rows that do not name their own.
+    `default_asset_type_id`   INT NULL,
+    `default_status_id`       INT NULL,
+    -- A field set attached to every asset this profile touches — how a CSV of
+    -- pilot smart TVs carries its own extra fields.
+    `apply_field_set_id`      INT NULL,
+    `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
+    `tenant_id`         INT NULL,
+    `created_by_analyst_id`   INT NULL,
+    `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_aip_tenant` (`tenant_id`),
+    CONSTRAINT `fk_aip_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_aip_type` FOREIGN KEY (`default_asset_type_id`) REFERENCES `asset_types` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_aip_status` FOREIGN KEY (`default_status_id`) REFERENCES `asset_status_types` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_aip_set` FOREIGN KEY (`apply_field_set_id`) REFERENCES `asset_field_sets` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Source column -> where it lands. `target_kind` says which side of the fence:
+-- a built-in `assets` column, or a custom field by its stable field_key.
+CREATE TABLE IF NOT EXISTS `asset_import_mappings` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `profile_id`        INT NOT NULL,
+    -- A CSV header, or (later) a JSON path.
+    `source_key`        VARCHAR(255) NOT NULL,
+    `target_kind`       VARCHAR(10) NOT NULL,      -- core | field
+    -- 'hostname' for core; a field_key for field. ⚠️ The KEY, never the label —
+    -- renaming a field's label must not break a nightly import.
+    `target_key`        VARCHAR(100) NOT NULL,
+    -- JSON: trim, case, date format, value substitutions.
+    `transform`         LONGTEXT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_aim_profile_source` (`profile_id`, `source_key`),
+    CONSTRAINT `fk_aim_profile` FOREIGN KEY (`profile_id`) REFERENCES `asset_import_profiles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One run. Mirrors directory_sync_runs, including `mode`, because that design
+-- already answers "what did it do, and can I see it before it does it?".
+CREATE TABLE IF NOT EXISTS `asset_import_runs` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `profile_id`        INT NULL,
+    -- 🔑 preview is not a lesser run — it is the SAME run that stops before
+    -- writing. Anything a preview cannot tell you, a live run would surprise
+    -- you with.
+    `mode`              VARCHAR(10) NOT NULL DEFAULT 'live',   -- live | preview
+    `status`            VARCHAR(12) NOT NULL DEFAULT 'running',-- running | ok | stopped | failed
+    `source_name`       VARCHAR(255) NULL,     -- the uploaded file's own name, for the log
+    `stored_file`       VARCHAR(255) NULL,     -- our generated name; a preview keeps it so
+                                               -- committing does not need a re-upload
+    `started_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `finished_datetime` DATETIME NULL,
+    `seen_count`        INT NOT NULL DEFAULT 0,
+    `created_count`     INT NOT NULL DEFAULT 0,
+    `updated_count`     INT NOT NULL DEFAULT 0,
+    `unchanged_count`   INT NOT NULL DEFAULT 0,
+    `conflict_count`    INT NOT NULL DEFAULT 0,
+    `skipped_count`     INT NOT NULL DEFAULT 0,
+    `error_count`       INT NOT NULL DEFAULT 0,
+    `message`           TEXT NULL,
+    `triggered_by_analyst_id` INT NULL,
+    `tenant_id`         INT NULL,
+    PRIMARY KEY (`id`),
+    KEY `ix_air_profile` (`profile_id`, `started_datetime`),
+    KEY `ix_air_status` (`status`),
+    CONSTRAINT `fk_air_profile` FOREIGN KEY (`profile_id`) REFERENCES `asset_import_profiles` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What the run did to each ROW. "47 updated" is a number; this is the answer to
+-- "updated how, and which?", which is the only version anybody can act on.
+--
+-- 🔑 THIS IS ALSO THE HOLDING AREA. A row that could not be imported is kept
+-- here with `action = 'error'` and its source line verbatim in `raw_row`, to be
+-- reviewed, corrected and retried — rather than silently dropped (the data and
+-- the reason are both lost) or silently auto-created (which invents an asset
+-- type called "Televsion" the first time somebody typos a spreadsheet).
+CREATE TABLE IF NOT EXISTS `asset_import_run_entries` (
+    `id`                INT NOT NULL AUTO_INCREMENT,
+    `run_id`            INT NOT NULL,
+    `row_number`        INT NULL,              -- line in the source, for "row 14 is wrong"
+    -- create | update | unchanged | conflict | skip | error | deactivate
+    `action`            VARCHAR(16) NOT NULL,
+    `asset_id`          INT NULL,              -- NULL on a preview, a skip or an error
+    `source_ref`        VARCHAR(255) NULL,     -- the value the match key was tried on
+    `display_name`      VARCHAR(255) NULL,
+    -- Human-readable: which fields changed, or exactly why nothing happened.
+    `detail`            VARCHAR(1000) NULL,
+    -- ⚠️ The ONE place JSON belongs in this design: the source row verbatim, so
+    -- a run is diffable and a parked row can be retried without re-fetching.
+    `raw_row`           LONGTEXT NULL,
+    -- Set when a parked row has been dealt with, so the holding area empties.
+    `resolved_datetime` DATETIME NULL,
+    `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_aire_run` (`run_id`, `action`),
+    KEY `ix_aire_asset` (`asset_id`),
+    -- The holding area's own query: everything still needing attention.
+    KEY `ix_aire_unresolved` (`action`, `resolved_datetime`),
+    CONSTRAINT `fk_aire_run` FOREIGN KEY (`run_id`) REFERENCES `asset_import_runs` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `asset_dashboard_widgets` (
     `id`                    INT NOT NULL AUTO_INCREMENT,
     `title`                 VARCHAR(100) NOT NULL,
