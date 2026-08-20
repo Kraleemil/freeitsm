@@ -205,6 +205,56 @@ try {
         $uaStmt->closeCursor();
     }
 
+
+    // Status breakdown for the Unassigned folder (GH #73 follow-up).
+    //
+    // 🔑 TWO of them, because "Unassigned" MEANS two different things: no
+    // department when the list is grouped by department, no analyst when it is
+    // grouped by analyst. The folder is drawn once but its children depend on
+    // which question is being asked.
+    //
+    // ⚠️ Each mirrors its own count query above clause for clause — same WHERE,
+    // same params, only GROUP BY added. That is what makes the children sum to
+    // the number on the parent instead of being a second, subtly different query.
+    $uStatusStmt = $conn->prepare(
+        "SELECT ts.name AS status, COUNT(*) as count
+           FROM tickets t
+           LEFT JOIN ticket_statuses ts ON ts.id = t.status_id
+          WHERE t.department_id IS NULL$ttSql
+       GROUP BY ts.name"
+    );
+    $uStatusStmt->execute($ttParams);
+    $unassignedStatusRows = $uStatusStmt->fetchAll(PDO::FETCH_ASSOC);
+    $uStatusStmt->closeCursor();
+
+    if ($hasTeamFilter) {
+        if (empty($accessibleDepts)) {
+            $unassignedAnalystStatusRows = [];
+        } else {
+            $uaStatusStmt = $conn->prepare(
+                "SELECT ts.name AS status, COUNT(*) as count
+                   FROM tickets t
+                   LEFT JOIN ticket_statuses ts ON ts.id = t.status_id
+                  WHERE t.assigned_analyst_id IS NULL
+                    AND (t.department_id IN ($deptIdPlaceholdersUA) OR t.department_id IS NULL)$ttSql
+               GROUP BY ts.name"
+            );
+            $uaStatusStmt->execute(array_merge($accessibleDepts, $ttParams));
+            $unassignedAnalystStatusRows = $uaStatusStmt->fetchAll(PDO::FETCH_ASSOC);
+            $uaStatusStmt->closeCursor();
+        }
+    } else {
+        $uaStatusStmt = $conn->prepare(
+            "SELECT ts.name AS status, COUNT(*) as count
+               FROM tickets t
+               LEFT JOIN ticket_statuses ts ON ts.id = t.status_id
+              WHERE t.assigned_analyst_id IS NULL$ttSql
+           GROUP BY ts.name"
+        );
+        $uaStatusStmt->execute($ttParams);
+        $unassignedAnalystStatusRows = $uaStatusStmt->fetchAll(PDO::FETCH_ASSOC);
+        $uaStatusStmt->closeCursor();
+    }
     // Counts by analyst, and by analyst+status — bounded by accessible depts when team-filtered.
     // The dept filter sits in the LEFT JOIN ON clause so analysts with zero matching tickets
     // still appear in the folder list (as drop targets).
@@ -317,6 +367,25 @@ try {
         }
     }
 
+
+    // Same shape as overall_statuses: every active status present, zeros included,
+    // so the UI can render a full list without inventing missing keys.
+    $unassignedStatuses = [];
+    $unassignedAnalystStatuses = [];
+    foreach ($activeStatusNames as $name) {
+        $unassignedStatuses[$name] = 0;
+        $unassignedAnalystStatuses[$name] = 0;
+    }
+    foreach ($unassignedStatusRows as $row) {
+        if ($row['status'] !== null && isset($unassignedStatuses[$row['status']])) {
+            $unassignedStatuses[$row['status']] = (int)$row['count'];
+        }
+    }
+    foreach ($unassignedAnalystStatusRows as $row) {
+        if ($row['status'] !== null && isset($unassignedAnalystStatuses[$row['status']])) {
+            $unassignedAnalystStatuses[$row['status']] = (int)$row['count'];
+        }
+    }
     // Build analyst structure with status subfolders (mirrors departmentStructure)
     $statusByAnalyst = [];
     foreach ($analystStatusCounts as $row) {
@@ -370,7 +439,9 @@ try {
         'statuses' => $statusMeta,
         'departments' => $departmentStructure,
         'analysts' => $analystStructure,
-        'overall_statuses' => $overallStatuses
+        'overall_statuses' => $overallStatuses,
+        'unassigned_statuses' => $unassignedStatuses,
+        'unassigned_analyst_statuses' => $unassignedAnalystStatuses
     ]);
 
 } catch (Exception $e) {
