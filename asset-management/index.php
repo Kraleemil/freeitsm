@@ -673,12 +673,17 @@ $translationNamespaces = ['common', 'asset-management'];
             margin: 0 0 16px 0; font-size: 13px; line-height: 1.5;
             color: var(--text-muted, #666);
         }
-        .new-asset-next {
-            margin: 4px 0 0 0; padding: 10px 12px; border-radius: 6px;
-            background: var(--surface-3, #f8f9fa);
-            border: 1px solid var(--border-soft, #eee);
-            font-size: 12px; color: var(--text-muted, #666);
+        .new-asset-next { margin: 4px 0 0 0; }
+        /* Separates the built-in columns from the type's own fields. Without it
+           "Manufacturer" and "Make" read as the same question asked twice. */
+        .na-group-title {
+            margin: 18px 0 10px 0; padding-top: 14px;
+            border-top: 1px solid var(--border-soft, #eee);
+            font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+            text-transform: uppercase; color: var(--text-muted, #666);
         }
+        .na-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; padding: 0; }
+        .na-grid .info-item { display: flex; flex-direction: column; gap: 4px; }
 
         /* Custom fields (docs/design/flexible-asset-fields.md) */
         .custom-fields-section {
@@ -1207,6 +1212,12 @@ $translationNamespaces = ['common', 'asset-management'];
                     <label for="naLocation"><?php echo htmlspecialchars(t('asset-management.field.location')); ?></label>
                     <select id="naLocation"></select>
                 </div>
+                <?php /* The built-in columns every asset has, whatever it is.
+                         Headed, because the type's own fields follow and the two
+                         can legitimately look similar (Manufacturer here, "Make"
+                         below) — unlabelled, that reads as the same question
+                         asked twice. */ ?>
+                <div class="na-group-title"><?php echo htmlspecialchars(t('asset-management.new.builtin')); ?></div>
                 <div class="form-group">
                     <label for="naManufacturer"><?php echo htmlspecialchars(t('asset-management.field.manufacturer')); ?></label>
                     <input type="text" id="naManufacturer" maxlength="50" autocomplete="off">
@@ -1932,12 +1943,19 @@ $translationNamespaces = ['common', 'asset-management'];
         }
 
         /**
-         * Say what happens after Save when the chosen type carries custom
-         * fields, so the modal never reads as the whole story.
+         * Render the chosen type's OWN fields into the dialog.
+         *
+         * 🔑 Originally this just said "3 other details are coming". That was
+         * wrong, and confusing for a reason worth writing down: the built-in
+         * boxes above ask for Manufacturer and Model, so on a Television the
+         * dialog asked for the model and then announced a second, different
+         * model question for later. Asking both, together and clearly labelled,
+         * is the only version that makes sense.
          */
         async function naSyncNext() {
             const box    = document.getElementById('naNext');
             const typeId = parseInt(document.getElementById('naType').value, 10) || 0;
+            box.innerHTML = '';
             if (!typeId) { box.style.display = 'none'; return; }
             try {
                 const res  = await fetch(`${API_BASE}get_asset_fields.php`);
@@ -1945,16 +1963,43 @@ $translationNamespaces = ['common', 'asset-management'];
                 if (!data.success || !data.schema_ready) { box.style.display = 'none'; return; }
 
                 const setIds = (data.type_sets && data.type_sets[typeId]) || [];
-                let n = 0;
+                const blocks = [];
                 setIds.forEach(sid => {
                     const set = (data.sets || []).find(s => s.id === sid);
-                    if (set) n += (set.fields || []).length;
+                    if (!set || !(set.fields || []).length) return;
+
+                    // ⚠️ get_asset_fields.php returns the SET's membership rows
+                    // (field_key/field_type/is_required), not the per-asset shape
+                    // cfFieldRow expects. Map it rather than teaching the
+                    // renderer a second input shape.
+                    const rows = set.fields
+                        .filter(m => m.field_type !== 'ref')   // see the 'ref' case
+                        .map(m => {
+                            const cat = (data.fields || []).find(x => x.id === m.field_id) || {};
+                            return cfFieldRow({
+                                key:       m.field_key,
+                                label:     m.label,
+                                type:      m.field_type,
+                                config:    cat.config || {},
+                                required:  m.is_required,
+                                help_text: cat.help_text || null,
+                                value:     null,
+                                options:   cat.options || []
+                            }, 'create');
+                        }).join('');
+                    if (!rows) return;
+                    blocks.push(`
+                        <div class="na-group-title">${escapeHtml(set.name)}</div>
+                        <div class="asset-info-grid na-grid">${rows}</div>`);
                 });
-                if (!n) { box.style.display = 'none'; return; }
-                box.textContent = window.t('asset-management.new.next_fields', { n: n });
+
+                if (!blocks.length) { box.style.display = 'none'; return; }
+                box.innerHTML = blocks.join('');
                 box.style.display = '';
             } catch (e) {
-                box.style.display = 'none';   // never block a create over a hint
+                // Never block a create over this. The fields can be filled in on
+                // the asset afterwards, which is where they live anyway.
+                box.style.display = 'none';
             }
         }
 
@@ -1979,10 +2024,34 @@ $translationNamespaces = ['common', 'asset-management'];
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
 
+                // The type's own fields, in a second call: the asset has to
+                // exist before anything can be recorded against it.
+                //
+                // ⚠️ If THIS half fails the asset still exists, so it says so
+                // plainly and still opens the record — silently swallowing it
+                // would leave somebody looking at blank fields they had filled
+                // in, with no idea why.
+                const values = {};
+                document.querySelectorAll('#naNext [data-na-key]').forEach(el => {
+                    values[el.getAttribute('data-na-key')] = el.value;
+                });
+                let fieldWarning = null;
+                if (Object.keys(values).length) {
+                    try {
+                        const r2 = await fetch(`${API_BASE}save_asset_custom_fields.php`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ asset_id: data.id, values })
+                        });
+                        const d2 = await r2.json();
+                        if (!d2.success) fieldWarning = d2.error;
+                    } catch (e2) {
+                        fieldWarning = e2.message;
+                    }
+                }
+
                 closeNewAssetModal();
-                showToast(window.t('asset-management.new.created'), 'success');
-                // Land ON the new asset, with its custom fields ready to fill in
-                // — that is the whole reason the modal does not ask for them.
+                showToast(fieldWarning || window.t('asset-management.new.created'),
+                          fieldWarning ? 'error' : 'success');
                 await loadAssets();
                 selectAsset(data.id);
             } catch (err) {
@@ -2050,7 +2119,7 @@ $translationNamespaces = ['common', 'asset-management'];
             cfState.sets.forEach(set => {
                 const rows = set.fields
                     .filter(f => cfState.showBlanks || f.value !== null)
-                    .map(f => cfFieldRow(f)).join('');
+                    .map(f => cfFieldRow(f, 'edit')).join('');
 
                 // A set attached to THIS asset alone gets a removable chip, so
                 // "why does this TV have a field its type doesn't?" answers
@@ -2095,10 +2164,28 @@ $translationNamespaces = ['common', 'asset-management'];
         }
 
         /** One editable row. The control matches the field's declared type. */
-        function cfFieldRow(f) {
+        /**
+         * One editable row. The control matches the field's declared type.
+         *
+         * @param mode 'edit'   — on an existing asset; each control saves itself
+         *             'create' — inside the Add dialog; controls are tagged with
+         *                        data-na-key and read once on submit, because
+         *                        there is no asset to save to yet.
+         *
+         * 🔑 ONE renderer for both. A second copy would drift, and the
+         * three-state boolean / unit / date-mode rules are exactly the things
+         * that must not be got subtly differently in two places.
+         */
+        function cfFieldRow(f, mode) {
+            const create = (mode === 'create');
             const label = `<span class="info-label">${escapeHtml(f.label)}${f.required ? '<span class="cf-req">*</span>' : ''}</span>`;
             const hint  = f.help_text ? `<span class="cf-hint">${escapeHtml(f.help_text)}</span>` : '';
-            const save  = `onchange="cfSave('${f.key}', this)"`;
+            // In the dialog a required field is marked `required`, so the browser
+            // blocks submit. Without it the asset would be created and only THEN
+            // the values rejected — leaving a half-made record behind.
+            const save  = create
+                ? `data-na-key="${escapeHtml(f.key)}"${f.required ? ' required' : ''}`
+                : `onchange="cfSave('${f.key}', this)"`;
             let control;
 
             switch (f.type) {
@@ -2142,6 +2229,9 @@ $translationNamespaces = ['common', 'asset-management'];
                     // Read-only for now: picking a person or another asset needs
                     // a searchable picker, which is its own piece of work. The
                     // value still displays, so an imported link is visible.
+                    // ⚠️ In the dialog it is skipped entirely (see the caller):
+                    // an unfillable REQUIRED control would block Save with no
+                    // way to satisfy it.
                     control = `<span class="info-value">${f.value_label ? escapeHtml(f.value_label) : (f.value !== null ? '#' + f.value : '-')}</span>`;
                     break;
                 case 'url':

@@ -880,8 +880,16 @@ $translationNamespaces = ['common', 'asset-management'];
                 <input type="hidden" id="cfFieldAttachToType" value="0">
                 <div class="form-group">
                     <label for="cfFieldLabel"><?php echo htmlspecialchars(t('asset-management.settings.cf_field_label')); ?></label>
-                    <input type="text" id="cfFieldLabel" required autocomplete="off"
+                    <input type="text" id="cfFieldLabel" required autocomplete="off" oninput="cfCheckBuiltin()"
                            placeholder="<?php echo htmlspecialchars(t('asset-management.settings.cf_field_label_ph')); ?>">
+                    <?php /* Every asset already has manufacturer, model, serial,
+                             purchase date and so on as real columns. Somebody
+                             adding "Make" to a Television type has no way to know
+                             that, and the result is two questions that look like
+                             one — which is exactly what happened the first time
+                             this screen was used. Advisory, never a block: a
+                             deliberate second field is a legitimate choice. */ ?>
+                    <div class="form-hint cf-warn" id="cfBuiltinWarn" style="display:none;"></div>
                     <div class="form-hint" id="cfFieldKeyNote" style="display:none;"></div>
                 </div>
                 <div class="form-group">
@@ -2214,7 +2222,47 @@ $translationNamespaces = ['common', 'asset-management'];
             }
 
             cfSyncFieldModal();
+            cfCheckBuiltin();   // clears a warning left over from the last open
             document.getElementById('cfFieldModal').classList.add('active');
+        }
+
+        /**
+         * The columns every asset already has. A custom field duplicating one of
+         * these is legal but almost never what somebody means, and the cost of
+         * finding out later is high: the Add dialog ends up asking for
+         * "Manufacturer" and "Make" side by side, and no report can join them.
+         *
+         * Synonyms included, because the clash is about MEANING, not spelling —
+         * "Make" is the one that actually caught somebody out.
+         */
+        const CF_BUILTIN = {
+            'manufacturer': 'manufacturer', 'make': 'manufacturer', 'brand': 'manufacturer',
+            'model': 'model', 'model number': 'model', 'model no': 'model',
+            'serial': 'service_tag', 'serial number': 'service_tag',
+            'service tag': 'service_tag', 'asset tag': 'asset_tag',
+            'hostname': 'hostname', 'name': 'hostname',
+            'location': 'location', 'status': 'status', 'type': 'type',
+            'supplier': 'supplier', 'order number': 'order_number',
+            'purchase date': 'purchase_date', 'purchase cost': 'purchase_cost',
+            'cost': 'purchase_cost', 'price': 'purchase_cost',
+            'warranty': 'warranty_expiry', 'warranty expiry': 'warranty_expiry',
+            'memory': 'memory', 'ram': 'memory', 'cpu': 'cpu',
+            'operating system': 'operating_system', 'os': 'operating_system',
+            'bios': 'bios_version', 'bios version': 'bios_version'
+        };
+
+        function cfCheckBuiltin() {
+            const box = document.getElementById('cfBuiltinWarn');
+            if (!box) return;
+            // Only for NEW fields: warning about an existing one every time it is
+            // edited is a nag about a decision already taken.
+            if (document.getElementById('cfFieldId').value) { box.style.display = 'none'; return; }
+
+            const typed = document.getElementById('cfFieldLabel').value.trim().toLowerCase();
+            const hit   = CF_BUILTIN[typed];
+            if (!hit) { box.style.display = 'none'; return; }
+            box.innerHTML = cfT('cf_builtin_warn', { field: escapeHtml(hit.replace(/_/g, ' ')) });
+            box.style.display = '';
         }
 
         /** Show only the settings that belong to the chosen kind of information. */

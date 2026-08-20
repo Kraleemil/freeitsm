@@ -230,7 +230,7 @@ return [
         'name'        => 'Name',
         'name_ph'     => 'MTG-TV-01',
         'name_hint'   => 'What it is called in the list. For a computer this is its hostname, and it must be unique.',
-        'next_fields' => 'This type also records {n} other detail(s). You will be taken to the asset to fill them in.',
+        'builtin'     => 'Built-in details',
         'created'     => 'Asset added.',
         'failed'      => 'Could not add that asset.',
         // ⚠️ LITERAL characters, not HTML entities. Most strings in this file
@@ -574,6 +574,8 @@ return [
         'cf_field_ref_kind'    => 'Points at',
         'cf_field_key_note'    => 'Reference name: <code>{key}</code> &mdash; used by imports and reports, and fixed once created. Renaming the field above is always safe.',
         'cf_type_locked'       => 'This field already has {n} value(s) recorded, so the kind of information can no longer be changed. Retire it and add a new one if it is wrong.',
+        // Advisory, not a block — a deliberate second field is a valid choice.
+        'cf_builtin_warn'      => 'Every asset already has a built-in <strong>{field}</strong>. Adding this as a custom field means the Add dialog asks twice and no report can put the two together. Use the built-in one unless you specifically want a second.',
         'cf_used_by'           => 'Used by {n} set(s)',
         'cf_used_by_none'      => 'Not used yet',
         'cf_retire'            => 'Retire',
