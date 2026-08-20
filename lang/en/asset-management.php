@@ -202,6 +202,13 @@ return [
         'tab_software'      => 'Software',
         'tab_tickets'       => 'Tickets',
 
+        // Editing the four fields that used to be read-only (#1143).
+        'saved'             => 'Saved.',
+        'save_failed'       => 'Could not save that.',
+        'name_required'     => 'An asset needs a name.',
+        // ⚠️ Plain characters, not entities — this goes to confirm().
+        'rename_reported_confirm' => "This asset reports in automatically, and it is recognised by its name.\n\nRenaming it here means the next report will not find it and will create a second, duplicate record. Rename it on the machine itself instead.\n\nRename it anyway?",
+
         // Custom fields on the asset itself. (Detail section keys follow.)
         'cf_heading'        => 'Other details',
         'cf_filled'         => '{filled} of {total} filled in',

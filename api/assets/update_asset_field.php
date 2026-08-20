@@ -35,8 +35,25 @@ try {
     // (it also covers agent-synced hardware/OS columns); this endpoint keeps its
     // narrower classification/lifecycle surface, so an unexpected field is still
     // rejected here rather than silently widened.
+    // ⚠️ hostname / service_tag / manufacturer / model were added in #1143.
+    //
+    // They were read-only because for a COMPUTER they are agent-owned: the
+    // inventory script reports them, so typing one in just gets overwritten on
+    // the next sync, and read-only told the truth about who owns them.
+    //
+    // That reasoning does not survive contact with a television. Nothing will
+    // ever report a webcam's model, so nothing overwrites it — and a typo made
+    // while adding one by hand was uncorrectable. The service already validates
+    // all four (hostname non-blank + unique per company); only this whitelist
+    // stood in the way.
+    //
+    // 🔑 The RISK is renaming, not editing. The agent upserts on `hostname`
+    // (api/external/system-info/submit), so renaming a machine that reports in
+    // makes the next report create a SECOND asset. The UI warns before that
+    // happens — it does not block, because plenty of assets never report.
     $allowedFields = ['asset_type_id', 'asset_status_id', 'location_id',
-                      'purchase_date', 'purchase_cost', 'supplier_id', 'order_number', 'warranty_expiry'];
+                      'purchase_date', 'purchase_cost', 'supplier_id', 'order_number', 'warranty_expiry',
+                      'hostname', 'service_tag', 'manufacturer', 'model'];
     if (!in_array($field, $allowedFields, true)) {
         throw new Exception('Invalid field');
     }

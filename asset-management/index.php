@@ -1728,13 +1728,40 @@ $translationNamespaces = ['common', 'asset-management'];
                                 ${buildLocationOptions(selectedAsset.location_id)}
                             </select>
                         </div>
+                        <?php /* Editable since #1143. On a machine that reports
+                                 in these are overwritten by the next sync, which
+                                 is why they used to be read-only — but nothing
+                                 will ever report a television's model, and a
+                                 typo made while adding one by hand had no way
+                                 to be corrected. saveCoreField() warns rather
+                                 than blocks; see it for the reasoning. */ ?>
                         <div class="info-item">
                             <span class="info-label">${window.t('asset-management.field.manufacturer')}</span>
-                            <span class="info-value">${escapeHtml(selectedAsset.manufacturer) || '-'}</span>
+                            <input type="text" class="info-value-input" maxlength="50"
+                                   value="${escapeHtml(selectedAsset.manufacturer || '')}" placeholder="-"
+                                   onchange="saveCoreField('manufacturer', this)">
                         </div>
                         <div class="info-item">
                             <span class="info-label">${window.t('asset-management.field.model')}</span>
-                            <span class="info-value">${escapeHtml(selectedAsset.model) || '-'}</span>
+                            <input type="text" class="info-value-input" maxlength="50"
+                                   value="${escapeHtml(selectedAsset.model || '')}" placeholder="-"
+                                   onchange="saveCoreField('model', this)">
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">${window.t('asset-management.detail.service_tag')}</span>
+                            <input type="text" class="info-value-input" maxlength="50"
+                                   value="${escapeHtml(selectedAsset.service_tag || '')}" placeholder="-"
+                                   onchange="saveCoreField('service_tag', this)">
+                        </div>
+                        <?php /* The NAME. Shown here as well as in the heading
+                                 because the heading is a title, not a control —
+                                 and this is the field most likely to carry a
+                                 typo from the Add dialog. */ ?>
+                        <div class="info-item">
+                            <span class="info-label">${window.t('asset-management.new.name')}</span>
+                            <input type="text" class="info-value-input" maxlength="50"
+                                   value="${escapeHtml(selectedAsset.hostname || '')}"
+                                   onchange="saveCoreField('hostname', this)">
                         </div>
                         <div class="info-item">
                             <span class="info-label">${window.t('asset-management.field.cpu')}</span>
@@ -1954,6 +1981,67 @@ $translationNamespaces = ['common', 'asset-management'];
                 }
             } catch (error) {
                 console.error('Error loading assigned users:', error);
+            }
+        }
+
+        /**
+         * Save one of the four fields that used to be read-only (#1143):
+         * name, service tag, manufacturer, model.
+         *
+         * 🔑 WARNS, NEVER BLOCKS. Plenty of assets never report in, and a
+         * blanket refusal would put us back where we started — unable to fix a
+         * typo on a television.
+         *
+         * ⚠️ Renaming is the one that can actually hurt: the inventory agent
+         * upserts on the NAME, so renaming a machine that reports in means the
+         * next report does not recognise it and creates a SECOND asset. The
+         * confirm says exactly that, and only appears when the asset looks like
+         * it reports — judged by data only an automated source ever fills in.
+         */
+        function assetLooksReported(a) {
+            return !!(a && (a.cpu_name || a.bios_version || a.operating_system));
+        }
+
+        async function saveCoreField(field, el) {
+            const value = el.value.trim();
+
+            if (field === 'hostname') {
+                if (value === '') {
+                    showToast(window.t('asset-management.detail.name_required'), 'error');
+                    el.value = selectedAsset.hostname || '';
+                    return;
+                }
+                if (value !== (selectedAsset.hostname || '') && assetLooksReported(selectedAsset)) {
+                    if (!confirm(window.t('asset-management.detail.rename_reported_confirm'))) {
+                        el.value = selectedAsset.hostname || '';
+                        return;
+                    }
+                }
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}update_asset_field.php`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset_id: selectedAsset.id, field, value })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+
+                selectedAsset[field] = value;
+                if (field === 'hostname') {
+                    // Keep the heading in step, and the list — the row's label
+                    // just changed, and leaving the old one on screen would look
+                    // like the save had failed.
+                    const h = document.querySelector('.asset-detail-hostname');
+                    if (h) h.textContent = value;
+                    await loadAssets(document.getElementById('assetSearch').value || '');
+                }
+                showToast(window.t('asset-management.detail.saved'), 'success');
+            } catch (e) {
+                showToast(e.message || window.t('asset-management.detail.save_failed'), 'error');
+                // Put the stored value back, so the screen never shows something
+                // the database does not hold.
+                el.value = selectedAsset[field] || '';
             }
         }
 
