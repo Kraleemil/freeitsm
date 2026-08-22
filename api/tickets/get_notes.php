@@ -76,8 +76,50 @@ try {
         }
     }
 
+    // Files attached to these notes (discussion #69). ONE query for the whole
+    // list rather than one per note — a busy ticket has plenty of both.
+    //
+    // 🔑 NO PERMISSION FILTER HERE, and that is deliberate rather than an
+    // omission. A document is visible iff you can see something it is attached
+    // to, and the parent here is this ticket, whose access was already checked
+    // at the top of this file. Re-deriving it per document would be a second,
+    // divergeable answer to a question already settled.
+    //
+    // Behind a schema gate for the same reason the tracker map above is: an
+    // install that has not run Database Verification since documents shipped has
+    // no such tables, and that must read as "no attachments", never as an error.
+    $noteDocs = [];
+    if ($notes) {
+        try {
+            $ids = array_column($notes, 'id');
+            $in  = implode(',', array_fill(0, count($ids), '?'));
+            $dStmt = $conn->prepare(
+                "SELECT dl.parent_id AS note_id, d.id, d.kind, d.title,
+                        d.original_name, d.mime_type, d.size_bytes, d.external_url
+                   FROM document_links dl
+                   JOIN documents d ON d.id = dl.document_id
+                  WHERE dl.parent_type = 'ticket_note'
+                    AND dl.parent_id IN ($in)
+                    AND d.deleted_datetime IS NULL
+                  ORDER BY d.id"
+            );
+            $dStmt->execute($ids);
+            foreach ($dStmt->fetchAll(PDO::FETCH_ASSOC) as $d) {
+                $nid = (int) $d['note_id'];
+                unset($d['note_id']);
+                $d['id']          = (int) $d['id'];
+                $d['size_bytes']  = $d['size_bytes'] === null ? null : (int) $d['size_bytes'];
+                $noteDocs[$nid][] = $d;
+            }
+        } catch (Exception $e) {
+            // No documents tables on this install, or a query that failed. Notes
+            // still list; they simply show no files.
+        }
+    }
+
     foreach ($notes as &$note) {
         $note['is_internal'] = (bool)$note['is_internal'];
+        $note['documents']   = $noteDocs[(int)$note['id']] ?? [];
         if ($note['created_datetime']) {
             $note['created_datetime'] = date('Y-m-d\TH:i:s', strtotime($note['created_datetime']));
         }

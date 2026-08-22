@@ -20,11 +20,15 @@ try {
         throw new Exception('Ticket ID is required');
     }
     $conn = connectToDatabase();
-    TicketsService::createNote($conn, ActorContext::fromSession($conn), (int)$ticketId, [
+    $noteId = TicketsService::createNote($conn, ActorContext::fromSession($conn), (int)$ticketId, [
         'text'        => $data['note_text'] ?? '',
         'is_internal' => $data['is_internal'] ?? true,
     ]);
-    echo json_encode(['success' => true]);
+    // The id is returned because attachments need it (discussion #69): a note has
+    // no id until it is saved, so the modal holds the chosen files in the browser
+    // and uploads them against this id once the note is real. It was always
+    // produced — createNote() returns it — and simply thrown away here.
+    echo json_encode(['success' => true, 'note_id' => $noteId]);
 } catch (ServiceError $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 } catch (Exception $e) {

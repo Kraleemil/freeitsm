@@ -58,7 +58,21 @@ try {
     $pathStmt->execute([$ticketId]);
     $attachmentPaths = $pathStmt->fetchAll(PDO::FETCH_COLUMN);
 
+    // Note ids read BEFORE the transaction deletes them — document_links is
+    // polymorphic, so no foreign key follows the notes out and once the rows are
+    // gone there is nothing to match the links against (discussion #69).
+    require_once '../../includes/documents.php';
+    $noteIdStmt = $conn->prepare("SELECT id FROM ticket_notes WHERE ticket_id = ?");
+    $noteIdStmt->execute([$ticketId]);
+    $noteIds = $noteIdStmt->fetchAll(PDO::FETCH_COLUMN);
+
     $conn->beginTransaction();
+
+    // 0. Document links on this ticket's notes, and on the ticket itself.
+    foreach ($noteIds as $noteId) {
+        documentsDetachParent($conn, 'ticket_note', (int) $noteId);
+    }
+    documentsDetachParent($conn, 'ticket', $ticketId);
 
     // 1. Email attachments (child of emails — must go before emails)
     $conn->prepare(

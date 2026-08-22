@@ -81,6 +81,63 @@ function documentEntityRegistry(): array {
             'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessTicket($c, $a, $id); },
             'filter' => function (PDO $c, int $a, string $alias) { return ticketTenantFilter($c, $a, $alias); },
         ],
+        // A note on a ticket (discussion #69). The entity is the NOTE, not the
+        // ticket, so a file lands on the note somebody wrote rather than in one
+        // undifferentiated pile on the ticket — which is the whole request.
+        //
+        // 🔑 IT HAS NO RULES OF ITS OWN. A note is visible exactly when its
+        // ticket is, so `can` and `filter` reach through to the parent ticket and
+        // reuse the ticket's rule verbatim rather than restating it. That is the
+        // block's "visible iff you can see a parent" rule applied one level down.
+        //
+        // ⚠️ INTERNAL NOTES ONLY, and that is enforced where notes are WRITTEN,
+        // not here. A note can be shared with the requester, and the portal has
+        // no documents path at all — api/documents/list.php requires an analyst
+        // session — so a file on a shared note would show to analysts and
+        // silently not to the person it was shared with. The note modal refuses
+        // that combination; this registry would happily serve it to an analyst,
+        // which is correct, because everything reaching this file IS an analyst.
+        'ticket_note' => [
+            'module' => 'tickets',
+            'table'  => 'ticket_notes',
+            'label'  => 'Ticket note',
+            // The note has no page of its own — it is read on its ticket — so the
+            // link back needs the TICKET's id, which sprintf cannot get from the
+            // note's. Hence url_id_sql; see documentVisibleParents().
+            'url'       => 'tickets/?ticket_id=%d',
+            'url_id_sql' => '(SELECT t.id FROM tickets t WHERE t.id = ticket_notes.ticket_id)',
+            'title'     => 'note_text',
+            // Named by its ticket first: "a note" tells you nothing, and the note
+            // text alone does not say which ticket you would be opening.
+            'title_sql' => "(SELECT CONCAT(t.ticket_number, ' — ', LEFT(ticket_notes.note_text, 60))"
+                         . " FROM tickets t WHERE t.id = ticket_notes.ticket_id)",
+            // `alive` is applied to ticket_notes, which has no deleted flag of its
+            // own — the note dies with its ticket. That check belongs in `filter`
+            // and `can` below, where the parent ticket is actually reachable.
+            'alive'  => null,
+            'can'    => function (PDO $c, int $a, int $id) {
+                $st = $c->prepare("SELECT ticket_id FROM ticket_notes WHERE id = ?");
+                $st->execute([$id]);
+                $ticketId = (int) $st->fetchColumn();
+                if ($ticketId <= 0) return false;
+                // ⚠️ analystCanAccessTicket() answers tenancy ONLY — it does not
+                // look at deleted_datetime. The 'ticket' entry above gets that
+                // from its `alive`; this one has to ask for itself, or a document
+                // on a note would outlive the ticket it was written on.
+                $st = $c->prepare("SELECT 1 FROM tickets WHERE id = ? AND deleted_datetime IS NULL");
+                $st->execute([$ticketId]);
+                if (!$st->fetchColumn()) return false;
+                return analystCanAccessTicket($c, $a, $ticketId);
+            },
+            'filter' => function (PDO $c, int $a, string $alias) {
+                list($tSql, $tParams) = ticketTenantFilter($c, $a, 'dnt');
+                return [
+                    " AND EXISTS (SELECT 1 FROM tickets dnt WHERE dnt.id = $alias.ticket_id"
+                    . " AND dnt.deleted_datetime IS NULL" . $tSql . ")",
+                    $tParams,
+                ];
+            },
+        ],
         'asset' => [
             'module' => 'assets',
             'table'  => 'assets',
@@ -440,12 +497,32 @@ function documentVisibleParents(PDO $conn, int $analystId, ?array $allowedModule
         $def  = documentEntityDef($type);
         $name = documentParentName($conn, $type, $pid);
 
+        // ⚠️ `url` is a sprintf pattern taking the PARENT's id, which is right
+        // for everything that has a page of its own. A ticket note does not — it
+        // is read on its ticket — so its entry supplies url_id_sql, a scalar
+        // subquery giving the id to put in the pattern instead. Same escape hatch
+        // as title_sql, and like it the SQL comes from the registry, which is
+        // code, so it is never attacker-supplied.
+        $urlId = $pid;
+        if (!empty($def['url_id_sql'])) {
+            try {
+                $st2 = $conn->prepare("SELECT " . $def['url_id_sql'] . " FROM `" . $def['table'] . "` WHERE id = ?");
+                $st2->execute([$pid]);
+                $got = $st2->fetchColumn();
+                // A parent that cannot resolve one gets no link rather than a
+                // link to record 0.
+                $urlId = ($got === false || $got === null) ? 0 : (int) $got;
+            } catch (Throwable $e) {
+                $urlId = 0;
+            }
+        }
+
         $out[] = [
             'parent_type' => $type,
             'parent_id'   => $pid,
             'label'       => $def['label'],
             'name'        => $name,
-            'url'         => !empty($def['url']) ? sprintf($def['url'], $pid) : null,
+            'url'         => (!empty($def['url']) && $urlId > 0) ? sprintf($def['url'], $urlId) : null,
             'linked_at'   => $l['created_datetime'] ?? null,
         ];
     }

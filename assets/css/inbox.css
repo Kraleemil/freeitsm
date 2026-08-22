@@ -1371,6 +1371,63 @@ body.ticket-popout .ticket-toolbar {
     white-space: pre-wrap;
 }
 
+/* --- Files on a note (discussion #69) ---------------------------------------
+   Two lists that look the same on purpose: the one in the modal shows files
+   chosen but NOT yet uploaded (a note has no id until it is saved), and the one
+   on a saved note shows what is actually attached. Same shape means the second
+   is recognisable as the result of the first. Every token below exists in
+   theme.css — checked, since a phantom one is invisible until somebody switches
+   to dark. */
+.note-file-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.note-file-list:empty { margin-top: 0; }
+
+.note-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 4px 10px;
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 12px;
+    background: var(--surface-2, #f9f9f9);
+    color: var(--text, #333);
+    font-size: 12px;
+    text-decoration: none;
+}
+a.note-file:hover { background: var(--surface-hover, #f0f0f0); }
+
+.note-file-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 220px;
+}
+
+.note-file-size { color: var(--text-muted, #666); flex-shrink: 0; }
+
+/* The remove control on a not-yet-uploaded file. A button rather than an icon
+   font: it has to be reachable by keyboard, and it is the only way to undo
+   picking the wrong file. */
+.note-file-remove {
+    border: none;
+    background: none;
+    color: var(--text-muted, #666);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 0 0 2px;
+    flex-shrink: 0;
+}
+.note-file-remove:hover { color: var(--danger-text, #721c24); }
+
+/* Files attached to a saved note, sitting under its text. */
+.note-item .note-file-list { margin-top: 10px; }
+
 /* --- Time entries section (mirrors notes-section visual style) --- */
 .time-entries-section {
     background: var(--surface, #fff);

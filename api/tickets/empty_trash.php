@@ -41,7 +41,24 @@ try {
     $pathStmt->execute($ids);
     $attachmentPaths = $pathStmt->fetchAll(PDO::FETCH_COLUMN);
 
+    // Document links on the notes about to be deleted (discussion #69).
+    // ⚠️ MUST run before the notes go — document_links.parent_id is polymorphic,
+    // so no foreign key cleans up after it, and once the note rows are gone
+    // there is nothing left to match the links against. The nightly orphan sweep
+    // in documentsCollectOrphans() would catch them either way, but a link that
+    // resolves to nothing should not survive the transaction that made it so.
+    require_once '../../includes/documents.php';
+    $noteIdStmt = $conn->prepare("SELECT id FROM ticket_notes WHERE ticket_id IN ($place)");
+    $noteIdStmt->execute($ids);
+    $noteIds = $noteIdStmt->fetchAll(PDO::FETCH_COLUMN);
+
     $conn->beginTransaction();
+    foreach ($noteIds as $noteId) {
+        documentsDetachParent($conn, 'ticket_note', (int) $noteId);
+    }
+    foreach ($ids as $tid) {
+        documentsDetachParent($conn, 'ticket', (int) $tid);
+    }
     // FK-safe order (mirrors permanently_delete_ticket.php).
     $conn->prepare("DELETE FROM email_attachments WHERE email_id IN (SELECT id FROM emails WHERE ticket_id IN ($place))")->execute($ids);
     $conn->prepare("DELETE FROM emails WHERE ticket_id IN ($place)")->execute($ids);

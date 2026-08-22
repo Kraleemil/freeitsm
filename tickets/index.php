@@ -32,7 +32,7 @@ $translationNamespaces = ['common', 'tickets'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(t('tickets.title')); ?> - <?php echo htmlspecialchars(t('tickets.nav.inbox')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
-    <link rel="stylesheet" href="../assets/css/inbox.css?v=58">
+    <link rel="stylesheet" href="../assets/css/inbox.css?v=59">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=43">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
@@ -123,6 +123,28 @@ $translationNamespaces = ['common', 'tickets'];
                     </label>
                     <div class="form-hint" id="noteSharedHint" style="font-size:12px;color:#666;margin-top:4px;">
                         <?php echo htmlspecialchars(t('tickets.note_modal.share_hint')); ?>
+                    </div>
+                </div>
+                <?php /* Attachments (discussion #69). The files are held in the BROWSER
+                         until the note is saved — a new note has no id to attach to, and
+                         uploading first would leave orphaned files on disk every time
+                         somebody changed their mind and closed this box.
+
+                         ⚠️ INTERNAL NOTES ONLY. The self-service portal has no documents
+                         path at all, so a file on a shared note would show to analysts
+                         and silently not to the requester it was shared with. The whole
+                         row hides when Share is ticked, and saveNote() asks before
+                         dropping any files already chosen rather than losing them
+                         quietly. */ ?>
+                <div class="form-group" id="noteAttachGroup">
+                    <label class="form-label"><?php echo htmlspecialchars(t('tickets.note_modal.files_label')); ?></label>
+                    <input type="file" id="noteFileInput" multiple style="display:none;">
+                    <div>
+                        <button type="button" class="btn btn-secondary" id="noteAttachBtn" onclick="document.getElementById('noteFileInput').click()"><?php echo htmlspecialchars(t('tickets.note_modal.attach_btn')); ?></button>
+                    </div>
+                    <div id="noteFileList" class="note-file-list"></div>
+                    <div class="form-hint" id="noteFilesSharedHint" style="font-size:12px;color:#666;margin-top:6px;display:none;">
+                        <?php echo htmlspecialchars(t('tickets.note_modal.files_shared_hint')); ?>
                     </div>
                 </div>
             </div>
@@ -839,7 +861,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=95"></script>
+    <script src="../assets/js/inbox.js?v=96"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

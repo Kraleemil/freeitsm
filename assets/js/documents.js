@@ -307,25 +307,54 @@
         this.$more.hidden = this.items.length >= this.total;
     };
 
-    Panel.prototype.upload = function (files) {
-        if (!files || !files.length || !this.parentId) return;
-        var self = this;
-        this.clearFail();
-        // One request per file. A single multi-file request would fail as a lump,
-        // and one oversized file among ten should not lose the other nine.
+    /**
+     * Upload files against a parent, one request per file.
+     *
+     * A single multi-file request would fail as a lump, and one oversized file
+     * among ten should not lose the other nine — so each is sent on its own and
+     * reported on its own.
+     *
+     * Extracted from Panel.upload() and exported, because the ticket note modal
+     * (discussion #69) uploads without a panel: a new note has no id until it is
+     * saved, so its files are held in the browser and sent once it has one.
+     * There is one statement of the endpoint's contract, and both callers use it.
+     *
+     * @return Promise<{ok: File[], failed: {name: string, error: string}[]}>
+     *         Never rejects — a caller has to be able to tell "three of four
+     *         worked" from "the whole thing blew up", and a rejection collapses
+     *         those into the same outcome.
+     */
+    function uploadFiles(api, parentType, parentId, files) {
+        var res = { ok: [], failed: [] };
+        if (!files || !files.length || !parentId) return Promise.resolve(res);
+
         var chain = Promise.resolve();
         files.forEach(function (f) {
             chain = chain.then(function () {
                 var fd = new FormData();
-                fd.append('parent_type', self.parentType);
-                fd.append('parent_id', self.parentId);
+                fd.append('parent_type', parentType);
+                fd.append('parent_id', parentId);
                 fd.append('document', f);
-                return fetch(self.api + 'save.php', { method: 'POST', body: fd, credentials: 'same-origin' })
+                return fetch(api + 'save.php', { method: 'POST', body: fd, credentials: 'same-origin' })
                     .then(function (r) { return r.json(); })
-                    .then(function (d) { if (!d.success) self.fail(f.name + ': ' + d.error); });
+                    .then(function (d) {
+                        if (d && d.success) res.ok.push(f);
+                        else res.failed.push({ name: f.name, error: (d && d.error) || t('failed') });
+                    })
+                    .catch(function () { res.failed.push({ name: f.name, error: t('failed') }); });
             });
         });
-        chain.then(function () { self.load(true); });
+        return chain.then(function () { return res; });
+    }
+
+    Panel.prototype.upload = function (files) {
+        if (!files || !files.length || !this.parentId) return;
+        var self = this;
+        this.clearFail();
+        uploadFiles(this.api, this.parentType, this.parentId, files).then(function (res) {
+            res.failed.forEach(function (f) { self.fail(f.name + ': ' + f.error); });
+            self.load(true);
+        });
     };
 
     Panel.prototype.addLink = function () {
@@ -532,6 +561,16 @@
             return new Panel(el, opts || {});
         },
         /** Open the "what is this attached to" dialogue for a document id. */
-        info: showInfo
+        info: showInfo,
+        /**
+         * Attach already-chosen files to a parent, without a panel.
+         *
+         * For a host that has files before it has a parent to hang them on — the
+         * ticket note modal being the case it was built for. Resolves with
+         * {ok, failed}; see uploadFiles().
+         */
+        upload: function (parentType, parentId, files, apiBase) {
+            return uploadFiles(apiBase || '../api/documents/', parentType, parseInt(parentId, 10), files);
+        }
     };
 })();

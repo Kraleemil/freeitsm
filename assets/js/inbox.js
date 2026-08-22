@@ -4571,6 +4571,28 @@ function renderNotes() {
                 ? t('tickets.note_author.system')
                 : t('tickets.note_author.former');
         }
+        // Files attached to this note (discussion #69). A file is a download
+        // link; a DMS entry is a link out. Both go through the documents block's
+        // own endpoints, so the permission check happens server-side on every
+        // click rather than being implied by the row being on screen.
+        let files = '';
+        if (note.documents && note.documents.length) {
+            files = '<div class="note-file-list">' + note.documents.map(d => {
+                const href = d.kind === 'link'
+                    ? safeExternalUrl(d.external_url)
+                    : '../api/documents/download.php?id=' + encodeURIComponent(d.id);
+                if (!href) return '';
+                const name = d.original_name || d.title || '';
+                const size = d.kind === 'link' ? '' : noteFileSize(d.size_bytes);
+                return `<a class="note-file" href="${escapeHtml(href)}"
+                           ${d.kind === 'link' ? 'target="_blank" rel="noopener noreferrer"' : ''}
+                           title="${escapeHtml(name)}">
+                            <span class="note-file-name">${escapeHtml(name)}</span>
+                            <span class="note-file-size">${escapeHtml(size)}</span>
+                        </a>`;
+            }).join('') + '</div>';
+        }
+
         html += `
             <div class="note-item${external}">
                 <div class="note-header">
@@ -4578,6 +4600,7 @@ function renderNotes() {
                     <span>${formatDateTime(note.created_datetime)}</span>
                 </div>
                 <div class="note-text">${escapeHtml(note.note_text)}</div>
+                ${files}
             </div>
         `;
     });
@@ -4586,9 +4609,72 @@ function renderNotes() {
     container.innerHTML = html;
 }
 
+// ===== Files chosen for the note being written (discussion #69) =============
+// Held in the browser, never uploaded, until the note exists. A note has no id
+// until it is saved, and uploading first would leave a file on disk every time
+// somebody attached one and then closed the box. Cleared whenever the modal
+// opens, so a file abandoned last time cannot ride along on the next note.
+let pendingNoteFiles = [];
+
+// A DMS entry's URL is typed by an analyst, so it reaches here as data and must
+// never become an href on trust — `javascript:` in that box would otherwise run
+// on every colleague who opens the ticket. Same allowlist rule as safeHref() in
+// documents.js, restated rather than shared because it is one regex and the
+// alternative is a cross-module util contract for two lines.
+function safeExternalUrl(url) {
+    return /^https?:\/\//i.test(String(url || '')) ? String(url) : '';
+}
+
+// ⚠️ formatFileSize() already exists at the top of this file and is used for
+// email attachments. Reused deliberately — a second one here would mean the same
+// file reported a different size in two places on the same screen. It returns
+// 'NaN undefined' for a null size, so callers guard rather than it being changed
+// under the code that already depends on it.
+function noteFileSize(bytes) {
+    return (bytes === null || bytes === undefined) ? '' : formatFileSize(bytes);
+}
+
+// Paint the chosen-files list in the modal. Rebuilt wholesale rather than
+// patched: the list is tiny and an index-based remove has to stay in step with
+// the array it indexes into.
+function renderPendingNoteFiles() {
+    const list = document.getElementById('noteFileList');
+    if (!list) return;
+    list.innerHTML = pendingNoteFiles.map((f, i) => `
+        <span class="note-file">
+            <span class="note-file-name">${escapeHtml(f.name)}</span>
+            <span class="note-file-size">${escapeHtml(noteFileSize(f.size))}</span>
+            <button type="button" class="note-file-remove" data-idx="${i}"
+                    title="${escapeHtml(t('tickets.note_modal.remove_file'))}"
+                    aria-label="${escapeHtml(t('tickets.note_modal.remove_file'))}">&times;</button>
+        </span>
+    `).join('');
+}
+
+// Share and attachments are mutually exclusive - the portal cannot show a file,
+// so a shared note carrying one would be a promise to the requester that is
+// silently not kept. The row hides rather than greying out: `.btn:disabled` is
+// only styled in lms.css, so a disabled button here would look live.
+function syncNoteAttachVisibility() {
+    const shared = document.getElementById('noteShared');
+    const group  = document.getElementById('noteAttachGroup');
+    const hint   = document.getElementById('noteFilesSharedHint');
+    if (!group) return;
+    const isShared = !!(shared && shared.checked);
+    // The files already chosen stay VISIBLE while shared is ticked. Hiding them
+    // would mean the warning talks about files nobody can see, and saveNote()
+    // is about to ask what to do with them.
+    group.querySelector('#noteAttachBtn').style.display = isShared ? 'none' : '';
+    if (hint) hint.style.display = (isShared && pendingNoteFiles.length) ? '' : 'none';
+}
+
 // Open note modal
 function openNoteModal() {
     document.getElementById('noteText').value = '';
+    pendingNoteFiles = [];
+    renderPendingNoteFiles();
+    const fileInput = document.getElementById('noteFileInput');
+    if (fileInput) fileInput.value = '';
 
     // Always reset to INTERNAL. Leaving it ticked from a previous note is how
     // somebody shares an internal remark with a customer by accident.
@@ -4606,11 +4692,44 @@ function openNoteModal() {
         hint.style.color = noMailbox ? '#b45309' : '#666';
     }
 
+    syncNoteAttachVisibility();
+
     document.getElementById('noteModal').classList.add('active');
     // A note counts as writing too — a colleague should know before they type
     // the same thing (#934).
     setPresenceComposing(true);
 }
+
+// Wire the modal's file controls once, on the elements themselves rather than
+// per open — openNoteModal() runs on every note, and re-binding there would add
+// a listener each time.
+document.addEventListener('DOMContentLoaded', function () {
+    const fileInput = document.getElementById('noteFileInput');
+    if (fileInput) {
+        fileInput.addEventListener('change', function () {
+            // Appended, not replaced: picking a second time should add to what
+            // you have, which is what "Attach" reads as. Clearing the input
+            // afterwards is what lets the same file be re-picked after removal —
+            // without it the change event never fires for an unchanged value.
+            pendingNoteFiles = pendingNoteFiles.concat(Array.prototype.slice.call(fileInput.files));
+            fileInput.value = '';
+            renderPendingNoteFiles();
+            syncNoteAttachVisibility();
+        });
+    }
+    const list = document.getElementById('noteFileList');
+    if (list) {
+        list.addEventListener('click', function (e) {
+            const btn = e.target.closest('.note-file-remove');
+            if (!btn) return;
+            pendingNoteFiles.splice(parseInt(btn.dataset.idx, 10), 1);
+            renderPendingNoteFiles();
+            syncNoteAttachVisibility();
+        });
+    }
+    const shared = document.getElementById('noteShared');
+    if (shared) shared.addEventListener('change', syncNoteAttachVisibility);
+});
 
 // Close note modal
 function closeNoteModal() {
@@ -4627,6 +4746,23 @@ async function saveNote() {
         return;
     }
 
+    const isShared = document.getElementById('noteShared').checked;
+
+    // A shared note cannot carry files (the portal has no way to show them), so
+    // ASK rather than dropping them silently or refusing to save. Losing typed
+    // work to a rule nobody explained is the worse failure of the two.
+    let filesToAttach = pendingNoteFiles;
+    if (isShared && filesToAttach.length) {
+        const go = await showConfirm({
+            title:   t('tickets.note_modal.shared_files_title'),
+            message: t('tickets.note_modal.shared_files_body', { n: filesToAttach.length }),
+            okLabel:     t('tickets.note_modal.shared_files_confirm'),
+            cancelLabel: t('common.cancel')
+        });
+        if (!go) return;
+        filesToAttach = [];
+    }
+
     try {
         const response = await fetch(API_BASE + 'save_note.php', {
             method: 'POST',
@@ -4638,12 +4774,33 @@ async function saveNote() {
                 // Defaults to unticked, so a note is internal unless someone
                 // deliberately says otherwise — the behaviour this replaced,
                 // and the safe direction.
-                is_internal: !document.getElementById('noteShared').checked
+                is_internal: !isShared
             })
         });
         const data = await response.json();
 
         if (data.success) {
+            // The note exists now, so its files finally have something to attach
+            // to. Uploaded through the documents block's own helper rather than
+            // a second copy of the endpoint contract here.
+            if (filesToAttach.length && data.note_id && window.FreeITSMDocuments) {
+                const res = await window.FreeITSMDocuments.upload(
+                    'ticket_note', data.note_id, filesToAttach, '../api/documents/'
+                );
+                // ⚠️ SAY SO WHEN SOME FAILED. The note is already saved and cannot
+                // be un-saved, so silence here would leave somebody believing a
+                // file was filed when it was not — the one outcome worth more
+                // than a toast. Names the files, because "1 of 3 failed" without
+                // saying which is not actionable.
+                if (res.failed.length) {
+                    showToast(t('tickets.note_modal.files_failed', {
+                        n:     res.failed.length,
+                        total: filesToAttach.length,
+                        names: res.failed.map(f => f.name).join(', ')
+                    }), 'error');
+                }
+            }
+            pendingNoteFiles = [];
             closeNoteModal();
             loadNotes(currentEmail.ticket_id);
         } else {
