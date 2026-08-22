@@ -476,8 +476,13 @@ function renderWaffleMenuJS() {
     // doesn't have to AJAX for them on every page. Keys mirror the
     // ones the preferences page writes to (toast_position,
     // toast_animation). Defaults match toast.js's built-in fallbacks.
+    //
+    // notification_sound rides along on the same query rather than adding a
+    // second one: it is read on every analyst page for exactly the same reason
+    // (the bell must not have to ask before it can chime).
     $toastPos = 'bottom-right';
     $toastAnim = 'slide';
+    $notifSound = 'off';                // silence unless this analyst asked for a chime
     if (isset($_SESSION['analyst_id'])) {
         try {
             if (!function_exists('connectToDatabase')) {
@@ -486,7 +491,7 @@ function renderWaffleMenuJS() {
             $conn = connectToDatabase();
             $stmt = $conn->prepare(
                 "SELECT preference_key, preference_value FROM user_preferences
-                 WHERE analyst_id = ? AND preference_key IN ('toast_position', 'toast_animation')"
+                 WHERE analyst_id = ? AND preference_key IN ('toast_position', 'toast_animation', 'notification_sound')"
             );
             $stmt->execute([(int)$_SESSION['analyst_id']]);
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -494,6 +499,8 @@ function renderWaffleMenuJS() {
                     $toastPos = $row['preference_value'];
                 } elseif ($row['preference_key'] === 'toast_animation' && $row['preference_value']) {
                     $toastAnim = $row['preference_value'];
+                } elseif ($row['preference_key'] === 'notification_sound' && $row['preference_value']) {
+                    $notifSound = $row['preference_value'];
                 }
             }
         } catch (Exception $e) {
@@ -501,6 +508,11 @@ function renderWaffleMenuJS() {
         }
     }
     ?>
+    <!-- Notification chime (per-analyst, off by default). The bell and the
+         war-room alerts both call window.playNotificationSound(); the value
+         below is what decides whether anything is heard. -->
+    <script>window.NOTIFICATION_SOUND = <?php echo json_encode($notifSound); ?>;</script>
+    <script src="<?php echo BASE_URL; ?>assets/js/notification-sound.js?v=1"></script>
     <!-- App-wide notification primitives (#451). showToast + showConfirm are
          available on every page that includes the waffle menu (i.e. every
          analyst-facing module page). Individual pages no longer need their
@@ -759,10 +771,31 @@ function renderNotificationBell($path_prefix) {
             badge.hidden = unread === 0;
         }
 
+        // ===== Chime (preference notification_sound, off by default) =====
+        // The unread count is normally non-zero when a page loads, so the count
+        // alone cannot say "something new arrived" — sounding on it would chime
+        // on every navigation for notifications you were told about yesterday.
+        // The last count seen is therefore kept per tab, and the first poll of a
+        // tab only records a baseline. Private-mode browsers throw on
+        // sessionStorage, which costs nothing worse than a silent chime.
+        const SEEN_KEY = 'nbSeenUnread';
+        function recordSeen(unread) {
+            try { sessionStorage.setItem(SEEN_KEY, String(unread)); } catch (e) { /* ignore */ }
+        }
+        function chimeIfNew(unread) {
+            let prev = null;
+            try { prev = sessionStorage.getItem(SEEN_KEY); } catch (e) { /* ignore */ }
+            recordSeen(unread);
+            if (prev === null) return;                      // first poll in this tab
+            if (unread > parseInt(prev, 10) && typeof window.playNotificationSound === 'function') {
+                window.playNotificationSound();
+            }
+        }
+
         async function poll() {
             try {
                 const d = await (await fetch(API + 'get_notifications.php?count_only=1')).json();
-                if (d.success) paintBadge(d.unread);
+                if (d.success) { paintBadge(d.unread); chimeIfNew(d.unread); }
             } catch (e) { /* a failed poll is not worth telling anyone about */ }
         }
 
@@ -771,7 +804,9 @@ function renderNotificationBell($path_prefix) {
             list.innerHTML = '<div class="nb-empty">' + esc(window.t('common.notifications.loading')) + '</div>';
             try {
                 const d = await (await fetch(API + 'get_notifications.php')).json();
-                if (d.success) { render(d.notifications || []); paintBadge(d.unread); }
+                // Opening the panel re-baselines rather than chiming: you are
+                // looking straight at the list, so anything in it is not news.
+                if (d.success) { render(d.notifications || []); paintBadge(d.unread); recordSeen(d.unread); }
             } catch (e) {
                 list.innerHTML = '<div class="nb-empty">' + esc(window.t('common.notifications.load_failed')) + '</div>';
             }
@@ -806,7 +841,7 @@ function renderNotificationBell($path_prefix) {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ all: true })
                 })).json();
-                if (d.success) { paintBadge(d.unread); open(); }
+                if (d.success) { paintBadge(d.unread); recordSeen(d.unread); open(); }
             } catch (err) { /* leave the panel as it is */ }
         });
 
@@ -984,6 +1019,13 @@ function renderWarRoomAlerts($path_prefix) {
                     try {
                         new Notification(d.mentions[0].channel, { body: d.mentions[0].author + ': ' + d.mentions[0].snippet, tag: 'freeitsm-warroom' });
                     } catch (e) { /* a browser that refuses is not an error worth showing */ }
+                }
+                // Chime on the same trigger as the popup — one without the other
+                // is the odd outcome. Guarded on seen > 0 so the first draw of a
+                // tab only baselines: the desktop popup dedupes on its tag, a
+                // sound would not, so opening four tabs would mean four chimes.
+                if (seen > 0 && typeof window.playNotificationSound === 'function') {
+                    window.playNotificationSound();
                 }
                 seen = newest;
                 sessionStorage.setItem('wraSeenId', String(seen));

@@ -26,6 +26,12 @@ $prefDefaults = [
     'timezone'                   => date_default_timezone_get(),
     'toast_position'             => 'bottom-right',
     'toast_animation'            => 'slide',
+    // Chime when a notification arrives. 'off' by default — whether a sound at
+    // your desk is welcome or infuriating is a personal answer, so it is opt-in
+    // per analyst rather than something an administrator turns on for everyone.
+    // Read on every analyst page by renderWaffleMenuJS(); played by
+    // assets/js/notification-sound.js.
+    'notification_sound'         => 'off',
     // Left-panel visibility — one key per module that has a left panel.
     // Each module's header reads its key; module settings pages (where one
     // exists) edit the same key. Surfaced together below.
@@ -354,6 +360,27 @@ if (isset($_SESSION['analyst_id'])) {
             </div>
             <?php endif; ?>
 
+            <!-- Notification chime. Separate from the types above because it is
+                 not about WHICH notifications you get, it is about how you are
+                 told about the ones you already chose. -->
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.sound_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.sound_desc')); ?></p>
+                <select id="notifSoundSelect" class="pref-language-select">
+                    <?php foreach (['off', 'chime', 'ping', 'knock'] as $soundKey): ?>
+                        <option value="<?php echo htmlspecialchars($soundKey); ?>" <?php echo $prefs['notification_sound'] === $soundKey ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars(t('system.preferences.sound_' . $soundKey)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <!-- Hidden rather than disabled when Off is chosen: .btn:disabled
+                     is only styled inside lms.css, so a disabled control on this
+                     page looks live and reads as a broken button. -->
+                <button type="button" class="sig-btn sig-btn-secondary" id="notifSoundPreview" style="margin-left:8px;vertical-align:middle;"><?php echo htmlspecialchars(t('system.preferences.sound_play')); ?></button>
+                <span class="pref-saving-hint" id="notifSoundHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+                <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;"><?php echo htmlspecialchars(t('system.preferences.sound_note')); ?></p>
+            </div>
+
             <div class="pref-section">
                 <h3><?php echo htmlspecialchars(t('system.preferences.landing_heading')); ?></h3>
                 <p><?php echo htmlspecialchars(t('system.preferences.landing_desc')); ?></p>
@@ -525,6 +552,7 @@ if (isset($_SESSION['analyst_id'])) {
                     // without a reload.
                     if (key === 'toast_position')  window.TOAST_POSITION  = value;
                     if (key === 'toast_animation') window.TOAST_ANIMATION = value;
+                    if (key === 'notification_sound') window.NOTIFICATION_SOUND = value;
                     return true;
                 }
                 showToast((d && d.error) || window.t('system.preferences.save_failed'), 'error');
@@ -596,6 +624,37 @@ if (isset($_SESSION['analyst_id'])) {
                 await savePref('notification_types', JSON.stringify(map));
                 setTimeout(() => notifHint.classList.remove('show'), 1200);
             }));
+        }
+
+        // ===== Notification chime (notification_sound) =====
+        // Choosing a sound plays it. You pick one of these by hearing it, and
+        // making somebody select blind and then hunt for a second button to
+        // find out what they chose is a step with no purpose. The Play button
+        // is for hearing the same one again, and it plays what is SELECTED
+        // rather than what is saved so it works before the save returns.
+        const soundSelect  = document.getElementById('notifSoundSelect');
+        const soundHint    = document.getElementById('notifSoundHint');
+        const soundPreview = document.getElementById('notifSoundPreview');
+        function playSelectedSound() {
+            if (typeof window.playNotificationSound === 'function') {
+                window.playNotificationSound(soundSelect.value);
+            }
+        }
+        function paintSoundPreview() {
+            // Nothing to preview when the answer is "no sound", and a Play
+            // button that is silent by design reads as one that is broken.
+            soundPreview.style.display = soundSelect.value === 'off' ? 'none' : '';
+        }
+        if (soundSelect && soundPreview) {
+            paintSoundPreview();
+            soundSelect.addEventListener('change', async function () {
+                paintSoundPreview();
+                playSelectedSound();
+                soundHint.classList.add('show');
+                await savePref('notification_sound', soundSelect.value);
+                setTimeout(() => soundHint.classList.remove('show'), 1200);
+            });
+            soundPreview.addEventListener('click', playSelectedSound);
         }
 
         // ===== Start page (default_landing_page) =====

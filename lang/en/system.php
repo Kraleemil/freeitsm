@@ -548,6 +548,17 @@ return [
         'notif_heading' => 'Notifications',
         'notif_desc'    => 'Which of these put something in the bell at the top of the screen. You are never notified about your own actions, and several changes to the same ticket are grouped into one.',
 
+        // Notification chime. Opt-in per analyst — nobody hears anything unless
+        // they picked a sound here.
+        'sound_heading' => 'Notification sound',
+        'sound_desc'    => 'Play a short sound when something new arrives in the bell, or when somebody mentions you in the war room. Off unless you choose a sound.',
+        'sound_off'     => 'No sound',
+        'sound_chime'   => 'Chime',
+        'sound_ping'    => 'Ping',
+        'sound_knock'   => 'Knock',
+        'sound_play'    => 'Play',
+        'sound_note'    => 'Your browser will not play a sound until you have clicked somewhere on the page, so the first notification after opening a tab may be silent. Nothing is heard for notifications that were already waiting when you opened the tab.',
+
         // Start page (discussion #63). The override for the install-wide setting.
         'landing_heading' => 'Start page',
         'landing_desc'    => 'Where you are sent when you open FreeITSM without being logged in.',
