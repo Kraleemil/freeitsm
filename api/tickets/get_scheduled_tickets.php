@@ -33,6 +33,14 @@ if ($start && $end && preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) && preg_match(
 try {
     $conn = connectToDatabase();
 
+    // Guarded like the inbox list: naming a column that a pre-upgrade install
+    // does not have yet would empty the calendar with an SQL error rather than
+    // simply showing every ticket at its old one-hour default (#1161).
+    require_once '../../includes/ticket_snooze.php';
+    $schedCols = scheduleSchemaReady($conn)
+        ? "t.work_end_datetime, t.work_all_day,"
+        : "NULL AS work_end_datetime, 0 AS work_all_day,";
+
     $sql = "SELECT
                 t.id,
                 t.ticket_number,
@@ -40,8 +48,7 @@ try {
                 ts.name AS status,
                 tp.name AS priority,
                 t.work_start_datetime,
-                t.work_end_datetime,
-                t.work_all_day,
+                $schedCols
                 t.owner_id,
                 u.display_name AS requester_name,
                 u.email AS requester_email,
@@ -58,13 +65,30 @@ try {
               AND t.work_start_datetime < ?
               AND ts.is_closed = 0";
 
+    // Whose work to show. Defaults to MINE — the screen has always shown every
+    // scheduled ticket in the company, which is useful for planning but is not
+    // what you want when you open your own calendar to see your day.
+    //
+    // 🔑 NOT A PERMISSION. Everyone may switch to 'all': these are the same
+    // tickets the inbox already lists, so gating the calendar view would be a
+    // locked door beside an open window. What is scoped is TENANCY, below, which
+    // applies to both modes.
+    $scope = ($_GET['scope'] ?? 'mine') === 'all' ? 'all' : 'mine';
+    $scopeParams = [];
+    if ($scope === 'mine') {
+        $sql .= " AND t.owner_id = ?";
+        $scopeParams[] = (int)$_SESSION['analyst_id'];
+    }
+
     // Multi-tenancy: scope the calendar to the active company (no-op at N=1).
     list($ttSql, $ttParams) = ticketTenantFilter($conn, (int)$_SESSION['analyst_id'], 't');
     $ttSql .= " AND t.deleted_datetime IS NULL"; // hide trashed tickets
     $sql .= $ttSql . " ORDER BY t.work_start_datetime ASC";
 
+    // Order matters: the placeholders bind positionally, and the scope clause was
+    // appended to $sql BEFORE the tenancy one.
     $stmt = $conn->prepare($sql);
-    $stmt->execute(array_merge([$startDate, $endDate], $ttParams));
+    $stmt->execute(array_merge([$startDate, $endDate], $scopeParams, $ttParams));
     $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Format datetime for JavaScript
@@ -93,6 +117,7 @@ try {
 
     echo json_encode([
         'success' => true,
+        'scope'   => $scope,
         'tickets' => $tickets
     ]);
 

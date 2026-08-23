@@ -6787,15 +6787,35 @@ function syncScheduleAllDay() {
     document.getElementById('scheduleDurationGroup').style.display = allDay ? 'none' : '';
 }
 
-function openScheduleModal() {
-    if (!currentEmail || !currentEmail.ticket_id) {
-        showToast('No ticket selected', 'error');
-        return;
+// Which ticket the schedule modal is editing. NOT always the one in the reading
+// pane: the inbox context menu can target a row that is not open, or act when
+// nothing is open at all, so the modal must carry its own subject.
+let scheduleTargetId = null;
+
+/**
+ * Open Schedule work.
+ *
+ * With no arguments it targets the reading pane, which is what the ticket's own
+ * Schedule button wants. The context menu passes a row from `emails` instead —
+ * that row carries the schedule columns (see api/tickets/get_emails.php), so
+ * right-clicking a ticket that is not open still prefills what it is set to.
+ */
+function openScheduleModal(ticketId, ticketRef, sched) {
+    if (ticketId === undefined) {
+        if (!currentEmail || !currentEmail.ticket_id) {
+            showToast('No ticket selected', 'error');
+            return;
+        }
+        ticketId  = currentEmail.ticket_id;
+        ticketRef = `${currentEmail.ticket_number} - ${currentEmail.subject}`;
+        sched     = currentEmail;
     }
+    if (!ticketId) return;
+    scheduleTargetId = ticketId;
+    sched = sched || {};
 
     // Set ticket info
-    document.getElementById('scheduleTicketInfo').textContent =
-        `${currentEmail.ticket_number} - ${currentEmail.subject}`;
+    document.getElementById('scheduleTicketInfo').textContent = ticketRef || '';
 
     // Default: today, on the next hour, for an hour, not all day.
     const now = new Date();
@@ -6808,20 +6828,20 @@ function openScheduleModal() {
     setScheduleDuration(SCHEDULE_DEFAULT_MINUTES);
 
     // Check if already scheduled
-    const existing = parseNaiveDateTime(currentEmail.work_start_datetime);
+    const existing = parseNaiveDateTime(sched.work_start_datetime);
     if (existing) {
-        document.getElementById('currentSchedule').textContent = formatNaiveFullDateTime(currentEmail.work_start_datetime);
+        document.getElementById('currentSchedule').textContent = formatNaiveFullDateTime(sched.work_start_datetime);
         document.getElementById('scheduleCurrent').style.display = 'block';
 
         // Pre-fill with existing schedule
         document.getElementById('scheduleDate').value = existing.date;
         document.getElementById('scheduleTime').value = existing.time;
-        document.getElementById('scheduleAllDay').checked = !!currentEmail.work_all_day;
+        document.getElementById('scheduleAllDay').checked = !!sched.work_all_day;
 
         // Recover the duration from the stored end. A ticket scheduled before the
         // end column existed simply has none, and gets the default — it must not
         // read as "zero minutes".
-        const end = parseNaiveDateTime(currentEmail.work_end_datetime);
+        const end = parseNaiveDateTime(sched.work_end_datetime);
         let minutes = SCHEDULE_DEFAULT_MINUTES;
         if (end) {
             const from = new Date(`${existing.date}T${existing.time}:00`);
@@ -6840,6 +6860,26 @@ function openScheduleModal() {
 
 function closeScheduleModal() {
     document.getElementById('scheduleModal').classList.remove('active');
+}
+
+/**
+ * Reflect a saved schedule in whatever the page is already holding.
+ *
+ * TWO places, because the modal can be opened on a ticket that is not the one in
+ * the reading pane: the inbox row in `emails` (so re-opening the context menu
+ * prefills what was just set) and `currentEmail` — but the latter ONLY when it
+ * is actually this ticket, or scheduling from the context menu would rewrite the
+ * open ticket's schedule with another ticket's times.
+ */
+function applyScheduleLocally(ticketId, start, end, allDay) {
+    const row = emails.find(e => e.ticket_id == ticketId);
+    [row, (currentEmail && currentEmail.ticket_id == ticketId) ? currentEmail : null]
+        .filter(Boolean)
+        .forEach(o => {
+            o.work_start_datetime = start;
+            o.work_end_datetime   = end;
+            o.work_all_day        = allDay;
+        });
 }
 
 async function saveSchedule() {
@@ -6875,7 +6915,7 @@ async function saveSchedule() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                ticket_id: currentEmail.ticket_id,
+                ticket_id: scheduleTargetId,
                 work_start_datetime: workStart,
                 work_end_datetime: workEnd,
                 all_day: allDay ? 1 : 0
@@ -6885,9 +6925,7 @@ async function saveSchedule() {
         const data = await response.json();
 
         if (data.success) {
-            currentEmail.work_start_datetime = workStart;
-            currentEmail.work_end_datetime   = workEnd;
-            currentEmail.work_all_day        = allDay ? 1 : 0;
+            applyScheduleLocally(scheduleTargetId, workStart, workEnd, allDay ? 1 : 0);
             closeScheduleModal();
             showToast('Work scheduled successfully', 'success');
         } else {
@@ -6907,7 +6945,7 @@ async function clearSchedule() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                ticket_id: currentEmail.ticket_id,
+                ticket_id: scheduleTargetId,
                 work_start_datetime: null
             })
         });
@@ -6918,9 +6956,7 @@ async function clearSchedule() {
             // Clear the whole schedule locally, exactly as the service does on the
             // server — leaving a stale end behind would have the modal reopen
             // offering a duration for work that is no longer scheduled.
-            currentEmail.work_start_datetime = null;
-            currentEmail.work_end_datetime   = null;
-            currentEmail.work_all_day        = 0;
+            applyScheduleLocally(scheduleTargetId, null, null, 0);
             closeScheduleModal();
             showToast('Schedule cleared', 'error');
         } else {
@@ -7336,6 +7372,12 @@ function openTicketContextMenu(event, ticketId, ticketRef) {
     // Change subject is single-ticket only — the inverse of Merge.
     const subjItem = document.getElementById('ctxSubjectItem');
     if (subjItem) subjItem.style.display = ctxActsOnSelection ? 'none' : '';
+
+    // Schedule likewise. One start time across a selection would put every ticket
+    // in it at the same minute — N overlapping blocks on the calendar, which is
+    // not what anyone means by "schedule these".
+    const schedItem = document.getElementById('ctxScheduleItem');
+    if (schedItem) schedItem.style.display = ctxActsOnSelection ? 'none' : '';
 
     // Wake appears only when there is something to wake. On a selection that is
     // any sleeping ticket in it — Wake is harmless on the ones already awake, and
@@ -8576,6 +8618,19 @@ async function linkContextCmdbObject(objectId, objectName) {
 }
 
 /* --- Context menu action: Record time --- */
+// Schedule work on the right-clicked ticket, which may not be the one open in
+// the reading pane. The row in `emails` carries the schedule columns, so the
+// modal prefills what this ticket is already set to rather than the open one's.
+function openContextSchedule() {
+    closeTicketContextMenu();
+    if (!ctxTargetTicketId) return;
+    openScheduleModal(
+        ctxTargetTicketId,
+        ctxTargetTicketRef,
+        emails.find(e => e.ticket_id == ctxTargetTicketId) || {}
+    );
+}
+
 function openContextRecordTime() {
     closeTicketContextMenu();
     if (!ctxTargetTicketId) return;

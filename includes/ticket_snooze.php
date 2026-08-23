@@ -64,6 +64,29 @@ function snoozeSchemaReady(PDO $conn): bool {
     return $ready;
 }
 
+/**
+ * Does this database have the scheduling columns yet? (#1161)
+ *
+ * Same reasoning as snoozeSchemaReady() immediately above, for
+ * work_end_datetime / work_all_day: the inbox list carries the schedule so the
+ * context menu can open Schedule on any row, and naming a column that does not
+ * exist yet would empty the ticket list rather than merely disable a feature.
+ *
+ * Lives here rather than in a file of its own because this is already the home
+ * of "the busiest query must not name a column that might be missing", and one
+ * place to look for that rule beats two.
+ */
+function scheduleSchemaReady(PDO $conn): bool {
+    static $ready = null;
+    if ($ready !== null) return $ready;
+    try {
+        $ready = (bool)$conn->query("SHOW COLUMNS FROM `tickets` LIKE 'work_end_datetime'")->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $ready = false;
+    }
+    return $ready;
+}
+
 /** Message shown when someone tries to snooze on a database that isn't ready. */
 const SNOOZE_NOT_READY = 'Snooze needs a database update — run System → Database Verification.';
 

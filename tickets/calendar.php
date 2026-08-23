@@ -17,6 +17,23 @@ $current_page = 'calendar';
 
 // Namespaces the JS bridge needs (calendar.js looks up months, weekdays, modal labels).
 $translationNamespaces = ['common', 'tickets'];
+
+// Whose scheduled work this analyst last chose to see. Read server-side and
+// rendered into the page so the first paint is already the right set — fetching
+// the preference from JS would show everyone's tickets for a moment and then
+// snatch them away, which reads as a bug.
+// Defaults to 'mine': the screen is your day first, the team's second.
+$calendarScope = 'mine';
+try {
+    $stmt = connectToDatabase()->prepare(
+        "SELECT preference_value FROM user_preferences
+         WHERE analyst_id = ? AND preference_key = 'tickets_calendar_scope' LIMIT 1"
+    );
+    $stmt->execute([(int)$_SESSION['analyst_id']]);
+    if ($stmt->fetchColumn() === 'all') $calendarScope = 'all';
+} catch (Exception $e) {
+    // 'mine' stands — the safer default, since it shows less rather than more.
+}
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
@@ -28,7 +45,7 @@ $translationNamespaces = ['common', 'tickets'];
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
     <link rel="stylesheet" href="../assets/css/calendar-grid.css?v=1">
-    <link rel="stylesheet" href="../assets/css/calendar.css?v=5">
+    <link rel="stylesheet" href="../assets/css/calendar.css?v=7">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
@@ -45,12 +62,24 @@ $translationNamespaces = ['common', 'tickets'];
                 <button class="btn btn-icon" onclick="navigateNext()" title="<?php echo htmlspecialchars(t('common.calendar.next')); ?>">&rsaquo;</button>
                 <h2 class="calendar-title" id="calendarTitle"></h2>
             </div>
+            <?php /* Whose work. Same control shape as the view toggle beside it,
+                     because it is the same kind of choice — one of a small set,
+                     always one selected. */ ?>
+            <div class="view-toggle scope-toggle">
+                <button class="view-btn<?php echo $calendarScope === 'mine' ? ' active' : ''; ?>" data-scope="mine" onclick="setScope('mine')"><?php echo htmlspecialchars(t('tickets.calendar.scope_mine')); ?></button>
+                <button class="view-btn<?php echo $calendarScope === 'all' ? ' active' : ''; ?>" data-scope="all" onclick="setScope('all')"><?php echo htmlspecialchars(t('tickets.calendar.scope_everyone')); ?></button>
+            </div>
             <div class="view-toggle">
                 <button class="view-btn active" data-view="month" onclick="setView('month')"><?php echo htmlspecialchars(t('common.calendar.view_month')); ?></button>
                 <button class="view-btn" data-view="week" onclick="setView('week')"><?php echo htmlspecialchars(t('common.calendar.view_week')); ?></button>
                 <button class="view-btn" data-view="day" onclick="setView('day')"><?php echo htmlspecialchars(t('common.calendar.view_day')); ?></button>
             </div>
         </div>
+
+        <?php /* Who is on screen, built from the tickets actually loaded — so it is
+                 self-explaining and there is no second lookup to keep in step.
+                 Hidden entirely in "Mine", where every ticket is yours. */ ?>
+        <div class="owner-legend" id="ownerLegend" style="display:none;"></div>
 
         <div class="calendar-grid" id="calendarGrid">
             <!-- View content (month / week / day) rendered here -->
@@ -73,7 +102,11 @@ $translationNamespaces = ['common', 'tickets'];
         </div>
     </div>
 
-    <script>window.API_BASE = '../api/tickets/'; window.INBOX_URL = 'index.php';</script>
-    <script src="../assets/js/calendar.js?v=2"></script>
+    <script>
+        window.API_BASE = '../api/tickets/';
+        window.INBOX_URL = 'index.php';
+        window.CALENDAR_SCOPE = <?php echo json_encode($calendarScope); ?>;
+    </script>
+    <script src="../assets/js/calendar.js?v=4"></script>
 </body>
 </html>

@@ -32,6 +32,16 @@ try {
     // Connect to database
     $conn = connectToDatabase();
 
+    // ⚠️ NEVER name work_end_datetime / work_all_day unguarded here. They are new
+    // (#1161), and on an install that has pulled the code but not yet run
+    // Database Verification an unguarded reference does not degrade — it makes
+    // OPENING ANY TICKET fail, which is the whole product. Same guard the inbox
+    // list uses; a NULL end simply means "no duration recorded".
+    require_once '../../includes/ticket_snooze.php';
+    $schedCols = scheduleSchemaReady($conn)
+        ? "t.work_end_datetime, t.work_all_day,"
+        : "NULL AS work_end_datetime, 0 AS work_all_day,";
+
     // Query full email details with ticket information
     $sql = "SELECT
                 e.id,
@@ -63,8 +73,7 @@ try {
                 t.it_training_provided,
                 t.owner_id,
                 t.work_start_datetime,
-                t.work_end_datetime,
-                t.work_all_day,
+                $schedCols
                 t.tenant_id,
                 t.user_id,
                 u.email AS requester_email,

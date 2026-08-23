@@ -31,6 +31,21 @@ try {
     $snoozeReady = snoozeSchemaReady($conn);
     $snoozeCols  = $snoozeReady ? "t.snoozed_until, t.snooze_reason," : "NULL AS snoozed_until, NULL AS snooze_reason,";
 
+    // The schedule travels with the row so the context menu can open Schedule on
+    // ANY ticket, not just the one in the reading pane — right-clicking a row
+    // that is not open is the normal case, and a round-trip per right-click to
+    // fetch three columns we are already reading would be a poor trade.
+    //
+    // Guarded exactly as snooze is, and for the same reason: work_end_datetime /
+    // work_all_day are new (#1161), and the busiest query in the product must not
+    // name a column until Database Verification has run. work_start_datetime has
+    // been there for years but is gated with them so there is ONE condition to
+    // reason about rather than two overlapping ones.
+    $schedReady = scheduleSchemaReady($conn);
+    $schedCols  = $schedReady
+        ? "t.work_start_datetime, t.work_end_datetime, t.work_all_day,"
+        : "NULL AS work_start_datetime, NULL AS work_end_datetime, 0 AS work_all_day,";
+
     // Build query with filters - show only the most recent email per ticket
     $sql = "WITH LatestEmails AS (
                 SELECT
@@ -72,6 +87,7 @@ try {
                 t.department_id,
                 t.assigned_analyst_id,
                 $snoozeCols
+                $schedCols
                 tp.name AS priority,
                 -- Row-display fields (discussion #61). The names and the analyst id
                 -- were already selected here; only the colours and the analyst's

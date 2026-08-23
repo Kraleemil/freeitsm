@@ -170,6 +170,7 @@ return [
         'link_change'      => 'Link to change…',
         'merge'            => 'Merge %d tickets…',
         'link_ticket'      => 'Link to ticket…',
+        'schedule'         => 'Schedule work…',
         'record_time'      => 'Record time…',
         'set_status'       => 'Set status',
         'set_priority'     => 'Set priority',
@@ -1540,6 +1541,8 @@ return [
         'x_more'        => '{count} more...',
         'unassigned'    => 'Unassigned',
         'all_day'       => 'All day',
+        'scope_mine'     => 'Mine',
+        'scope_everyone' => 'Everyone',
         'na'            => 'N/A',
         'date_at_time'  => '{date} at {time}',
         'modal' => [
