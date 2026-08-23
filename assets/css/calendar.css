@@ -579,12 +579,13 @@
     white-space: nowrap;
 }
 
-/* A bar rather than a dot, so it reads as the same mark as the stripe down the
-   left of each event — which is what it is explaining. */
+/* A filled block, because in Everyone the owner colour is the event's FILL —
+   the swatch should be a sample of what you actually see on the grid, not a
+   thin bar it no longer resembles. */
 .owner-legend-swatch {
-    width: 4px;
-    height: 14px;
-    border-radius: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
     flex-shrink: 0;
 }
 

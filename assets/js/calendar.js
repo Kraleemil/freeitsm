@@ -76,10 +76,32 @@ function ownerColour(ownerId) {
     return ownerColourMap.get(id) || OWNER_COLOURS[Math.abs(id) % OWNER_COLOURS.length];
 }
 
-/** The owner stripe, only in "Everyone" — in "Mine" every ticket is yours. */
-function ownerStripeStyle(ticket) {
+// Priority owns the event's background in Mine (blue / red / green, from the CSS
+// classes). These are the same three colours, needed in JS so the roles can swap.
+const PRIORITY_COLOURS = { High: '#d32f2f', Low: '#43a047' };
+const PRIORITY_NONE = 'rgba(255,255,255,0.35)';
+
+/**
+ * How an event is coloured, which depends on which question the screen is
+ * answering.
+ *
+ * In **Mine** every ticket is yours, so the only useful signal is priority, and
+ * it keeps the background it has always had.
+ *
+ * In **Everyone** the question is "whose is that?" — so the OWNER takes the
+ * background and priority moves to the left edge. The roles swap rather than the
+ * owner being added as a stripe alongside: a 4px sliver against a full-colour
+ * pill is invisible at real density, which is only obvious once the calendar has
+ * fifty tickets on it rather than four. Both signals survive; the dominant one
+ * is the one the mode is for.
+ *
+ * Normal priority still gets an edge, just a neutral one, so the pills stay
+ * aligned instead of some having a 4px gutter and others none.
+ */
+function eventColourStyle(ticket) {
     if (currentScope !== 'all') return '';
-    return `border-left: 4px solid ${ownerColour(ticket.owner_id)};`;
+    const edge = PRIORITY_COLOURS[ticket.priority] || PRIORITY_NONE;
+    return `background: ${ownerColour(ticket.owner_id)}; border-left: 4px solid ${edge};`;
 }
 
 /**
@@ -87,7 +109,8 @@ function ownerStripeStyle(ticket) {
  *
  * In "Everyone" it names the owner, because a colour alone makes you look away
  * to the legend to answer "whose is that?" — and a month cell shows a stripe
- * about 4px wide. In "Mine" the answer is always you, so it stays the subject.
+ * to a colour, and the owner colour is a fill you still have to match to a legend.
+ * In "Mine" the answer is always you, so it stays the subject.
  */
 function calendarTicketTitle(ticket) {
     const subject = String(ticket.subject || '');
@@ -401,7 +424,7 @@ function renderMonthView(container) {
             if (ticket.priority === 'High') priorityClass = ' priority-high';
             else if (ticket.priority === 'Low') priorityClass = ' priority-low';
 
-            html += `<div class="calendar-ticket${priorityClass}" style="${ownerStripeStyle(ticket)}" onclick="showTicketDetail(${ticket.id})" title="${calendarTicketTitle(ticket)}">
+            html += `<div class="calendar-ticket${priorityClass}" style="${eventColourStyle(ticket)}" onclick="showTicketDetail(${ticket.id})" title="${calendarTicketTitle(ticket)}">
                         <span class="ticket-time">${ticket.time}</span>
                         ${escapeHtml(ticket.ticket_number)}
                      </div>`;
@@ -475,7 +498,7 @@ function renderWeekView(container) {
             if (ticket.priority === 'High') priorityClass = ' priority-high';
             else if (ticket.priority === 'Low') priorityClass = ' priority-low';
 
-            html += `<div class="week-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${ownerStripeStyle(ticket)}" title="${calendarTicketTitle(ticket)}"
+            html += `<div class="week-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${eventColourStyle(ticket)}" title="${calendarTicketTitle(ticket)}"
                           onclick="showTicketDetail(${ticket.id})" title="${escapeHtml(ticket.subject)}">
                           <div class="week-event-title">${escapeHtml(ticket.ticket_number)}</div>
                           <div class="week-event-time">${ticket.time}</div>
@@ -527,7 +550,7 @@ function renderDayView(container) {
         if (ticket.priority === 'High') priorityClass = ' priority-high';
         else if (ticket.priority === 'Low') priorityClass = ' priority-low';
 
-        html += `<div class="day-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${ownerStripeStyle(ticket)}" title="${calendarTicketTitle(ticket)}"
+        html += `<div class="day-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${eventColourStyle(ticket)}" title="${calendarTicketTitle(ticket)}"
                       onclick="showTicketDetail(${ticket.id})">
                       <div class="day-event-title">${escapeHtml(ticket.ticket_number)} — ${escapeHtml(ticket.subject)}</div>
                       <div class="day-event-time">${ticket.time}</div>
