@@ -96,30 +96,28 @@ if (isset($_SESSION['analyst_id'])) {
             --on-accent: var(--sys-on-accent, #fff);
         }
 
-        .prefs-container {
-            height: calc(100vh - 48px);
+        /* Same shell as the other System pages (system/analysts) and the module
+           Settings pages: a flex wrapper pins the header and .settings-scroll is the
+           only scroll region, rather than a fragile `height: calc(100vh - 48px)`.
+           <body> stays unstyled so browser-extension nodes can't join the flex. */
+        .settings-shell { display: flex; flex-direction: column; height: 100vh; }
+        .settings-scroll {
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-y: auto;
-            padding: 30px;
+            width: 100%;
+            margin: 0;
+            box-sizing: border-box;
+            padding: 30px 24px 24px;
         }
+        .page-title { font-size: 22px; font-weight: 600; color: var(--text, #333); margin: 0 0 6px 0; }
+        .page-subtitle { font-size: 13px; color: var(--text-muted, #888); margin: 0 0 24px 0; line-height: 1.5; }
 
-        .prefs-card {
-            background: var(--surface, #fff);
-            border-radius: 10px;
-            box-shadow: 0 2px 8px var(--shadow, rgba(0,0,0,0.06));
-            padding: 30px;
-        }
-
-        .prefs-card h2 {
-            margin: 0 0 6px 0;
-            font-size: 20px;
-            color: var(--text, #333);
-        }
-
-        .prefs-card .subtitle {
-            margin: 0 0 30px 0;
-            font-size: 13px;
-            color: var(--text-dim, #888);
-        }
+        /* .tabs / .tab / .tab-content all come from inbox.css — .tab-content already
+           carries the card (surface, radius, shadow, 30px padding), so the panel IS
+           the card and there is no wrapper of our own. Only the first section's top
+           margin needs taming, since each panel now starts with one. */
+        .tab-content > .pref-section:first-child > h3 { margin-top: 0; }
 
         /* My details + signatures (#80). */
         .sig-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
@@ -291,13 +289,33 @@ if (isset($_SESSION['analyst_id'])) {
     </style>
 </head>
 <body>
+    <div class="settings-shell">
     <?php include '../includes/header.php'; ?>
 
-    <div class="prefs-container">
-        <div class="prefs-card">
-            <h2><?php echo htmlspecialchars(t('system.preferences.title')); ?></h2>
-            <p class="subtitle"><?php echo htmlspecialchars(t('system.preferences.subtitle')); ?></p>
+    <div class="settings-scroll">
+        <h1 class="page-title"><?php echo htmlspecialchars(t('system.preferences.title')); ?></h1>
+        <p class="page-subtitle"><?php echo htmlspecialchars(t('system.preferences.subtitle')); ?></p>
 
+        <?php
+            // The tab bar. Not rendered from a settings manifest like a module's
+            // Settings page: a manifest binds every tab to a CAPABILITY, and there is
+            // nothing here to grant — every panel on this page is one analyst's own
+            // preference. So the bar is written out directly, using the same .tabs /
+            // .tab / .tab-content classes from inbox.css that the module pages use.
+            $prefTabs = [
+                'general'       => t('system.preferences.tab_general'),
+                'notifications' => t('system.preferences.tab_notifications'),
+                'display'       => t('system.preferences.tab_display'),
+                'details'       => t('system.preferences.tab_details'),
+            ];
+        ?>
+        <div class="tabs">
+            <?php $first = true; foreach ($prefTabs as $tabId => $tabLabel): ?>
+                <button class="tab<?php echo $first ? ' active' : ''; ?>" data-tab="<?php echo htmlspecialchars($tabId); ?>" onclick="switchTab('<?php echo htmlspecialchars($tabId); ?>')"><?php echo htmlspecialchars($tabLabel); ?></button>
+            <?php $first = false; endforeach; ?>
+        </div>
+
+        <div class="tab-content active" id="general-tab">
             <div class="pref-section">
                 <h3><?php echo htmlspecialchars(t('system.preferences.language_heading')); ?></h3>
                 <p><?php echo htmlspecialchars(t('system.preferences.language_desc')); ?></p>
@@ -309,6 +327,34 @@ if (isset($_SESSION['analyst_id'])) {
                     <?php endforeach; ?>
                 </select>
                 <span class="pref-saving-hint" id="langSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+            </div>
+
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.timezone_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.timezone_desc')); ?></p>
+                <?php
+                    // Group IANA zones by region for the dropdown (Europe/London → "Europe").
+                    $tzGroups = [];
+                    foreach (timezone_identifiers_list() as $tzId) {
+                        $parts = explode('/', $tzId, 2);
+                        $region = count($parts) === 2 ? $parts[0] : 'Other';
+                        $tzGroups[$region][] = $tzId;
+                    }
+                    ksort($tzGroups);
+                    $currentTz = $prefs['timezone'];
+                ?>
+                <select id="timezoneSelect" class="pref-language-select">
+                    <?php foreach ($tzGroups as $region => $zones): ?>
+                        <optgroup label="<?php echo htmlspecialchars($region); ?>">
+                            <?php foreach ($zones as $tzId): ?>
+                                <option value="<?php echo htmlspecialchars($tzId); ?>" <?php echo $tzId === $currentTz ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($tzId); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </optgroup>
+                    <?php endforeach; ?>
+                </select>
+                <span class="pref-saving-hint" id="tzSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
             </div>
 
             <?php
@@ -325,6 +371,20 @@ if (isset($_SESSION['analyst_id'])) {
                     ? t('system.preferences.landing_portal')
                     : t('system.preferences.landing_analyst');
             ?>
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.landing_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.landing_desc')); ?></p>
+                <select id="landingSelect" class="pref-language-select">
+                    <option value=""><?php echo htmlspecialchars(t('system.preferences.landing_default', ['name' => $landingDefaultName])); ?></option>
+                    <option value="analyst" <?php echo $prefs['default_landing_page'] === 'analyst' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.landing_analyst')); ?></option>
+                    <option value="portal" <?php echo $prefs['default_landing_page'] === 'portal' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.landing_portal')); ?></option>
+                </select>
+                <span class="pref-saving-hint" id="landingSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+                <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;"><?php echo htmlspecialchars(t('system.preferences.landing_note')); ?></p>
+            </div>
+        </div><!-- /#general-tab -->
+
+        <div class="tab-content" id="notifications-tab">
             <?php
                 // Notification types (discussion #55). Rendered from the service's
                 // own registry so adding a type there adds it here — there is no
@@ -382,46 +442,6 @@ if (isset($_SESSION['analyst_id'])) {
             </div>
 
             <div class="pref-section">
-                <h3><?php echo htmlspecialchars(t('system.preferences.landing_heading')); ?></h3>
-                <p><?php echo htmlspecialchars(t('system.preferences.landing_desc')); ?></p>
-                <select id="landingSelect" class="pref-language-select">
-                    <option value=""><?php echo htmlspecialchars(t('system.preferences.landing_default', ['name' => $landingDefaultName])); ?></option>
-                    <option value="analyst" <?php echo $prefs['default_landing_page'] === 'analyst' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.landing_analyst')); ?></option>
-                    <option value="portal" <?php echo $prefs['default_landing_page'] === 'portal' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.landing_portal')); ?></option>
-                </select>
-                <span class="pref-saving-hint" id="landingSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
-                <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;"><?php echo htmlspecialchars(t('system.preferences.landing_note')); ?></p>
-            </div>
-
-            <div class="pref-section">
-                <h3><?php echo htmlspecialchars(t('system.preferences.timezone_heading')); ?></h3>
-                <p><?php echo htmlspecialchars(t('system.preferences.timezone_desc')); ?></p>
-                <?php
-                    // Group IANA zones by region for the dropdown (Europe/London → "Europe").
-                    $tzGroups = [];
-                    foreach (timezone_identifiers_list() as $tzId) {
-                        $parts = explode('/', $tzId, 2);
-                        $region = count($parts) === 2 ? $parts[0] : 'Other';
-                        $tzGroups[$region][] = $tzId;
-                    }
-                    ksort($tzGroups);
-                    $currentTz = $prefs['timezone'];
-                ?>
-                <select id="timezoneSelect" class="pref-language-select">
-                    <?php foreach ($tzGroups as $region => $zones): ?>
-                        <optgroup label="<?php echo htmlspecialchars($region); ?>">
-                            <?php foreach ($zones as $tzId): ?>
-                                <option value="<?php echo htmlspecialchars($tzId); ?>" <?php echo $tzId === $currentTz ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($tzId); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </optgroup>
-                    <?php endforeach; ?>
-                </select>
-                <span class="pref-saving-hint" id="tzSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
-            </div>
-
-            <div class="pref-section">
                 <h3><?php echo htmlspecialchars(t('system.preferences.position_heading')); ?></h3>
                 <p><?php echo htmlspecialchars(t('system.preferences.position_desc')); ?></p>
                 <div class="position-grid" id="toastPositionGrid"></div>
@@ -435,7 +455,9 @@ if (isset($_SESSION['analyst_id'])) {
                     <button class="anim-option" data-anim="fade"><?php echo htmlspecialchars(t('system.preferences.anim_fade')); ?></button>
                 </div>
             </div>
+        </div><!-- /#notifications-tab -->
 
+        <div class="tab-content" id="display-tab">
             <div class="pref-section">
                 <h3><?php echo htmlspecialchars(t('system.preferences.panels_heading')); ?></h3>
                 <p><?php echo htmlspecialchars(t('system.preferences.panels_desc')); ?></p>
@@ -464,7 +486,9 @@ if (isset($_SESSION['analyst_id'])) {
                     <button class="anim-option" data-fill="gradient"><?php echo htmlspecialchars(t('system.preferences.fill_gradient')); ?></button>
                 </div>
             </div>
+        </div><!-- /#display-tab -->
 
+        <div class="tab-content" id="details-tab">
             <!-- My details + email signatures (discussion #80, request 3).
                  Here rather than on an admin screen because a signature is one
                  person signing their own name — there is deliberately no shared
@@ -521,8 +545,9 @@ if (isset($_SESSION['analyst_id'])) {
                     </div>
                 </div>
             </div>
-        </div>
+        </div><!-- /#details-tab -->
     </div>
+    </div><!-- /.settings-shell -->
 
     <?php /* The analyst's own name and email, for the signature live preview (#80). */ ?>
     <script>window.__MY_NAME = <?php echo json_encode($_SESSION['analyst_name'] ?? ''); ?>; window.__MY_EMAIL = <?php echo json_encode($_SESSION['analyst_email'] ?? ''); ?>;</script>
@@ -533,6 +558,20 @@ if (isset($_SESSION['analyst_id'])) {
         // Initial preference values pre-fetched server-side. The page
         // hydrates UI controls from these instead of localStorage.
         const INITIAL_PREFS = <?php echo json_encode($prefs); ?>;
+
+        // ===== Tabs =====
+        // Same switcher the module Settings pages use. It also keeps the hash in
+        // step, so a panel can be linked to directly: "Manage signatures" in the
+        // reply box opens #details rather than dropping you on General to hunt.
+        function switchTab(tab) {
+            const panel = document.getElementById(tab + '-tab');
+            if (!panel) return;                       // unknown hash — leave the default open
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            panel.classList.add('active');
+            history.replaceState(null, '', '#' + tab);
+        }
+        if (location.hash.length > 1) switchTab(location.hash.slice(1));
 
         // Generic save helper — fire-and-forget POST to the per-analyst
         // preference store. Returns a Promise resolving to the API's

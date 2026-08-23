@@ -540,12 +540,19 @@ return [
         'title'    => 'Preferences',
         'subtitle' => 'Personal settings saved to your account — they follow you across browsers.',
 
+        // Tab bar. The page is grouped like a module's Settings page rather than
+        // one long scroll — see system/preferences/index.php.
+        'tab_general'       => 'General',
+        'tab_notifications' => 'Notifications',
+        'tab_display'       => 'Display',
+        'tab_details'       => 'My details',
+
         'language_heading' => 'Interface language',
         'language_desc'    => 'The language used across the FreeITSM UI. Translations fall back to English for any strings not yet covered in your chosen language. Reloads the page on change.',
         'saving'           => 'Saving…',
 
         // Notification bell types (discussion #55).
-        'notif_heading' => 'Notifications',
+        'notif_heading' => 'In the bell',
         'notif_desc'    => 'Which of these put something in the bell at the top of the screen. You are never notified about your own actions, and several changes to the same ticket are grouped into one.',
 
         // Notification chime. Opt-in per analyst — nobody hears anything unless

@@ -8938,7 +8938,7 @@ function renderSignatureMenu() {
     const menu = document.getElementById('signatureMenu');
     if (!menu) return;
 
-    const manage = '<div class="reply-tpl-menu-empty"><a href="' + (window.PREFS_URL || '../system/preferences/') + '">'
+    const manage = '<div class="reply-tpl-menu-empty"><a href="' + (window.PREFS_URL || '../system/preferences/') + '#details">'
                  + escapeHtml(t('tickets.reply_modal.signature_manage')) + '</a></div>';
 
     if (mySignatureCache === null) {
