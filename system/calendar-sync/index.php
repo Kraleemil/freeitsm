@@ -78,6 +78,30 @@ $translationNamespaces = ['common', 'system'];
         .cs-result.ok   { background: var(--success-bg, #d4edda); color: var(--success-text, #155724); }
         .cs-result.bad  { background: var(--danger-bg, #f8d7da);  color: var(--danger-text, #721c24); }
         .cs-result code { font-family: Consolas, Monaco, monospace; word-break: break-all; }
+
+        .cs-people { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .cs-people th {
+            text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted, #888);
+            padding: 6px 10px 8px; border-bottom: 1px solid var(--border-soft, #eee);
+        }
+        .cs-people td { padding: 7px 10px; border-bottom: 1px solid var(--border-soft, #f2f2f2); vertical-align: middle; }
+        .cs-people tr:last-child td { border-bottom: none; }
+        .cs-people input[type="email"] {
+            width: 100%; max-width: 280px; padding: 6px 8px; font-size: 12.5px; font-family: inherit;
+            border: 1px solid var(--border, #ddd); border-radius: 4px;
+            background: var(--surface, #fff); color: var(--text, #333);
+        }
+        /* An address INHERITED from the analyst's FreeITSM account is shown muted
+           and italic, so "this is where it would go" is visibly different from
+           "somebody chose this". The difference matters: the inherited one is
+           often wrong (a local account, an LDAP import keyed differently). */
+        .cs-people input.cs-inherited { color: var(--text-muted, #888); font-style: italic; }
+        .cs-people .cs-analyst-name { font-weight: 600; color: var(--text, #333); }
+        .cs-people .cs-analyst-email { font-size: 11.5px; color: var(--text-muted, #888); }
+        .cs-pill { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11px; white-space: nowrap; }
+        .cs-pill.on   { background: var(--success-bg, #d4edda); color: var(--success-text, #155724); }
+        .cs-pill.offp { background: var(--surface-2, #f0f0f0); color: var(--text-muted, #777); }
+        .cs-pill.bad  { background: var(--danger-bg, #f8d7da);  color: var(--danger-text, #721c24); }
     </style>
 </head>
 <body>
@@ -153,6 +177,27 @@ $translationNamespaces = ['common', 'system'];
                 <div class="cs-result" id="csResult"></div>
             </div>
 
+            <?php /* Which mailbox each analyst's work goes to. Admin-only: the
+                     permission behind the push reaches every mailbox in the
+                     tenant, so an analyst able to set their own target could fill
+                     a colleague's calendar. They choose WHETHER; this chooses
+                     WHERE. */ ?>
+            <div class="cs-card">
+                <h2><?php echo htmlspecialchars(t('system.calsync.people_heading')); ?></h2>
+                <p><?php echo t('system.calsync.people_desc'); ?></p>
+                <table class="cs-people">
+                    <thead>
+                        <tr>
+                            <th><?php echo htmlspecialchars(t('system.calsync.col_analyst')); ?></th>
+                            <th><?php echo htmlspecialchars(t('system.calsync.col_mailbox')); ?></th>
+                            <th><?php echo htmlspecialchars(t('system.calsync.col_status')); ?></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="csPeople"></tbody>
+                </table>
+            </div>
+
             <div class="cs-card">
                 <h2><?php echo htmlspecialchars(t('system.calsync.feed_heading')); ?></h2>
                 <p><?php echo t('system.calsync.feed_desc'); ?></p>
@@ -217,6 +262,7 @@ $translationNamespaces = ['common', 'system'];
             }
 
             document.getElementById('csFeedMode').value = d.feed_mode || 'full';
+            csRenderPeople(d.analysts || []);
 
             if (d.connection) {
                 document.getElementById('csName').value = d.connection.name;
@@ -241,6 +287,65 @@ $translationNamespaces = ['common', 'system'];
         function escapeCs(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g,
                 c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+        }
+
+        /**
+         * One row per active analyst.
+         *
+         * The mailbox box shows the OVERRIDE where one exists, and otherwise the
+         * address inherited from their FreeITSM account — muted, so an admin can
+         * see at a glance which are chosen and which are merely assumed. The
+         * inherited one is frequently wrong (a local account, an LDAP import
+         * keyed on something else), which is the entire reason this screen exists.
+         */
+        function csRenderPeople(people) {
+            const tb = document.getElementById('csPeople');
+            tb.innerHTML = people.map(p => {
+                const override  = p.calendar_address || '';
+                const inherited = !override;
+                const shown     = override || p.email || '';
+                const mode      = p.mode || 'off';
+                let pill = '<span class="cs-pill offp">' + escapeCs(t('system.calsync.mode_off')) + '</span>';
+                if (mode === 'push') pill = '<span class="cs-pill on">' + escapeCs(t('system.calsync.mode_push')) + '</span>';
+                if (mode === 'feed') pill = '<span class="cs-pill on">' + escapeCs(t('system.calsync.mode_feed')) + '</span>';
+                if (p.last_error)    pill += ' <span class="cs-pill bad">' + escapeCs(t('system.calsync.mode_error')) + '</span>';
+                return `<tr data-analyst="${p.id}">
+                    <td><div class="cs-analyst-name">${escapeCs(p.full_name)}</div>
+                        <div class="cs-analyst-email">${escapeCs(p.email)}</div></td>
+                    <td><input type="email" class="${inherited ? 'cs-inherited' : ''}"
+                               value="${escapeCs(shown)}"
+                               placeholder="${escapeCs(p.email || '')}"
+                               data-original="${escapeCs(shown)}"></td>
+                    <td>${pill}</td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="csSaveAddress(${p.id}, this)">${escapeCs(t('system.calsync.check_save'))}</button></td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function csSaveAddress(analystId, btn) {
+            const row   = btn.closest('tr');
+            const input = row.querySelector('input[type="email"]');
+            const value = input.value.trim();
+            // Typing the inherited address back in is the same as no override, so
+            // do not store one — an override that merely repeats the default is a
+            // thing to maintain for no benefit.
+            const address = (value === input.placeholder) ? '' : value;
+
+            btn.disabled = true;
+            const d = await csPost({ action: 'set_address', analyst_id: analystId, calendar_address: address });
+            btn.disabled = false;
+            if (!d.success) { csShow(false, escapeCs(d.error || '')); return; }
+
+            input.classList.toggle('cs-inherited', address === '');
+            if (d.verified === true) {
+                csShow(true, escapeCs(t('system.calsync.probe_ok', { addr: value || input.placeholder })));
+            } else if (d.verified === false) {
+                csShow(false, escapeCs(t('system.calsync.probe_bad', { addr: value || input.placeholder })));
+            } else {
+                // null = we could not ask. Say that, rather than implying it is fine.
+                csShow(true, escapeCs(t('system.calsync.saved_unverified')));
+            }
+            await csLoad();
         }
 
         async function csPost(body) {

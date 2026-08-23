@@ -407,7 +407,22 @@ if (isset($_SESSION['analyst_id'])) {
                 <?php else: ?>
                     <div class="anim-toggle" id="workCalToggle">
                         <button class="anim-option" data-workcal="off"><?php echo htmlspecialchars(t('system.preferences.workcal_off')); ?></button>
+                        <?php /* One control, three options — never two switches.
+                                 With a push AND a subscribed feed both live you
+                                 would see every scheduled ticket twice, once as a
+                                 real event and once from the subscription. */ ?>
+                        <button class="anim-option" data-workcal="push" id="workCalPushBtn"><?php echo htmlspecialchars(t('system.preferences.workcal_push')); ?></button>
                         <button class="anim-option" data-workcal="feed"><?php echo htmlspecialchars(t('system.preferences.workcal_feed')); ?></button>
+                    </div>
+
+                    <?php /* Says WHY the direct option is unavailable. An option
+                             that is simply missing reads as a bug, and one that is
+                             greyed out with no reason is worse — this is the
+                             screen where somebody is deciding. */ ?>
+                    <p class="pref-hint" id="workCalPushWhy" style="display:none;margin-top:8px;color:var(--text-muted,#666);font-size:12px;"></p>
+
+                    <div id="workCalPushPanel" style="display:none;margin-top:12px;">
+                        <p class="pref-hint" style="color:var(--text-muted,#666);font-size:12px;" id="workCalPushInfo"></p>
                     </div>
 
                     <div id="workCalPanel" style="display:none;margin-top:14px;">
@@ -1132,6 +1147,7 @@ if (isset($_SESSION['analyst_id'])) {
         // (assets/js/subscribe.js) — this page only says which endpoint mints its
         // URL and what happens either side of it.
         const WORKCAL_API = '../../api/tickets/get_schedule_feed_url.php';
+        const ENROL_API   = '../../api/tickets/calendar_enrolment.php';
 
         function paintWorkCal(mode) {
             const root = document.getElementById('workCalToggle');
@@ -1139,7 +1155,8 @@ if (isset($_SESSION['analyst_id'])) {
             root.querySelectorAll('.anim-option').forEach(b => {
                 b.classList.toggle('active', b.dataset.workcal === mode);
             });
-            document.getElementById('workCalPanel').style.display = mode === 'feed' ? '' : 'none';
+            document.getElementById('workCalPanel').style.display     = mode === 'feed' ? '' : 'none';
+            document.getElementById('workCalPushPanel').style.display = mode === 'push' ? '' : 'none';
         }
 
         async function loadWorkCalDetail() {
@@ -1157,24 +1174,70 @@ if (isset($_SESSION['analyst_id'])) {
             });
         }
 
+        /** Whether the direct option is on offer, and if not, WHY not. */
+        async function loadWorkCalState() {
+            const d = await (await fetch(ENROL_API, { credentials: 'same-origin' })).json();
+            const pushBtn = document.getElementById('workCalPushBtn');
+            const why     = document.getElementById('workCalPushWhy');
+
+            if (!d.push_available) {
+                // Disabled AND explained. A greyed control with no reason is the
+                // thing people file support tickets about.
+                pushBtn.disabled = true;
+                pushBtn.style.opacity = '0.5';
+                pushBtn.style.cursor  = 'default';
+                why.textContent = window.t('system.preferences.workcal_push_none');
+                why.style.display = '';
+            }
+            if (d.address) {
+                document.getElementById('workCalPushInfo').textContent =
+                    window.t('system.preferences.workcal_push_where', { addr: d.address });
+            }
+            paintWorkCal(d.mode || 'off');
+            if (d.mode === 'feed') await loadWorkCalDetail();
+            return d;
+        }
+
         (function initWorkCal() {
             const root = document.getElementById('workCalToggle');
             if (!root) return;
             FreeITSMSubscribe.mount('workCal', WORKCAL_API);
-
-            // Off unless a link already exists — the presence of a token IS the
-            // state, so there is no second preference to fall out of step with it.
-            paintWorkCal('off');
+            loadWorkCalState();
 
             root.addEventListener('click', async function (e) {
                 const btn = e.target.closest('.anim-option');
-                if (!btn) return;
+                if (!btn || btn.disabled) return;
                 const mode = btn.dataset.workcal;
+                const previous = root.querySelector('.anim-option.active');
                 paintWorkCal(mode);
+
+                // The mode is stored server-side, and the server VERIFIES the
+                // mailbox before accepting 'push' — so a refusal here is the
+                // honest answer rather than a switch that appears on and never
+                // does anything.
+                const r = await fetch(ENROL_API, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ mode: mode })
+                });
+                const d = await r.json();
+                if (!d.success) {
+                    // Put the control back where it was: leaving it on a state the
+                    // server rejected would be a lie about what is happening.
+                    paintWorkCal(previous ? previous.dataset.workcal : 'off');
+                    const why = document.getElementById('workCalPushWhy');
+                    why.textContent = d.bad_address
+                        ? window.t('system.preferences.workcal_push_bad', { addr: d.address })
+                        : (d.no_address ? window.t('system.preferences.workcal_push_noaddr') : (d.error || ''));
+                    why.style.display = '';
+                    return;
+                }
+                document.getElementById('workCalPushWhy').style.display = 'none';
+
                 if (mode === 'feed') {
                     await loadWorkCalDetail();
                 } else {
-                    // Turning it off REVOKES the link rather than merely hiding it.
+                    // Leaving 'feed' REVOKES the link rather than merely hiding it.
                     // A secret URL that still works after you switched it off is the
                     // opposite of what "off" means.
                     await fetch(WORKCAL_API, {

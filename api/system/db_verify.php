@@ -3076,6 +3076,15 @@ try {
         ['api_key_rate_limits', 'uq_api_key_window', '(`api_key_id`, `window_start`)'],
         ['contract_term_values', 'uq_ctv_contract_tab', '(`contract_id`, `term_tab_id`)'],
         ['morningChecks_Results', 'uq_check_date', '(`CheckID`, `CheckDate`)'],
+        // 🔴 CALENDAR SYNC — these are not tidiness, they ARE the upsert.
+        // Both tables are written with INSERT ... ON DUPLICATE KEY UPDATE, which
+        // without the UNIQUE key never matches: every save appends another row and
+        // every read takes the first one, so nothing an analyst or an admin
+        // changes appears to stick. A fresh install gets these from freeitsm.sql;
+        // only an upgrade needs them here, which is exactly the install that would
+        // have been silently broken.
+        ['calendar_enrolments',  'uniq_calendar_enrolment_analyst',  '(`analyst_id`)'],
+        ['calendar_sync_events', 'uniq_calendar_sync_ticket_analyst', '(`ticket_id`, `analyst_id`)'],
     ];
 
     foreach ($uniqueIndexes as [$tbl, $idxName, $cols]) {
@@ -3090,6 +3099,21 @@ try {
             $idxCheck->execute([DB_NAME, $tbl, $idxName]);
             if ((int)$idxCheck->fetch(PDO::FETCH_ASSOC)['cnt'] > 0) continue;
 
+            // Calendar sync: anyone who ran the build where the UNIQUE key was
+            // missing has a pile of duplicate rows, and ADD UNIQUE KEY refuses
+            // outright while they exist. Keep the NEWEST per analyst / per
+            // ticket-and-analyst — that is the one carrying whatever they last
+            // chose, and the older rows are failed writes, not history.
+            if ($tbl === 'calendar_enrolments') {
+                $conn->exec("DELETE e1 FROM calendar_enrolments e1
+                             INNER JOIN calendar_enrolments e2
+                             ON e1.analyst_id = e2.analyst_id AND e1.id < e2.id");
+            }
+            if ($tbl === 'calendar_sync_events') {
+                $conn->exec("DELETE s1 FROM calendar_sync_events s1
+                             INNER JOIN calendar_sync_events s2
+                             ON s1.ticket_id = s2.ticket_id AND s1.analyst_id = s2.analyst_id AND s1.id < s2.id");
+            }
             // For lms_cmi_data: clean up duplicates before adding unique key
             if ($tbl === 'lms_cmi_data') {
                 $conn->exec("DELETE d1 FROM lms_cmi_data d1

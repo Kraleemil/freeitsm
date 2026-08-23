@@ -29,8 +29,8 @@ class MicrosoftCalendarProvider extends CalendarSyncProvider
 {
     const GRAPH = 'https://graph.microsoft.com/v1.0';
 
-    /** @var PDO|null set by the caller when the token cache should be persisted */
-    public $conn = null;
+    // $conn (the optional PDO for persisting the token cache) is declared on the
+    // base class, so assigning it is valid against the abstract type.
 
     public function supports(string $capability): bool
     {
@@ -108,6 +108,16 @@ class MicrosoftCalendarProvider extends CalendarSyncProvider
             'expires_at'   => time() + ($data['expires_in'] ?? 3600),
         ]);
         return $data['access_token'];
+    }
+
+    /**
+     * Mint a token. If that succeeds the credentials are right and
+     * Calendars.ReadWrite was granted and consented; nothing else can be true
+     * and this fail.
+     */
+    public function verifyConnection(): void
+    {
+        $this->token();
     }
 
     // ----------------------------------------------------------------- graph

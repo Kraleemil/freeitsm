@@ -66,6 +66,17 @@ try {
             'mailboxes'  => $mailboxes,
             'feed_mode'  => scheduleFeedMode($conn),
             'enrolled'   => (int)$conn->query("SELECT COUNT(*) FROM calendar_enrolments WHERE mode <> 'off'")->fetchColumn(),
+            // Every active analyst, with the mailbox their work would go to.
+            // LEFT JOIN, because an analyst who has never chosen has no enrolment
+            // row and must still be listed — otherwise the one person an admin
+            // most needs to fix is the one who is invisible.
+            'analysts'   => $conn->query(
+                "SELECT a.id, a.full_name, a.email, e.calendar_address, e.mode, e.last_error
+                   FROM analysts a
+                   LEFT JOIN calendar_enrolments e ON e.analyst_id = a.id
+                  WHERE a.is_active = 1
+                  ORDER BY a.full_name"
+            )->fetchAll(PDO::FETCH_ASSOC),
         ]);
         exit;
     }
@@ -165,9 +176,7 @@ try {
             // Two separate questions, reported separately, because they fail for
             // completely different reasons and need different fixes.
             $probe = trim((string)($_POST['probe'] ?? ''));
-            $r = new ReflectionMethod($provider, 'token');
-            $r->setAccessible(true);
-            $r->invoke($provider);                       // throws if credentials/consent are wrong
+            $provider->verifyConnection();               // throws if credentials/consent are wrong
 
             $result = ['success' => true, 'token' => true, 'borrowed' => $connection['borrowed_from_mailbox'] ?? null];
             if ($probe !== '') {
@@ -183,6 +192,54 @@ try {
                  ->execute([$msg, (int)$row['id']]);
             echo json_encode(['success' => false, 'token' => false, 'error' => $msg]);
         }
+        exit;
+    }
+
+    /**
+     * Point one analyst's calendar sync at a particular mailbox.
+     *
+     * 🔴 ADMIN ONLY, AND DELIBERATELY NOT SOMETHING AN ANALYST CAN DO. The app
+     * permission behind this can write to any mailbox in the tenant, so an
+     * analyst able to set their own address could quietly fill a colleague's —
+     * or the chief executive's — calendar with their tickets. An analyst
+     * controls whether sync is on; an administrator controls where it goes.
+     */
+    if ($action === 'set_address') {
+        $analystId = (int)($_POST['analyst_id'] ?? 0);
+        $address   = trim((string)($_POST['calendar_address'] ?? ''));
+        if (!$analystId) { echo json_encode(['success' => false, 'error' => 'Unknown analyst.']); exit; }
+
+        if ($address !== '' && !filter_var($address, FILTER_VALIDATE_EMAIL)) {
+            echo json_encode(['success' => false, 'error' => 'That is not a valid email address.']);
+            exit;
+        }
+
+        // Blank means "go back to inheriting analysts.email" rather than "sync to
+        // nowhere" — an admin clearing the box is undoing an override, not
+        // switching the analyst off.
+        $conn->prepare(
+            "INSERT INTO calendar_enrolments (analyst_id, calendar_address, mode)
+             VALUES (?, ?, 'off')
+             ON DUPLICATE KEY UPDATE calendar_address = VALUES(calendar_address), updated_datetime = NOW()"
+        )->execute([$analystId, ($address === '' ? null : $address)]);
+
+        // Verify it while we are here, if we can, so the admin does not have to
+        // press a second button to find out whether what they typed exists.
+        $verified = null;
+        if ($address !== '') {
+            $row = $conn->query("SELECT id FROM calendar_connections WHERE is_active = 1 ORDER BY id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                try {
+                    $connection = calendarSyncLoadConnection($conn, (int)$row['id']);
+                    $provider = calendarSyncProviderFor($connection);
+                    $provider->conn = $conn;
+                    $verified = $provider->verifyTarget($address);
+                } catch (Exception $e) {
+                    $verified = null;   // unknown, not false — a broken connection
+                }                       // says nothing about whether the address is real
+            }
+        }
+        echo json_encode(['success' => true, 'verified' => $verified]);
         exit;
     }
 

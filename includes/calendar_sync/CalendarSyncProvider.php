@@ -54,6 +54,19 @@ abstract class CalendarSyncProvider
     /** @var array decrypted calendar_connections row */
     protected $connection;
 
+    /**
+     * Optional database handle, for a provider that caches something across
+     * requests — Microsoft caches its hour-long app-only token.
+     *
+     * Declared HERE rather than on the concrete provider so assigning it is
+     * valid against the abstract type. Set only on the concrete class, it was a
+     * dynamic property from any caller holding a CalendarSyncProvider, which
+     * PHP 8.2 deprecates and static analysis flags.
+     *
+     * @var PDO|null
+     */
+    public $conn = null;
+
     public function __construct(array $connection)
     {
         $this->connection = $connection;
@@ -107,6 +120,19 @@ abstract class CalendarSyncProvider
      * as an error would leave the map row behind and retry forever.
      */
     abstract public function deleteEvent(string $calendarAddress, string $remoteEventId): void;
+
+    /**
+     * Prove the connection works at all: credentials valid, permission granted.
+     *
+     * Separate from verifyTarget() ON PURPOSE. This answers "can FreeITSM talk to
+     * the provider", that one answers "does this person have a calendar" — they
+     * fail for entirely different reasons and need entirely different fixes, so
+     * a settings screen must be able to report them separately rather than
+     * collapsing both into "it didn't work".
+     *
+     * Throws with a human-readable message on failure; returns nothing on success.
+     */
+    abstract public function verifyConnection(): void;
 
     // ------------------------------------------------------------- discovery
 
