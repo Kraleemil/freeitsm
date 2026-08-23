@@ -19,9 +19,21 @@ if (!$input || !isset($input['ticket_id'])) { echo json_encode(['success' => fal
 $ticketId = (int)$input['ticket_id'];
 $workStart = $input['work_start_datetime'] ?? null;
 
+// The end and the all-day flag are OPTIONAL on the wire. The modal always sends
+// them, but a caller that predates them (or a cached copy of inbox.js still in
+// somebody's browser after a deploy) must keep working: omitting them leaves the
+// stored values alone rather than silently clearing a ticket's duration.
+$fields = ['work_start_at' => $workStart];
+if (array_key_exists('work_end_datetime', $input)) {
+    $fields['work_end_at'] = $input['work_end_datetime'];
+}
+if (array_key_exists('all_day', $input)) {
+    $fields['work_all_day'] = $input['all_day'];
+}
+
 try {
     $conn = connectToDatabase();
-    TicketsService::updateTicket($conn, ActorContext::fromSession($conn), $ticketId, ['work_start_at' => $workStart], false);
+    TicketsService::updateTicket($conn, ActorContext::fromSession($conn), $ticketId, $fields, false);
     echo json_encode(['success' => true, 'message' => $workStart ? 'Work scheduled' : 'Schedule cleared']);
 } catch (ServiceError $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);

@@ -63,6 +63,8 @@ try {
                 t.it_training_provided,
                 t.owner_id,
                 t.work_start_datetime,
+                t.work_end_datetime,
+                t.work_all_day,
                 t.tenant_id,
                 t.user_id,
                 u.email AS requester_email,

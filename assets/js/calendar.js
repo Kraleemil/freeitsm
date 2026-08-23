@@ -154,7 +154,12 @@ async function loadScheduledTicketsForRange() {
             scheduledTickets = data.tickets.map(t => ({
                 ...t,
                 date: t.work_start_datetime.split('T')[0],
-                time: new Date(t.work_start_datetime).toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' })
+                // An all-day ticket is stored as 00:00–23:59 so that anything
+                // ignoring the flag still gets a sane block, but showing "12:00 AM"
+                // against it would be the flag being ignored HERE.
+                time: t.work_all_day
+                    ? tr('tickets.calendar.all_day')
+                    : new Date(t.work_start_datetime).toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' })
             }));
         } else {
             console.error('Error loading tickets:', data.error);
@@ -167,6 +172,21 @@ async function loadScheduledTicketsForRange() {
 }
 
 // Get start of week as Monday (Monday-first week)
+/**
+ * How tall a scheduled ticket draws, in pixels — the grid is one minute per pixel.
+ *
+ * The server always sends `duration_minutes`, resolving the default for a ticket
+ * scheduled before end times existed, so there is nothing to guess here. The
+ * clamps are about the GRID, not the data:
+ *   - a minimum, or a 15-minute ticket renders as an unclickable hairline;
+ *   - a cap at midnight, because a block running past the end of the day would
+ *     otherwise overflow its column rather than stop at it.
+ */
+function scheduledBlockHeight(ticket, topMinutes) {
+    const minutes = parseInt(ticket.duration_minutes, 10) || 60;
+    return Math.max(20, Math.min(minutes, 1440 - topMinutes));
+}
+
 function getWeekStart(date) {
     const d = new Date(date);
     const dayOfWeek = d.getDay(); // 0 = Sunday, 1 = Monday, …, 6 = Saturday
@@ -296,7 +316,7 @@ function renderWeekView(container) {
             const startHour = dt.getHours();
             const startMinutes = dt.getMinutes();
             const top = startHour * 60 + startMinutes;
-            const height = 60; // one hour default
+            const height = scheduledBlockHeight(ticket, top);
 
             let priorityClass = '';
             if (ticket.priority === 'High') priorityClass = ' priority-high';
@@ -347,7 +367,7 @@ function renderDayView(container) {
         const startHour = dt.getHours();
         const startMinutes = dt.getMinutes();
         const top = startHour * 60 + startMinutes;
-        const height = 60;
+        const height = scheduledBlockHeight(ticket, top);
 
         let priorityClass = '';
         if (ticket.priority === 'High') priorityClass = ' priority-high';
@@ -385,7 +405,7 @@ function showTicketDetail(ticketId) {
         <div class="ticket-detail">
             <div class="ticket-detail-row">
                 <div class="ticket-detail-label">${escapeHtml(tr('tickets.calendar.modal.scheduled'))}</div>
-                <div class="ticket-detail-value">${formatDateTime(ticket.work_start_datetime)}</div>
+                <div class="ticket-detail-value">${escapeHtml(formatScheduleRange(ticket))}</div>
             </div>
             <div class="ticket-detail-row">
                 <div class="ticket-detail-label">${escapeHtml(tr('tickets.calendar.modal.status'))}</div>
@@ -427,6 +447,30 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = String(text);
     return div.innerHTML;
+}
+
+/**
+ * "Tue 25 Aug 2026, 14:00 – 15:00", or the date alone when it is an all-day
+ * ticket — a time range on something explicitly marked all-day reads as a
+ * contradiction, and 00:00–23:59 is storage detail, not information.
+ */
+function formatScheduleRange(ticket) {
+    if (!ticket.work_start_datetime) return '';
+    if (ticket.work_all_day) {
+        // The DATE is rebuilt from the Date object, never carved out of the
+        // formatted "date at time" string: splitting that on its first comma
+        // turned "Tue, Sep 1, 2026 at 02:00 PM" into "Tue" and threw the date
+        // away — and it would have failed differently in every locale.
+        const d = new Date(ticket.work_start_datetime).toLocaleDateString(PAGE_LOCALE, {
+            weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+        });
+        return `${d} · ${tr('tickets.calendar.all_day')}`;
+    }
+    const full = formatDateTime(ticket.work_start_datetime);
+    if (!ticket.work_end_datetime) return full;
+    const end = new Date(ticket.work_end_datetime)
+        .toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' });
+    return `${full} – ${end}`;
 }
 
 function formatDateTime(dateStr) {

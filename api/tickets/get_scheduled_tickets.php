@@ -6,6 +6,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/services/tickets.php';
 
 header('Content-Type: application/json');
 
@@ -39,6 +40,9 @@ try {
                 ts.name AS status,
                 tp.name AS priority,
                 t.work_start_datetime,
+                t.work_end_datetime,
+                t.work_all_day,
+                t.owner_id,
                 u.display_name AS requester_name,
                 u.email AS requester_email,
                 d.name as department_name,
@@ -64,9 +68,26 @@ try {
     $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Format datetime for JavaScript
+    //
+    // 🔑 THE END IS RESOLVED HERE, NOT IN THE BROWSER. A ticket scheduled before
+    // work_end_datetime existed has NULL, and so does one saved by a stale copy of
+    // inbox.js — both must draw as a normal block rather than a zero-height sliver
+    // or a crash. One default, applied server-side, so the calendar view and
+    // anything else reading this endpoint cannot drift apart on what an
+    // unspecified duration means.
     foreach ($tickets as &$ticket) {
+        $ticket['work_all_day'] = (int)($ticket['work_all_day'] ?? 0) === 1;
         if ($ticket['work_start_datetime']) {
-            $ticket['work_start_datetime'] = date('Y-m-d\TH:i:s', strtotime($ticket['work_start_datetime']));
+            $startTs = strtotime($ticket['work_start_datetime']);
+            $endTs   = $ticket['work_end_datetime'] ? strtotime($ticket['work_end_datetime']) : null;
+            // A stored end at or before the start would render as nothing at all;
+            // treat it as unspecified rather than drawing an invisible event.
+            if ($endTs === null || $endTs <= $startTs) {
+                $endTs = $startTs + TicketsService::SCHEDULE_DEFAULT_MINUTES * 60;
+            }
+            $ticket['work_start_datetime'] = date('Y-m-d\TH:i:s', $startTs);
+            $ticket['work_end_datetime']   = date('Y-m-d\TH:i:s', $endTs);
+            $ticket['duration_minutes']    = (int)round(($endTs - $startTs) / 60);
         }
     }
 

@@ -544,6 +544,10 @@ return [
         'user_id'               => 'INT NULL',
         'owner_id'              => 'INT NULL',
         'work_start_datetime'   => 'DATETIME NULL',
+        // NULL end = "scheduled before this column existed"; readers apply the
+        // one-hour default. Nothing is backfilled, so an upgrade is a no-op.
+        'work_end_datetime'     => 'DATETIME NULL',
+        'work_all_day'          => 'TINYINT(1) NOT NULL DEFAULT 0',
         'deleted_datetime'      => 'DATETIME NULL',
         'deleted_by'            => 'INT NULL',
         // Messaging channels: when the customer last messaged in (drives the 24h

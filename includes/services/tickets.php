@@ -40,6 +40,18 @@ require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 
 class TicketsService
 {
+    /**
+     * How long a scheduled ticket lasts when nobody said.
+     *
+     * Applies to rows written before work_end_datetime existed, which are NOT
+     * backfilled — an upgrade changes nothing on disk, and every reader resolves
+     * the same answer from this one constant instead of each inventing its own.
+     * Deliberately not a setting: the default only ever reaches a ticket whose
+     * duration was never chosen, so there is nothing here for an administrator to
+     * be right or wrong about yet.
+     */
+    public const SCHEDULE_DEFAULT_MINUTES = 60;
+
     // ======================================================================
     //  Create
     // ======================================================================
@@ -347,6 +359,49 @@ class TicketsService
             if ($newWork !== $current['work_start_datetime']) {
                 $updates[] = 'work_start_datetime = ?';
                 $args[]    = $newWork;
+            }
+            // Clearing the schedule clears the whole schedule. Leaving an end time
+            // and an all-day flag behind on a ticket with no start would describe a
+            // block of work that no longer exists, and the calendar reads the end
+            // relative to the start — so a stale one is not merely untidy.
+            if ($newWork === null) {
+                $updates[] = 'work_end_datetime = ?';
+                $args[]    = null;
+                $updates[] = 'work_all_day = ?';
+                $args[]    = 0;
+            }
+        }
+
+        // End of the scheduled work. The UI computes this from a duration (see
+        // freeitsm.sql), but the service takes a datetime like every other date
+        // field, so the REST API and any future caller are not made to think in
+        // durations. Only honoured alongside a start that exists — an end on an
+        // unscheduled ticket is meaningless, and silently storing one would put a
+        // ticket on the calendar with nothing to anchor it to.
+        if (array_key_exists('work_end_at', $in) && !in_array('work_end_datetime = ?', $updates, true)) {
+            $newEnd = ($in['work_end_at'] === null || $in['work_end_at'] === '')
+                ? null : self::parseDate((string)$in['work_end_at'], 'work_end_at');
+            $effectiveStart = array_key_exists('work_start_at', $in)
+                ? $newWork : ($current['work_start_datetime'] ?? null);
+            if ($newEnd !== null && $effectiveStart === null) {
+                throw new ServiceError('validation', 'invalid_field',
+                    "'work_end_at' needs a 'work_start_at' — a ticket cannot finish work it is not scheduled for.");
+            }
+            if ($newEnd !== null && $newEnd < $effectiveStart) {
+                throw new ServiceError('validation', 'invalid_field',
+                    "'work_end_at' cannot be before 'work_start_at'.");
+            }
+            if ($newEnd !== ($current['work_end_datetime'] ?? null)) {
+                $updates[] = 'work_end_datetime = ?';
+                $args[]    = $newEnd;
+            }
+        }
+
+        if (array_key_exists('work_all_day', $in) && !in_array('work_all_day = ?', $updates, true)) {
+            $newAllDay = (int)(bool)$in['work_all_day'];
+            if ($newAllDay !== (int)($current['work_all_day'] ?? 0)) {
+                $updates[] = 'work_all_day = ?';
+                $args[]    = $newAllDay;
             }
         }
 

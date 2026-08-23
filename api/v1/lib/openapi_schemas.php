@@ -8349,6 +8349,16 @@ return array (
           'format' => 'date-time',
           'nullable' => true,
         ),
+        'work_end_at' =>
+        array (
+          'type' => 'string',
+          'format' => 'date-time',
+          'nullable' => true,
+        ),
+        'work_all_day' =>
+        array (
+          'type' => 'boolean',
+        ),
         'snoozed_until' =>
         array (
           'type' => 'string',
@@ -8552,6 +8562,15 @@ return array (
             array (
               'type' => 'string',
               'nullable' => true,
+            ),
+            'work_end_at' => 
+            array (
+              'type' => 'string',
+              'nullable' => true,
+            ),
+            'work_all_day' => 
+            array (
+              'type' => 'boolean',
             ),
             'deleted_at' => 
             array (

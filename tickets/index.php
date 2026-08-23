@@ -513,9 +513,36 @@ $translationNamespaces = ['common', 'tickets'];
                     <label class="form-label"><?php echo htmlspecialchars(t('tickets.schedule_modal.date')); ?> *</label>
                     <input type="date" class="form-input" id="scheduleDate" required>
                 </div>
+                <!-- All day first, because ticking it takes the two fields below
+                     away — a control that removes others belongs above them, not
+                     under the things it is about to hide. -->
                 <div class="form-group">
+                    <label class="toggle-group">
+                        <span class="toggle-switch">
+                            <input type="checkbox" id="scheduleAllDay" onchange="syncScheduleAllDay()">
+                            <span class="toggle-slider"></span>
+                        </span>
+                        <span class="toggle-label"><?php echo htmlspecialchars(t('tickets.schedule_modal.all_day')); ?></span>
+                    </label>
+                </div>
+                <div class="form-group" id="scheduleTimeGroup">
                     <label class="form-label"><?php echo htmlspecialchars(t('tickets.schedule_modal.start_time')); ?> *</label>
                     <input type="time" class="form-input" id="scheduleTime" required>
+                </div>
+                <!-- A DURATION, not an end time. You schedule in "this'll take an
+                     hour", not "it finishes at 15:30" — and an end that precedes its
+                     start cannot be expressed, so there is no such error to catch,
+                     word, or translate. The stored value is still an end datetime
+                     (see freeitsm.sql); this is only how it is asked for. -->
+                <div class="form-group" id="scheduleDurationGroup">
+                    <label class="form-label"><?php echo htmlspecialchars(t('tickets.schedule_modal.duration')); ?></label>
+                    <select class="form-input" id="scheduleDuration">
+                        <option value="15"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_15m')); ?></option>
+                        <option value="30"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_30m')); ?></option>
+                        <option value="60" selected><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_1h')); ?></option>
+                        <option value="120"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_2h')); ?></option>
+                        <option value="240"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_4h')); ?></option>
+                    </select>
                 </div>
                 <div class="schedule-current" id="scheduleCurrent" style="display: none;">
                     <p><?php echo htmlspecialchars(t('tickets.schedule_modal.currently_scheduled')); ?> <span id="currentSchedule"></span></p>
@@ -861,7 +888,7 @@ $translationNamespaces = ['common', 'tickets'];
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=97"></script>
+    <script src="../assets/js/inbox.js?v=98"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

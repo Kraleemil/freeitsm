@@ -74,6 +74,6 @@ $translationNamespaces = ['common', 'tickets'];
     </div>
 
     <script>window.API_BASE = '../api/tickets/'; window.INBOX_URL = 'index.php';</script>
-    <script src="../assets/js/calendar.js"></script>
+    <script src="../assets/js/calendar.js?v=2"></script>
 </body>
 </html>

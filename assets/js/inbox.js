@@ -6725,6 +6725,68 @@ document.addEventListener('DOMContentLoaded', function() {
 // Schedule Modal Functions
 // ============================================
 
+// The duration list, in minutes, and the fallback when a ticket carries neither
+// an end nor anything to derive one from. Mirrors
+// TicketsService::SCHEDULE_DEFAULT_MINUTES — the server resolves the same default
+// for the calendar, so the two must not disagree about what "unspecified" means.
+const SCHEDULE_DEFAULT_MINUTES = 60;
+
+// Scheduling values are NAIVE wall-clock (see formatNaiveFullDateTime): "2pm"
+// means 2pm to every analyst, in every timezone. So they must be pulled apart
+// with a regex rather than handed to `new Date()`.
+//
+// 🔴 THIS ALSO FIXES A LATENT DATE SHIFT. The old prefill did
+// `new Date(str).toISOString().split('T')[0]`, which converts to UTC first — so a
+// ticket scheduled for 00:30 in any timezone ahead of UTC re-opened the picker
+// showing THE PREVIOUS DAY, and saving accepted it. Never round-trip a naive
+// value through toISOString().
+function parseNaiveDateTime(value) {
+    const m = String(value || '').replace('T', ' ')
+        .match(/(\d{4})-(\d{2})-(\d{2})(?:[ ](\d{1,2}):(\d{2}))?/);
+    if (!m) return null;
+    return {
+        date: `${m[1]}-${m[2]}-${m[3]}`,
+        time: m[4] ? `${String(m[4]).padStart(2, '0')}:${m[5]}` : '00:00'
+    };
+}
+
+/** A naive "YYYY-MM-DD HH:MM:SS" from local date parts — never via toISOString(). */
+function formatNaiveStamp(d) {
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
+         + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+/**
+ * Put `minutes` in the duration select.
+ *
+ * A value the list cannot express — 90 minutes set through the REST API, say —
+ * gets an option of its own rather than being snapped to the nearest listed one.
+ * Snapping would silently rewrite somebody's duration the next time they opened
+ * the box to change the date, which is a data change nobody asked for.
+ */
+function setScheduleDuration(minutes) {
+    const sel = document.getElementById('scheduleDuration');
+    if (!sel) return;
+    const custom = sel.querySelector('option[data-custom]');
+    if (custom) custom.remove();
+    if (![...sel.options].some(o => parseInt(o.value, 10) === minutes)) {
+        const opt = document.createElement('option');
+        opt.value = String(minutes);
+        opt.dataset.custom = '1';
+        opt.textContent = t('tickets.schedule_modal.dur_custom', { n: minutes });
+        sel.appendChild(opt);
+    }
+    sel.value = String(minutes);
+}
+
+/** All-day means no start time and no duration, so both fields go away. */
+function syncScheduleAllDay() {
+    const allDay = document.getElementById('scheduleAllDay').checked;
+    document.getElementById('scheduleTimeGroup').style.display     = allDay ? 'none' : '';
+    document.getElementById('scheduleDurationGroup').style.display = allDay ? 'none' : '';
+}
+
 function openScheduleModal() {
     if (!currentEmail || !currentEmail.ticket_id) {
         showToast('No ticket selected', 'error');
@@ -6735,29 +6797,44 @@ function openScheduleModal() {
     document.getElementById('scheduleTicketInfo').textContent =
         `${currentEmail.ticket_number} - ${currentEmail.subject}`;
 
-    // Set default date to today and time to next hour
+    // Default: today, on the next hour, for an hour, not all day.
     const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    document.getElementById('scheduleDate').value = dateStr;
-
-    // Round to next hour
+    const p = n => String(n).padStart(2, '0');
+    document.getElementById('scheduleDate').value =
+        `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
     now.setHours(now.getHours() + 1, 0, 0, 0);
-    const timeStr = now.toTimeString().slice(0, 5);
-    document.getElementById('scheduleTime').value = timeStr;
+    document.getElementById('scheduleTime').value = `${p(now.getHours())}:${p(now.getMinutes())}`;
+    document.getElementById('scheduleAllDay').checked = false;
+    setScheduleDuration(SCHEDULE_DEFAULT_MINUTES);
 
     // Check if already scheduled
-    if (currentEmail.work_start_datetime) {
-        const scheduled = new Date(currentEmail.work_start_datetime);
+    const existing = parseNaiveDateTime(currentEmail.work_start_datetime);
+    if (existing) {
         document.getElementById('currentSchedule').textContent = formatNaiveFullDateTime(currentEmail.work_start_datetime);
         document.getElementById('scheduleCurrent').style.display = 'block';
 
         // Pre-fill with existing schedule
-        document.getElementById('scheduleDate').value = scheduled.toISOString().split('T')[0];
-        document.getElementById('scheduleTime').value = scheduled.toTimeString().slice(0, 5);
+        document.getElementById('scheduleDate').value = existing.date;
+        document.getElementById('scheduleTime').value = existing.time;
+        document.getElementById('scheduleAllDay').checked = !!currentEmail.work_all_day;
+
+        // Recover the duration from the stored end. A ticket scheduled before the
+        // end column existed simply has none, and gets the default — it must not
+        // read as "zero minutes".
+        const end = parseNaiveDateTime(currentEmail.work_end_datetime);
+        let minutes = SCHEDULE_DEFAULT_MINUTES;
+        if (end) {
+            const from = new Date(`${existing.date}T${existing.time}:00`);
+            const to   = new Date(`${end.date}T${end.time}:00`);
+            const diff = Math.round((to - from) / 60000);
+            if (diff > 0) minutes = diff;
+        }
+        setScheduleDuration(minutes);
     } else {
         document.getElementById('scheduleCurrent').style.display = 'none';
     }
 
+    syncScheduleAllDay();
     document.getElementById('scheduleModal').classList.add('active');
 }
 
@@ -6766,15 +6843,32 @@ function closeScheduleModal() {
 }
 
 async function saveSchedule() {
-    const date = document.getElementById('scheduleDate').value;
-    const time = document.getElementById('scheduleTime').value;
+    const date   = document.getElementById('scheduleDate').value;
+    const time   = document.getElementById('scheduleTime').value;
+    const allDay = document.getElementById('scheduleAllDay').checked;
 
-    if (!date || !time) {
+    if (!date || (!allDay && !time)) {
         showToast('Please select both date and time', 'error');
         return;
     }
 
-    const workStart = `${date} ${time}:00`;
+    // All day covers the whole date rather than a slot. Stored as 00:00 to 23:59
+    // with the flag set, matching calendar_events: a reader that ignores the flag
+    // still gets a sensible full-day block instead of a midnight sliver.
+    let workStart, workEnd;
+    if (allDay) {
+        workStart = `${date} 00:00:00`;
+        workEnd   = `${date} 23:59:59`;
+    } else {
+        workStart = `${date} ${time}:00`;
+        const minutes = parseInt(document.getElementById('scheduleDuration').value, 10) || SCHEDULE_DEFAULT_MINUTES;
+        // Built from parts and stepped by minutes, so a duration that runs over
+        // midnight rolls the date properly and a DST boundary does not shorten or
+        // stretch what the analyst asked for.
+        const end = new Date(`${date}T${time}:00`);
+        end.setMinutes(end.getMinutes() + minutes);
+        workEnd = formatNaiveStamp(end);
+    }
 
     try {
         const response = await fetch(API_BASE + 'schedule_ticket.php', {
@@ -6782,7 +6876,9 @@ async function saveSchedule() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 ticket_id: currentEmail.ticket_id,
-                work_start_datetime: workStart
+                work_start_datetime: workStart,
+                work_end_datetime: workEnd,
+                all_day: allDay ? 1 : 0
             })
         });
 
@@ -6790,6 +6886,8 @@ async function saveSchedule() {
 
         if (data.success) {
             currentEmail.work_start_datetime = workStart;
+            currentEmail.work_end_datetime   = workEnd;
+            currentEmail.work_all_day        = allDay ? 1 : 0;
             closeScheduleModal();
             showToast('Work scheduled successfully', 'success');
         } else {
@@ -6817,7 +6915,12 @@ async function clearSchedule() {
         const data = await response.json();
 
         if (data.success) {
+            // Clear the whole schedule locally, exactly as the service does on the
+            // server — leaving a stale end behind would have the modal reopen
+            // offering a duration for work that is no longer scheduled.
             currentEmail.work_start_datetime = null;
+            currentEmail.work_end_datetime   = null;
+            currentEmail.work_all_day        = 0;
             closeScheduleModal();
             showToast('Schedule cleared', 'error');
         } else {

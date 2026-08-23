@@ -844,6 +844,19 @@ CREATE TABLE IF NOT EXISTS `tickets` (
     `user_id`               INT NULL,
     `owner_id`              INT NULL,
     `work_start_datetime`   DATETIME NULL,
+    -- When the scheduled work is expected to finish. NULL on rows scheduled before
+    -- this existed, and on those a reader applies the one-hour default rather than
+    -- treating the row as broken — nothing is backfilled.
+    -- ⚠️ The UI asks for a DURATION, never an end time: an end that precedes its
+    -- start is then not expressible, so there is no such error to validate or
+    -- report. This column is the computed result, stored so consumers (the
+    -- calendar, and Outlook via Graph) read two datetimes and do not care how it
+    -- was entered. Mirrors `changes`, which has carried both since it shipped.
+    `work_end_datetime`     DATETIME NULL,
+    -- "Sometime on Tuesday" rather than a slot. Same convention as
+    -- calendar_events.all_day: the DATE part is what matters, and a consumer that
+    -- ignores this flag still sees a sane 00:00–23:59 block.
+    `work_all_day`          TINYINT(1) NOT NULL DEFAULT 0,
     `deleted_datetime`      DATETIME NULL,
     `deleted_by`            INT NULL,
     -- Messaging channels (WhatsApp etc.): when the customer last messaged in. Drives
