@@ -37,6 +37,7 @@ require_once __DIR__ . '/../service_context.php';
 require_once __DIR__ . '/../tenancy.php';
 require_once __DIR__ . '/../ticket_numbering.php';
 require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
+require_once __DIR__ . '/../calendar_sync/push.php';   // scheduled work -> the owner's calendar (GH #75)
 
 class TicketsService
 {
@@ -502,6 +503,20 @@ class TicketsService
         } catch (Exception $wfEx) {
             error_log('Workflow dispatch error in TicketsService update: ' . $wfEx->getMessage());
         }
+
+        // Put the ticket in (or take it out of) its owner's calendar (GH #75).
+        //
+        // ⚠️ AFTER THE COMMIT, deliberately. This makes a network call to
+        // Microsoft, and holding row locks open across one is how a slow third
+        // party becomes a database problem.
+        //
+        // 🔑 Called unconditionally rather than only when the schedule changed,
+        // because it RECONCILES: a reassignment, or a status change that closes
+        // the ticket, alters what should be in whose calendar without
+        // work_start_datetime moving at all. It is a cheap no-op when there is
+        // nothing to do — it does not reach the network unless something needs
+        // writing.
+        calendarSyncReconcileTicket($conn, $ticketId);
     }
 
     // ======================================================================
@@ -521,6 +536,9 @@ class TicketsService
             self::auditWrite($conn, $ticketId, $ctx->actorId, 'Trash', 'active', 'moved to trash');
         }
         WorkflowEngine::dispatch('ticket.deleted', ['ticket' => self::eventTicket($ticket)]);
+        // Out of the trash-bound ticket's owner's calendar too — a job nobody is
+        // going to do should not still be sitting in somebody's Tuesday.
+        calendarSyncReconcileTicket($conn, $ticketId);
     }
 
     /** Restore a ticket from the trash. $writeAudit -> the 'Trash' audit row. */
@@ -535,6 +553,9 @@ class TicketsService
             self::auditWrite($conn, $ticketId, $ctx->actorId, 'Trash', 'in trash', 'restored');
         }
         WorkflowEngine::dispatch('ticket.restored', ['ticket' => self::eventTicket($ticket)]);
+        // And back in, if it is still scheduled and its owner still wants it —
+        // the same reconcile decides, so restore needs no logic of its own.
+        calendarSyncReconcileTicket($conn, $ticketId);
     }
 
     /** The canonical ticket workflow payload, built from a loaded (joined) row. */

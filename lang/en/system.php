@@ -581,7 +581,11 @@ return [
         'people_desc'    => 'By default FreeITSM uses the email address on the analyst&rsquo;s account, which is often not their mailbox &mdash; a local account, or a directory import keyed on something else. Override it here. Analysts choose <em>whether</em> their work is synced; only an administrator chooses <em>where</em> it goes.',
         'col_analyst' => 'Analyst',
         'col_mailbox' => 'Mailbox',
-        'col_status'  => 'Status',
+        // Named for what it IS — a read-out of what the analyst chose in their own
+        // Preferences — rather than 'Status', which sitting beside a button read
+        // as something an administrator could click. Ed looked at it and expected
+        // to be able to switch it on.
+        'col_status'  => 'Chosen by the analyst',
         'check_save'  => 'Check and save',
         'mode_off'    => 'Off',
         'mode_push'   => 'Syncing',

@@ -104,12 +104,45 @@ try {
         }
     }
 
+    $wasPushing = ($enrolment['mode'] ?? '') === CALENDAR_MODE_PUSH;
+
     $conn->prepare(
         "INSERT INTO calendar_enrolments (analyst_id, mode, connection_id)
          VALUES (?, ?, ?)
          ON DUPLICATE KEY UPDATE mode = VALUES(mode), connection_id = VALUES(connection_id),
                                  last_error = NULL, updated_datetime = NOW()"
     )->execute([$analystId, $mode, ($mode === CALENDAR_MODE_PUSH && $connection) ? (int)$connection['id'] : null]);
+
+    // 🔑 TURNING IT OFF TAKES BACK WHAT WE PUT THERE. Leaving events behind in
+    // somebody's calendar that FreeITSM has stopped tracking is the worst of both
+    // worlds: they cannot be updated, they cannot be removed by us later, and the
+    // person has to delete each one by hand wondering where they came from.
+    if ($wasPushing && $mode !== CALENDAR_MODE_PUSH) {
+        require_once '../../includes/calendar_sync/push.php';
+        calendarSyncRemoveAllForAnalyst($conn, $analystId);
+    }
+
+    // Switching ON backfills what is already scheduled, rather than only
+    // affecting tickets touched from now on — an empty calendar after opting in
+    // reads as "it didn't work".
+    if (!$wasPushing && $mode === CALENDAR_MODE_PUSH) {
+        require_once '../../includes/calendar_sync/push.php';
+        $st = $conn->prepare(
+            "SELECT t.id FROM tickets t
+               LEFT JOIN ticket_statuses ts ON ts.id = t.status_id
+              WHERE t.owner_id = ? AND t.work_start_datetime IS NOT NULL
+                AND t.deleted_datetime IS NULL AND COALESCE(ts.is_closed, 0) = 0
+                AND t.work_start_datetime >= (NOW() - INTERVAL 1 WEEK)
+              ORDER BY t.work_start_datetime"
+        );
+        $st->execute([$analystId]);
+        // Bounded to the last week onwards on purpose: back-filling months of
+        // finished work would fill a calendar with history nobody asked for, and
+        // make opting in a very long request.
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $tid) {
+            calendarSyncReconcileTicket($conn, (int)$tid);
+        }
+    }
 
     echo json_encode(['success' => true, 'mode' => $mode, 'address' => $enrolment['calendar_address']]);
 } catch (Exception $e) {
