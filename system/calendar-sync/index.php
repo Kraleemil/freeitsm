@@ -187,7 +187,11 @@ $translationNamespaces = ['common', 'system'];
             const el = document.getElementById('csResult');
             el.className = 'cs-result ' + (ok ? 'ok' : 'bad');
             el.innerHTML = html;
-            el.style.display = '';
+            // 🔴 'block', NOT ''. The .cs-result rule sets display:none, so clearing
+            // the inline style hands control straight back to it and the box stays
+            // invisible — with the text dutifully written into something nobody can
+            // see. Pressing Test appeared to do nothing at all.
+            el.style.display = 'block';
         }
 
         async function csLoad() {
