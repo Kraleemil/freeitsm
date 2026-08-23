@@ -2130,6 +2130,52 @@ return [
         'updated_at'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // ── Scheduled work -> the analyst's own calendar (GH #75) ────────────────
+    // Admin-level connection, per-analyst enrolment, and the map of what we put
+    // where. See database/freeitsm.sql for why the split is three tables.
+    // ⚠️ $schema carries COLUMNS ONLY — the foreign keys and unique keys live in
+    // freeitsm.sql; db_verify creates and adds columns, nothing else.
+    'calendar_connections' => [
+        'id'                  => 'INT NOT NULL AUTO_INCREMENT',
+        'name'                => 'VARCHAR(100) NOT NULL',
+        'provider'            => "VARCHAR(20) NOT NULL DEFAULT 'microsoft'",
+        'credentials'         => 'LONGTEXT NULL',
+        'mailbox_id'          => 'INT NULL',
+        'is_active'           => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'allow_feed'          => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'token_data'          => 'LONGTEXT NULL',
+        'last_error'          => 'VARCHAR(500) NULL',
+        'last_error_datetime' => 'DATETIME NULL',
+        'created_by'          => 'INT NULL',
+        'created_datetime'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    'calendar_enrolments' => [
+        'id'                 => 'INT NOT NULL AUTO_INCREMENT',
+        'analyst_id'         => 'INT NOT NULL',
+        // off | push | feed — ONE choice, or you see every ticket twice.
+        'mode'               => "VARCHAR(10) NOT NULL DEFAULT 'off'",
+        'connection_id'      => 'INT NULL',
+        'calendar_address'   => 'VARCHAR(255) NULL',
+        'credentials'        => 'LONGTEXT NULL',
+        'last_sync_datetime' => 'DATETIME NULL',
+        'last_error'         => 'VARCHAR(500) NULL',
+        'created_datetime'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    'calendar_sync_events' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'ticket_id'        => 'INT NOT NULL',
+        'analyst_id'       => 'INT NOT NULL',
+        'connection_id'    => 'INT NULL',
+        'remote_event_id'  => 'VARCHAR(500) NOT NULL',
+        'remote_calendar'  => 'VARCHAR(255) NOT NULL',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
     // Optional grouping + routing for the morning round (discussion #64).
     // ⚠️ Assignment is guidance, never a lock — nothing in the save path reads
     // it, so anyone can still complete anyone's check.

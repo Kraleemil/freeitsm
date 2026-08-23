@@ -3197,6 +3197,114 @@ CREATE TABLE IF NOT EXISTS `calendar_events` (
     CONSTRAINT `fk_calendar_events_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+-- ----------------------------------------------------------
+-- Scheduled work -> the analyst's own calendar (GH discussion #75)
+-- ----------------------------------------------------------
+--
+-- Three tables, and the split is the point:
+--
+--   calendar_connections  ONE per install (usually), configured by an admin.
+--                         Microsoft app-only and Google Workspace domain-wide
+--                         delegation BOTH authenticate as the app rather than as
+--                         each person, so credentials belong here, not per user.
+--   calendar_enrolments   ONE per analyst. Whether they want it at all, which
+--                         connection, and WHICH ADDRESS is theirs.
+--   calendar_sync_events  What we put where. Without this a reassignment leaves
+--                         an orphan in somebody's calendar forever.
+--
+-- ⚠️ Provider-agnostic ON PURPOSE. FreeITSM already runs this pattern three
+-- times (messaging: Twilio/Meta; issue trackers: Jira/Azure DevOps; mailboxes:
+-- Microsoft/Google/IMAP) — see includes/integrations/IssueTrackerProvider.php,
+-- which itself says it copied MessagingProvider rather than reinventing. Only
+-- create/update/delete-an-event differs between providers; everything difficult
+-- here (whose work, what happens on reassign, not orphaning) is shared.
+
+CREATE TABLE IF NOT EXISTS `calendar_connections` (
+    `id`                  INT NOT NULL AUTO_INCREMENT,
+    `name`                VARCHAR(100) NOT NULL,
+    -- 'microsoft' today. 'google' is the next one and needs no schema change.
+    `provider`            VARCHAR(20) NOT NULL DEFAULT 'microsoft',
+    -- Encrypted JSON, same convention as integration_connections.credentials.
+    -- NULL when borrowing a mailbox's credentials instead (below).
+    `credentials`         LONGTEXT NULL,
+    -- Borrow the Azure app registration already configured for a mailbox rather
+    -- than registering a second app. Most installs have done the Azure dance for
+    -- mail already; adding Calendars.ReadWrite to that app is far less work than
+    -- starting again. NULL = this connection carries its own credentials.
+    -- ⚠️ ON DELETE SET NULL, not CASCADE: deleting a mailbox must not silently
+    -- delete the calendar connection and everyone's enrolment with it. It breaks
+    -- loudly instead, which is recoverable.
+    `mailbox_id`          INT NULL,
+    `is_active`           TINYINT(1) NOT NULL DEFAULT 1,
+    -- Whether analysts may use a subscribe (.ics) link on this install at all.
+    -- A capability URL carrying ticket subjects sits outside the login, so an
+    -- organisation has to be able to say no for everybody, not trust each person.
+    `allow_feed`          TINYINT(1) NOT NULL DEFAULT 1,
+    -- Cached app-only access token, encrypted, exactly as target_mailboxes does
+    -- it. App-only tokens carry no refresh token and last about an hour, so this
+    -- is a cache and not a credential store — but it is still a bearer token that
+    -- grants calendar access on its own, so it is encrypted like one.
+    `token_data`          LONGTEXT NULL,
+    `last_error`          VARCHAR(500) NULL,
+    `last_error_datetime` DATETIME NULL,
+    `created_by`          INT NULL,
+    `created_datetime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    CONSTRAINT `fk_calendar_connections_mailbox` FOREIGN KEY (`mailbox_id`) REFERENCES `target_mailboxes` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `calendar_enrolments` (
+    `id`                 INT NOT NULL AUTO_INCREMENT,
+    `analyst_id`         INT NOT NULL,
+    -- 'off' | 'push' | 'feed'. ONE choice, not independent switches: with both a
+    -- push and a subscribed feed live you see every scheduled ticket TWICE, once
+    -- as a real event and once from the subscription.
+    `mode`               VARCHAR(10) NOT NULL DEFAULT 'off',
+    `connection_id`      INT NULL,
+    -- The mailbox to write into. Normally analysts.email, but an analyst's
+    -- FreeITSM address is not always their mailbox UPN — a local account with a
+    -- personal address, or an LDAP import keyed differently. Without this the
+    -- only fix would be changing the address they log in with.
+    `calendar_address`   VARCHAR(255) NULL,
+    -- Reserved: encrypted per-analyst tokens, for a provider that genuinely needs
+    -- them (a personal, non-Workspace Google account). Neither provider planned
+    -- today uses it — the row exists so adding one is not a migration.
+    `credentials`        LONGTEXT NULL,
+    `last_sync_datetime` DATETIME NULL,
+    `last_error`         VARCHAR(500) NULL,
+    `created_datetime`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uniq_calendar_enrolment_analyst` (`analyst_id`),
+    CONSTRAINT `fk_calendar_enrolments_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_calendar_enrolments_connection` FOREIGN KEY (`connection_id`) REFERENCES `calendar_connections` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `calendar_sync_events` (
+    `id`                 INT NOT NULL AUTO_INCREMENT,
+    `ticket_id`          INT NOT NULL,
+    -- WHOSE calendar it went into. Not derivable from the ticket at delete time:
+    -- reassignment changes tickets.owner_id, and by then this row is the only
+    -- record of who the event was actually created for.
+    `analyst_id`         INT NOT NULL,
+    `connection_id`      INT NULL,
+    -- The provider's id for the event. Graph's are long and opaque.
+    `remote_event_id`    VARCHAR(500) NOT NULL,
+    -- The address it was written to, stored rather than looked up: an analyst can
+    -- change calendar_address, and the event still lives in the OLD mailbox.
+    `remote_calendar`    VARCHAR(255) NOT NULL,
+    `created_datetime`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    -- One event per ticket per person. A ticket reassigned A -> B -> A must not
+    -- accumulate rows, and this is what makes "delete the old one" a lookup.
+    UNIQUE KEY `uniq_calendar_sync_ticket_analyst` (`ticket_id`, `analyst_id`),
+    KEY `idx_calendar_sync_ticket` (`ticket_id`),
+    CONSTRAINT `fk_calendar_sync_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_calendar_sync_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- ----------------------------------------------------------
 -- Morning Checks
 -- ----------------------------------------------------------
