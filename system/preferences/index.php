@@ -84,6 +84,7 @@ if (isset($_SESSION['analyst_id'])) {
     <title>Service Desk - <?php echo htmlspecialchars(t('system.preferences.title')); ?></title>
     <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css">
+    <link rel="stylesheet" href="../../assets/css/subscribe.css?v=1">
     <style>
         body {
             /* System is the FIRST module whose DARK accent is a LIGHT colour (#90a4ae).
@@ -382,6 +383,55 @@ if (isset($_SESSION['analyst_id'])) {
                 <span class="pref-saving-hint" id="landingSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
                 <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;"><?php echo htmlspecialchars(t('system.preferences.landing_note')); ?></p>
             </div>
+
+            <?php
+                // My work calendar (GH #75). Today the only option is a subscribe
+                // link; when the Graph push lands it becomes a third choice in the
+                // SAME control rather than a second switch — with both live you
+                // would see every scheduled ticket twice.
+                require_once __DIR__ . '/../../includes/calendar_sync/calendar_sync.php';
+                $feedAllowed = false;
+                try { $feedAllowed = scheduleFeedAllowed(connectToDatabase()); } catch (Exception $e) {}
+            ?>
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.workcal_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.workcal_desc')); ?></p>
+
+                <?php if (!$feedAllowed): ?>
+                    <?php /* Says WHY rather than showing nothing. A control that is
+                             simply absent reads as a bug; one that explains itself
+                             does not generate a support ticket. */ ?>
+                    <p class="pref-hint" style="color:var(--text-muted,#666);font-size:13px;">
+                        <?php echo htmlspecialchars(t('system.preferences.workcal_disabled')); ?>
+                    </p>
+                <?php else: ?>
+                    <div class="anim-toggle" id="workCalToggle">
+                        <button class="anim-option" data-workcal="off"><?php echo htmlspecialchars(t('system.preferences.workcal_off')); ?></button>
+                        <button class="anim-option" data-workcal="feed"><?php echo htmlspecialchars(t('system.preferences.workcal_feed')); ?></button>
+                    </div>
+
+                    <div id="workCalPanel" style="display:none;margin-top:14px;">
+                        <?php /* The SAME dialogue the Calendar module opens — QR code,
+                                 editable host for a LAN address, iOS/Android hints and
+                                 all. Two different feeds, one identical act, so one
+                                 component: includes/subscribe_modal.php. */ ?>
+                        <button type="button" class="sig-btn sig-btn-primary" onclick="FreeITSMSubscribe.open('workCal')">
+                            <?php echo htmlspecialchars(t('system.preferences.workcal_show')); ?>
+                        </button>
+
+                        <div style="margin-top:14px;">
+                            <div style="font-size:13px;margin-bottom:6px;"><?php echo htmlspecialchars(t('system.preferences.workcal_detail')); ?></div>
+                            <div class="anim-toggle" id="workCalDetailToggle">
+                                <button class="anim-option" data-workcaldetail="full"><?php echo htmlspecialchars(t('system.preferences.workcal_detail_full')); ?></button>
+                                <button class="anim-option" data-workcaldetail="ref"><?php echo htmlspecialchars(t('system.preferences.workcal_detail_ref')); ?></button>
+                            </div>
+                            <p class="pref-hint" id="workCalDetailLocked" style="display:none;margin-top:8px;color:var(--text-muted,#666);font-size:12px;">
+                                <?php echo htmlspecialchars(t('system.preferences.workcal_detail_locked')); ?>
+                            </p>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div><!-- /#general-tab -->
 
         <div class="tab-content" id="notifications-tab">
@@ -549,10 +599,36 @@ if (isset($_SESSION['analyst_id'])) {
     </div>
     </div><!-- /.settings-shell -->
 
+    <?php
+        // The shared subscribe dialogue, same one the Calendar module opens.
+        // Rendered only when the install permits subscribe links at all.
+        if ($feedAllowed) {
+            require_once __DIR__ . '/../../includes/subscribe_modal.php';
+            renderSubscribeModal('workCal', [
+                'title'         => t('system.preferences.workcal_heading'),
+                'intro'         => t('system.preferences.workcal_desc'),
+                'insecure'      => t('system.preferences.workcal_insecure'),
+                'address_label' => t('calendar.subscribe.address_label'),
+                'address_hint'  => t('calendar.subscribe.address_hint'),
+                'url_label'     => t('system.preferences.workcal_url'),
+                'copy'          => t('system.preferences.workcal_copy'),
+                'secret_note'   => t('system.preferences.workcal_secret_note'),
+                'ios_label'     => t('calendar.subscribe.ios_label'),
+                'ios_hint'      => t('calendar.subscribe.ios_hint'),
+                'android_label' => t('calendar.subscribe.android_label'),
+                'android_hint'  => t('calendar.subscribe.android_hint'),
+                'reset'         => t('system.preferences.workcal_reset'),
+                'close'         => t('common.close'),
+            ]);
+        }
+    ?>
+
     <?php /* The analyst's own name and email, for the signature live preview (#80). */ ?>
     <script>window.__MY_NAME = <?php echo json_encode($_SESSION['analyst_name'] ?? ''); ?>; window.__MY_EMAIL = <?php echo json_encode($_SESSION['analyst_email'] ?? ''); ?>;</script>
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <script src="../../assets/js/i18n.js?v=2"></script>
+    <script src="../../assets/js/qrcode.min.js"></script>
+    <script src="../../assets/js/subscribe.js?v=1"></script>
     <script src="../../assets/js/tinymce/tinymce.min.js"></script>
     <script>
         // Initial preference values pre-fetched server-side. The page
@@ -1045,6 +1121,79 @@ if (isset($_SESSION['analyst_id'])) {
                 setTimeout(function () { hint.classList.remove('visible'); }, 900);
             }
         }
+
+        // ===== My work calendar (GH #75) =====
+        //
+        // The URL is minted only when the analyst actually turns the option on.
+        // Creating a capability token for everyone who happens to open Preferences
+        // would leave working secret links belonging to people who never asked.
+        //
+        // The dialogue itself is the SAME component the Calendar module opens
+        // (assets/js/subscribe.js) — this page only says which endpoint mints its
+        // URL and what happens either side of it.
+        const WORKCAL_API = '../../api/tickets/get_schedule_feed_url.php';
+
+        function paintWorkCal(mode) {
+            const root = document.getElementById('workCalToggle');
+            if (!root) return;                       // switched off install-wide
+            root.querySelectorAll('.anim-option').forEach(b => {
+                b.classList.toggle('active', b.dataset.workcal === mode);
+            });
+            document.getElementById('workCalPanel').style.display = mode === 'feed' ? '' : 'none';
+        }
+
+        async function loadWorkCalDetail() {
+            const r = await fetch(WORKCAL_API, { credentials: 'same-origin' });
+            const d = await r.json();
+            if (!d.success) return;
+            document.getElementById('workCalDetailLocked').style.display = d.detail_locked ? '' : 'none';
+            document.querySelectorAll('#workCalDetailToggle .anim-option').forEach(b => {
+                b.classList.toggle('active', b.dataset.workcaldetail === d.detail);
+                // The organisation capped the detail: show it as already decided
+                // rather than as a control that silently ignores you.
+                b.disabled = !!d.detail_locked;
+                b.style.opacity = d.detail_locked ? '0.5' : '';
+                b.style.cursor  = d.detail_locked ? 'default' : '';
+            });
+        }
+
+        (function initWorkCal() {
+            const root = document.getElementById('workCalToggle');
+            if (!root) return;
+            FreeITSMSubscribe.mount('workCal', WORKCAL_API);
+
+            // Off unless a link already exists — the presence of a token IS the
+            // state, so there is no second preference to fall out of step with it.
+            paintWorkCal('off');
+
+            root.addEventListener('click', async function (e) {
+                const btn = e.target.closest('.anim-option');
+                if (!btn) return;
+                const mode = btn.dataset.workcal;
+                paintWorkCal(mode);
+                if (mode === 'feed') {
+                    await loadWorkCalDetail();
+                } else {
+                    // Turning it off REVOKES the link rather than merely hiding it.
+                    // A secret URL that still works after you switched it off is the
+                    // opposite of what "off" means.
+                    await fetch(WORKCAL_API, {
+                        method: 'POST', credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'action=revoke'
+                    });
+                    FreeITSMSubscribe.forget('workCal');
+                }
+            });
+
+            const detail = document.getElementById('workCalDetailToggle');
+            detail.addEventListener('click', async function (e) {
+                const btn = e.target.closest('.anim-option');
+                if (!btn || btn.disabled) return;
+                detail.querySelectorAll('.anim-option').forEach(b => b.classList.toggle('active', b === btn));
+                await savePref('tickets_schedule_feed_detail', btn.dataset.workcaldetail);
+            });
+        })();
 
         document.addEventListener('DOMContentLoaded', loadSignatures);
     </script>

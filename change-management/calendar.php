@@ -31,7 +31,7 @@ $translationNamespaces = ['common', 'change-management'];
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css">
     <link rel="stylesheet" href="../assets/css/calendar-grid.css?v=1">
-    <link rel="stylesheet" href="../assets/css/itsm_calendar.css?v=6">
+    <link rel="stylesheet" href="../assets/css/itsm_calendar.css?v=7">
     <style>
         /* Teal theme overrides for change management */
         .calendar-container .btn-primary {

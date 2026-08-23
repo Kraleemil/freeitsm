@@ -6,6 +6,17 @@
  * Other locales mirror this file structure under lang/<locale>/common.php.
  */
 return [
+    // Shared "add this calendar to your phone" dialogue
+    // (includes/subscribe_modal.php + assets/js/subscribe.js). Only the strings
+    // that are genuinely identical for every feed live here; each caller passes
+    // its own title, intro and field labels.
+    'subscribe' => [
+        'insecure'      => 'This system is not using HTTPS, so this link — and everything it shows — travels across the network unprotected every time your calendar refreshes. Ask your administrator to enable HTTPS before using it outside a trusted network.',
+        'copied'        => 'Link copied',
+        'reset'         => 'Reset',
+        'reset_confirm' => 'Every device already subscribed will stop updating until you give it the new link. Continue?',
+        'reset_done'    => 'Link reset — the old one no longer works',
+    ],
     // Left-panel visibility preference — shared labels reused by every module
     // that has a left panel (settings pages + System → Preferences). Only the
     // identical strings live here; per-module intro/description copy stays in

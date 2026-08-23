@@ -3237,10 +3237,6 @@ CREATE TABLE IF NOT EXISTS `calendar_connections` (
     -- loudly instead, which is recoverable.
     `mailbox_id`          INT NULL,
     `is_active`           TINYINT(1) NOT NULL DEFAULT 1,
-    -- Whether analysts may use a subscribe (.ics) link on this install at all.
-    -- A capability URL carrying ticket subjects sits outside the login, so an
-    -- organisation has to be able to say no for everybody, not trust each person.
-    `allow_feed`          TINYINT(1) NOT NULL DEFAULT 1,
     -- Cached app-only access token, encrypted, exactly as target_mailboxes does
     -- it. App-only tokens carry no refresh token and last about an hour, so this
     -- is a cache and not a credential store — but it is still a bearer token that

@@ -195,3 +195,75 @@ function calendarSyncEnrolment(PDO $conn, int $analystId): array
     }
     return $row;
 }
+
+// ─── Subscribe (.ics) feeds ─────────────────────────────────────────────────
+//
+// 🔑 THE FEED IS DELIBERATELY NOT TIED TO A CONNECTION. An install with no
+// supported calendar provider — no Azure, no Google Workspace — must still be
+// able to publish one, because it is the only integration those installs get.
+// The policy therefore lives in system_settings, not on calendar_connections.
+// (An earlier draft put an allow_feed column on the connection, which quietly
+// meant "no Microsoft, no feed" — exactly backwards.)
+
+/** system_settings key holding the install-wide ceiling. */
+const SCHEDULE_FEED_SETTING = 'tickets_schedule_feed_mode';
+
+const FEED_MODE_OFF  = 'off';    // no subscribe links at all on this install
+const FEED_MODE_REF  = 'ref';    // allowed, but ticket NUMBERS only — no subjects
+const FEED_MODE_FULL = 'full';   // allowed, and the analyst chooses the detail
+
+/**
+ * The install-wide ceiling on subscribe links.
+ *
+ * Defaults to 'full' — permissive — because nothing is actually published until
+ * an analyst deliberately mints a link for themselves. An upgrade therefore
+ * exposes nothing on its own, and an administrator who wants the feature gone
+ * turns it off without anyone having had to opt in first.
+ */
+function scheduleFeedMode(PDO $conn): string
+{
+    static $mode = null;
+    if ($mode !== null) return $mode;
+    $mode = FEED_MODE_FULL;
+    try {
+        $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+        $stmt->execute([SCHEDULE_FEED_SETTING]);
+        $v = $stmt->fetchColumn();
+        if (in_array($v, [FEED_MODE_OFF, FEED_MODE_REF, FEED_MODE_FULL], true)) $mode = $v;
+    } catch (Exception $e) {
+        // Setting table unreadable — the permissive default stands, which is the
+        // same state as an install that has never touched this.
+    }
+    return $mode;
+}
+
+/** May anyone subscribe on this install? */
+function scheduleFeedAllowed(PDO $conn): bool
+{
+    return scheduleFeedMode($conn) !== FEED_MODE_OFF;
+}
+
+/**
+ * How much detail THIS analyst's feed carries: 'full' or 'ref'.
+ *
+ * 🔑 THE ORGANISATION SETS A CEILING; THE ANALYST MAY ONLY GO STRICTER. If the
+ * install says numbers-only, an analyst cannot opt into publishing subjects —
+ * a personal preference must not be able to widen what the organisation decided
+ * to expose. The reverse is fine and encouraged.
+ */
+function scheduleFeedDetail(PDO $conn, int $analystId): string
+{
+    if (scheduleFeedMode($conn) === FEED_MODE_REF) return FEED_MODE_REF;
+
+    try {
+        $stmt = $conn->prepare(
+            "SELECT preference_value FROM user_preferences
+              WHERE analyst_id = ? AND preference_key = 'tickets_schedule_feed_detail' LIMIT 1"
+        );
+        $stmt->execute([$analystId]);
+        if ($stmt->fetchColumn() === FEED_MODE_REF) return FEED_MODE_REF;
+    } catch (Exception $e) {
+        // Falls through to full, which is what they will have been seeing.
+    }
+    return FEED_MODE_FULL;
+}

@@ -4,6 +4,13 @@
  * Falls back per-key to lang/en/common.php for anything missing here.
  */
 return [
+    'subscribe' => [
+        'insecure'      => 'Dieses System verwendet kein HTTPS. Dieser Link und alles, was er anzeigt, wird bei jeder Aktualisierung Ihres Kalenders ungeschützt über das Netzwerk übertragen. Bitten Sie Ihren Administrator, HTTPS zu aktivieren, bevor Sie ihn außerhalb eines vertrauenswürdigen Netzwerks verwenden.',
+        'copied'        => 'Link kopiert',
+        'reset'         => 'Zurücksetzen',
+        'reset_confirm' => 'Alle bereits abonnierten Geräte werden nicht mehr aktualisiert, bis Sie ihnen den neuen Link geben. Fortfahren?',
+        'reset_done'    => 'Link zurückgesetzt — der alte funktioniert nicht mehr',
+    ],
     'left_panel' => [
         'tab'        => 'Linke Leiste',
         'visibility' => 'Sichtbarkeit',

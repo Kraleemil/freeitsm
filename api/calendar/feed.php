@@ -12,6 +12,7 @@
  */
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/ics.php';
 
 function feed_deny($code, $msg) {
     header($_SERVER['SERVER_PROTOCOL'] . ' ' . $code);
@@ -55,99 +56,29 @@ try {
 } catch (Exception $e) {
     feed_deny('500 Internal Server Error', 'Calendar feed error.');
 }
-
 $tz = date_default_timezone_get() ?: 'UTC';
-
-/** Escape a text value per RFC 5545 (backslash, newline, comma, semicolon). */
-function ics_escape($s) {
-    $s = (string)$s;
-    $s = str_replace('\\', '\\\\', $s);
-    $s = str_replace(["\r\n", "\n", "\r"], '\\n', $s);
-    $s = str_replace(',', '\\,', $s);
-    $s = str_replace(';', '\\;', $s);
-    return $s;
-}
-
-/** Fold a content line to <=75 octets; continuation lines start with a space. */
-function ics_fold($line) {
-    if (strlen($line) <= 75) return $line;
-    $out = '';
-    $first = true;
-    while (strlen($line) > 0) {
-        $take = $first ? 75 : 74;
-        $out .= ($first ? '' : "\r\n ") . substr($line, 0, $take);
-        $line = substr($line, $take);
-        $first = false;
-    }
-    return $out;
-}
 
 $host   = $_SERVER['HTTP_HOST'] ?? 'freeitsm';
 $domain = preg_replace('/[^a-zA-Z0-9.\-]/', '', $host) ?: 'freeitsm';
 
-$lines = [];
-$lines[] = 'BEGIN:VCALENDAR';
-$lines[] = 'VERSION:2.0';
-$lines[] = 'PRODID:-//FreeITSM//Calendar//EN';
-$lines[] = 'CALSCALE:GREGORIAN';
-$lines[] = 'METHOD:PUBLISH';
-$lines[] = 'X-WR-CALNAME:FreeITSM';
-$lines[] = 'X-WR-TIMEZONE:' . $tz;
-$lines[] = 'REFRESH-INTERVAL;VALUE=DURATION:PT6H';
-$lines[] = 'X-PUBLISHED-TTL:PT6H';
+// Escaping, folding and the all-day rule live in includes/ics.php, shared with
+// the analyst's own scheduled-work feed (api/tickets/schedule_feed.php). They
+// have to agree, and DTEND-is-exclusive is exactly the sort of detail that
+// drifts when it is written down twice.
+$lines = icsHeader('FreeITSM', $tz);
 
 foreach ($events as $ev) {
-    try {
-        $start = new DateTime($ev['start_datetime'], new DateTimeZone($tz));
-    } catch (Exception $e) {
-        continue; // skip unparseable rows
-    }
-    $endRaw = !empty($ev['end_datetime']) ? $ev['end_datetime'] : $ev['start_datetime'];
-    try {
-        $end = new DateTime($endRaw, new DateTimeZone($tz));
-    } catch (Exception $e) {
-        $end = clone $start;
-    }
-
-    $stampSrc = $ev['updated_at'] ?: ($ev['created_at'] ?: 'now');
-    $stamp    = gmdate('Ymd\THis\Z', strtotime($stampSrc) ?: time());
-    $uid      = 'event-' . (int)$ev['id'] . '@' . $domain;
-
-    $lines[] = 'BEGIN:VEVENT';
-    $lines[] = 'UID:' . $uid;
-    $lines[] = 'DTSTAMP:' . $stamp;
-
-    if ((int)$ev['all_day'] === 1) {
-        // All-day uses DATE values; DTEND is exclusive (day after the last day).
-        $endExclusive = (clone $end)->modify('+1 day');
-        $lines[] = 'DTSTART;VALUE=DATE:' . $start->format('Ymd');
-        $lines[] = 'DTEND;VALUE=DATE:' . $endExclusive->format('Ymd');
-    } else {
-        $startUtc = (clone $start)->setTimezone(new DateTimeZone('UTC'));
-        $endUtc   = (clone $end)->setTimezone(new DateTimeZone('UTC'));
-        if ($endUtc <= $startUtc) {
-            $endUtc = (clone $startUtc)->modify('+30 minutes');
-        }
-        $lines[] = 'DTSTART:' . $startUtc->format('Ymd\THis\Z');
-        $lines[] = 'DTEND:'   . $endUtc->format('Ymd\THis\Z');
-    }
-
-    $lines[] = ics_fold('SUMMARY:' . ics_escape($ev['title']));
-    if (!empty($ev['description'])) {
-        $lines[] = ics_fold('DESCRIPTION:' . ics_escape($ev['description']));
-    }
-    if (!empty($ev['location'])) {
-        $lines[] = ics_fold('LOCATION:' . ics_escape($ev['location']));
-    }
-    if (!empty($ev['category_name'])) {
-        $lines[] = ics_fold('CATEGORIES:' . ics_escape($ev['category_name']));
-    }
-    $lines[] = 'END:VEVENT';
+    $lines = array_merge($lines, icsEvent([
+        'uid'         => 'event-' . (int)$ev['id'] . '@' . $domain,
+        'summary'     => $ev['title'],
+        'description' => $ev['description'] ?? '',
+        'location'    => $ev['location'] ?? '',
+        'categories'  => $ev['category_name'] ?? '',
+        'start'       => $ev['start_datetime'],
+        'end'         => !empty($ev['end_datetime']) ? $ev['end_datetime'] : $ev['start_datetime'],
+        'all_day'     => (int)$ev['all_day'] === 1,
+        'stamp'       => $ev['updated_at'] ?: ($ev['created_at'] ?: null),
+    ], $tz));
 }
 
-$lines[] = 'END:VCALENDAR';
-
-header('Content-Type: text/calendar; charset=utf-8');
-header('Content-Disposition: inline; filename="freeitsm.ics"');
-header('Cache-Control: private, max-age=300');
-echo implode("\r\n", $lines) . "\r\n";
+icsRespond($lines, 'freeitsm.ics');

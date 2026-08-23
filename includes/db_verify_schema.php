@@ -2142,7 +2142,6 @@ return [
         'credentials'         => 'LONGTEXT NULL',
         'mailbox_id'          => 'INT NULL',
         'is_active'           => 'TINYINT(1) NOT NULL DEFAULT 1',
-        'allow_feed'          => 'TINYINT(1) NOT NULL DEFAULT 1',
         'token_data'          => 'LONGTEXT NULL',
         'last_error'          => 'VARCHAR(500) NULL',
         'last_error_datetime' => 'DATETIME NULL',

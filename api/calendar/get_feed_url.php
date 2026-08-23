@@ -77,6 +77,11 @@ try {
         'suggestedHost' => $suggestedHost,
         'url'           => $scheme . '://' . $host . $path,   // https/http — for copy + Android
         'webcal'        => 'webcal://' . $host . $path,       // for iOS tap/QR subscribe
+        // Drives the shared dialogue's HTTPS warning. Over plain HTTP the token in
+        // this URL — the only thing protecting the feed — crosses the network in
+        // clear on every refresh. This feed always had that exposure; sharing the
+        // dialogue with Preferences (GH #75) is what finally surfaced it.
+        'insecure'      => !$https,
     ]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
