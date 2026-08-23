@@ -308,7 +308,14 @@ $translationNamespaces = ['common', 'system'];
                 let pill = '<span class="cs-pill offp">' + escapeCs(t('system.calsync.mode_off')) + '</span>';
                 if (mode === 'push') pill = '<span class="cs-pill on">' + escapeCs(t('system.calsync.mode_push')) + '</span>';
                 if (mode === 'feed') pill = '<span class="cs-pill on">' + escapeCs(t('system.calsync.mode_feed')) + '</span>';
-                if (p.last_error)    pill += ' <span class="cs-pill bad">' + escapeCs(t('system.calsync.mode_error')) + '</span>';
+                // The failure carries WHAT failed. "Last sync failed" on its own
+                // tells an admin there is a problem and nothing about which one —
+                // and the answers are entirely different (an expired secret, a
+                // mailbox that does not exist, a permission never consented).
+                if (p.last_error) {
+                    pill += ' <span class="cs-pill bad" title="' + escapeCs(p.last_error) + '">'
+                          + escapeCs(t('system.calsync.mode_error')) + '</span>';
+                }
                 return `<tr data-analyst="${p.id}">
                     <td><div class="cs-analyst-name">${escapeCs(p.full_name)}</div>
                         <div class="cs-analyst-email">${escapeCs(p.email)}</div></td>
