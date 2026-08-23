@@ -6725,37 +6725,12 @@ document.addEventListener('DOMContentLoaded', function() {
 // Schedule Modal Functions
 // ============================================
 
-// The duration list, in minutes, and the fallback when a ticket carries neither
-// an end nor anything to derive one from. Mirrors
-// TicketsService::SCHEDULE_DEFAULT_MINUTES — the server resolves the same default
-// for the calendar, so the two must not disagree about what "unspecified" means.
-const SCHEDULE_DEFAULT_MINUTES = 60;
-
-// Scheduling values are NAIVE wall-clock (see formatNaiveFullDateTime): "2pm"
-// means 2pm to every analyst, in every timezone. So they must be pulled apart
-// with a regex rather than handed to `new Date()`.
-//
-// 🔴 THIS ALSO FIXES A LATENT DATE SHIFT. The old prefill did
-// `new Date(str).toISOString().split('T')[0]`, which converts to UTC first — so a
-// ticket scheduled for 00:30 in any timezone ahead of UTC re-opened the picker
-// showing THE PREVIOUS DAY, and saving accepted it. Never round-trip a naive
-// value through toISOString().
-function parseNaiveDateTime(value) {
-    const m = String(value || '').replace('T', ' ')
-        .match(/(\d{4})-(\d{2})-(\d{2})(?:[ ](\d{1,2}):(\d{2}))?/);
-    if (!m) return null;
-    return {
-        date: `${m[1]}-${m[2]}-${m[3]}`,
-        time: m[4] ? `${String(m[4]).padStart(2, '0')}:${m[5]}` : '00:00'
-    };
-}
-
-/** A naive "YYYY-MM-DD HH:MM:SS" from local date parts — never via toISOString(). */
-function formatNaiveStamp(d) {
-    const p = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} `
-         + `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
+// Scheduling maths lives in assets/js/schedule.js, shared with the tickets
+// calendar (which can now reschedule too) — one statement of what a duration
+// means, what all-day is stored as, and how a naive value is parsed. See the
+// header there for why toISOString() must never touch these.
+const SCHEDULE_DEFAULT_MINUTES = FreeITSMSchedule.DEFAULT_MINUTES;
+const parseNaiveDateTime = FreeITSMSchedule.parseNaive;
 
 /**
  * Put `minutes` in the duration select.
@@ -6838,18 +6813,11 @@ function openScheduleModal(ticketId, ticketRef, sched) {
         document.getElementById('scheduleTime').value = existing.time;
         document.getElementById('scheduleAllDay').checked = !!sched.work_all_day;
 
-        // Recover the duration from the stored end. A ticket scheduled before the
-        // end column existed simply has none, and gets the default — it must not
-        // read as "zero minutes".
-        const end = parseNaiveDateTime(sched.work_end_datetime);
-        let minutes = SCHEDULE_DEFAULT_MINUTES;
-        if (end) {
-            const from = new Date(`${existing.date}T${existing.time}:00`);
-            const to   = new Date(`${end.date}T${end.time}:00`);
-            const diff = Math.round((to - from) / 60000);
-            if (diff > 0) minutes = diff;
-        }
-        setScheduleDuration(minutes);
+        // A ticket scheduled before the end column existed has none, and gets the
+        // default rather than reading as "zero minutes".
+        setScheduleDuration(
+            FreeITSMSchedule.durationMinutes(sched.work_start_datetime, sched.work_end_datetime)
+        );
     } else {
         document.getElementById('scheduleCurrent').style.display = 'none';
     }
@@ -6892,23 +6860,11 @@ async function saveSchedule() {
         return;
     }
 
-    // All day covers the whole date rather than a slot. Stored as 00:00 to 23:59
-    // with the flag set, matching calendar_events: a reader that ignores the flag
-    // still gets a sensible full-day block instead of a midnight sliver.
-    let workStart, workEnd;
-    if (allDay) {
-        workStart = `${date} 00:00:00`;
-        workEnd   = `${date} 23:59:59`;
-    } else {
-        workStart = `${date} ${time}:00`;
-        const minutes = parseInt(document.getElementById('scheduleDuration').value, 10) || SCHEDULE_DEFAULT_MINUTES;
-        // Built from parts and stepped by minutes, so a duration that runs over
-        // midnight rolls the date properly and a DST boundary does not shorten or
-        // stretch what the analyst asked for.
-        const end = new Date(`${date}T${time}:00`);
-        end.setMinutes(end.getMinutes() + minutes);
-        workEnd = formatNaiveStamp(end);
-    }
+    const range = FreeITSMSchedule.toStoredRange(
+        date, time, document.getElementById('scheduleDuration').value, allDay
+    );
+    const workStart = range.start;
+    const workEnd   = range.end;
 
     try {
         const response = await fetch(API_BASE + 'schedule_ticket.php', {

@@ -45,7 +45,7 @@ try {
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
     <link rel="stylesheet" href="../assets/css/calendar-grid.css?v=1">
-    <link rel="stylesheet" href="../assets/css/calendar.css?v=8">
+    <link rel="stylesheet" href="../assets/css/calendar.css?v=9">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=1"></script>
@@ -95,9 +95,48 @@ try {
             <div class="modal-body" id="ticketModalBody">
                 <!-- Ticket details will be rendered here -->
             </div>
+
+            <?php /* Rescheduling in place. The calendar was read-only until now —
+                     you could see when a ticket was booked and had to go to the
+                     inbox to move it, which is not what clicking a calendar entry
+                     leads anyone to expect. Same fields, same order and the same
+                     i18n keys as the inbox's Schedule modal, so the two read as
+                     one feature rather than two that nearly agree. */ ?>
+            <div class="cal-reschedule">
+                <div class="cal-reschedule-row">
+                    <label>
+                        <span><?php echo htmlspecialchars(t('tickets.schedule_modal.date')); ?></span>
+                        <input type="date" id="calSchedDate">
+                    </label>
+                    <label class="cal-allday">
+                        <input type="checkbox" id="calSchedAllDay" onchange="syncCalScheduleAllDay()">
+                        <span><?php echo htmlspecialchars(t('tickets.schedule_modal.all_day')); ?></span>
+                    </label>
+                </div>
+                <div class="cal-reschedule-row" id="calSchedTimeRow">
+                    <label>
+                        <span><?php echo htmlspecialchars(t('tickets.schedule_modal.start_time')); ?></span>
+                        <input type="time" id="calSchedTime">
+                    </label>
+                    <label>
+                        <span><?php echo htmlspecialchars(t('tickets.schedule_modal.duration')); ?></span>
+                        <select id="calSchedDuration">
+                            <option value="15"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_15m')); ?></option>
+                            <option value="30"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_30m')); ?></option>
+                            <option value="60" selected><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_1h')); ?></option>
+                            <option value="120"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_2h')); ?></option>
+                            <option value="240"><?php echo htmlspecialchars(t('tickets.schedule_modal.dur_4h')); ?></option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeTicketModal()"><?php echo htmlspecialchars(t('common.close')); ?></button>
-                <a id="ticketModalLink" href="#" class="btn btn-primary"><?php echo htmlspecialchars(t('tickets.calendar.open_in_inbox')); ?></a>
+                <a id="ticketModalLink" href="#" class="btn btn-secondary"><?php echo htmlspecialchars(t('tickets.calendar.open_in_inbox')); ?></a>
+                <span class="modal-footer-spacer"></span>
+                <button class="btn btn-danger" onclick="unscheduleFromCalendar()"><?php echo htmlspecialchars(t('tickets.schedule_modal.clear_schedule')); ?></button>
+                <button class="btn btn-primary" onclick="saveScheduleFromCalendar()"><?php echo htmlspecialchars(t('common.save')); ?></button>
             </div>
         </div>
     </div>
@@ -107,6 +146,7 @@ try {
         window.INBOX_URL = 'index.php';
         window.CALENDAR_SCOPE = <?php echo json_encode($calendarScope); ?>;
     </script>
-    <script src="../assets/js/calendar.js?v=5"></script>
+    <script src="../assets/js/schedule.js?v=1"></script>
+    <script src="../assets/js/calendar.js?v=6"></script>
 </body>
 </html>

@@ -1543,6 +1543,11 @@ return [
         'all_day'       => 'All day',
         'scope_mine'     => 'Mine',
         'scope_everyone' => 'Everyone',
+        'rescheduled'        => 'Schedule updated',
+        'unscheduled'        => 'Schedule cleared',
+        'save_failed'        => 'Could not update the schedule.',
+        'need_date_time'     => 'Choose a date and a start time.',
+        'unschedule_confirm' => 'Take {ref} off the calendar? The times it has now will be lost.',
         'na'            => 'N/A',
         'date_at_time'  => '{date} at {time}',
         'modal' => [

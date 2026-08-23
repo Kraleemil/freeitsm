@@ -610,7 +610,114 @@ function showTicketDetail(ticketId) {
     const inboxUrl = window.INBOX_URL || 'inbox.php';
     document.getElementById('ticketModalLink').href = `${inboxUrl}?ticket=${ticket.id}`;
 
+    // Load the reschedule fields from THIS ticket.
+    schedTargetTicket = ticket;
+    const start = FreeITSMSchedule.parseNaive(ticket.work_start_datetime);
+    document.getElementById('calSchedDate').value = start ? start.date : '';
+    document.getElementById('calSchedTime').value = start ? start.time : '09:00';
+    document.getElementById('calSchedAllDay').checked = !!ticket.work_all_day;
+    setCalScheduleDuration(
+        FreeITSMSchedule.durationMinutes(ticket.work_start_datetime, ticket.work_end_datetime)
+    );
+    syncCalScheduleAllDay();
+
     document.getElementById('ticketModal').classList.add('active');
+}
+
+// Which ticket the open modal is editing.
+let schedTargetTicket = null;
+
+/** All day means no start time and no duration, so both fields go away. */
+function syncCalScheduleAllDay() {
+    const allDay = document.getElementById('calSchedAllDay').checked;
+    document.getElementById('calSchedTimeRow').style.display = allDay ? 'none' : '';
+}
+
+/**
+ * Put `minutes` in the duration list.
+ *
+ * A value the list cannot express — set through the REST API, or by an inbox
+ * that offered a different set — gets an option of its own rather than being
+ * snapped to the nearest. Snapping would silently rewrite somebody's duration
+ * the moment they opened the ticket to change its date. Same rule as the inbox.
+ */
+function setCalScheduleDuration(minutes) {
+    const sel = document.getElementById('calSchedDuration');
+    if (!sel) return;
+    const custom = sel.querySelector('option[data-custom]');
+    if (custom) custom.remove();
+    if (![...sel.options].some(o => parseInt(o.value, 10) === minutes)) {
+        const opt = document.createElement('option');
+        opt.value = String(minutes);
+        opt.dataset.custom = '1';
+        opt.textContent = tr('tickets.schedule_modal.dur_custom', { n: minutes });
+        sel.appendChild(opt);
+    }
+    sel.value = String(minutes);
+}
+
+/** POST a schedule change for the open ticket and repaint. */
+async function postSchedule(body, okKey) {
+    try {
+        const r = await fetch(`${API_BASE}schedule_ticket.php`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const d = await r.json();
+        if (!d.success) {
+            showToast(d.error || tr('tickets.calendar.save_failed'), 'error');
+            return false;
+        }
+        closeTicketModal();
+        showToast(tr(okKey), 'success');
+        // Reload rather than patching the local copy: a change of date can move
+        // the ticket out of the range on screen entirely, and a stale block left
+        // behind where it used to be is worse than a moment's redraw.
+        await renderCalendar();
+        return true;
+    } catch (e) {
+        showToast(tr('tickets.calendar.save_failed'), 'error');
+        return false;
+    }
+}
+
+async function saveScheduleFromCalendar() {
+    if (!schedTargetTicket) return;
+    const date   = document.getElementById('calSchedDate').value;
+    const time   = document.getElementById('calSchedTime').value;
+    const allDay = document.getElementById('calSchedAllDay').checked;
+    if (!date || (!allDay && !time)) {
+        showToast(tr('tickets.calendar.need_date_time'), 'error');
+        return;
+    }
+    const range = FreeITSMSchedule.toStoredRange(
+        date, time, document.getElementById('calSchedDuration').value, allDay
+    );
+    await postSchedule({
+        ticket_id: schedTargetTicket.id,
+        work_start_datetime: range.start,
+        work_end_datetime: range.end,
+        all_day: range.allDay
+    }, 'tickets.calendar.rescheduled');
+}
+
+async function unscheduleFromCalendar() {
+    if (!schedTargetTicket) return;
+    // Worth a confirm: the ticket leaves the calendar entirely and the times it
+    // had are gone, so there is nothing on this screen left to undo it from.
+    const ok = await showConfirm({
+        title:    tr('tickets.schedule_modal.clear_schedule'),
+        message:  tr('tickets.calendar.unschedule_confirm', { ref: schedTargetTicket.ticket_number }),
+        okLabel:  tr('tickets.schedule_modal.clear_schedule'),
+        okClass:  'danger'
+    });
+    if (!ok) return;
+    await postSchedule({
+        ticket_id: schedTargetTicket.id,
+        work_start_datetime: null
+    }, 'tickets.calendar.unscheduled');
 }
 
 // Close ticket modal

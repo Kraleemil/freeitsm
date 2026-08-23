@@ -614,3 +614,67 @@
     flex-shrink: 0;
     opacity: 0.85;
 }
+
+/* ─── Reschedule in place (#1163) ────────────────────────────────────────────
+   The calendar detail modal was read-only; clicking an entry and being unable
+   to move it is not what a calendar leads anyone to expect. Same fields as the
+   inbox's Schedule modal, laid out for the narrower dialog. */
+.cal-reschedule {
+    padding: 0 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cal-reschedule-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cal-reschedule label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-muted, #666);
+    flex: 1 1 140px;
+}
+
+/* All day is a checkbox, so its caption belongs beside it, not above. */
+.cal-reschedule label.cal-allday {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-end;
+    padding-bottom: 8px;
+    flex: 0 0 auto;
+}
+
+.cal-reschedule input[type="date"],
+.cal-reschedule input[type="time"],
+.cal-reschedule select {
+    padding: 7px 8px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 4px;
+    background: var(--surface, #fff);
+    color: var(--text, #333);
+    font-size: 13px;
+    font-family: inherit;
+}
+
+/* Pushes the destructive + primary actions away from Close / Open in Inbox, so
+   Clear schedule is never the button you hit reaching for Close. */
+.modal-footer-spacer {
+    flex: 1 1 auto;
+}
+
+/* --danger-accent is a real token; a bare --danger is NOT (theme.css). */
+.btn-danger {
+    background: var(--danger-accent, #d13438);
+    color: #fff;
+}
+
+.btn-danger:hover {
+    filter: brightness(1.08);
+}
