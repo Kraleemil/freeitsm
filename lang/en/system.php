@@ -89,6 +89,9 @@ return [
         'webhooks_title'    => 'Webhooks queue',
         'webhooks_desc'     => 'Monitor outbound webhook delivery: check the worker is running, inspect the payload and response for every send, and replay any of them.',
         'webhooks_keywords' => 'webhooks webhook queue outbound deliveries delivery worker cron slack teams discord payload replay retries hmac signature integration workflow',
+        'calsync_title'    => 'Calendar sync',
+        'calsync_desc'     => 'Put analysts\' scheduled tickets into their own Outlook or Google calendars, and govern subscription links.',
+        'calsync_keywords' => 'calendar sync outlook exchange graph google ical ics subscribe feed scheduled work appointments office 365 m365',
         'preferences_title' => 'Preferences',
         'preferences_desc'  => 'Personal settings like notification position. These are saved per-browser and apply only to you.',
         'preferences_keywords' => 'preferences personal settings notifications toast position per-browser',
@@ -536,6 +539,52 @@ return [
     ],
 
     // Preferences page (system/preferences/index.php)
+    'calsync' => [
+        'title'    => 'Calendar sync',
+        'subtitle' => 'Put analysts&rsquo; scheduled tickets into the calendars they actually use, and decide whether they may publish a subscription link.',
+
+        'needs_db'      => 'A database update is needed first',
+        'needs_db_desc' => 'Run System → Database Verification, then come back to this page.',
+
+        'conn_heading' => 'Connection',
+        'conn_desc'    => 'How FreeITSM writes events into an analyst&rsquo;s own mailbox calendar. One connection, used by everyone who opts in.',
+
+        'perm_title' => 'Before this will work',
+        'perm_body'  => 'The app registration needs <strong>Calendars.ReadWrite</strong> as an <strong>Application</strong> permission (not Delegated — they are separate lists in Azure), with admin consent granted. Be aware that this permission lets FreeITSM write to <strong>every mailbox in the tenant</strong>. If that is more than you want to grant, scope the app to a mail-enabled security group of your analysts using an Application Access Policy in Exchange Online.',
+
+        'name'           => 'Name',
+        'source_mailbox' => 'Borrow the credentials from a mailbox',
+        'source_own'     => 'Enter credentials',
+        'mailbox'        => 'Mailbox',
+        'no_mailboxes'   => 'No Microsoft mailbox on this system has Azure credentials to borrow, so enter them below. That is normal if your analysts’ calendars are in a different tenant from your intake mailboxes, or if your intake is not Microsoft at all.',
+        'tenant_id'      => 'Directory (tenant) ID',
+        'client_id'      => 'Application (client) ID',
+        'client_secret'  => 'Client secret',
+        'secret_note'    => 'The secret is stored encrypted and never shown again. Leave it blank when editing to keep the one already stored.',
+
+        'test'      => 'Test',
+        'testing'   => 'Testing…',
+        'probe'     => 'Also check this mailbox can be reached (optional)',
+        'saved'     => 'Saved',
+        'last_error' => 'The last attempt failed with:',
+
+        'test_ok'          => 'Connected. The credentials work and the permission has been granted.',
+        'test_borrowed'    => 'Using the app registration from the mailbox “{name}”.',
+        'test_failed'      => 'Could not connect.',
+        'test_failed_hint' => 'Check the client secret has not expired, and that Calendars.ReadWrite is listed under Application permissions with admin consent granted.',
+        'probe_ok'         => '{addr} has a calendar FreeITSM can write to.',
+        'probe_bad'        => 'No calendar found for {addr}. Check the address is a real mailbox in this tenant — an analyst’s FreeITSM email address is not always their mailbox address.',
+
+        'delete_confirm' => 'Remove this connection? Analysts who opted in will keep their choice but nothing will be written to their calendars.',
+
+        'feed_heading' => 'Subscription links',
+        'feed_desc'    => 'Analysts can publish their scheduled work as a calendar subscription link, which works with any calendar app. A link is a secret URL rather than a login, so anyone holding it can read what it shows.',
+        'feed_label'   => 'Allow subscription links',
+        'feed_full'    => 'Yes — including ticket subjects',
+        'feed_ref'     => 'Yes — but ticket numbers only, no subjects',
+        'feed_off'     => 'No',
+        'feed_note'    => 'Analysts may always choose to publish less than this, never more. Switching this off immediately stops links that have already been handed out.',
+    ],
     'preferences' => [
         'title'    => 'Preferences',
         'subtitle' => 'Personal settings saved to your account — they follow you across browsers.',
