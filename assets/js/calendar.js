@@ -414,7 +414,7 @@ function renderMonthView(container) {
         if (isToday) classes += ' today';
         if (isWeekend) classes += ' weekend';
 
-        html += `<div class="${classes}">`;
+        html += `<div class="${classes}" ondragover="allowDrop(event, this)" ondrop="onDayDrop(event, '${dateStr}')">`;
         html += `<div class="day-number">${current.getDate()}</div>`;
         html += '<div class="day-tickets">';
 
@@ -424,7 +424,7 @@ function renderMonthView(container) {
             if (ticket.priority === 'High') priorityClass = ' priority-high';
             else if (ticket.priority === 'Low') priorityClass = ' priority-low';
 
-            html += `<div class="calendar-ticket${priorityClass}" style="${eventColourStyle(ticket)}" onclick="showTicketDetail(${ticket.id})" title="${calendarTicketTitle(ticket)}">
+            html += `<div class="calendar-ticket${priorityClass}" style="${eventColourStyle(ticket)}" draggable="true" ondragstart="onEventDragStart(event, ${ticket.id})" ondragend="onEventDragEnd(event)" onclick="showTicketDetail(${ticket.id})" title="${calendarTicketTitle(ticket)}">
                         <span class="ticket-time">${ticket.time}</span>
                         ${escapeHtml(ticket.ticket_number)}
                      </div>`;
@@ -479,7 +479,7 @@ function renderWeekView(container) {
         const isWeekend = i >= 5;
         const dateStr = formatDateForCompare(day);
 
-        html += `<div class="week-day-column${isToday ? ' today' : ''}${isWeekend ? ' weekend' : ''}">`;
+        html += `<div class="week-day-column${isToday ? ' today' : ''}${isWeekend ? ' weekend' : ''}" ondragover="allowDrop(event, this)" ondrop="onSlotDrop(event, '${dateStr}', this)">`;
         for (let hour = 0; hour < 24; hour++) {
             html += `<div class="week-time-slot"></div>`;
         }
@@ -498,7 +498,7 @@ function renderWeekView(container) {
             if (ticket.priority === 'High') priorityClass = ' priority-high';
             else if (ticket.priority === 'Low') priorityClass = ' priority-low';
 
-            html += `<div class="week-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${eventColourStyle(ticket)}" title="${calendarTicketTitle(ticket)}"
+            html += `<div class="week-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${eventColourStyle(ticket)}" title="${calendarTicketTitle(ticket)}" draggable="true" ondragstart="onEventDragStart(event, ${ticket.id})" ondragend="onEventDragEnd(event)"
                           onclick="showTicketDetail(${ticket.id})" title="${escapeHtml(ticket.subject)}">
                           <div class="week-event-title">${escapeHtml(ticket.ticket_number)}</div>
                           <div class="week-event-time">${ticket.time}</div>
@@ -532,7 +532,7 @@ function renderDayView(container) {
     for (let hour = 0; hour < 24; hour++) {
         html += `<div class="week-time-slot-label">${formatHourLabel(hour)}</div>`;
     }
-    html += '</div><div class="day-events-column">';
+    html += `</div><div class="day-events-column" ondragover="allowDrop(event, this)" ondrop="onSlotDrop(event, '${dateStr}', this)">`;
 
     for (let hour = 0; hour < 24; hour++) {
         html += `<div class="day-time-slot"></div>`;
@@ -550,7 +550,7 @@ function renderDayView(container) {
         if (ticket.priority === 'High') priorityClass = ' priority-high';
         else if (ticket.priority === 'Low') priorityClass = ' priority-low';
 
-        html += `<div class="day-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${eventColourStyle(ticket)}" title="${calendarTicketTitle(ticket)}"
+        html += `<div class="day-event${priorityClass}${ticket.work_all_day ? ' is-allday' : ''}" style="top: ${top}px; height: ${height}px; ${eventColourStyle(ticket)}" title="${calendarTicketTitle(ticket)}" draggable="true" ondragstart="onEventDragStart(event, ${ticket.id})" ondragend="onEventDragEnd(event)"
                       onclick="showTicketDetail(${ticket.id})">
                       <div class="day-event-title">${escapeHtml(ticket.ticket_number)} — ${escapeHtml(ticket.subject)}</div>
                       <div class="day-event-time">${ticket.time}</div>
@@ -567,6 +567,165 @@ function formatHourLabel(hour) {
     const ref = new Date();
     ref.setHours(hour, 0, 0, 0);
     return ref.toLocaleTimeString(PAGE_LOCALE, { hour: 'numeric' });
+}
+
+
+// ─── Drag to reschedule ─────────────────────────────────────────────────────
+//
+// Month view: drop on a day → keeps the time, changes the date.
+// Week view:  drop on a day column → changes the day AND the time, from where
+//             in the column it landed (the grid is one minute per pixel).
+// Day view:   vertical only, so time alone.
+//
+// 🔑 THE DURATION IS PRESERVED, ALWAYS. Dragging says "start it then", never
+// "make it a different length" — a two-hour job dropped at 9am is 9–11, not
+// 9am-to-whatever-the-old-end-was.
+//
+// ⚠️ Rescheduling goes through the SAME endpoint the modal uses, so everything
+// downstream — the audit, the workflow dispatch, the push into the owner's
+// Outlook calendar — happens exactly as it does anywhere else. A drag is not a
+// second way to write a schedule; it is a different way to say the same thing.
+
+let dragTicketId = null;
+
+/** The dragged ticket's length in minutes, so a move never resizes it. */
+function draggedDurationMinutes(ticket) {
+    const m = parseInt(ticket.duration_minutes, 10);
+    return (m && m > 0) ? m : 60;
+}
+
+function onEventDragStart(e, ticketId) {
+    dragTicketId = ticketId;
+    // Firefox refuses to start a drag unless something is in the dataTransfer.
+    try { e.dataTransfer.setData('text/plain', String(ticketId)); } catch (err) {}
+    e.dataTransfer.effectAllowed = 'move';
+    if (e.target.classList) e.target.classList.add('is-dragging');
+}
+
+function onEventDragEnd(e) {
+    if (e.target.classList) e.target.classList.remove('is-dragging');
+    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+}
+
+function allowDrop(e, el) {
+    if (dragTicketId === null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (el && !el.classList.contains('drop-target')) {
+        // Only ever one highlighted, or a fast drag leaves a trail of them.
+        document.querySelectorAll('.drop-target').forEach(x => x.classList.remove('drop-target'));
+        el.classList.add('drop-target');
+    }
+}
+
+/**
+ * Drop onto a whole day (month view). Keeps the clock time.
+ *
+ * An ALL-DAY ticket stays all-day: it is moved by date and its 00:00–23:59 is
+ * rebuilt for the new day rather than carried across, which would otherwise
+ * leave the end on the old date.
+ */
+function onDayDrop(e, dateStr) {
+    e.preventDefault();
+    const ticket = scheduledTickets.find(t => t.id === dragTicketId);
+    dragTicketId = null;
+    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+    if (!ticket || ticket.date === dateStr) return;         // nothing to do
+
+    if (ticket.work_all_day) {
+        applyDrag(ticket, dateStr + ' 00:00:00', dateStr + ' 23:59:59', true);
+        return;
+    }
+    const time = FreeITSMSchedule.parseNaive(ticket.work_start_datetime).time;
+    commitDrag(ticket, dateStr, time);
+}
+
+/**
+ * Drop into a day column at a pixel offset (week / day view).
+ *
+ * Snapped to 15 minutes: a calendar that books things at 09:07 because that is
+ * where the mouse happened to be is worse than one that is slightly less
+ * precise, and nobody schedules to the minute.
+ */
+function onSlotDrop(e, dateStr, columnEl) {
+    e.preventDefault();
+    const ticket = scheduledTickets.find(t => t.id === dragTicketId);
+    dragTicketId = null;
+    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+    if (!ticket) return;
+
+    if (ticket.work_all_day) {                    // all-day has no time to set
+        if (ticket.date !== dateStr) applyDrag(ticket, dateStr + ' 00:00:00', dateStr + ' 23:59:59', true);
+        return;
+    }
+    const rect = columnEl.getBoundingClientRect();
+    let minutes = Math.round((e.clientY - rect.top + columnEl.scrollTop) / 15) * 15;
+    minutes = Math.max(0, Math.min(minutes, 24 * 60 - 15));
+    const p = n => String(n).padStart(2, '0');
+    commitDrag(ticket, dateStr, p(Math.floor(minutes / 60)) + ':' + p(minutes % 60));
+}
+
+function commitDrag(ticket, dateStr, time) {
+    const range = FreeITSMSchedule.toStoredRange(dateStr, time, draggedDurationMinutes(ticket), false);
+    applyDrag(ticket, range.start, range.end, false);
+}
+
+/**
+ * Move it on screen FIRST, then save.
+ *
+ * The save is not instant — it writes the ticket and then pushes the change to
+ * the owner's Outlook calendar, which is a network call to Microsoft. Waiting
+ * for that before the block moves would make every drag feel broken. So the
+ * grid updates immediately and a failure puts it back, rather than the reverse.
+ */
+async function applyDrag(ticket, start, end, allDay) {
+    const before = {
+        start: ticket.work_start_datetime, end: ticket.work_end_datetime,
+        allDay: ticket.work_all_day, date: ticket.date, time: ticket.time,
+        duration: ticket.duration_minutes
+    };
+
+    ticket.work_start_datetime = start.replace(' ', 'T');
+    ticket.work_end_datetime   = end.replace(' ', 'T');
+    ticket.work_all_day        = allDay;
+    ticket.date                = start.slice(0, 10);
+    ticket.duration_minutes    = allDay ? 1440
+        : Math.round((new Date(end.replace(' ', 'T')) - new Date(start.replace(' ', 'T'))) / 60000);
+    ticket.time = allDay ? tr('tickets.calendar.all_day')
+        : new Date(ticket.work_start_datetime).toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' });
+    renderCurrentView();
+
+    try {
+        const r = await fetch(`${API_BASE}schedule_ticket.php`, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ticket_id: ticket.id, work_start_datetime: start,
+                work_end_datetime: end, all_day: allDay ? 1 : 0
+            })
+        });
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || '');
+        showToast(tr('tickets.calendar.moved', { ref: ticket.ticket_number }), 'success');
+    } catch (err) {
+        // Put it back exactly where it was. A block left sitting somewhere the
+        // server rejected is a lie about what is scheduled.
+        Object.assign(ticket, {
+            work_start_datetime: before.start, work_end_datetime: before.end,
+            work_all_day: before.allDay, date: before.date, time: before.time,
+            duration_minutes: before.duration
+        });
+        renderCurrentView();
+        showToast(tr('tickets.calendar.move_failed'), 'error');
+    }
+}
+
+/** Repaint the grid from local state, without re-fetching. */
+function renderCurrentView() {
+    const grid = document.getElementById('calendarGrid');
+    if (currentView === 'month') renderMonthView(grid);
+    else if (currentView === 'week') renderWeekView(grid);
+    else renderDayView(grid);
 }
 
 // Show ticket detail modal

@@ -1543,6 +1543,8 @@ return [
         'all_day'       => 'All day',
         'scope_mine'     => 'Mine',
         'scope_everyone' => 'Everyone',
+        'moved'          => 'Moved {ref}',
+        'move_failed'    => 'Could not move it — put back where it was.',
         'rescheduled'        => 'Schedule updated',
         'unscheduled'        => 'Schedule cleared',
         'save_failed'        => 'Could not update the schedule.',
