@@ -133,22 +133,93 @@ function gmailSendEmail(string $accessToken, string $to, string $subject, string
 }
 
 /**
+ * An authenticated Gmail API GET, returning ['code' => int, 'body' => array|null].
+ * Every caller was writing the same twelve lines of curl.
+ */
+function gmailApiGet(string $accessToken, string $url): array {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    sslApplyCurl($ch);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
+    $response = curl_exec($ch);
+    $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err      = curl_errno($ch) ? curl_error($ch) : null;
+    curl_close($ch);
+    if ($err !== null) {
+        throw new Exception('cURL error talking to Gmail: ' . $err);
+    }
+    return ['code' => (int) $code, 'body' => json_decode($response, true)];
+}
+
+/** Every label on the account, as Gmail returns them (id, name, type, ...). */
+function gmailListLabels(string $accessToken): array {
+    $res = gmailApiGet($accessToken, 'https://gmail.googleapis.com/gmail/v1/users/me/labels');
+    if ($res['code'] !== 200) {
+        throw new Exception('Could not list Gmail labels (HTTP ' . $res['code'] . ').');
+    }
+    return $res['body']['labels'] ?? [];
+}
+
+/** Find one label by display name, case-insensitively. Null when there is no match. */
+function gmailFindLabel(array $labels, string $name): ?array {
+    foreach ($labels as $label) {
+        if (strcasecmp((string) ($label['name'] ?? ''), trim($name)) === 0) {
+            return $label;
+        }
+    }
+    return null;
+}
+
+/**
+ * Resolve the configured folder to the label id the message list should be scoped to.
+ *
+ * ⚠️ Gmail has no folders. It has labels, a message carries several at once, and
+ * "in the Inbox" is itself just a label — archiving a message removes INBOX and
+ * leaves the rest. So the configured folder IS the list scope.
+ *
+ * This used to read `labelIds=INBOX` with the configured folder bolted on as an
+ * extra `label:` search term, which meant a message had to be in the Inbox AND
+ * carry the label. Mail filtered straight past the Inbox — the usual reason to
+ * label anything — was never collected, silently and permanently.
+ *
+ * Scoping by label ID also fixes labels whose names contain spaces: Gmail's
+ * `label:` search syntax cannot express "Customer Support" without quoting rules
+ * that the old string concatenation did not apply.
+ *
+ * See the Gmail mail collection developer guide on the wiki.
+ *
+ * @throws Exception naming the label when the account has no such label.
+ */
+function gmailResolveListLabelId(string $accessToken, array $mailbox): string {
+    $folder = trim((string) ($mailbox['email_folder'] ?? '')) ?: 'INBOX';
+    if (strcasecmp($folder, 'INBOX') === 0) {
+        return 'INBOX';
+    }
+
+    $label = gmailFindLabel(gmailListLabels($accessToken), $folder);
+    if ($label === null) {
+        // Loudly, rather than quietly returning nothing forever: a label that
+        // matches nothing used to read as "no new mail", which is indistinguishable
+        // from a quiet inbox and so was never investigated.
+        throw new Exception('Gmail label "' . $folder . '" was not found in this account.');
+    }
+    return (string) $label['id'];
+}
+
+/**
  * Fetch unread emails from Gmail.
  * Returns an array of messages normalised to the same shape as Graph API results.
  */
 function gmailGetEmails(string $accessToken, array $mailbox): array {
     $maxResults = $mailbox['max_emails_per_check'] ?? 10;
 
-    // List unread message IDs
-    $q = 'is:unread';
-    $labelId = 'INBOX';
-    $folder = strtoupper($mailbox['email_folder'] ?? 'INBOX');
-    if ($folder !== 'INBOX') {
-        $q .= ' label:' . strtolower($mailbox['email_folder']);
-    }
+    // List unread message IDs. The configured folder becomes the list SCOPE,
+    // not an extra filter layered on top of the Inbox — see gmailResolveListLabelId().
+    $labelId = gmailResolveListLabelId($accessToken, $mailbox);
 
     $listUrl = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?'
-        . http_build_query(['q' => $q, 'maxResults' => $maxResults, 'labelIds' => $labelId]);
+        . http_build_query(['q' => 'is:unread', 'maxResults' => $maxResults, 'labelIds' => $labelId]);
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $listUrl);
@@ -473,12 +544,10 @@ function gmailGetAttachments(string $accessToken, string $messageId, array $payl
  * Google mailbox does not have. The user got a Microsoft error about a mailbox
  * with nothing to do with Microsoft.
  *
- * ⚠️ Counts deliberately mirror gmailGetEmails() rather than the label's own
- * totals. That reader ALWAYS lists with labelIds=INBOX and applies the configured
- * folder as an extra `label:` filter on top, so it only ever sees mail that is
- * both in the Inbox AND carries the label. Reporting the label's own message count
- * would pass a label whose mail is archived, which reading then collects nothing
- * from — the GH #77 failure shape.
+ * ⚠️ Counts are taken through the reader's own scope — the label id resolved by
+ * gmailResolveListLabelId() — and never through a differently-built query. If the
+ * two ever diverge, Verify starts reporting a number the collection cannot see,
+ * which is the GH #77 failure shape wearing a Gmail hat.
  *
  * @return array{displayName:string, totalItemCount:int, unreadItemCount:int, note:string|null}
  * @throws Exception naming the label, or explaining the API failure.
@@ -489,35 +558,12 @@ function gmailVerifyFolder(string $accessToken, array $mailbox, string $folderNa
         throw new Exception('No mail folder configured.');
     }
 
-    $get = function (string $url) use ($accessToken) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        sslApplyCurl($ch);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $accessToken]);
-        $response = curl_exec($ch);
-        $code     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $err      = curl_errno($ch) ? curl_error($ch) : null;
-        curl_close($ch);
-        if ($err !== null) {
-            throw new Exception('cURL error talking to Gmail: ' . $err);
-        }
-        return ['code' => (int) $code, 'body' => json_decode($response, true)];
-    };
+    $get = fn(string $url) => gmailApiGet($accessToken, $url);
 
-    $res = $get('https://gmail.googleapis.com/gmail/v1/users/me/labels');
-    if ($res['code'] !== 200) {
-        throw new Exception('Could not list Gmail labels (HTTP ' . $res['code'] . ').');
-    }
-    $labels = $res['body']['labels'] ?? [];
-
-    $match = null;
-    foreach ($labels as $label) {
-        if (strcasecmp((string) ($label['name'] ?? ''), $folderName) === 0) {
-            $match = $label;
-            break;
-        }
-    }
+    // Resolved through the SAME helpers the reader uses, so Verify cannot accept
+    // a label the collection would then reject.
+    $labels = gmailListLabels($accessToken);
+    $match  = gmailFindLabel($labels, $folderName);
 
     if ($match === null) {
         $names = [];
@@ -533,36 +579,33 @@ function gmailVerifyFolder(string $accessToken, array $mailbox, string $folderNa
         );
     }
 
-    // Rebuild the reader's own query (gmailGetEmails) so the counts are what
-    // FreeITSM would actually collect, not what the label happens to hold.
+    // Counts come from labels.get, which reports messagesTotal / messagesUnread for
+    // the label — the exact scope the reader now lists by.
+    //
+    // ⚠️ NOT from messages.list resultSizeEstimate. Google documents that field as
+    // an estimate and it is not remotely trustworthy per-label: on the account this
+    // was built against it returned 201 for INBOX, SENT and TRASH alike, when the
+    // true counts were 2, 27 and 1. A verify button reporting invented numbers is
+    // worse than one reporting none.
     $isInbox = strcasecmp($folderName, 'INBOX') === 0;
-    $filter  = $isInbox ? '' : ' label:' . strtolower($folderName);
 
-    $countFor = function (string $query) use ($get) {
-        $url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?'
-             . http_build_query(['q' => $query, 'maxResults' => 1, 'labelIds' => 'INBOX']);
-        $res = $get($url);
-        if ($res['code'] !== 200) {
-            throw new Exception('Could not list Gmail messages (HTTP ' . $res['code'] . ').');
-        }
-        return (int) ($res['body']['resultSizeEstimate'] ?? 0);
-    };
+    $detail = $get('https://gmail.googleapis.com/gmail/v1/users/me/labels/' . rawurlencode((string) $match['id']));
+    if ($detail['code'] !== 200) {
+        throw new Exception('Could not read the Gmail label "' . $match['name'] . '" (HTTP ' . $detail['code'] . ').');
+    }
+    $total  = (int) ($detail['body']['messagesTotal'] ?? 0);
+    $unread = (int) ($detail['body']['messagesUnread'] ?? 0);
 
-    $total  = $countFor(trim($filter));
-    $unread = $countFor(trim('is:unread' . $filter));
-
-    // A label that exists but sits outside the Inbox reads as "found, 0 messages",
-    // which looks like an empty folder rather than a mailbox that will never
-    // collect anything. Say so plainly instead.
+    // Collection takes UNREAD mail wherever the label is, archived included. On a
+    // label with a long unread history that is a backlog, and it will arrive as
+    // tickets a checkful at a time. Better to see the number here than to watch
+    // it happen. Only worth saying when it exceeds one check.
     $note = null;
-    if (!$isInbox && $total === 0) {
-        $detail = $get('https://gmail.googleapis.com/gmail/v1/users/me/labels/' . rawurlencode((string) $match['id']));
-        $labelTotal = $detail['code'] === 200 ? (int) ($detail['body']['messagesTotal'] ?? 0) : 0;
-        if ($labelTotal > 0) {
-            $note = 'The label holds ' . $labelTotal . ' message(s), but none are in the Inbox. '
-                  . 'FreeITSM only reads mail that is in the Inbox AND labelled "' . $match['name'] . '", '
-                  . 'so archived mail carrying this label will not be collected.';
-        }
+    $perCheck = (int) ($mailbox['max_emails_per_check'] ?? 10);
+    if (!$isInbox && $perCheck > 0 && $unread > $perCheck) {
+        $note = $unread . ' unread message(s) carry this label, including any that have been '
+              . 'archived out of the Inbox. All of them are eligible to become tickets, '
+              . $perCheck . ' per check. Mark the older ones as read first if you only want new mail.';
     }
 
     return [
