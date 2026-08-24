@@ -234,6 +234,108 @@ class MicrosoftCalendarProvider extends CalendarSyncProvider
         throw new Exception('Could not remove the calendar event (HTTP ' . $http . '): ' . $this->briefly($raw));
     }
 
+    // -------------------------------------------------------------- inbound
+
+    /**
+     * Read changes back out of the mailbox with a Graph delta query.
+     *
+     * 🔑 DELTA, NOT SUBSCRIPTIONS. Change notifications need a publicly
+     * reachable HTTPS endpoint Microsoft can call, plus renewal before it
+     * expires — impossible for the many FreeITSM installs that are internal
+     * only. A delta query is an ordinary outbound GET on a cron: same
+     * information, no inbound firewall hole.
+     *
+     * ⚠️ calendarView/delta needs a WINDOW, and it is the expanded view. The
+     * window is deliberately narrow — recent past to a few months ahead — since
+     * a wider one makes the first sync enormous for no benefit; nobody edits
+     * last year's appointments.
+     */
+    public function pollChanges(string $calendarAddress, ?string $token): array
+    {
+        $out = ['token' => null, 'baseline' => false, 'changed' => [], 'removed' => []];
+
+        if ($token) {
+            $url = $token;                                   // a full deltaLink
+        } else {
+            $out['baseline'] = true;                         // no history yet
+            $url = self::GRAPH . '/users/' . rawurlencode($calendarAddress) . '/calendarView/delta'
+                 . '?startDateTime=' . gmdate('Y-m-d\TH:i:s\Z', strtotime('-1 month'))
+                 . '&endDateTime='   . gmdate('Y-m-d\TH:i:s\Z', strtotime('+6 months'));
+        }
+
+        $tz    = date_default_timezone_get();
+        $guard = 0;
+        while ($url && $guard++ < 20) {                      // pages, bounded
+            [$http, $body, $raw] = $this->callAbsolute($url);
+
+            // 410 Gone: our token is no longer valid. Start again WITHOUT a
+            // token — and the result is a baseline, so the caller applies
+            // nothing. This is the case that would otherwise look like "every
+            // event was deleted".
+            if ($http === 410) {
+                return $this->pollChanges($calendarAddress, null);
+            }
+            if ($http < 200 || $http >= 300) {
+                throw new Exception('Delta query failed (HTTP ' . $http . '): ' . $this->briefly($raw));
+            }
+
+            foreach (($body['value'] ?? []) as $item) {
+                $id = (string)($item['id'] ?? '');
+                if ($id === '') continue;
+
+                if (isset($item['@removed'])) {
+                    $out['removed'][] = $id;
+                    continue;
+                }
+                if (empty($item['start']['dateTime']) || empty($item['end']['dateTime'])) {
+                    continue;                                // nothing we can use
+                }
+                // Graph answers in UTC unless asked otherwise; convert back to the
+                // naive wall clock FreeITSM stores, or every change would come
+                // back an hour out for half the year.
+                $out['changed'][] = [
+                    'remote_event_id' => $id,
+                    'start'   => $this->toLocal($item['start'], $tz),
+                    'end'     => $this->toLocal($item['end'], $tz),
+                    'all_day' => !empty($item['isAllDay']),
+                ];
+            }
+
+            $url = $body['@odata.nextLink'] ?? null;
+            if (!$url && !empty($body['@odata.deltaLink'])) {
+                $out['token'] = $body['@odata.deltaLink'];
+            }
+        }
+        return $out;
+    }
+
+    /** Graph's {dateTime,timeZone} to a naive wall clock in $tz. */
+    private function toLocal(array $slot, string $tz): string
+    {
+        $from = new DateTimeZone(($slot['timeZone'] ?? 'UTC') === 'UTC' ? 'UTC' : $slot['timeZone']);
+        $dt   = new DateTime(substr($slot['dateTime'], 0, 19), $from);
+        $dt->setTimezone(new DateTimeZone($tz));
+        return $dt->format('Y-m-d H:i:s');
+    }
+
+    /** A GET against a URL Graph gave us (nextLink / deltaLink are absolute). */
+    private function callAbsolute(string $url): array
+    {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $this->token(),
+            // Keeps a delta page to a sane size on a busy calendar.
+            'Prefer: odata.maxpagesize=100',
+        ]);
+        sslApplyCurl($ch);
+        $raw  = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if (curl_errno($ch)) { $e = curl_error($ch); curl_close($ch); throw new Exception('cURL error: ' . $e); }
+        curl_close($ch);
+        return [$http, json_decode((string)$raw, true), (string)$raw];
+    }
+
     // ------------------------------------------------------------- discovery
 
     public function verifyTarget(string $calendarAddress): bool

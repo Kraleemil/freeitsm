@@ -102,6 +102,10 @@ $translationNamespaces = ['common', 'system'];
         .cs-pill.on   { background: var(--success-bg, #d4edda); color: var(--success-text, #155724); }
         .cs-pill.offp { background: var(--surface-2, #f0f0f0); color: var(--text-muted, #777); }
         .cs-pill.bad  { background: var(--danger-bg, #f8d7da);  color: var(--danger-text, #721c24); }
+
+        .cs-inbound { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-soft, #eee); }
+        .cs-inbound h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; color: var(--text, #333); }
+        .cs-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; margin: 10px 0 2px; }
     </style>
 </head>
 <body>
@@ -175,6 +179,20 @@ $translationNamespaces = ['common', 'system'];
                 </label>
 
                 <div class="cs-result" id="csResult"></div>
+
+                <?php /* Reading changes back OUT of the calendar. Its own block
+                         because it needs the cron running and the others do not,
+                         and because it is the only setting here that lets a
+                         personal action change shared data. */ ?>
+                <div class="cs-inbound">
+                    <h3><?php echo htmlspecialchars(t('system.calsync.inbound_heading')); ?></h3>
+                    <p class="cs-note"><?php echo t('system.calsync.inbound_desc'); ?></p>
+                    <label class="cs-check">
+                        <input type="checkbox" id="csAcceptDeletes" onchange="csSavePolicy()">
+                        <span><?php echo htmlspecialchars(t('system.calsync.accept_deletes')); ?></span>
+                    </label>
+                    <p class="cs-note"><?php echo t('system.calsync.accept_deletes_note'); ?></p>
+                </div>
             </div>
 
             <?php /* Which mailbox each analyst's work goes to. Admin-only: the
@@ -262,6 +280,7 @@ $translationNamespaces = ['common', 'system'];
             }
 
             document.getElementById('csFeedMode').value = d.feed_mode || 'full';
+            document.getElementById('csAcceptDeletes').checked = !!d.accept_deletes;
             csRenderPeople(d.analysts || []);
 
             if (d.connection) {
@@ -386,7 +405,8 @@ $translationNamespaces = ['common', 'system'];
         async function csSavePolicy() {
             const d = await csPost({
                 action: 'save', policy_only: '1',
-                feed_mode: document.getElementById('csFeedMode').value
+                feed_mode: document.getElementById('csFeedMode').value,
+                accept_deletes: document.getElementById('csAcceptDeletes').checked ? '1' : '0'
             });
             if (d.success) csShow(true, escapeCs(t('system.calsync.saved')));
         }

@@ -2158,6 +2158,8 @@ return [
         'connection_id'      => 'INT NULL',
         'calendar_address'   => 'VARCHAR(255) NULL',
         'credentials'        => 'LONGTEXT NULL',
+        'delta_token'        => 'TEXT NULL',
+        'delta_synced_datetime' => 'DATETIME NULL',
         'last_sync_datetime' => 'DATETIME NULL',
         'last_error'         => 'VARCHAR(500) NULL',
         'created_datetime'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',

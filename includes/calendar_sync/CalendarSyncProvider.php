@@ -134,6 +134,38 @@ abstract class CalendarSyncProvider
      */
     abstract public function verifyConnection(): void;
 
+    // -------------------------------------------------------------- inbound
+
+    /**
+     * What has changed in this calendar since last time (GH #75, bi-directional).
+     *
+     * @param  string|null $token opaque provider state from the previous call;
+     *                            null means "no history — take a baseline"
+     * @return array [
+     *   'token'    => string|null,   // store this for next time
+     *   'baseline' => bool,          // TRUE when there was no usable history and
+     *                                // this call established one. The caller MUST
+     *                                // apply NOTHING on a baseline.
+     *   'changed'  => [ ['remote_event_id'=>…, 'start'=>'Y-m-d H:i:s',
+     *                    'end'=>…, 'all_day'=>bool], … ],
+     *   'removed'  => [ 'remote_event_id', … ],
+     * ]
+     *
+     * 🔴 'baseline' IS THE SAFETY RAIL AND IT IS NOT OPTIONAL. A provider that
+     * has lost its place — an expired token, a moved mailbox, a revoked
+     * permission — answers with everything, or with nothing. Code that reads
+     * "absent" as "deleted" would then unschedule an entire service desk on the
+     * strength of a token expiring. A caller must treat baseline as "I know
+     * nothing yet", never as "it is all gone".
+     *
+     * Times come back as NAIVE wall clock in the caller's zone, matching the way
+     * FreeITSM stores them.
+     */
+    public function pollChanges(string $calendarAddress, ?string $token): array
+    {
+        return ['token' => null, 'baseline' => true, 'changed' => [], 'removed' => []];
+    }
+
     // ------------------------------------------------------------- discovery
 
     /**

@@ -3268,6 +3268,11 @@ CREATE TABLE IF NOT EXISTS `calendar_enrolments` (
     -- them (a personal, non-Workspace Google account). Neither provider planned
     -- today uses it — the row exists so adding one is not a migration.
     `credentials`        LONGTEXT NULL,
+    -- Microsoft Graph delta token for reading CHANGES back out of this mailbox
+    -- (GH #75, bi-directional). Opaque and long. NULL = never polled, so the
+    -- next run takes a baseline and applies nothing.
+    `delta_token`        TEXT NULL,
+    `delta_synced_datetime` DATETIME NULL,
     `last_sync_datetime` DATETIME NULL,
     `last_error`         VARCHAR(500) NULL,
     `created_datetime`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

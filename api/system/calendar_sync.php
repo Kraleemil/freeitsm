@@ -19,6 +19,7 @@ require_once '../../includes/admin_api_guard.php';   // System administrators on
 require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/calendar_sync/calendar_sync.php';
+require_once '../../includes/calendar_sync/pull.php';   // the accept-deletes setting
 
 header('Content-Type: application/json');
 
@@ -64,7 +65,8 @@ try {
                 'last_error_datetime' => $row['last_error_datetime'],
             ] : null,
             'mailboxes'  => $mailboxes,
-            'feed_mode'  => scheduleFeedMode($conn),
+            'feed_mode'      => scheduleFeedMode($conn),
+            'accept_deletes' => calendarAcceptDeletes($conn),
             'enrolled'   => (int)$conn->query("SELECT COUNT(*) FROM calendar_enrolments WHERE mode <> 'off'")->fetchColumn(),
             // Every active analyst, with the mailbox their work would go to.
             // LEFT JOIN, because an analyst who has never chosen has no enrolment
@@ -95,6 +97,16 @@ try {
             "INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
              ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
         )->execute([SCHEDULE_FEED_SETTING, $feedMode]);
+
+        // Whether deleting one of these events in a calendar unschedules the
+        // ticket. OFF by default: whether a personal tidy-up may reach shared
+        // data is an organisation's call, and the safe answer changes nothing.
+        if (array_key_exists('accept_deletes', $_POST)) {
+            $conn->prepare(
+                "INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([CALENDAR_ACCEPT_DELETES, $_POST['accept_deletes'] === '1' ? '1' : '0']);
+        }
 
         // The feed policy stands alone: an install with no calendar connection at
         // all still publishes subscribe links, and must be able to govern them.
