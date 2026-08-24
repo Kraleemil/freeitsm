@@ -32,7 +32,7 @@ $translationNamespaces = ['common', 'tickets'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(t('tickets.title')); ?> - <?php echo htmlspecialchars(t('tickets.nav.inbox')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
-    <link rel="stylesheet" href="../assets/css/inbox.css?v=59">
+    <link rel="stylesheet" href="../assets/css/inbox.css?v=60">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=43">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
@@ -615,6 +615,10 @@ $translationNamespaces = ['common', 'tickets'];
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
             <span><?php echo htmlspecialchars(t('tickets.context.link_ticket')); ?></span>
         </button>
+        <button class="ticket-context-menu-item" type="button" onclick="openContextLinkTask()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <span><?php echo htmlspecialchars(t('tickets.context.link_task')); ?></span>
+        </button>
         <?php /* Snooze (#933). A parent with the presets as a flyout, so the common
                  case ("tomorrow morning") is one hover and one click, and the custom
                  date lives behind the last row rather than in front of everything. */ ?>
@@ -897,7 +901,7 @@ $translationNamespaces = ['common', 'tickets'];
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
     <script src="../assets/js/safe-html.js?v=1"></script>
     <script src="../assets/js/schedule.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=100"></script>
+    <script src="../assets/js/inbox.js?v=101"></script>
     <script src="../assets/js/mobile.js?v=22"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

@@ -170,6 +170,7 @@ return [
         'link_change'      => 'Link to change…',
         'merge'            => 'Merge %d tickets…',
         'link_ticket'      => 'Link to ticket…',
+        'link_task'        => 'Link to task…',
         'schedule'         => 'Schedule work…',
         'record_time'      => 'Record time…',
         'set_status'       => 'Set status',
@@ -217,6 +218,23 @@ return [
         'system' => 'System',
     ],
 
+    // Tasks on a ticket (discussion #83). One picker does both verbs, so the
+    // strings distinguish creating from linking rather than the UI doing it.
+    'tasks' => [
+        'menu_item'          => 'Task',
+        'search_placeholder' => 'Search tasks, or type a new one…',
+        'group_create'       => 'Create',
+        'group_existing'     => 'Existing tasks',
+        'create_named'       => 'Create task "{title}"',
+        'moves_from'         => 'currently on {ticket}',
+        'created_toast'      => 'Task "{title}" created',
+        'linked_toast'       => 'Task linked',
+        'unlinked_toast'     => 'Task unlinked',
+        'link_failed'        => 'Could not update the task link',
+        'unlink_title'       => 'Unlink task',
+        'unlink_confirm'     => 'Remove this task from the ticket? The task itself is not deleted and stays in the Tasks module.',
+        'close_with_open'    => 'This ticket still has {count} unfinished task(s). Close it anyway?',
+    ],
     'tracker' => [
         'menu_item'       => 'Issue tracker',
         'attach_send_btn'     => 'Send to {issue}',

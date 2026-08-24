@@ -2394,6 +2394,7 @@ function displayEmail(email, recordings) {
     loadTicketAttachments(email.ticket_id);
     loadCmdbObjects(email.ticket_id);
     loadTicketAssets(email.ticket_id);
+    loadTicketTasks(email.ticket_id);
     loadTimeEntries(email.ticket_id);
     loadSlaState(email.ticket_id);
 
@@ -2799,6 +2800,7 @@ function buildLinksSection(email) {
         ${body}
         <span class="strip-pill-group" id="stripAssetPills"></span>
         <span class="strip-pill-group" id="stripCmdbPills"></span>
+        <span class="strip-pill-group" id="stripTaskPills"></span>
         <div class="link-add-wrap">
             <button class="problem-link-btn" onclick="toggleLinkAddMenu(event)">Link to… ▾</button>
             <div class="link-add-menu" id="linkAddMenu">
@@ -2808,6 +2810,7 @@ function buildLinksSection(email) {
                 <button type="button" onclick="linkAddChoose('equipment')">${escapeHtml(t('tickets.assets.menu_item'))}</button>
                 <button type="button" onclick="linkAddChoose('cmdb')">${escapeHtml(t('tickets.cmdb.menu_item'))}</button>
                 <button type="button" onclick="linkAddChoose('tracker')">${escapeHtml(t('tickets.tracker.menu_item'))}</button>
+                <button type="button" onclick="linkAddChoose('task')">${escapeHtml(t('tickets.tasks.menu_item'))}</button>
             </div>
         </div>
         <div class="strip-picker-host" id="stripPickerHost" hidden></div>
@@ -2881,7 +2884,176 @@ function linkAddChoose(kind) {
     else if (kind === 'tracker') openEscalateTrackerModal(id, ref);
     else if (kind === 'equipment') openLinkAssetPicker(id);
     else if (kind === 'cmdb') openLinkCmdbPicker(id);
+    else if (kind === 'task') openLinkTaskPicker(id);
     else openLinkTicketModal(id, ref, subj);
+}
+
+// ============================================================
+// Tasks on a ticket (discussion #83).
+//
+// Deliberately no new button: tasks are a seventh entry in the "Link to…" menu
+// that already existed, and task pills sit in the same strip as problems,
+// changes, equipment and Jira issues. The ticket screen is busy enough, and
+// this is the place an analyst already looks to answer "what else is this
+// connected to".
+// ============================================================
+
+let tasksForTicket = [];
+
+async function loadTicketTasks(ticketId) {
+    const host = document.getElementById('stripTaskPills');
+    if (!host) return;
+    // Clear FIRST. Otherwise a failed fetch leaves the previous ticket's tasks in
+    // place, and the close warning then reports a count belonging to a ticket the
+    // analyst is no longer looking at.
+    tasksForTicket = [];
+    try {
+        const res = await fetch('../api/tickets/get_ticket_tasks.php?ticket_id=' + ticketId);
+        const data = await res.json();
+        if (!data.success) return;
+        tasksForTicket = data.tasks || [];
+        renderTicketTasks(ticketId);
+    } catch (e) { /* silent — the strip simply shows no task pills */ }
+}
+
+function renderTicketTasks(ticketId) {
+    const host = document.getElementById('stripTaskPills');
+    if (!host) return;
+
+    host.innerHTML = (tasksForTicket || []).map(tk => {
+        // ☑ / ☐ carries the state at a glance; the fraction is the subtask
+        // progress #83 asked for, and is omitted entirely when there are no
+        // subtasks rather than showing a meaningless 0/0.
+        const box  = tk.status_is_closed ? '&#9745;' : '&#9744;';
+        const prog = tk.subtasks_total > 0 ? ` ${tk.subtasks_done}/${tk.subtasks_total}` : '';
+        const bits = [];
+        if (tk.status) bits.push(tk.status);
+        if (tk.analyst_name) bits.push(tk.analyst_name);
+        const cls = tk.status_is_closed ? 'pm-ticket-badge task-badge task-done' : 'pm-ticket-badge task-badge';
+        return `<a class="${cls}" href="../tasks/index.php?id=${tk.id}" target="_blank"
+                   title="${escapeHtml(bits.join(' · '))}">
+            ${box} ${escapeHtml(tk.title)}${prog}
+            <span class="pm-ticket-unlink" title="${escapeHtml(t('tickets.tasks.unlink_title'))}"
+                  onclick="event.preventDefault();event.stopPropagation();unlinkTicketTask(event, ${tk.id}, ${ticketId});">&#10005;</span>
+        </a>`;
+    }).join('');
+
+    // The strip's "nothing yet" note is drawn before these arrive, so it has to
+    // get out of the way once there is something to show.
+    if (tasksForTicket.length) {
+        const empty = document.getElementById('linksStripEmpty');
+        if (empty) empty.style.display = 'none';
+    }
+}
+
+/**
+ * One picker, both verbs. Typing searches existing tasks; if what you typed
+ * matches nothing (or nothing quite right) the first row creates a task with
+ * that title. That is why linking and creating are not two menu entries: you
+ * see the near-matches as you type, so you link the task that already exists
+ * instead of quietly making a second one.
+ */
+function openLinkTaskPicker(ticketId) {
+    const ui = openStripPicker(t('tickets.tasks.search_placeholder'));
+    if (!ui) return;
+    let timer = null;
+
+    const draw = (rows, typed) => {
+        const parts = [];
+        if (typed) {
+            parts.push(`<div class="asset-picker-group">${escapeHtml(t('tickets.tasks.group_create'))}</div>`);
+            parts.push(`<div class="link-search-result" onclick="createTaskForTicket(${ticketId}, ${JSON.stringify(typed).replace(/"/g, '&quot;')})">
+                &#10010; ${escapeHtml(t('tickets.tasks.create_named', { title: typed }))}
+            </div>`);
+        }
+        if (rows.length) {
+            parts.push(`<div class="asset-picker-group">${escapeHtml(t('tickets.tasks.group_existing'))}</div>`);
+            rows.forEach(r => {
+                const box  = r.status_is_closed ? '&#9745;' : '&#9744;';
+                const note = r.linked_elsewhere
+                    ? ` <em>${escapeHtml(t('tickets.tasks.moves_from', { ticket: r.linked_ticket_number || '' }))}</em>`
+                    : (r.status ? ' · ' + escapeHtml(r.status) : '');
+                parts.push(`<div class="link-search-result" onclick="linkTaskToTicket(${ticketId}, ${r.id})">
+                    ${box} ${escapeHtml(r.title)}${note}
+                </div>`);
+            });
+        }
+        ui.results.innerHTML = parts.join('');
+    };
+
+    ui.input.addEventListener('input', () => {
+        const typed = ui.input.value.trim();
+        clearTimeout(timer);
+        if (typed === '') { ui.results.innerHTML = ''; return; }
+        timer = setTimeout(async () => {
+            let rows = [];
+            try {
+                const res = await fetch('../api/tickets/search_linkable_tasks.php?ticket_id=' + ticketId
+                    + '&q=' + encodeURIComponent(typed));
+                const data = await res.json();
+                if (data.success) rows = data.results || [];
+            } catch (e) { /* offer the create row regardless */ }
+            draw(rows, typed);
+        }, 250);
+    });
+
+    ui._close = ui.close;
+}
+
+async function createTaskForTicket(ticketId, title) {
+    await postTaskLink(ticketId, { ticket_id: ticketId, title: title },
+        t('tickets.tasks.created_toast', { title: title }));
+}
+
+async function linkTaskToTicket(ticketId, taskId) {
+    await postTaskLink(ticketId, { ticket_id: ticketId, task_id: taskId },
+        t('tickets.tasks.linked_toast'));
+}
+
+async function postTaskLink(ticketId, body, okMessage) {
+    try {
+        const res = await fetch('../api/tickets/save_ticket_task.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!data.success) {
+            showToast(data.error || t('tickets.tasks.link_failed'), 'error');
+            return;
+        }
+        const host = document.getElementById('stripPickerHost');
+        if (host) { host.hidden = true; host.innerHTML = ''; }
+        showToast(okMessage, 'success');
+        await loadTicketTasks(ticketId);
+    } catch (e) {
+        showToast(t('tickets.tasks.link_failed'), 'error');
+    }
+}
+
+async function unlinkTicketTask(event, taskId, ticketId) {
+    event.preventDefault();
+    event.stopPropagation();
+    // Unlink, not delete — say so, because a ✕ on a pill could reasonably be
+    // read either way and one of those readings destroys somebody's work.
+    if (!(await showConfirm({
+        title: t('tickets.tasks.unlink_title'),
+        message: t('tickets.tasks.unlink_confirm'),
+        okLabel: 'OK', okClass: 'primary'
+    }))) return;
+    try {
+        const res = await fetch('../api/tickets/delete_ticket_task.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket_id: ticketId, task_id: taskId })
+        });
+        const data = await res.json();
+        if (!data.success) { showToast(data.error || t('tickets.tasks.link_failed'), 'error'); return; }
+        showToast(t('tickets.tasks.unlinked_toast'), 'success');
+        await loadTicketTasks(ticketId);
+    } catch (e) {
+        showToast(t('tickets.tasks.link_failed'), 'error');
+    }
 }
 
 // ============================================================
@@ -3503,8 +3675,31 @@ async function assignTicketType() {
 
 // Assign status
 async function assignStatus() {
-    const status = document.getElementById('statusSelect').value;
+    const select = document.getElementById('statusSelect');
+    const status = select.value;
     const oldValue = currentEmail.status;
+
+    // #83: closing a ticket that still has unfinished tasks WARNS, it never
+    // blocks — the same line collision detection draws. The analyst may well
+    // know the remaining task is somebody else's problem now.
+    //
+    // No request: the strip has already loaded this ticket's tasks. If that
+    // fetch failed, tasksForTicket is empty and this simply says nothing, which
+    // is the right way round — a warning that cannot be shown must not become a
+    // block that cannot be cleared.
+    const closing = ticketStatuses.some(s => s.name === status && s.is_closed);
+    const openTasks = (tasksForTicket || []).filter(tk => !tk.status_is_closed).length;
+    if (closing && openTasks > 0) {
+        const ok = await showConfirm({
+            title: 'Confirm',
+            message: t('tickets.tasks.close_with_open', { count: openTasks }),
+            okLabel: 'OK', okClass: 'primary'
+        });
+        if (!ok) {
+            select.value = oldValue;   // or the dropdown shows a status never applied
+            return;
+        }
+    }
 
     try {
         const response = await fetch(API_BASE + 'assign_ticket.php', {
@@ -8485,6 +8680,23 @@ window.addEventListener('blur', closeTicketContextMenu);
 window.addEventListener('scroll', closeTicketContextMenu, true);
 
 /* --- Context menu action: Link CMDB object --- */
+/**
+ * Right-click → Link to task (discussion #83).
+ *
+ * The other link items open a modal of their own. This one deliberately does
+ * not: the task picker already exists on the reading pane's Links strip, and a
+ * second copy of it in a modal is the "same question answered in two places"
+ * that GH #77 was made of. So it opens the ticket you right-clicked — the one
+ * you are about to work on anyway — and puts you in front of the real picker.
+ */
+async function openContextLinkTask() {
+    closeTicketContextMenu();
+    if (!ctxTargetTicketId) return;
+    const id = ctxTargetTicketId;
+    await loadTicketById(id);
+    openLinkTaskPicker(id);
+}
+
 function openContextLinkCmdb() {
     closeTicketContextMenu();
     if (!ctxTargetTicketId) return;

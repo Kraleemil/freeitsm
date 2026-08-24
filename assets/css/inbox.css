@@ -1231,6 +1231,14 @@ body.ticket-popout .ticket-toolbar {
 .tracker-badge.tracker-in_progress { background: var(--warning-bg);  color: var(--text); }
 .tracker-badge.tracker-done        { background: var(--success-bg);  color: var(--text); }
 .tracker-badge.tracker-cancelled   { background: var(--surface-3);   color: var(--text-faint); text-decoration: line-through; }
+/* Task pills (discussion #83). Two states only — outstanding or finished —
+   because a task's own status list is configurable per install and the strip
+   is a glance, not a report. The tick/box in the label carries the same
+   distinction for anyone who can't separate the two colours. */
+.task-badge           { background: var(--surface-2); color: var(--text); }
+.task-badge:hover     { background: var(--surface-hover, #eee); }
+.task-badge.task-done { background: var(--success-bg); color: var(--text-muted); }
+
 .pm-ticket-unlink { color: var(--danger-text, #c62828); cursor: pointer; font-weight: 700; }
 .problem-link-btn {
     margin-left: auto;
