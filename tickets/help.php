@@ -586,6 +586,21 @@ try {
                         <div><?php echo t('tickets.help.cal_rota.cal_day'); ?></div>
                     </div>
 
+                    <p style="margin-top: 16px;"><?php echo t('tickets.help.cal_rota.cal_scope'); ?></p>
+                    <p><?php echo t('tickets.help.cal_rota.cal_edit'); ?></p>
+
+                    <!-- Prominent Calendar Sync callout -->
+                    <a href="help-calendar-sync.php" style="display:flex;align-items:center;gap:18px;padding:20px 24px;margin:24px 0;background:linear-gradient(135deg, #b45309 0%, #7c2d12 100%);color:white;border-radius:12px;text-decoration:none;box-shadow:0 4px 12px rgba(180,83,9,0.25);transition:transform 0.15s, box-shadow 0.15s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 16px rgba(180,83,9,0.35)';" onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 12px rgba(180,83,9,0.25)';">
+                        <div style="flex-shrink:0;width:56px;height:56px;border-radius:12px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:30px;height:30px;"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><polyline points="9,16 11,18 15,14"></polyline></svg>
+                        </div>
+                        <div style="flex:1;">
+                            <div style="font-size:18px;font-weight:700;margin-bottom:4px;">Calendar Sync &mdash; full guide</div>
+                            <div style="font-size:13px;opacity:0.9;line-height:1.5;">Put your scheduled tickets in the calendar you actually use. Subscription links vs Microsoft 365, the Azure permission and its blast radius, which mailbox is whose, changes coming back from Outlook, the scheduled job vs notifications, and troubleshooting.</div>
+                        </div>
+                        <div style="flex-shrink:0;font-size:24px;opacity:0.7;">&rarr;</div>
+                    </a>
+
                     <p style="margin-top: 16px;"><?php echo t('tickets.help.cal_rota.rota_heading'); ?></p>
                     <p><?php echo t('tickets.help.cal_rota.rota_body'); ?></p>
                     <div class="help-steps">
