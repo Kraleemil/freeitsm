@@ -79,12 +79,35 @@ try {
             'subscriptions'  => (int)$conn->query(
                 "SELECT COUNT(*) FROM calendar_enrolments WHERE subscription_id IS NOT NULL")->fetchColumn(),
             'enrolled'   => (int)$conn->query("SELECT COUNT(*) FROM calendar_enrolments WHERE mode <> 'off'")->fetchColumn(),
+
+            // 🔑 HOW LONG SINCE ANYTHING WAS CHECKED — the one number that reveals
+            // a scheduled job which has quietly stopped. Every other failure on
+            // this screen announces itself; a cron that is no longer running looks
+            // EXACTLY like a calendar in which nothing has changed, and it can sit
+            // like that for weeks. NULL means it has genuinely never run.
+            //
+            // Measured in SQL rather than by differencing against the browser's
+            // clock: delta_synced_datetime is written with NOW(), so comparing it
+            // to NOW() keeps both sides on one clock and sidesteps the timezone
+            // question altogether.
+            'last_poll_minutes' => (function () use ($conn) {
+                $v = $conn->query(
+                    "SELECT TIMESTAMPDIFF(MINUTE, MAX(delta_synced_datetime), NOW())
+                       FROM calendar_enrolments
+                      WHERE mode <> 'off' AND delta_synced_datetime IS NOT NULL"
+                )->fetchColumn();
+                return ($v === null || $v === false) ? null : (int)$v;
+            })(),
+
             // Every active analyst, with the mailbox their work would go to.
             // LEFT JOIN, because an analyst who has never chosen has no enrolment
             // row and must still be listed — otherwise the one person an admin
             // most needs to fix is the one who is invisible.
             'analysts'   => $conn->query(
-                "SELECT a.id, a.full_name, a.email, e.calendar_address, e.mode, e.last_error
+                "SELECT a.id, a.full_name, a.email, e.calendar_address, e.mode, e.last_error,
+                        e.subscription_id,
+                        TIMESTAMPDIFF(HOUR, NOW(), e.subscription_expires) AS sub_hours,
+                        TIMESTAMPDIFF(MINUTE, e.delta_synced_datetime, NOW()) AS checked_minutes
                    FROM analysts a
                    LEFT JOIN calendar_enrolments e ON e.analyst_id = a.id
                   WHERE a.is_active = 1

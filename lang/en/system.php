@@ -601,6 +601,24 @@ return [
         'notify_suggest_note' => 'Filled in from the address you are using now. Check it is reachable from outside — behind a proxy or a tunnel it often is not, and a wrong one fails with a message about validation rather than about the address.',
         'notify_saved'    => 'The scheduled job will create or update the subscriptions on its next run.',
         'notify_active'   => '{n} subscription(s) active',
+
+        // Health. The wording matters: a stale check is reported as a fact plus
+        // where to look, never as a bare "problem". An admin who runs the job
+        // hourly on purpose should read this and recognise their own decision.
+        'health_checked'    => 'Calendars last checked {n} ago.',
+        'health_never'      => 'Calendars have never been checked.',
+        'health_stale_note' => 'Changes made in Outlook arrive when the scheduled job runs, so this usually means it has stopped &mdash; check that <code>cron/calendar_sync_pull.php</code> is still running on its schedule. It is also what renews the subscriptions, so notifications stop a few days after it does. If you deliberately run it less often than every half hour, this is expected.',
+        'health_subs'       => 'Notifications: {n} of {total} subscribed.',
+        'health_just_now'   => 'less than a minute',
+        'health_mins'       => '{n} minute(s)',
+        'health_hours'      => '{n} hour(s)',
+        'health_days'       => '{n} day(s)',
+
+        'sub_ok'        => 'Notified',
+        'sub_expires'   => 'Subscription renews within {n}',
+        'sub_none'      => 'Not subscribed',
+        'sub_none_note' => 'A notification address is set but Microsoft has nothing to call for this person, so their changes only arrive when the scheduled job runs. The next run will try to create it; if it keeps failing the reason appears here.',
+        'sub_lapsed'    => 'Subscription lapsed',
         'accept_deletes_note' => 'Off by default. With it on, an analyst who deletes one of these on their phone finds the ticket already unscheduled when they sit down &mdash; which is often the point. Every such change is written to the ticket&rsquo;s history, and an unusually large number of deletions in one go is refused rather than obeyed, since that is more likely to be a fault than an instruction. With it off, a deleted appointment simply reappears the next time the ticket changes.',
         'feed_heading' => 'Subscription links',
         'feed_desc'    => 'Analysts can publish their scheduled work as a calendar subscription link, which works with any calendar app. A link is a secret URL rather than a login, so anyone holding it can read what it shows.',

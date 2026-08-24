@@ -102,6 +102,17 @@ $translationNamespaces = ['common', 'system'];
         .cs-pill.on   { background: var(--success-bg, #d4edda); color: var(--success-text, #155724); }
         .cs-pill.offp { background: var(--surface-2, #f0f0f0); color: var(--text-muted, #777); }
         .cs-pill.bad  { background: var(--danger-bg, #f8d7da);  color: var(--danger-text, #721c24); }
+        .cs-pill.warn { background: var(--warning-bg, #fff3cd); color: var(--warning-text, #856404); }
+
+        /* The health strip. Deliberately at the TOP of the inbound card, above the
+           settings rather than below them: "is this working?" is the question an
+           admin arrives with, and it should not be answered after a scroll. */
+        .cs-health { margin: 0 0 16px; padding: 10px 12px; border-radius: 6px; font-size: 13px;
+                     border: 1px solid var(--border, #e0e0e0); background: var(--surface-2, #f8f9fa); }
+        .cs-health.warn { border-color: var(--warning-border, #856404); background: var(--warning-bg, #fff3cd); }
+        .cs-health.warn strong { color: var(--warning-text, #856404); }
+        .cs-health p { margin: 0; }
+        .cs-health p + p { margin-top: 6px; }
 
         .cs-inbound { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border-soft, #eee); }
         .cs-inbound h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; color: var(--text, #333); }
@@ -187,6 +198,13 @@ $translationNamespaces = ['common', 'system'];
                 <div class="cs-inbound">
                     <h3><?php echo htmlspecialchars(t('system.calsync.inbound_heading')); ?></h3>
                     <p class="cs-note"><?php echo t('system.calsync.inbound_desc'); ?></p>
+
+                    <?php /* Health. Everything else on this screen reports a
+                             failure that announced itself; this reports the one
+                             that does not — a scheduled job that has stopped,
+                             which is indistinguishable from a quiet calendar. */ ?>
+                    <div class="cs-health" id="csHealth" style="display:none;"></div>
+
                     <label class="cs-check">
                         <input type="checkbox" id="csAcceptDeletes" onchange="csSavePolicy()">
                         <span><?php echo htmlspecialchars(t('system.calsync.accept_deletes')); ?></span>
@@ -300,6 +318,8 @@ $translationNamespaces = ['common', 'system'];
             csNotifyDefault = d.notify_default || '';
             document.getElementById('csSubCount').textContent = d.subscriptions
                 ? t('system.calsync.notify_active', { n: d.subscriptions }) : '';
+            csNotifyOn = !!(d.notify_url || '').trim();
+            csRenderHealth(d);
             csRenderPeople(d.analysts || []);
 
             if (d.connection) {
@@ -328,6 +348,69 @@ $translationNamespaces = ['common', 'system'];
         }
 
         /**
+         * Is any of this actually working?
+         *
+         * 🔑 THE HEADLINE IS HOW LONG SINCE ANYTHING WAS CHECKED, and it is the
+         * headline because it is the only failure on this screen that stays
+         * quiet. A broken connection says so. A subscription that will not
+         * create says so. A scheduled job that has stopped running says
+         * NOTHING — it is indistinguishable from a calendar in which nothing
+         * has changed, and it will sit there looking healthy for weeks while
+         * every change made in Outlook is silently lost.
+         *
+         * Thirty minutes is the threshold because the documented advice is to
+         * run it every five. It is a warning rather than an error: a job that
+         * runs hourly is unusual but not wrong, and FreeITSM has no way to know
+         * what schedule was chosen. So it reports the fact and lets an admin
+         * judge it, rather than calling a deliberate choice a fault.
+         */
+        const CS_POLL_STALE_MINUTES = 30;
+        let csNotifyOn = false;
+
+        function csAgo(mins) {
+            if (mins < 1)  return t('system.calsync.health_just_now');
+            if (mins < 60) return t('system.calsync.health_mins',  { n: mins });
+            if (mins < 60 * 48) return t('system.calsync.health_hours', { n: Math.floor(mins / 60) });
+            return t('system.calsync.health_days', { n: Math.floor(mins / 1440) });
+        }
+
+        function csRenderHealth(d) {
+            const box = document.getElementById('csHealth');
+
+            // Nobody has it switched on, so there is nothing to be healthy or
+            // unhealthy about. An empty warning box would be noise.
+            if (!d.enrolled) { box.style.display = 'none'; return; }
+
+            const mins  = d.last_poll_minutes;
+            const never = (mins === null || mins === undefined);
+            const stale = never || mins >= CS_POLL_STALE_MINUTES;
+            const lines = [];
+
+            lines.push('<p>' + (stale ? '<strong>' : '') + escapeCs(
+                never ? t('system.calsync.health_never')
+                      : t('system.calsync.health_checked', { n: csAgo(mins) })
+            ) + (stale ? '</strong>' : '') + '</p>');
+
+            // The note carries WHAT TO DO. "Last checked 3 hours ago" tells an
+            // admin something is wrong and nothing about where to look, and the
+            // answer is nearly always a job that is no longer running.
+            if (stale) lines.push('<p class="cs-note">' + t('system.calsync.health_stale_note') + '</p>');
+
+            if (csNotifyOn) {
+                lines.push('<p class="cs-note">' + escapeCs(
+                    t('system.calsync.health_subs', { n: d.subscriptions || 0, total: d.enrolled })
+                ) + '</p>');
+            }
+
+            box.className = 'cs-health' + (stale ? ' warn' : '');
+            box.innerHTML = lines.join('');
+            // ⚠️ '' and not 'block' — the stylesheet owns how this displays, and
+            // hard-coding a value here is how the test button's result box ended
+            // up invisible.
+            box.style.display = '';
+        }
+
+        /**
          * One row per active analyst.
          *
          * The mailbox box shows the OVERRIDE where one exists, and otherwise the
@@ -353,6 +436,26 @@ $translationNamespaces = ['common', 'system'];
                 if (p.last_error) {
                     pill += ' <span class="cs-pill bad" title="' + escapeCs(p.last_error) + '">'
                           + escapeCs(t('system.calsync.mode_error')) + '</span>';
+                }
+                // Notifications, per person. Shown only where they could apply —
+                // no address configured means nobody is subscribed by design, and
+                // flagging that on every row would report a feature not in use as
+                // though it were a fault.
+                if (csNotifyOn && mode === 'push') {
+                    const sh = (p.sub_hours === null || p.sub_hours === undefined) ? null : Number(p.sub_hours);
+                    if (!p.subscription_id) {
+                        // Enrolled, an address is set, and yet Microsoft has
+                        // nothing to call. This is the state that hid a broken
+                        // handshake for an hour: everything looked configured.
+                        pill += ' <span class="cs-pill warn" title="' + escapeCs(t('system.calsync.sub_none_note')) + '">'
+                              + escapeCs(t('system.calsync.sub_none')) + '</span>';
+                    } else if (sh === null || sh < 0) {
+                        pill += ' <span class="cs-pill bad">' + escapeCs(t('system.calsync.sub_lapsed')) + '</span>';
+                    } else {
+                        pill += ' <span class="cs-pill on" title="'
+                              + escapeCs(t('system.calsync.sub_expires', { n: csAgo(sh * 60) })) + '">'
+                              + escapeCs(t('system.calsync.sub_ok')) + '</span>';
+                    }
                 }
                 return `<tr data-analyst="${p.id}">
                     <td><div class="cs-analyst-name">${escapeCs(p.full_name)}</div>
