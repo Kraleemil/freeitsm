@@ -223,3 +223,143 @@ function calendarSyncPullAll(PDO $conn): array
     foreach ($ids as $id) $out[] = calendarSyncPullForAnalyst($conn, (int)$id);
     return $out;
 }
+
+// ─── Change notifications (optional accelerator) ────────────────────────────
+//
+// ⚠️ NOT AN ALTERNATIVE TO POLLING. A notification says only that something
+// changed — what changed is still read with a delta query. And notifications go
+// missing: the provider drops them, the endpoint is down for a deploy, a
+// subscription lapses. A silent gap then looks exactly like "nothing changed",
+// so the cron keeps polling as a backstop and the notifications simply make the
+// common case near-instant.
+
+/** system_settings key: the public HTTPS URL Graph should call. */
+const CALENDAR_NOTIFY_URL = 'tickets_calendar_notify_url';
+
+/**
+ * The configured notification endpoint, or '' when notifications are off.
+ *
+ * 🔑 AN ADMIN HAS TO TYPE IT. FreeITSM cannot work out what URL the outside
+ * world can reach it on — HTTP_HOST is whatever the last request happened to
+ * use, and behind a proxy or a tunnel it is routinely wrong. Guessing here would
+ * produce a subscription that silently never fires.
+ */
+function calendarNotifyUrl(PDO $conn): string
+{
+    try {
+        $st = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+        $st->execute([CALENDAR_NOTIFY_URL]);
+        $v = trim((string)$st->fetchColumn());
+    } catch (Exception $e) {
+        return '';
+    }
+    // Graph refuses anything that is not HTTPS, so an http:// value here would
+    // fail at subscription time with a message about validation rather than
+    // about the scheme. Reject it where it can be explained.
+    return (stripos($v, 'https://') === 0) ? $v : '';
+}
+
+/**
+ * Bring one analyst's subscription into line: create, renew or remove.
+ *
+ * Idempotent, and safe to call every cron run — it does nothing at all unless
+ * something needs doing.
+ *
+ * @return string what happened, for the cron's output
+ */
+function calendarSyncEnsureSubscription(PDO $conn, int $analystId): string
+{
+    $notifyUrl  = calendarNotifyUrl($conn);
+    $enrolment  = calendarSyncEnrolment($conn, $analystId);
+    $subId      = $enrolment['subscription_id'] ?? null;
+    $connection = calendarSyncActiveConnection($conn);
+
+    $wanted = $notifyUrl !== ''
+           && ($enrolment['mode'] ?? '') === CALENDAR_MODE_PUSH
+           && !empty($enrolment['calendar_address'])
+           && $connection;
+
+    // Not wanted but present — an analyst opted out, or notifications were
+    // switched off. Take it down rather than leaving Graph calling an endpoint
+    // about somebody who is no longer syncing.
+    if (!$wanted) {
+        if ($subId && $connection) {
+            try {
+                $p = calendarSyncProviderFor($connection); $p->conn = $conn;
+                $p->deleteSubscription($subId);
+            } catch (Exception $e) {
+                // Already gone, or unreachable. Either way we forget it below:
+                // keeping a row we cannot act on means retrying for ever.
+            }
+            calendarClearSubscription($conn, $analystId);
+            return 'removed';
+        }
+        return 'none';
+    }
+
+    // Renew a little early. Renewing at the last moment means a blip in the cron
+    // costs you the subscription; six hours of slack costs nothing.
+    $expires = $enrolment['subscription_expires'] ?? null;
+    if ($subId && $expires && strtotime($expires) > time() + 6 * 3600) {
+        return 'ok';
+    }
+
+    try {
+        $p = calendarSyncProviderFor($connection); $p->conn = $conn;
+
+        if ($subId) {
+            try {
+                $res = $p->renewSubscription($subId);
+                calendarStoreSubscription($conn, $analystId, $res['id'], $res['expires'],
+                                          $enrolment['subscription_secret']);
+                return 'renewed';
+            } catch (CalendarSubscriptionMissing $e) {
+                $subId = null;                       // lapsed — fall through and create
+            }
+        }
+
+        // A fresh secret each time: a subscription being recreated is the natural
+        // moment to rotate the one thing protecting the public endpoint.
+        $secret = bin2hex(random_bytes(24));
+        $res = $p->createSubscription($enrolment['calendar_address'], $notifyUrl, $secret);
+        calendarStoreSubscription($conn, $analystId, $res['id'], $res['expires'], $secret);
+        return 'created';
+    } catch (Exception $e) {
+        calendarSyncRecordError($conn, $analystId, 'Notifications: ' . $e->getMessage());
+        return 'failed';
+    }
+}
+
+function calendarStoreSubscription(PDO $conn, int $analystId, string $id, string $expires, ?string $secret): void
+{
+    $conn->prepare(
+        "UPDATE calendar_enrolments
+            SET subscription_id = ?, subscription_expires = ?, subscription_secret = ?
+          WHERE analyst_id = ?"
+    )->execute([$id, $expires, $secret, $analystId]);
+}
+
+function calendarClearSubscription(PDO $conn, int $analystId): void
+{
+    $conn->prepare(
+        "UPDATE calendar_enrolments
+            SET subscription_id = NULL, subscription_expires = NULL, subscription_secret = NULL
+          WHERE analyst_id = ?"
+    )->execute([$analystId]);
+}
+
+/**
+ * Every enrolled analyst's subscription, plus any left behind by someone who has
+ * since opted out.
+ */
+function calendarSyncEnsureAllSubscriptions(PDO $conn): array
+{
+    if (!calendarSyncSchemaReady($conn)) return [];
+    $ids = $conn->query(
+        "SELECT analyst_id FROM calendar_enrolments
+          WHERE mode = 'push' OR subscription_id IS NOT NULL"
+    )->fetchAll(PDO::FETCH_COLUMN);
+    $out = [];
+    foreach ($ids as $id) $out[(int)$id] = calendarSyncEnsureSubscription($conn, (int)$id);
+    return $out;
+}

@@ -336,6 +336,64 @@ class MicrosoftCalendarProvider extends CalendarSyncProvider
         return [$http, json_decode((string)$raw, true), (string)$raw];
     }
 
+    // --------------------------------------------------- change notifications
+
+    /**
+     * Graph caps calendar subscriptions at 4230 minutes (a shade under three
+     * days). We ask for a little less so a clock skew cannot make the request
+     * itself invalid, and the cron renews well before it lapses.
+     */
+    const SUBSCRIPTION_MINUTES = 4100;
+
+    public function createSubscription(string $calendarAddress, string $notifyUrl, string $secret): array
+    {
+        [$http, $data, $raw] = $this->call('POST', '/subscriptions', [
+            'changeType'          => 'updated,deleted',
+            'notificationUrl'     => $notifyUrl,
+            'resource'            => 'users/' . $calendarAddress . '/events',
+            'expirationDateTime'  => gmdate('Y-m-d\TH:i:s\Z', time() + self::SUBSCRIPTION_MINUTES * 60),
+            'clientState'         => $secret,
+        ]);
+        if ($http !== 201 || empty($data['id'])) {
+            // ⚠️ The most common failure here is not credentials — it is that
+            // Graph could not reach the URL. It validates the endpoint
+            // synchronously during this call, so "could not validate" means
+            // your notification URL is wrong, unreachable, or not HTTPS.
+            throw new Exception('Could not subscribe (HTTP ' . $http . '): ' . $this->briefly($raw));
+        }
+        return ['id' => (string)$data['id'], 'expires' => $this->expiryToLocal($data['expirationDateTime'] ?? null)];
+    }
+
+    public function renewSubscription(string $subscriptionId): array
+    {
+        [$http, $data, $raw] = $this->call('PATCH', '/subscriptions/' . rawurlencode($subscriptionId), [
+            'expirationDateTime' => gmdate('Y-m-d\TH:i:s\Z', time() + self::SUBSCRIPTION_MINUTES * 60),
+        ]);
+        // 404: it lapsed before we got to it. Say so precisely so the caller
+        // creates a fresh one rather than retrying a renewal for ever.
+        if ($http === 404) {
+            throw new CalendarSubscriptionMissing('The subscription no longer exists.');
+        }
+        if ($http < 200 || $http >= 300) {
+            throw new Exception('Could not renew the subscription (HTTP ' . $http . '): ' . $this->briefly($raw));
+        }
+        return ['id' => $subscriptionId, 'expires' => $this->expiryToLocal($data['expirationDateTime'] ?? null)];
+    }
+
+    public function deleteSubscription(string $subscriptionId): void
+    {
+        [$http, , $raw] = $this->call('DELETE', '/subscriptions/' . rawurlencode($subscriptionId));
+        if ($http === 404 || ($http >= 200 && $http < 300)) return;   // already gone is success
+        throw new Exception('Could not remove the subscription (HTTP ' . $http . '): ' . $this->briefly($raw));
+    }
+
+    /** Graph's UTC expiry to the naive local datetime the column stores. */
+    private function expiryToLocal(?string $utc): string
+    {
+        $ts = $utc ? strtotime($utc) : (time() + self::SUBSCRIPTION_MINUTES * 60);
+        return date('Y-m-d H:i:s', $ts ?: time());
+    }
+
     // ------------------------------------------------------------- discovery
 
     public function verifyTarget(string $calendarAddress): bool

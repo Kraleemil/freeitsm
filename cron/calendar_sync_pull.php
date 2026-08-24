@@ -56,6 +56,29 @@ try {
         exit;
     }
 
+    // ── Subscriptions first ─────────────────────────────────────────────────
+    // Create for anyone newly enrolled, renew before they lapse (Graph caps
+    // calendar subscriptions at about three days), and take down any left behind
+    // by someone who has since opted out.
+    //
+    // ⚠️ THIS DOES NOT REPLACE THE POLL BELOW. A notification says only that
+    // something changed, and notifications go missing — dropped by the provider,
+    // lost while the endpoint was down for a deploy, or silently stopped when a
+    // subscription lapsed. A gap then looks exactly like "nothing changed", so
+    // the poll stays as the backstop and notifications simply make the common
+    // case near-instant.
+    $notifyUrl = calendarNotifyUrl($conn);
+    if ($notifyUrl !== '') {
+        $subs = calendarSyncEnsureAllSubscriptions($conn);
+        $tally = array_count_values($subs);
+        echo "Notifications: " . $notifyUrl . "\n";
+        echo "  subscriptions — " . (
+            $tally ? implode(', ', array_map(fn($k, $v) => "$v $k", array_keys($tally), $tally)) : 'none'
+        ) . "\n";
+    } else {
+        echo "Notifications: not configured (polling only).\n";
+    }
+
     $reports = calendarSyncPullAll($conn);
     if (!$reports) {
         echo "Nobody has calendar sync switched on. Nothing to do.\n";

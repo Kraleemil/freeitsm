@@ -166,6 +166,43 @@ abstract class CalendarSyncProvider
         return ['token' => null, 'baseline' => true, 'changed' => [], 'removed' => []];
     }
 
+    // --------------------------------------------------- change notifications
+
+    /**
+     * Ask the provider to tell us when this calendar changes.
+     *
+     * ⚠️ AN ACCELERATOR, NEVER THE ONLY MECHANISM. A notification says only that
+     * something changed, not what — the caller still runs pollChanges(). And
+     * notifications go missing: the provider drops them, the endpoint is down for
+     * a deploy, a subscription lapses unnoticed. A silent gap then looks exactly
+     * like "nothing changed", so the poll must remain as a backstop.
+     *
+     * @param  string $notifyUrl publicly reachable HTTPS endpoint
+     * @param  string $secret    echoed back in every notification; the only thing
+     *                           telling a real callback from anyone on the
+     *                           internet POSTing to a deliberately public URL
+     * @return array ['id' => string, 'expires' => 'Y-m-d H:i:s']
+     */
+    public function createSubscription(string $calendarAddress, string $notifyUrl, string $secret): array
+    {
+        throw new Exception('This calendar provider does not support change notifications.');
+    }
+
+    /** Push an existing subscription's expiry out. Same return as create. */
+    public function renewSubscription(string $subscriptionId): array
+    {
+        throw new Exception('This calendar provider does not support change notifications.');
+    }
+
+    /**
+     * Stop notifications. An ALREADY-GONE subscription is a success: the desired
+     * end state is "not subscribed", and that is satisfied.
+     */
+    public function deleteSubscription(string $subscriptionId): void
+    {
+        throw new Exception('This calendar provider does not support change notifications.');
+    }
+
     // ------------------------------------------------------------- discovery
 
     /**
@@ -193,3 +230,11 @@ abstract class CalendarSyncProvider
  * their own calendar is ordinary behaviour.
  */
 class CalendarEventMissing extends Exception {}
+
+/**
+ * The subscription we tried to renew has already lapsed.
+ *
+ * Its own class because the response is specific: create a fresh one, rather
+ * than retrying a renewal against something that cannot come back.
+ */
+class CalendarSubscriptionMissing extends Exception {}

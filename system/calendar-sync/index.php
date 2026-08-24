@@ -192,6 +192,21 @@ $translationNamespaces = ['common', 'system'];
                         <span><?php echo htmlspecialchars(t('system.calsync.accept_deletes')); ?></span>
                     </label>
                     <p class="cs-note"><?php echo t('system.calsync.accept_deletes_note'); ?></p>
+
+                    <?php /* Optional: near-instant instead of on the next poll.
+                             Blank = polling only, which is a perfectly good
+                             answer and the only one available to an install the
+                             internet cannot reach. */ ?>
+                    <label class="cs-field" style="margin-top:16px;">
+                        <span><?php echo htmlspecialchars(t('system.calsync.notify_url')); ?></span>
+                        <input type="url" id="csNotifyUrl" autocomplete="off" placeholder="https://…/api/calendar/graph_notify.php">
+                    </label>
+                    <p class="cs-note"><?php echo t('system.calsync.notify_url_note'); ?></p>
+                    <div class="cs-actions">
+                        <button class="btn btn-secondary" onclick="csSaveNotify()"><?php echo htmlspecialchars(t('common.save')); ?></button>
+                        <button class="btn btn-secondary" onclick="csSuggestNotify()"><?php echo htmlspecialchars(t('system.calsync.notify_suggest')); ?></button>
+                        <span class="cs-note" id="csSubCount"></span>
+                    </div>
                 </div>
             </div>
 
@@ -281,6 +296,10 @@ $translationNamespaces = ['common', 'system'];
 
             document.getElementById('csFeedMode').value = d.feed_mode || 'full';
             document.getElementById('csAcceptDeletes').checked = !!d.accept_deletes;
+            document.getElementById('csNotifyUrl').value = d.notify_url || '';
+            csNotifyDefault = d.notify_default || '';
+            document.getElementById('csSubCount').textContent = d.subscriptions
+                ? t('system.calsync.notify_active', { n: d.subscriptions }) : '';
             csRenderPeople(d.analysts || []);
 
             if (d.connection) {
@@ -398,6 +417,30 @@ $translationNamespaces = ['common', 'system'];
             if (!d.success) { csShow(false, escapeCs(d.error || '')); return; }
             csShow(true, escapeCs(t('system.calsync.saved')));
             document.getElementById('csSecret').value = '';
+            await csLoad();
+        }
+
+        let csNotifyDefault = '';
+
+        /** Fill in the URL this page was reached on, for an admin to confirm. */
+        function csSuggestNotify() {
+            if (!csNotifyDefault) return;
+            document.getElementById('csNotifyUrl').value = csNotifyDefault;
+            // Said out loud rather than quietly filled in: on a machine behind a
+            // proxy or a tunnel this is frequently NOT the address Microsoft can
+            // reach, and a wrong one fails at subscription time with a message
+            // about validation that gives no hint the URL is the problem.
+            csShow(true, escapeCs(t('system.calsync.notify_suggest_note')));
+        }
+
+        async function csSaveNotify() {
+            const d = await csPost({
+                action: 'save', policy_only: '1',
+                feed_mode: document.getElementById('csFeedMode').value,
+                notify_url: document.getElementById('csNotifyUrl').value.trim()
+            });
+            if (!d.success) { csShow(false, escapeCs(d.error || '')); return; }
+            csShow(true, escapeCs(t('system.calsync.saved')) + ' ' + escapeCs(t('system.calsync.notify_saved')));
             await csLoad();
         }
 

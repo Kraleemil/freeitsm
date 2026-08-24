@@ -67,6 +67,17 @@ try {
             'mailboxes'  => $mailboxes,
             'feed_mode'      => scheduleFeedMode($conn),
             'accept_deletes' => calendarAcceptDeletes($conn),
+            'notify_url'     => calendarNotifyUrl($conn),
+            // A SUGGESTION, never applied on its own. FreeITSM cannot know what
+            // URL the outside world reaches it on — HTTP_HOST is whatever the
+            // last request used, and behind a proxy or a tunnel it is routinely
+            // wrong. Offering it saves typing; an admin still confirms it.
+            'notify_default' => (!empty($_SERVER['HTTP_HOST'])
+                ? 'https://' . $_SERVER['HTTP_HOST']
+                  . (defined('BASE_URL') ? rtrim(BASE_URL, '/') : '') . '/api/calendar/graph_notify.php'
+                : ''),
+            'subscriptions'  => (int)$conn->query(
+                "SELECT COUNT(*) FROM calendar_enrolments WHERE subscription_id IS NOT NULL")->fetchColumn(),
             'enrolled'   => (int)$conn->query("SELECT COUNT(*) FROM calendar_enrolments WHERE mode <> 'off'")->fetchColumn(),
             // Every active analyst, with the mailbox their work would go to.
             // LEFT JOIN, because an analyst who has never chosen has no enrolment
@@ -101,6 +112,13 @@ try {
         // Whether deleting one of these events in a calendar unschedules the
         // ticket. OFF by default: whether a personal tidy-up may reach shared
         // data is an organisation's call, and the safe answer changes nothing.
+        if (array_key_exists('notify_url', $_POST)) {
+            $conn->prepare(
+                "INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([CALENDAR_NOTIFY_URL, trim((string)$_POST['notify_url'])]);
+        }
+
         if (array_key_exists('accept_deletes', $_POST)) {
             $conn->prepare(
                 "INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)

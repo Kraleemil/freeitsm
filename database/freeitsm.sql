@@ -3271,6 +3271,17 @@ CREATE TABLE IF NOT EXISTS `calendar_enrolments` (
     -- Microsoft Graph delta token for reading CHANGES back out of this mailbox
     -- (GH #75, bi-directional). Opaque and long. NULL = never polled, so the
     -- next run takes a baseline and applies nothing.
+    -- Graph change-notification subscription for this mailbox (GH #75).
+    -- Notifications make a change land in seconds instead of on the next poll;
+    -- the poll REMAINS as a backstop, because a notification that never arrives
+    -- looks exactly like nothing having changed.
+    `subscription_id`      VARCHAR(255) NULL,
+    -- Graph caps calendar subscriptions at ~3 days, so the cron renews them.
+    `subscription_expires` DATETIME NULL,
+    -- Random per subscription, echoed by Graph in every notification. It is the
+    -- ONLY thing distinguishing a real callback from anyone on the internet
+    -- POSTing to a deliberately public endpoint.
+    `subscription_secret`  VARCHAR(128) NULL,
     `delta_token`        TEXT NULL,
     `delta_synced_datetime` DATETIME NULL,
     `last_sync_datetime` DATETIME NULL,
