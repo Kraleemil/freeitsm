@@ -2930,7 +2930,11 @@ function renderTicketTasks(ticketId) {
         if (tk.status) bits.push(tk.status);
         if (tk.analyst_name) bits.push(tk.analyst_name);
         const cls = tk.status_is_closed ? 'pm-ticket-badge task-badge task-done' : 'pm-ticket-badge task-badge';
-        return `<a class="${cls}" href="../tasks/index.php?id=${tk.id}" target="_blank"
+        // ⚠️ `?task=`, not `?id=`. assets/js/tasks.js reads exactly that one
+        // parameter, so the wrong name opens the Tasks board and quietly does
+        // nothing — a link that looks like it worked. Same trap the notification
+        // deep-links document for `?ticket_id=`.
+        return `<a class="${cls}" href="../tasks/index.php?task=${tk.id}" target="_blank"
                    title="${escapeHtml(bits.join(' · '))}">
             ${box} ${escapeHtml(tk.title)}${prog}
             <span class="pm-ticket-unlink" title="${escapeHtml(t('tickets.tasks.unlink_title'))}"
