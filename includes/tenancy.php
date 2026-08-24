@@ -497,6 +497,40 @@ function analystCanAccessAsset(PDO $conn, int $analystId, $assetId): bool {
 }
 
 /**
+ * May this analyst see/act on this task? (GH #83 groundwork.)
+ *
+ * Same shape as the asset/problem/change twins: single-company → true, unknown
+ * id → false, NULL tenant → the Default company. A task is SCOPED DATA, so NULL
+ * means "the Default company's", never "shared with everyone".
+ *
+ * ⚠️ Guard the CHILD writes with this too, not just get/save — a task's comments
+ * and subtasks are addressed by task id, and were reachable across companies
+ * until each got the gate. That is exactly how the asset disks/software/history
+ * endpoints were missed the first time round.
+ */
+function analystCanAccessTask(PDO $conn, int $analystId, $taskId): bool {
+    if (!isMultiTenant($conn)) {
+        return true;
+    }
+    $taskId = (int) $taskId;
+    if ($taskId <= 0) {
+        return false;
+    }
+    try {
+        $stmt = $conn->prepare("SELECT tenant_id FROM tasks WHERE id = ?");
+        $stmt->execute([$taskId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return false;
+        }
+        $tid = ($row['tenant_id'] === null) ? getDefaultTenantId($conn) : (int) $row['tenant_id'];
+        return analystCanAccessTenant($conn, $analystId, $tid);
+    } catch (Exception $e) {
+        return tenancyDegradeAllowed($e);
+    }
+}
+
+/**
  * The analyst's current working company context.
  *
  * - Single-company install → always the Default tenant.

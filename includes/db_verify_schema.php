@@ -2825,6 +2825,10 @@ return [
         'ticket_id'           => 'INT NULL',
         'change_id'           => 'INT NULL',
         'contract_id'         => 'INT NULL',
+        // SCOPED DATA, like tickets and assets: NULL = the Default company's,
+        // NOT "shared". Existing tasks stay NULL and become Default-owned, which
+        // is the same migration tickets and assets took.
+        'tenant_id'           => 'INT NULL',
         'board_position'      => 'INT NOT NULL DEFAULT 0',
         'created_by_id'       => 'INT NOT NULL',
         'created_datetime'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',

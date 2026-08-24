@@ -98,11 +98,20 @@ function apiSerializeTask(PDO $conn, array $r): array {
     ];
 }
 
-function apiLoadTask(PDO $conn, int $taskId): array {
+function apiLoadTask(PDO $conn, int $taskId, ?array $apiKey = null): array {
     $stmt = $conn->prepare(apiTaskSelect() . " WHERE t.id = ?");
     $stmt->execute([$taskId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$row) {
+        apiError(404, 'not_found', 'Task not found.');
+    }
+
+    // 🔒 Company scope, at the REST choke point — every by-id read goes through
+    // here, including the ones that re-load a task straight after writing it.
+    // 404 rather than 403: a key must not learn that another company's task id
+    // exists. $apiKey is optional only so the two post-write re-loads, which have
+    // already been through the service's own gate, need not pass it twice.
+    if ($apiKey !== null && !apiKeyCanAccessTenantRow($conn, $apiKey, 'tasks', $taskId)) {
         apiError(404, 'not_found', 'Task not found.');
     }
     return $row;
@@ -184,7 +193,17 @@ function apiTasksList(PDO $conn, array $apiKey, array $params, array $body): voi
     $orderSql = $sortable[$sortKey] . ($desc ? ' DESC' : ' ASC') . ', t.created_datetime DESC';
 
     [$page, $perPage, $offset] = apiPagination();
-    $whereSql = implode(' AND ', $where);
+
+    // 🔒 Company scope. Tasks became tenant-scoped alongside GH #83; before that
+    // this resource had nothing to filter on, so a key restricted to one company
+    // still listed every company's tasks. apiKeyTenantFilter is the generic the
+    // tickets/problems resources use — NULL tenant_id belongs to Default.
+    //
+    // Applied to the COUNT as well as the page: a correct page beside a total that
+    // counts the whole install still tells a client how much it cannot see.
+    [$scopeSql, $scopeArgs] = apiKeyTenantFilter($conn, $apiKey, 't');
+    $whereSql = implode(' AND ', $where) . $scopeSql;
+    $args     = array_merge($args, $scopeArgs);
 
     $countStmt = $conn->prepare(
         "SELECT COUNT(*) FROM tasks t
@@ -213,7 +232,7 @@ function apiTasksList(PDO $conn, array $apiKey, array $params, array $body): voi
 // GET /tasks/{id}
 // ---------------------------------------------------------------------------
 function apiTasksGet(PDO $conn, array $apiKey, array $params, array $body): void {
-    $r = apiLoadTask($conn, $params[0]);
+    $r = apiLoadTask($conn, $params[0], $apiKey);
     $task = apiSerializeTask($conn, $r);
 
     // Parent summary
@@ -336,7 +355,8 @@ function apiTasksDelete(PDO $conn, array $apiKey, array $params, array $body): v
 // Comments — create-only, like the UI
 // ---------------------------------------------------------------------------
 function apiTaskCommentsList(PDO $conn, array $apiKey, array $params, array $body): void {
-    apiLoadTask($conn, $params[0]);
+    // Child read: comments are addressed by task id, so they need the task's gate.
+    apiLoadTask($conn, $params[0], $apiKey);
     $stmt = $conn->prepare(
         "SELECT c.id, c.comment, c.created_datetime, c.analyst_id, a.full_name AS analyst_name
          FROM task_comments c LEFT JOIN analysts a ON a.id = c.analyst_id

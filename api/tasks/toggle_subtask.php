@@ -6,6 +6,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/tenancy.php';
 
 header('Content-Type: application/json');
 
@@ -25,6 +26,14 @@ if (!$id) {
 
 try {
     $conn = connectToDatabase();
+
+    // 🔒 Company scope. A subtask is addressed by its own id here, so it needs its
+    // own gate — this is precisely the "child collection" the developer guide warns
+    // gets forgotten. A subtask always carries its parent's company.
+    if (!analystCanAccessTask($conn, (int) $_SESSION['analyst_id'], $id)) {
+        echo json_encode(['success' => false, 'error' => 'Subtask not found']);
+        exit;
+    }
 
     // Get current status (joined to lookup) and parent
     $stmt = $conn->prepare(

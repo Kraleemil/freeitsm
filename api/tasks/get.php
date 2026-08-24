@@ -6,6 +6,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/tenancy.php';
 
 header('Content-Type: application/json');
 
@@ -22,6 +23,14 @@ if (!$id) {
 
 try {
     $conn = connectToDatabase();
+
+    // 🔒 Company scope. Framed as not-found so the existence of another company's
+    // task is not confirmed. This gate also covers the comments and subtasks read
+    // further down, since they are fetched by this task's id.
+    if (!analystCanAccessTask($conn, (int) $_SESSION['analyst_id'], $id)) {
+        echo json_encode(['success' => false, 'error' => 'Task not found']);
+        exit;
+    }
 
     // Get the task
     $stmt = $conn->prepare(

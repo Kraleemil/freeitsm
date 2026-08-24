@@ -21,10 +21,18 @@
  * completed_datetime is stamped on entering a closed status and cleared on
  * reopening; a PATCH (not a move) that closes an open task fires task.completed.
  *
- * 🔒 Company scope: tasks carry no tenant_id, but a task can LINK to a ticket,
- * and tickets are tenant-scoped. Ticket links are validated against the actor's
- * companyScope (ActorContext) — so the UI now enforces the same isolation the
- * API always did (it previously stored any ticket id unchecked).
+ * 🔒 Company scope: tasks now carry their own `tenant_id` (GH #83 groundwork).
+ * A task is SCOPED DATA like a ticket or an asset, so `NULL` means "the Default
+ * company's", NOT "shared with everyone" — see the Multi-Tenancy Developer Guide
+ * on the three meanings of NULL, because two of them are opposites.
+ *
+ * Enforcement sits in loadTaskRow(), which every by-id path (update, move,
+ * delete, comment) already funnelled through, so the gate is in one place rather
+ * than four. Ticket links are still validated separately: a task and the ticket
+ * it points at must both be reachable by the actor.
+ *
+ * Before this, tasks had no tenant_id at all and the only isolation was that
+ * ticket-link check — a workaround for the missing column rather than scope.
  *
  * Canonical input keys: title, description, status / status_id, priority /
  * priority_id, assigned_analyst_id, assigned_team_id, start_date, due_date,
@@ -88,16 +96,23 @@ class TasksService
         $posStmt->execute([$status[0]]);
         $boardPosition = (int)$posStmt->fetchColumn();
 
+        // A subtask always belongs wherever its parent does — it is not an
+        // independent piece of work and must never be reachable from a company
+        // its parent is not.
+        $tenantId = $links['parent_task_id']
+            ? self::parentTaskTenant($conn, (int) $links['parent_task_id'])
+            : self::resolveNewTaskTenant($conn, $ctx, $in, $links['ticket_id'] ? (int) $links['ticket_id'] : null);
+
         $conn->prepare(
             "INSERT INTO tasks (title, description, status_id, priority_id, start_date, due_date,
                                 assigned_analyst_id, assigned_team_id, parent_task_id,
-                                ticket_id, change_id, contract_id, board_position, created_by_id,
+                                ticket_id, change_id, contract_id, tenant_id, board_position, created_by_id,
                                 completed_datetime, created_datetime, updated_datetime)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
         )->execute([
             $title, $description, $status[0], $priority[0], $startDate, $dueDate,
             $analystId, $teamId, $links['parent_task_id'],
-            $links['ticket_id'], $links['change_id'], $links['contract_id'],
+            $links['ticket_id'], $links['change_id'], $links['contract_id'], $tenantId,
             $boardPosition, $ctx->actorId,
             !empty($status[2]) ? gmdate('Y-m-d H:i:s') : null,
         ]);
@@ -125,7 +140,7 @@ class TasksService
 
     private static function updateTask(PDO $conn, ActorContext $ctx, int $taskId, array $in): int
     {
-        $current = self::loadTaskRow($conn, $taskId);           // 404 if gone
+        $current = self::loadTaskRow($conn, $ctx, $taskId);           // 404 if gone
         if (!array_diff_key($in, ['id' => true])) {
             throw new ServiceError('validation', 'missing_field', 'No fields to update.');
         }
@@ -227,7 +242,7 @@ class TasksService
     /** Kanban move: change status (+ completed mechanics) and re-pack the target column. No workflow event. Returns the id. */
     public static function moveTask(PDO $conn, ActorContext $ctx, int $taskId, array $in): int
     {
-        $current = self::loadTaskRow($conn, $taskId);
+        $current = self::loadTaskRow($conn, $ctx, $taskId);
 
         $status = self::resolveLookup($conn, $in, 'status', 'task_statuses', true);
         $targetStatusId = $status !== null ? $status[0] : (int)$current['status_id'];
@@ -272,7 +287,7 @@ class TasksService
     /** Hard-delete a task + its whole subtask tree (comments/tags too). Returns ['id','subtasks_deleted']. */
     public static function deleteTask(PDO $conn, ActorContext $ctx, int $taskId): array
     {
-        $row = self::loadTaskRow($conn, $taskId);
+        $row = self::loadTaskRow($conn, $ctx, $taskId);
 
         $ids = [$taskId];
         $frontier = [$taskId];
@@ -301,7 +316,7 @@ class TasksService
     /** Add a comment to a task (create-only). Returns the comment id. */
     public static function createComment(PDO $conn, ActorContext $ctx, int $taskId, string $text): int
     {
-        self::loadTaskRow($conn, $taskId);
+        self::loadTaskRow($conn, $ctx, $taskId);
         $text = trim($text);
         if ($text === '') {
             throw new ServiceError('validation', 'missing_field', "'text' is required.");
@@ -318,7 +333,7 @@ class TasksService
     // ======================================================================
 
     /** Load a task with its status is_closed flag, or throw 404. */
-    private static function loadTaskRow(PDO $conn, int $id): array
+    private static function loadTaskRow(PDO $conn, ActorContext $ctx, int $id): array
     {
         $stmt = $conn->prepare(
             "SELECT t.*, ts.is_closed AS status_is_closed
@@ -329,7 +344,97 @@ class TasksService
         if (!$row) {
             throw new ServiceError('not_found', 'not_found', 'Task not found.');
         }
+
+        // 🔒 The ONE place every by-id path passes through — update, move, delete
+        // and comment all load here first. Guarding the choke point means a future
+        // by-id operation is scoped by default instead of being the one that was
+        // forgotten, which is how child endpoints get missed.
+        //
+        // Framed as not_found, never forbidden: "you may not touch this" confirms
+        // another company's task exists.
+        if (!self::taskAccessible($conn, $ctx, $row)) {
+            throw new ServiceError('not_found', 'not_found', 'Task not found.');
+        }
         return $row;
+    }
+
+    /** A subtask inherits its parent's company, always. */
+    private static function parentTaskTenant(PDO $conn, int $parentId): ?int
+    {
+        $stmt = $conn->prepare("SELECT tenant_id FROM tasks WHERE id = ?");
+        $stmt->execute([$parentId]);
+        $v = $stmt->fetchColumn();
+        return ($v === false || $v === null) ? null : (int) $v;
+    }
+
+    /** Is an already-loaded task row inside the actor's company scope? */
+    private static function taskAccessible(PDO $conn, ActorContext $ctx, array $row): bool
+    {
+        // Column absent = an install that has not run Database Verification since
+        // this shipped. `SELECT t.*` simply returns no such key, so this costs
+        // nothing and never throws — the alternative is every task operation
+        // failing until Verify is run.
+        if (!array_key_exists('tenant_id', $row)) {
+            return true;
+        }
+        try {
+            if (!isMultiTenant($conn) || $ctx->companyScope === null) {
+                return true;
+            }
+            $tid = ($row['tenant_id'] === null) ? getDefaultTenantId($conn) : (int) $row['tenant_id'];
+            return in_array($tid, $ctx->companyScope, true);
+        } catch (Exception $e) {
+            // Same rule as ticketAccessible(): genuinely missing schema degrades to
+            // allow, a lock-wait or dropped connection denies. Never fail open on
+            // "the database was briefly busy".
+            return tenancyDegradeAllowed($e);
+        }
+    }
+
+    /**
+     * Which company should a NEW task belong to?
+     *
+     * 1. Linked to a ticket → the ticket's company. The task is work arising from
+     *    that ticket, so it belongs where the ticket belongs. This is the GH #83
+     *    path and the one that matters most.
+     * 2. Explicitly supplied → honoured only if the actor may reach it. Refused
+     *    outright rather than quietly downgraded to NULL, which would silently
+     *    move someone's task to the Default company.
+     * 3. From the UI → the analyst's active company, so a task created while
+     *    working on a client does not vanish from the board the moment it is made.
+     * 4. Otherwise → NULL, i.e. the Default company. The state every existing task
+     *    is already in.
+     */
+    private static function resolveNewTaskTenant(PDO $conn, ActorContext $ctx, array $in, ?int $ticketId): ?int
+    {
+        $explicit = array_key_exists('tenant_id', $in) && $in['tenant_id'] !== null && $in['tenant_id'] !== ''
+            ? (int) $in['tenant_id']
+            : null;
+
+        if ($ticketId) {
+            $stmt = $conn->prepare("SELECT tenant_id FROM tickets WHERE id = ?");
+            $stmt->execute([$ticketId]);
+            $ticketTenant = $stmt->fetchColumn();
+            $inherited = ($ticketTenant === false || $ticketTenant === null) ? null : (int) $ticketTenant;
+            if ($explicit !== null && $explicit !== $inherited) {
+                throw new ServiceError('validation', 'invalid_field',
+                    "'tenant_id' does not match the company of the ticket this task is linked to.");
+            }
+            return $inherited;
+        }
+
+        if ($explicit !== null) {
+            if (isMultiTenant($conn) && $ctx->companyScope !== null
+                && !in_array($explicit, $ctx->companyScope, true)) {
+                throw new ServiceError('validation', 'invalid_field', "Unknown tenant_id: {$explicit}");
+            }
+            return $explicit;
+        }
+
+        if ($ctx->source === 'ui' && isMultiTenant($conn)) {
+            return getActiveTenantId($conn, $ctx->actorId);
+        }
+        return null;
     }
 
     /** Resolve a status/priority lookup by name or id — strict 422 on unknown. Returns [id, name(, is_closed)] or null. */

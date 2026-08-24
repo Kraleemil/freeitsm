@@ -6,6 +6,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/tenancy.php';
 
 header('Content-Type: application/json');
 
@@ -27,6 +28,15 @@ if (!$taskId || !$newStatus) {
 
 try {
     $conn = connectToDatabase();
+
+    // 🔒 Company scope. reorder.php deliberately stays off TasksService (the UI
+    // sends client-computed positions where the API re-packs server-side), so it
+    // needs its own gate rather than inheriting the service's.
+    if (!analystCanAccessTask($conn, (int) $_SESSION['analyst_id'], $taskId)) {
+        echo json_encode(['success' => false, 'error' => 'Task not found']);
+        exit;
+    }
+
     $conn->beginTransaction();
 
     // Resolve new status name -> id and decide whether to stamp completed_datetime
@@ -48,10 +58,18 @@ try {
     );
     $stmt->execute([$newStatusId, $taskId]);
 
-    // Update board positions for all tasks in the affected columns
-    $posStmt = $conn->prepare("UPDATE tasks SET board_position = ? WHERE id = ?");
+    // Update board positions for all tasks in the affected columns.
+    //
+    // ⚠️ These ids come straight from the browser and are NOT the task that was
+    // dragged, so gating $taskId above does not cover them: a crafted request
+    // could otherwise renumber another company's board. The scope predicate is
+    // carried into the UPDATE itself, so an out-of-scope id matches no row and
+    // changes nothing, rather than being rejected noisily — the client is sending
+    // a whole column's worth of positions and a partial column is not an error.
+    [$posTenantSql, $posTenantArgs] = activeTenantFilter($conn, (int) $_SESSION['analyst_id'], '');
+    $posStmt = $conn->prepare("UPDATE tasks SET board_position = ? WHERE id = ?{$posTenantSql}");
     foreach ($positions as $pos) {
-        $posStmt->execute([(int)$pos['board_position'], (int)$pos['id']]);
+        $posStmt->execute(array_merge([(int)$pos['board_position'], (int)$pos['id']], $posTenantArgs));
     }
 
     $conn->commit();

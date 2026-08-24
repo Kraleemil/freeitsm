@@ -7,6 +7,7 @@
 session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/tenancy.php';
 
 header('Content-Type: application/json');
 
@@ -60,6 +61,15 @@ try {
 
     $whereSql = implode(' AND ', $where);
 
+    // Company scope (GH #83 groundwork). A task is scoped DATA, so the Default
+    // company also owns any task whose tenant_id is NULL — which is every task
+    // created before this existed. Returns ['', []] on a single-company install.
+    //
+    // Only the parent query needs this: the subtask, tag and comment lookups below
+    // all key off ids drawn from this result, so they inherit the scope.
+    [$tenantSql, $tenantParams] = activeTenantFilter($conn, (int) $analystId, 't');
+    $params = array_merge($params, $tenantParams);
+
     $sql = "SELECT t.id, t.title, t.description,
                    ts.name AS status, ts.is_closed AS status_is_closed, ts.colour AS status_colour,
                    tp.name AS priority, tp.colour AS priority_colour,
@@ -75,7 +85,7 @@ try {
             LEFT JOIN task_priorities tp ON tp.id = t.priority_id
             LEFT JOIN analysts a ON t.assigned_analyst_id = a.id
             LEFT JOIN teams tm ON t.assigned_team_id = tm.id
-            WHERE {$whereSql}
+            WHERE {$whereSql}{$tenantSql}
             ORDER BY t.board_position ASC, t.created_datetime DESC";
 
     $stmt = $conn->prepare($sql);
@@ -132,14 +142,19 @@ try {
         $task['tags']     = $tagsByTask[$task['id']] ?? [];
     }
 
-    // Status counts for sidebar
+    // Status counts for sidebar.
+    // ⚠️ Scoped too. An aggregate is the easiest place to leak a company: the list
+    // above can be filtered perfectly while the counts beside it still total the
+    // whole install, and a number is quite enough to tell you another company has
+    // 40 open tasks. Same filter, same params.
     $countSql = "SELECT ts.name AS status, COUNT(*) AS cnt
                  FROM tasks t
                  LEFT JOIN task_statuses ts ON ts.id = t.status_id
-                 WHERE t.parent_task_id IS NULL
+                 WHERE t.parent_task_id IS NULL{$tenantSql}
                  GROUP BY ts.name";
     $statusCounts = [];
-    $stmt = $conn->query($countSql);
+    $stmt = $conn->prepare($countSql);
+    $stmt->execute($tenantParams);
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $statusCounts[$row['status']] = (int)$row['cnt'];
     }

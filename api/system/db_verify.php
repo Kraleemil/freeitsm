@@ -1149,6 +1149,18 @@ try {
             try { $conn->exec("ALTER TABLE assets ADD INDEX idx_assets_tenant (tenant_id)"); } catch (Exception $e) {}
         }
     }
+    // tasks.tenant_id (SCOPED DATA, not config): the company a task belongs to.
+    // NULL = the Default company's, matching tickets and assets — a task is a work
+    // item, so it takes the data convention, not the shared-intake one. SET NULL so
+    // deleting a company reverts its tasks to Default rather than destroying work.
+    if ($tableExists('tasks') && $tableExists('tenants') && $colExists('tasks', 'tenant_id')) {
+        if (!$fkExists('tasks', 'fk_tasks_tenant')) {
+            try { $conn->exec("ALTER TABLE tasks ADD CONSTRAINT fk_tasks_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+        if (!$idxExists('tasks', 'idx_tasks_tenant')) {
+            try { $conn->exec("ALTER TABLE tasks ADD INDEX idx_tasks_tenant (tenant_id)"); } catch (Exception $e) {}
+        }
+    }
     // apikeys.tenant_id: the company an ingest key pins its assets to (NULL =
     // Default). SET NULL so deleting a company reverts its keys to Default rather
     // than orphaning the agent.
