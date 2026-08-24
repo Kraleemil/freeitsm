@@ -147,6 +147,6 @@ try {
         window.CALENDAR_SCOPE = <?php echo json_encode($calendarScope); ?>;
     </script>
     <script src="../assets/js/schedule.js?v=1"></script>
-    <script src="../assets/js/calendar.js?v=7"></script>
+    <script src="../assets/js/calendar.js?v=8"></script>
 </body>
 </html>

@@ -188,6 +188,7 @@ function monthLabel(monthIndex) {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     renderCalendar();
+    startCalendarAutoRefresh();
 });
 
 // Switch view
@@ -695,6 +696,12 @@ async function applyDrag(ticket, start, end, allDay) {
         : new Date(ticket.work_start_datetime).toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' });
     renderCurrentView();
 
+    // ⚠️ HOLD OFF THE BACKGROUND REFRESH ACROSS THE WHOLE SAVE. dragTicketId is
+    // already back to null by now — dragend fires the moment the mouse is
+    // released, long before the server answers — so it cannot cover this window.
+    // A refresh landing here would either overwrite the optimistic paint or, if
+    // the save is refused, resurrect the state the rollback just undid.
+    calendarRefreshBusy = true;
     try {
         const r = await fetch(`${API_BASE}schedule_ticket.php`, {
             method: 'POST', credentials: 'same-origin',
@@ -717,6 +724,8 @@ async function applyDrag(ticket, start, end, allDay) {
         });
         renderCurrentView();
         showToast(tr('tickets.calendar.move_failed'), 'error');
+    } finally {
+        calendarRefreshBusy = false;
     }
 }
 
@@ -882,6 +891,105 @@ async function unscheduleFromCalendar() {
 // Close ticket modal
 function closeTicketModal() {
     document.getElementById('ticketModal').classList.remove('active');
+    // Refreshing was held off for as long as this was open, so catch up now
+    // rather than leaving up to half a minute of staleness on screen.
+    calendarAutoRefresh();
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Keeping the calendar current
+ *
+ * A shared calendar goes stale while you look at it. A colleague schedules
+ * something, an analyst drags a job to Thursday, a ticket gets closed — and the
+ * screen in front of you quietly stops being true.
+ *
+ * 🔑 THE WHOLE TRICK IS NOT REPAINTING. A poll that rebuilt the grid every 30
+ * seconds would be worse than no poll at all: it would drop hover states, close
+ * tooltips, and flicker the whole month — thirty times an hour, almost always to
+ * draw exactly what was already there. So the fetch happens on a timer, and the
+ * REPAINT happens only when the data genuinely differs. In the ordinary case
+ * nothing on screen is touched at all.
+ *
+ * ⚠️ AND IT MUST NEVER INTERRUPT. Four situations where a refresh would be felt
+ * as a bug, each skipped rather than queued — the timer simply comes round
+ * again, so nothing accumulates:
+ *
+ *   - A MODAL IS OPEN. Beyond the visible rudeness, showTicketDetail holds a
+ *     reference INTO scheduledTickets, and refreshing replaces that array. The
+ *     modal would go on editing an object no longer connected to the grid, and
+ *     the save would look successful while changing nothing on screen.
+ *   - A DRAG IS IN PROGRESS. Re-rendering mid-drag destroys the element being
+ *     dragged, which ends the drag wherever the pointer happens to be.
+ *   - A DRAG IS SAVING. applyDrag paints optimistically and rolls back if the
+ *     server refuses; a refresh landing in that window would either overwrite
+ *     the optimistic state or resurrect the rolled-back one.
+ *   - THE TAB IS HIDDEN. Nobody is looking, so this is pure traffic — every open
+ *     calendar tab in the building, all day.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const CALENDAR_REFRESH_MS = 30000;
+let calendarRefreshTimer = null;
+let calendarRefreshBusy  = false;
+
+/**
+ * A fingerprint of what is currently drawn.
+ *
+ * Sorted, so the server returning the same tickets in a different order is not
+ * mistaken for a change — that would repaint every time and defeat the point.
+ * It covers exactly the fields the grid renders: change one of those and the
+ * screen must be redrawn, change anything else and it need not be.
+ */
+function calendarSignature(list) {
+    return (list || []).map(t => [
+        t.id, t.work_start_datetime, t.work_end_datetime, t.work_all_day,
+        t.duration_minutes, t.status, t.priority, t.owner_id, t.subject,
+        t.ticket_number
+    ].join('')).sort().join('');
+}
+
+/** Why a refresh is being skipped, or null if it may go ahead. */
+function calendarRefreshBlocked() {
+    if (document.hidden)          return 'hidden';
+    if (calendarRefreshBusy)      return 'busy';
+    if (dragTicketId !== null)    return 'dragging';
+    if (document.querySelector('.modal.active')) return 'modal';
+    return null;
+}
+
+async function calendarAutoRefresh() {
+    if (calendarRefreshBlocked()) return;
+
+    calendarRefreshBusy = true;
+    try {
+        const before = calendarSignature(scheduledTickets);
+        await loadScheduledTicketsForRange();
+        if (calendarSignature(scheduledTickets) === before) return;
+
+        // Something actually moved. Re-assign colours first: an owner appearing
+        // or leaving changes the legend, and the stripes and the legend have to
+        // agree or the colours mean nothing.
+        assignOwnerColours(scheduledTickets);
+        renderOwnerLegend();
+        renderCurrentView();
+    } catch (err) {
+        // A failed background refresh is not worth a toast. The screen keeps
+        // showing the last good data, which is the correct fallback, and the
+        // next tick tries again.
+        console.error('Calendar auto-refresh failed:', err);
+    } finally {
+        calendarRefreshBusy = false;
+    }
+}
+
+function startCalendarAutoRefresh() {
+    if (calendarRefreshTimer) clearInterval(calendarRefreshTimer);
+    calendarRefreshTimer = setInterval(calendarAutoRefresh, CALENDAR_REFRESH_MS);
+
+    // Coming back to the tab should show current data immediately rather than
+    // whatever was true when you left, for up to another 30 seconds.
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) calendarAutoRefresh();
+    });
 }
 
 // Utility functions
