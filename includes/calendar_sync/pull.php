@@ -332,9 +332,16 @@ function calendarSyncEnsureSubscription(PDO $conn, int $analystId): string
 
 function calendarStoreSubscription(PDO $conn, int $analystId, string $id, string $expires, ?string $secret): void
 {
+    // ⚠️ CLEARING last_error IS PART OF SUCCEEDING. Subscribing writes the failure
+    // to last_error, but this — the success path for both create and renew — used
+    // to leave it standing, so a system that failed once and then recovered kept
+    // showing a red "failed" pill until the next successful push happened to clear
+    // it. A stale error is worse than none: it sends you looking for a fault that
+    // has already been fixed.
     $conn->prepare(
         "UPDATE calendar_enrolments
-            SET subscription_id = ?, subscription_expires = ?, subscription_secret = ?
+            SET subscription_id = ?, subscription_expires = ?, subscription_secret = ?,
+                last_error = NULL
           WHERE analyst_id = ?"
     )->execute([$id, $expires, $secret, $analystId]);
 }

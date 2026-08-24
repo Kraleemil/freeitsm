@@ -25,23 +25,38 @@
  * ten seconds. It happens BEFORE any subscription exists, so it cannot be
  * authenticated by clientState — echoing a token proves only that we control the
  * URL, which is precisely what it is for.
+ *
+ * 🔴 AND IT MUST COME BEFORE THE require LINES. Graph sends that validation POST
+ * declaring `Content-Type: text/plain`, and includes/request_guard.php — reached
+ * via functions.php, running on include — answers 415 to exactly that. Two
+ * correct pieces of code, colliding: the guard refuses text/plain because no
+ * browser has an honest reason to send it, and Graph sends it because the body is
+ * empty and the token is in the query string. Put the handshake below the
+ * includes and it never executes; Graph reports only "Subscription validation
+ * request failed … UnsupportedMediaType" and no subscription is ever created.
+ *
+ * Answering above the guard is safe because this branch does nothing: no session,
+ * no database, no cookie read, no state changed. It echoes one query parameter as
+ * inert text/plain (nosniff, so no browser can be talked into running it) and
+ * exits. There is nothing here for a forged request to achieve.
  */
 
-// No session: this is a machine-to-machine callback.
-require_once __DIR__ . '/../../config.php';
-require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/services/tickets.php';
-require_once __DIR__ . '/../../includes/calendar_sync/pull.php';
-
 // ── 1. Validation handshake ─────────────────────────────────────────────────
-// First, unconditionally, and with no database work: Graph gives up after ten
-// seconds and a slow answer means the subscription is simply never created.
+// Genuinely first: before the includes, for the reason in the header above.
 if (isset($_GET['validationToken'])) {
     header('Content-Type: text/plain; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
     http_response_code(200);
     echo $_GET['validationToken'];
     exit;
 }
+
+// No session: this is a machine-to-machine callback. Real notifications arrive as
+// application/json and pass the guard normally, so these stay where they are.
+require_once __DIR__ . '/../../config.php';
+require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/services/tickets.php';
+require_once __DIR__ . '/../../includes/calendar_sync/pull.php';
 
 // ── 2. Acknowledge FAST, then work ──────────────────────────────────────────
 // Graph expects a 202 within 3 seconds and retries if it does not get one —
