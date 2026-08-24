@@ -333,6 +333,20 @@ try {
                     <p>Hover a pill to see the make, model, serial number and location, so the device is identified without a round of questions. Click it to open the asset, or use the &times; to unlink. CMDB objects sit in the same bar marked &#128451; and are attached the same way &mdash; they are kept visibly separate because they are different things: a broken mouse is an asset and will never be a configuration item.</p>
 
                     <p class="help-note">Requesters can link equipment themselves when raising a ticket in the self-service portal, but only equipment assigned to <em>them</em>. Shared items &mdash; meeting room screens, printers, anything nobody holds &mdash; can only be attached by an analyst, so expect to add those yourself when a ticket describes one.</p>
+
+                    <h4>Tasks that come out of a ticket</h4>
+
+                    <p>Plenty of tickets lead to follow-up work &mdash; order the part, book the engineer, write it up afterwards. Choose <strong>Link to&hellip; &rarr; Task</strong> and that work becomes a task attached to the ticket, shown as a pill marked &#9744; while it is outstanding and &#9745; once it is done. A ticket can have as many tasks as it needs.</p>
+
+                    <p><strong>The same box does both jobs.</strong> Type what the work is: as you type, FreeITSM searches the tasks you already have, and offers to <strong>create a task with exactly what you typed</strong> at the top of the list. So if the job is already on somebody's board you attach that one, and if it is not, you make it &mdash; without stopping to decide which of the two you are doing first. Seeing the near-matches as you type is the point: it is what stops a second copy of a task that already exists.</p>
+
+                    <p>A task made this way <strong>belongs to you</strong> and starts on your own task list, because raising a task while working a ticket nearly always means you intend to do it. Reassign it from the task itself if it is really somebody else's. It also takes the ticket's company, so it appears alongside the rest of that client's work.</p>
+
+                    <p>The pill shows the status, and a fraction such as <strong>2/5</strong> if the task has subtasks &mdash; so you can see how far along it is without opening it. Hover for who it is with. Click it to open the task in full.</p>
+
+                    <p>You can attach a task <strong>without opening the ticket at all</strong>: right-click any ticket in the list and choose <strong>Link to task&hellip;</strong>.</p>
+
+                    <p class="help-note">The &times; on a task pill <strong>unlinks, it does not delete</strong>. The task carries on living in the Tasks module &mdash; it simply stops being connected to this ticket. Deleting a task is done from the task itself, where you can see what you are throwing away. And if you close a ticket that still has unfinished tasks, FreeITSM will say so and let you decide &mdash; it will not stop you, because the remaining work is often somebody else's now.</p>
                 </div>
 
                 <!-- Section 4: Working faster — templates, bulk actions, merge & split -->
