@@ -225,6 +225,8 @@ return [
         'search_placeholder' => 'Search tasks, or type a new one…',
         'group_create'       => 'Create',
         'group_existing'     => 'Existing tasks',
+        'type_to_search'     => 'Type to search, or type a new task title…',
+        'no_matches'         => 'No matching tasks — the row above creates one',
         'create_named'       => 'Create task "{title}"',
         'moves_from'         => 'currently on {ticket}',
         'created_toast'      => 'Task "{title}" created',

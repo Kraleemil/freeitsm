@@ -50,9 +50,18 @@ try {
         // a task made in the Tasks module. Deliberately NOT copying the ticket's
         // priority or dates: two copies of the truth drift apart, and the link is
         // one click from the ticket anyway.
+        //
+        // Assigned to whoever made it. This started out unassigned, on the
+        // reasoning that handing work to a person should be a deliberate act —
+        // but that is the wrong default HERE: raising a task while working a
+        // ticket almost always means "I am going to do this", and an unassigned
+        // task shows up on nobody's list. Reassigning is one click; noticing a
+        // task nobody owns can take days. (Tasks made in the Tasks module keep
+        // their own behaviour — this is the ticket path only.)
         $res = TasksService::saveTask($conn, ActorContext::fromSession($conn), [
-            'title'     => $title,
-            'ticket_id' => $ticketId,
+            'title'               => $title,
+            'ticket_id'           => $ticketId,
+            'assigned_analyst_id' => $analystId,
         ]);
         echo json_encode(['success' => true, 'task_id' => $res['id'], 'created' => true]);
         exit;

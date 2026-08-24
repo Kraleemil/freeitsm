@@ -2956,48 +2956,91 @@ function renderTicketTasks(ticketId) {
 function openLinkTaskPicker(ticketId) {
     const ui = openStripPicker(t('tickets.tasks.search_placeholder'));
     if (!ui) return;
+    const { input, results, close } = ui;
     let timer = null;
 
-    const draw = (rows, typed) => {
-        const parts = [];
-        if (typed) {
-            parts.push(`<div class="asset-picker-group">${escapeHtml(t('tickets.tasks.group_create'))}</div>`);
-            parts.push(`<div class="link-search-result" onclick="createTaskForTicket(${ticketId}, ${JSON.stringify(typed).replace(/"/g, '&quot;')})">
-                &#10010; ${escapeHtml(t('tickets.tasks.create_named', { title: typed }))}
-            </div>`);
+    // One flat list so the rows are index-addressable: the "create" row is just
+    // the first entry rather than a special case, which is what lets creating
+    // and linking be the same gesture all the way down to the click handler.
+    let current = [];
+
+    const render = () => {
+        if (!current.length) {
+            results.innerHTML = `<div class="asset-picker-empty">${escapeHtml(
+                input.value.trim() === '' ? t('tickets.tasks.type_to_search') : t('tickets.tasks.no_matches')
+            )}</div>`;
+            results.classList.add('active');
+            return;
         }
-        if (rows.length) {
-            parts.push(`<div class="asset-picker-group">${escapeHtml(t('tickets.tasks.group_existing'))}</div>`);
-            rows.forEach(r => {
-                const box  = r.status_is_closed ? '&#9745;' : '&#9744;';
-                const note = r.linked_elsewhere
-                    ? ` <em>${escapeHtml(t('tickets.tasks.moves_from', { ticket: r.linked_ticket_number || '' }))}</em>`
-                    : (r.status ? ' · ' + escapeHtml(r.status) : '');
-                parts.push(`<div class="link-search-result" onclick="linkTaskToTicket(${ticketId}, ${r.id})">
-                    ${box} ${escapeHtml(r.title)}${note}
-                </div>`);
+
+        let lastKind = null;
+        results.innerHTML = current.map((r, i) => {
+            const heading = r.kind !== lastKind
+                ? `<div class="asset-picker-group">${escapeHtml(
+                    r.kind === 'create' ? t('tickets.tasks.group_create') : t('tickets.tasks.group_existing'))}</div>`
+                : '';
+            lastKind = r.kind;
+
+            if (r.kind === 'create') {
+                return heading + `<div class="asset-picker-result" data-idx="${i}">
+                    <span>&#10010; ${escapeHtml(t('tickets.tasks.create_named', { title: r.title }))}</span>
+                </div>`;
+            }
+            const box    = r.status_is_closed ? '&#9745;' : '&#9744;';
+            const detail = r.linked_elsewhere
+                ? t('tickets.tasks.moves_from', { ticket: r.linked_ticket_number || '' })
+                : (r.status || '');
+            return heading + `<div class="asset-picker-result" data-idx="${i}">
+                <span>${box} ${escapeHtml(r.title)}</span>
+                <span class="asset-picker-detail">${escapeHtml(detail)}</span>
+            </div>`;
+        }).join('');
+
+        // ⚠️ Without this the rows are written into a container that CSS keeps at
+        // display:none, so the picker looks completely dead while working
+        // perfectly. That is exactly how this shipped the first time.
+        results.classList.add('active');
+
+        // Bound rather than inlined: a task title carrying an apostrophe or a
+        // quote would break an onclick attribute built by string concatenation.
+        results.querySelectorAll('.asset-picker-result').forEach(el => {
+            el.addEventListener('mousedown', e => {
+                e.preventDefault();
+                pick(current[parseInt(el.dataset.idx, 10)]);
             });
-        }
-        ui.results.innerHTML = parts.join('');
+        });
     };
 
-    ui.input.addEventListener('input', () => {
-        const typed = ui.input.value.trim();
-        clearTimeout(timer);
-        if (typed === '') { ui.results.innerHTML = ''; return; }
-        timer = setTimeout(async () => {
-            let rows = [];
-            try {
-                const res = await fetch('../api/tickets/search_linkable_tasks.php?ticket_id=' + ticketId
-                    + '&q=' + encodeURIComponent(typed));
-                const data = await res.json();
-                if (data.success) rows = data.results || [];
-            } catch (e) { /* offer the create row regardless */ }
-            draw(rows, typed);
-        }, 250);
-    });
+    const pick = (r) => {
+        if (!r) return;
+        if (r.kind === 'create') createTaskForTicket(ticketId, r.title);
+        else linkTaskToTicket(ticketId, r.id);
+    };
 
-    ui._close = ui.close;
+    const search = async (typed) => {
+        let rows = [];
+        try {
+            const res = await fetch('../api/tickets/search_linkable_tasks.php?ticket_id=' + ticketId
+                + '&q=' + encodeURIComponent(typed));
+            const data = await res.json();
+            if (data.success) rows = data.results || [];
+        } catch (e) { /* still offer to create what they typed */ }
+
+        current = [{ kind: 'create', title: typed }]
+            .concat(rows.map(r => Object.assign({ kind: 'task' }, r)));
+        render();
+    };
+
+    input.oninput = () => {
+        clearTimeout(timer);
+        const typed = input.value.trim();
+        if (typed === '') { current = []; render(); return; }
+        timer = setTimeout(() => search(typed), 200);
+    };
+
+    input.onkeydown = e => { if (e.key === 'Escape') close(); };
+
+    render();   // "type to search" straight away, so the box never looks broken
 }
 
 async function createTaskForTicket(ticketId, title) {
