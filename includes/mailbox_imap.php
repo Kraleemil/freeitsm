@@ -552,3 +552,111 @@ function imapSmtpExpect($fp, array $expected): string {
     }
     return $response;
 }
+
+/**
+ * List every folder on the server, with the {host} prefix stripped.
+ *
+ * Names come back in modified UTF-7 (IMAP's own encoding), so a folder called
+ * "Anfragen" or "Support/Übergabe" would otherwise be reported back mangled.
+ *
+ * @return array<int, array{name:string, delimiter:string}>
+ */
+function imapListFolders($stream, array $mailbox): array {
+    $boxes = @imap_getmailboxes($stream, imapMailboxRef($mailbox, ''), '*');
+    imap_errors(); // drain so nothing leaks into later output
+
+    if (!is_array($boxes)) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($boxes as $box) {
+        $name = (string) ($box->name ?? '');
+        $brace = strpos($name, '}');
+        if ($brace !== false) {
+            $name = substr($name, $brace + 1);
+        }
+        if ($name === '') {
+            continue;
+        }
+        if (function_exists('mb_convert_encoding')) {
+            $decoded = @mb_convert_encoding($name, 'UTF-8', 'UTF7-IMAP');
+            if (is_string($decoded) && $decoded !== '') {
+                $name = $decoded;
+            }
+        }
+        $out[] = ['name' => $name, 'delimiter' => (string) ($box->delimiter ?? '')];
+    }
+    return $out;
+}
+
+/**
+ * Verify a folder exists in a basic IMAP mailbox and report its message counts.
+ *
+ * ⚠️ WHY THIS EXISTS. verify_mailbox_folder.php was written for Microsoft Graph
+ * and gated on an OAuth token before doing anything else. A basic IMAP mailbox
+ * never has one — it authenticates with the stored username + password — so
+ * Verify answered "Mailbox is not authenticated" for EVERY IMAP mailbox on every
+ * install, no matter how correct the credentials were, without making a single
+ * network call.
+ *
+ * The connection is opened through imapStreamFor() — the SAME helper the inbound
+ * poll uses — so Verify cannot pass a folder that reading then rejects. That
+ * divergence is exactly what GH #77 was on the Graph side.
+ *
+ * A missing folder is reported separately from a failed login, and names the
+ * folders that DO exist: on servers with an "INBOX." personal namespace the real
+ * name is "INBOX.Support", and "Support" alone genuinely will not open.
+ *
+ * @return array{displayName:string, totalItemCount:int|null, unreadItemCount:int}
+ * @throws Exception naming the folder, or explaining the connection failure.
+ */
+function imapVerifyFolder(array $mailbox, string $folderName): array {
+    $folderName = trim($folderName);
+    if ($folderName === '') {
+        throw new Exception('No mail folder configured.');
+    }
+
+    // Connect against INBOX, which always exists, so a failure here is
+    // unambiguously credentials/TLS/extension rather than a bad folder name.
+    $stream = imapStreamFor($mailbox, 'INBOX');
+
+    $folders = imapListFolders($stream, $mailbox);
+
+    $match = null;
+    foreach ($folders as $folder) {
+        $candidates = [$folder['name']];
+        if ($folder['delimiter'] !== '') {
+            // Accept "Inbox/Support" for a server that names it "INBOX.Support".
+            $candidates[] = str_replace($folder['delimiter'], '/', $folder['name']);
+        }
+        foreach ($candidates as $candidate) {
+            if (strcasecmp($candidate, $folderName) === 0) {
+                $match = $folder;
+                break 2;
+            }
+        }
+    }
+
+    if ($match === null) {
+        $names = array_slice(array_column($folders, 'name'), 0, 12);
+        throw new Exception(
+            'Folder "' . $folderName . '" was not found in this mailbox.'
+            . ($names ? ' Folders on the server: ' . implode(', ', $names) . '.' : '')
+        );
+    }
+
+    // Open the matched folder BY THE NAME THE SERVER USES, which is the name
+    // reading will use too. Counts come from the selected folder rather than a
+    // separate STATUS call, so what is reported is the folder actually opened.
+    $folderStream = imapStreamFor($mailbox, $match['name']);
+    $total  = @imap_num_msg($folderStream);
+    $unseen = @imap_search($folderStream, 'UNSEEN', SE_UID);
+    imap_errors();
+
+    return [
+        'displayName'     => $match['name'],
+        'totalItemCount'  => $total === false ? null : (int) $total,
+        'unreadItemCount' => is_array($unseen) ? count($unseen) : 0,
+    ];
+}

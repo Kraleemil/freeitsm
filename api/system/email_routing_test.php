@@ -25,6 +25,7 @@ require_once '../../includes/admin_api_guard.php'; // System admins only (issue 
 require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/mailbox_auth.php';
 
 header('Content-Type: application/json');
 
@@ -47,7 +48,7 @@ try {
     // The mailbox the mail arrives at (the "To" identity).
     $stmt = $conn->prepare(
         "SELECT id, name, target_mailbox, tenant_id, is_active,
-                CASE WHEN token_data IS NOT NULL AND token_data != '' THEN 1 ELSE 0 END AS is_authenticated
+                " . mailboxAuthenticatedSql() . " AS is_authenticated
          FROM target_mailboxes WHERE id = ?"
     );
     $stmt->execute([$mailboxId]);

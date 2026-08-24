@@ -9,6 +9,8 @@ require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/mailbox_graph.php';
+require_once '../../includes/mailbox_imap.php';
+require_once '../../includes/gmail.php';
 
 header('Content-Type: application/json');
 
@@ -47,6 +49,54 @@ try {
 
     $provider = $mailbox['provider'] ?? 'microsoft';
     $authMode = $mailbox['auth_mode'] ?? 'delegated';
+
+    // ⚠️ Everything below the provider branches is Microsoft Graph, and used to be
+    // the ONLY path — so Verify was broken for two of the three providers it was
+    // offered on. Branch BEFORE the OAuth-token gate, which is where IMAP died.
+
+    // Basic IMAP has no OAuth token and needs none: it connects with the stored
+    // username + password. The Graph path answered "Mailbox is not authenticated"
+    // for every IMAP mailbox on every install, without making a network call.
+    if ($provider === 'imap') {
+        try {
+            $folder = imapVerifyFolder($mailbox, $folderName);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        echo json_encode(['success' => true, 'folder' => $folder]);
+        exit;
+    }
+
+    // Google DOES hold a token — a Google one — so it passed the gate and then ran
+    // the Microsoft flow with Google credentials: the access token was sent to
+    // graph.microsoft.com, and an expired one refreshed against
+    // login.microsoftonline.com with azure_* fields a Google mailbox never has.
+    if ($provider === 'google') {
+        if (empty($mailbox['token_data'])) {
+            echo json_encode(['success' => false, 'error' => 'Mailbox is not authenticated. Please sign in to Google in Settings.']);
+            exit;
+        }
+
+        $cleanedTokenData = preg_replace('/[\x00-\x1F\x7F]/', '', $mailbox['token_data']);
+        $tokenData = json_decode($cleanedTokenData, true);
+        if (!$tokenData || !isset($tokenData['access_token'])) {
+            echo json_encode(['success' => false, 'error' => 'Invalid token data']);
+            exit;
+        }
+
+        try {
+            // Google's own refresh + persist, not Microsoft's.
+            $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
+            $folder = gmailVerifyFolder($accessToken, $mailbox, $folderName);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        echo json_encode(['success' => true, 'folder' => $folder]);
+        exit;
+    }
+
     mailboxResolveGraphBase($mailbox); // /me (delegated) or /users/<target> (app-only)
 
     if ($provider === 'microsoft' && $authMode === 'app_only') {

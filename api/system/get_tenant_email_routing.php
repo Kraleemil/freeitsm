@@ -27,6 +27,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/mailbox_auth.php';
 
 header('Content-Type: application/json');
 
@@ -69,7 +70,9 @@ try {
 
     // Mailbox auth/active state is enough here — no secrets, so no decryption.
     // target_mailbox (the address) is encrypted at rest; decrypt just that one.
-    $authExpr = "CASE WHEN token_data IS NOT NULL AND token_data != '' THEN 1 ELSE 0 END";
+    // Shared definition: this used to be an inline OAuth-token test, which called
+    // every Basic IMAP mailbox unauthenticated and warned that no mail would flow.
+    $authExpr = mailboxAuthenticatedSql();
 
     // Pinned mailboxes for this company.
     $stmt = $conn->prepare(

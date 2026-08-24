@@ -4662,10 +4662,19 @@ $translationNamespaces = ['common', 'tickets'];
 
                 resultEl.style.display = '';
                 if (data.success) {
-                    resultEl.style.color = '#155724';
-                    let msg = 'Folder "' + escapeHtml(data.folder.displayName) + '" found';
-                    if (data.folder.totalItemCount !== null) {
+                    // No escapeHtml: textContent below escapes already, so this
+                    // double-encoded any folder with an & or a quote in its name.
+                    let msg = 'Folder "' + data.folder.displayName + '" found';
+                    if (data.folder.totalItemCount !== null && data.folder.totalItemCount !== undefined) {
                         msg += ' (' + data.folder.totalItemCount + ' items, ' + data.folder.unreadItemCount + ' unread)';
+                    }
+                    // A Gmail label that exists but sits outside the Inbox verifies
+                    // fine and collects nothing. Green would read as "working".
+                    if (data.folder.note) {
+                        msg += ' - ' + data.folder.note;
+                        resultEl.style.color = '#856404';
+                    } else {
+                        resultEl.style.color = '#155724';
                     }
                     resultEl.textContent = msg;
                 } else {
