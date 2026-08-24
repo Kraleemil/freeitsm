@@ -903,12 +903,17 @@ function closeTicketModal() {
  * something, an analyst drags a job to Thursday, a ticket gets closed — and the
  * screen in front of you quietly stops being true.
  *
- * 🔑 THE WHOLE TRICK IS NOT REPAINTING. A poll that rebuilt the grid every 30
- * seconds would be worse than no poll at all: it would drop hover states, close
- * tooltips, and flicker the whole month — thirty times an hour, almost always to
+ * 🔑 THE WHOLE TRICK IS NOT REPAINTING. A poll that rebuilt the grid on every
+ * tick would be worse than no poll at all: it would drop hover states, close
+ * tooltips and flicker the whole month, six times a minute, almost always to
  * draw exactly what was already there. So the fetch happens on a timer, and the
  * REPAINT happens only when the data genuinely differs. In the ordinary case
  * nothing on screen is touched at all.
+ *
+ * That separation is also what makes the interval a free choice rather than a
+ * trade-off: because the cost of a tick that finds nothing is a single small
+ * query and no DOM work whatsoever, polling more often buys freshness without
+ * buying flicker.
  *
  * ⚠️ AND IT MUST NEVER INTERRUPT. Four situations where a refresh would be felt
  * as a bug, each skipped rather than queued — the timer simply comes round
@@ -927,7 +932,18 @@ function closeTicketModal() {
  *     calendar tab in the building, all day.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const CALENDAR_REFRESH_MS = 30000;
+/**
+ * Ten seconds, which is only affordable because of the two rules above: the
+ * repaint is decoupled from the poll, so a shorter interval costs no extra
+ * flicker whatsoever, and a hidden tab polls nothing at all. What is left is one
+ * small date-scoped query per calendar somebody is actually looking at.
+ *
+ * A slow server cannot make this pile up — calendarRefreshBusy means a request
+ * still in flight when the timer comes round is skipped rather than stacked, so
+ * a 12-second response quietly degrades to "as often as it can" instead of
+ * queueing requests behind each other.
+ */
+const CALENDAR_REFRESH_MS = 10000;
 let calendarRefreshTimer = null;
 let calendarRefreshBusy  = false;
 
@@ -986,7 +1002,7 @@ function startCalendarAutoRefresh() {
     calendarRefreshTimer = setInterval(calendarAutoRefresh, CALENDAR_REFRESH_MS);
 
     // Coming back to the tab should show current data immediately rather than
-    // whatever was true when you left, for up to another 30 seconds.
+    // whatever was true when you left, for up to another 10 seconds.
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden) calendarAutoRefresh();
     });
