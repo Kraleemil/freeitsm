@@ -771,6 +771,27 @@ return [
             'check_all'       => 'Check all',
             'test_connection' => 'Test connection',
             'verify'          => 'Verify',
+            'verifying'       => 'Verifying...',
+        ],
+        // Results of "Check all" and of the Verify button beside a folder field.
+        // These were built in JavaScript as English literals, so they stayed
+        // English on every non-English installation — reported on issue #45,
+        // where the German screenshots carried an English success banner.
+        'check_results' => [
+            'complete'         => 'Check complete',
+            'summary'          => '{count} mailbox(es) checked successfully, {emails} total email(s) processed',
+            'mailbox_ok'       => '{name}: {count} email(s)',
+            'mailbox_failed'   => '{name}: {error}',
+            'unknown_error'    => 'Unknown error',
+            'connection_error' => 'Connection error',
+        ],
+        'verify_result' => [
+            'enter_folder' => 'Enter a folder name first.',
+            'save_first'   => 'Save the mailbox first, then verify.',
+            'found'        => 'Folder "{name}" found',
+            'counts'       => '({total} items, {unread} unread)',
+            'not_found'    => 'Folder not found',
+            'failed'       => 'Failed to verify folder',
         ],
         // Add/Edit modal contents across the settings tabs. Each modal has its
         // own sub-namespace below. Convention for technical labels: product

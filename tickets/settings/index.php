@@ -4638,18 +4638,18 @@ $translationNamespaces = ['common', 'tickets'];
             if (!folderName) {
                 resultEl.style.display = '';
                 resultEl.style.color = '#856404';
-                resultEl.textContent = 'Enter a folder name first.';
+                resultEl.textContent = window.t('tickets.settings.verify_result.enter_folder');
                 return;
             }
             if (!mailboxId) {
                 resultEl.style.display = '';
                 resultEl.style.color = '#856404';
-                resultEl.textContent = 'Save the mailbox first, then verify.';
+                resultEl.textContent = window.t('tickets.settings.verify_result.save_first');
                 return;
             }
 
             btn.disabled = true;
-            btn.textContent = 'Verifying...';
+            btn.textContent = window.t('tickets.settings.buttons.verifying');
             resultEl.style.display = 'none';
 
             try {
@@ -4664,9 +4664,11 @@ $translationNamespaces = ['common', 'tickets'];
                 if (data.success) {
                     // No escapeHtml: textContent below escapes already, so this
                     // double-encoded any folder with an & or a quote in its name.
-                    let msg = 'Folder "' + data.folder.displayName + '" found';
+                    let msg = window.t('tickets.settings.verify_result.found', { name: data.folder.displayName });
                     if (data.folder.totalItemCount !== null && data.folder.totalItemCount !== undefined) {
-                        msg += ' (' + data.folder.totalItemCount + ' items, ' + data.folder.unreadItemCount + ' unread)';
+                        msg += ' ' + window.t('tickets.settings.verify_result.counts', {
+                            total: data.folder.totalItemCount, unread: data.folder.unreadItemCount
+                        });
                     }
                     // A Gmail label that exists but sits outside the Inbox verifies
                     // fine and collects nothing. Green would read as "working".
@@ -4679,15 +4681,17 @@ $translationNamespaces = ['common', 'tickets'];
                     resultEl.textContent = msg;
                 } else {
                     resultEl.style.color = '#721c24';
-                    resultEl.textContent = data.error || 'Folder not found';
+                    resultEl.textContent = data.error || window.t('tickets.settings.verify_result.not_found');
                 }
             } catch (err) {
                 resultEl.style.display = '';
                 resultEl.style.color = '#721c24';
-                resultEl.textContent = 'Failed to verify folder';
+                resultEl.textContent = window.t('tickets.settings.verify_result.failed');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Verify';
+                // Was a literal 'Verify', so a German button read "Prüfen" until
+                // the first click and "Verify" ever after.
+                btn.textContent = window.t('tickets.settings.buttons.verify');
             }
         }
 
@@ -4864,14 +4868,20 @@ $translationNamespaces = ['common', 'tickets'];
                     if (data.success) {
                         successCount++;
                         totalEmails += data.details?.emails_saved || 0;
-                        results.push(`&#10003; ${mb.name}: ${data.details?.emails_saved || 0} email(s)`);
+                        results.push('&#10003; ' + escapeHtml(window.t('tickets.settings.check_results.mailbox_ok', {
+                            name: mb.name, count: data.details?.emails_saved || 0
+                        })));
                     } else {
                         errorCount++;
-                        results.push(`&#10007; ${mb.name}: ${data.error || 'Unknown error'}`);
+                        results.push('&#10007; ' + escapeHtml(window.t('tickets.settings.check_results.mailbox_failed', {
+                            name: mb.name, error: data.error || window.t('tickets.settings.check_results.unknown_error')
+                        })));
                     }
                 } catch (error) {
                     errorCount++;
-                    results.push(`&#10007; ${mb.name}: Connection error`);
+                    results.push('&#10007; ' + escapeHtml(window.t('tickets.settings.check_results.mailbox_failed', {
+                        name: mb.name, error: window.t('tickets.settings.check_results.connection_error')
+                    })));
                 }
             }
 
@@ -4884,8 +4894,8 @@ $translationNamespaces = ['common', 'tickets'];
             }
 
             result.innerHTML = `
-                <strong>Check complete</strong>
-                <p>${successCount} mailbox(es) checked successfully, ${totalEmails} total email(s) processed</p>
+                <strong>${escapeHtml(window.t('tickets.settings.check_results.complete'))}</strong>
+                <p>${escapeHtml(window.t('tickets.settings.check_results.summary', { count: successCount, emails: totalEmails }))}</p>
                 <ul style="margin-top: 10px; padding-left: 20px;">
                     ${results.map(r => '<li>' + r + '</li>').join('')}
                 </ul>

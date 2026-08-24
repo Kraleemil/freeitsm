@@ -347,6 +347,23 @@ return [
             'check_all'       => 'Alle prüfen',
             'test_connection' => 'Verbindung testen',
             'verify'          => 'Prüfen',
+            'verifying'       => 'Wird geprüft …',
+        ],
+        'check_results' => [
+            'complete'         => 'Prüfung abgeschlossen',
+            'summary'          => '{count} Postfach/Postfächer erfolgreich geprüft, {emails} E-Mail(s) insgesamt verarbeitet',
+            'mailbox_ok'       => '{name}: {count} E-Mail(s)',
+            'mailbox_failed'   => '{name}: {error}',
+            'unknown_error'    => 'Unbekannter Fehler',
+            'connection_error' => 'Verbindungsfehler',
+        ],
+        'verify_result' => [
+            'enter_folder' => 'Geben Sie zuerst einen Ordnernamen ein.',
+            'save_first'   => 'Speichern Sie das Postfach zuerst und prüfen Sie es dann.',
+            'found'        => 'Ordner „{name}“ gefunden',
+            'counts'       => '({total} Elemente, {unread} ungelesen)',
+            'not_found'    => 'Ordner nicht gefunden',
+            'failed'       => 'Ordner konnte nicht geprüft werden',
         ],
         'modals' => [
             'lookup' => [
