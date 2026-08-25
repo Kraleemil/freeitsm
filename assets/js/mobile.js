@@ -119,6 +119,23 @@
     // ------------------------------------------------------------------
     if (document.querySelector('.status-layout')) { initStatusMobile(); return; }
 
+    // ------------------------------------------------------------------
+    // PROBLEM MANAGEMENT (#1181).
+    //
+    // The module already swaps panes in place — pmOpenDetail hides #pmListView
+    // and shows #pmDetailView — so it is master-detail before we touch it. The
+    // only thing missing on a phone is that the sidebar (search, New, the
+    // status chips) stays on screen while you are reading a problem, spending
+    // ~140px of a 640px screen on controls for the list you just left.
+    //
+    // Wrapped rather than edited: both are top-level function declarations, so
+    // they are properties of the global object and can be replaced from here.
+    // A body attribute carries the state and mobile.css does the hiding — no
+    // change to problem-management.js, and desktop never sees the attribute
+    // because both wrappers check mq.matches before setting it.
+    // ------------------------------------------------------------------
+    if (document.querySelector('.pm-container')) { initProblemsMobile(); return; }
+
     // Flat pages (Assets' table view, dashboard, settings, servers — #937) have
     // no pane stack: the shell above is the whole of their JS. The servers page
     // is the reason this test isn't just `!mc` — it DOES carry .main-container
@@ -465,6 +482,44 @@
             one scroll is a lot of thumb;
          2. the whole incident card opens the incident, not just its title.
        ================================================================== */
+    function initProblemsMobile() {
+        function setPane(name) {
+            if (!mq.matches) { document.body.removeAttribute('data-pm-pane'); return; }
+            document.body.setAttribute('data-pm-pane', name);
+        }
+
+        // Wrap, don't edit. Keep the original and call it, so every behaviour
+        // the module already has — history, scroll reset, caching — is intact.
+        var openDetail = window.pmOpenDetail;
+        if (typeof openDetail === 'function') {
+            window.pmOpenDetail = function () {
+                var out = openDetail.apply(this, arguments);
+                // pmOpenDetail is async and bails on a failed fetch, so the pane
+                // is only marked once it has actually resolved. Marking it up
+                // front would strand the sidebar hidden behind an error toast.
+                Promise.resolve(out).then(function () {
+                    var dv = document.getElementById('pmDetailView');
+                    if (dv && dv.style.display !== 'none') setPane('detail');
+                }).catch(function () { /* module already toasts */ });
+                return out;
+            };
+        }
+
+        var backToList = window.pmBackToList;
+        if (typeof backToList === 'function') {
+            window.pmBackToList = function () {
+                setPane('list');
+                return backToList.apply(this, arguments);
+            };
+        }
+
+        setPane('list');
+        // Rotating to a desktop width must not leave the sidebar hidden.
+        var sync = function () { if (!mq.matches) document.body.removeAttribute('data-pm-pane'); };
+        if (mq.addEventListener) { mq.addEventListener('change', sync); }
+        else if (mq.addListener) { mq.addListener(sync); }
+    }
+
     function initStatusMobile() {
         var layout = document.querySelector('.status-layout');
         if (!layout) return;

@@ -2949,4 +2949,111 @@
         line-height: 1.25;
         overflow-wrap: anywhere;
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LAYER 22 — PROBLEM MANAGEMENT module (#1181)
+
+       A 250px fixed sidebar beside a flexible list. At 360px that left the list
+       itself **110px wide** — contained, scrollable, and completely unusable.
+       This is the clearest case yet of why `docScrollW === innerWidth` is the
+       floor and not the finish line.
+
+       No mobile.js branch: the detail view already swaps panes in place
+       (pmListView hides, pmDetailView shows), so the module's own behaviour is
+       already master-detail. Only the sidebar needed rehousing, and that is
+       reachable with CSS alone — the third module in a row to need no JS.
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    /* Stack the two panes and let the page own its height, rather than the
+       desktop's calc(100vh - 48px) — same reasoning as LAYER 21. */
+    .pm-container {
+        flex-direction: column;
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* The sidebar becomes a compact header strip: the two actions side by side,
+       then the status filters as a horizontal chip row. Stacking it as-is would
+       have spent ~250px of a 640px-tall screen before the first problem. */
+    .pm-sidebar {
+        width: auto;
+        min-width: 0;
+        flex: 0 0 auto;
+        overflow: visible;
+        border-right: none;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        padding: 10px 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    /* The heading and the filter row span both columns; only the two buttons
+       share the top line. */
+    .pm-sidebar h3,
+    .pm-sidebar #pmStatusFilters { grid-column: 1 / -1; }
+    .pm-sidebar h3 { margin: 2px 0 0; }
+    .pm-sidebar .pm-new-btn { margin-top: 0; }
+    .pm-sidebar .search-btn,
+    .pm-sidebar .pm-new-btn { padding: 10px 8px; }
+
+    /* Filters: a one-line horizontal scroller. Each chip keeps its count, which
+       is the reason not to collapse this into a <select> — the counts are half
+       the value of the list ("are there any open ones at all?"). */
+    #pmStatusFilters {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 6px;
+        padding-bottom: 2px;
+        -webkit-overflow-scrolling: touch;
+        /* Same idiom as .detail-tabs, .sw-filter-tabs and the settings .tabs:
+           the bar is redundant on touch, where the strip's own overflow is the
+           affordance, and on a narrow desktop window it eats a row of height. */
+        scrollbar-width: none;
+    }
+    #pmStatusFilters::-webkit-scrollbar { display: none; }
+    .pm-filter {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    /* The list pane is the page's scroller. */
+    .pm-main {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 14px 12px;
+    }
+
+    /* Reading a problem gets the whole screen. The sidebar is controls for the
+       list you have just left, and ~140px of a 640px screen is too much to
+       spend on them; the detail view's own "← Back" is the way out. Driven by
+       an attribute mobile.js sets, so desktop — which never gets the attribute
+       — keeps both panes side by side. */
+    body[data-pm-pane="detail"] .pm-sidebar { display: none; }
+
+    /* Title, the AI button and the count fought over one line. */
+    .pm-list-head {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .pm-list-head h2 { font-size: 1.15rem; }
+
+    /* This module has its own `.pm-modal-content` rather than the shared
+       `.modal-content`, so LAYER 3's full-screen sheet rule never reached it —
+       it stayed a 92%-width centred box with a 40px margin. Same treatment,
+       stated here because the class differs. */
+    .pm-modal-content {
+        width: 100%;
+        max-width: none !important;
+        margin: 0;
+        border-radius: 0;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .pm-modal-body { flex: 1 1 auto; overflow-y: auto; }
+    .pm-modal-foot { position: sticky; bottom: 0; background: var(--surface, #fff); }
 }

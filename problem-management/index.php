@@ -126,6 +126,7 @@ $translationNamespaces = ['common'];
         .search-btn { width: 100%; box-sizing: border-box; padding: 8px 12px; background: var(--surface, #fff); color: var(--text-muted, #374151); border: 1px solid var(--border, #cfd8dc); border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer; transition: border-color .15s, color .15s; }
         .search-btn:hover { border-color: var(--pm-accent, #dc2626); color: var(--pm-accent, #dc2626); }
     </style>
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=46">
     <?php echo Tz::scriptTag(); ?>
     <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=1"></script>
 </head>
@@ -254,5 +255,6 @@ $translationNamespaces = ['common'];
     <script src="<?php echo BASE_URL; ?>assets/js/toast.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/confirm.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/problem-management.js?v=17"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=23"></script>
 </body>
 </html>

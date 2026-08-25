@@ -240,7 +240,7 @@ $translationNamespaces = ['common', 'knowledge'];
         }
     </style>
     <!-- Mobile: LAYER 15e handles a settings page built on .container + renderSettingsTabBar, which is this one - hence the marker on <body>. -->
-    <link rel="stylesheet" href="../../assets/css/mobile.css?v=45">
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=46">
 </head>
 <body data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
@@ -981,6 +981,6 @@ $translationNamespaces = ['common', 'knowledge'];
             }
         });
     </script>
-    <script src="../../assets/js/mobile.js?v=22"></script>
+    <script src="../../assets/js/mobile.js?v=23"></script>
 </body>
 </html>
