@@ -104,7 +104,7 @@ $translationNamespaces = ['common', 'watchtower'];
     </style>
     <link rel="stylesheet" href="../../assets/css/mobile.css?v=47">
 </head>
-<body>
+<body data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
 
     <div class="container">

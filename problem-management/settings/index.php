@@ -47,7 +47,7 @@ $path_prefix = '../../';
     <?php echo Tz::scriptTag(); ?>
     <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=1"></script>
 </head>
-<body>
+<body data-mobile-page="settings">
     <div class="settings-shell">
     <?php include __DIR__ . '/../includes/header.php'; ?>
 
