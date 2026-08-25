@@ -334,7 +334,7 @@ function persistColumnOrder() {
     }).then(r => r.json()).then(d => {
         showToast(d.success ? window.t('tasks.toast.order_saved')
             : window.t('tasks.toast.error_prefix', { message: d.error || window.t('tasks.toast.order_failed') }));
-    }).catch(() => showToast(window.t('tasks.toast.order_failed'), 'success'));
+    }).catch(() => showToast(window.t('tasks.toast.order_failed'), 'error'));
 }
 
 function renderBoard() {
@@ -484,7 +484,7 @@ async function handleQuickAdd(event, status, col) {
             showToast(window.t('tasks.toast.error_prefix', { message: data.error || window.t('tasks.toast.create_failed') }));
         }
     } catch (e) {
-        showToast(window.t('tasks.toast.create_failed'), 'success');
+        showToast(window.t('tasks.toast.create_failed'), 'error');
     }
     input.disabled = false;
 }
@@ -873,7 +873,7 @@ function renderDetailPanel(task) {
             <h4>${esc(window.t('tasks.detail.links'))}</h4>
             <div id="linkList">
                 ${task.ticket_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_ticket'))}</span> ${linkedRecord(task.ticket_url, '#' + (task.ticket_number || task.ticket_id) + ' — ' + (task.ticket_subject || ''))}<button class="link-remove" onclick="removeLink('ticket_id')">&times;</button></div>` : ''}
-                ${task.change_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_change'))}</span> ${linkedRecord(task.change_url, task.change_title || ('Change #' + task.change_id))}<button class="link-remove" onclick="removeLink('change_id')">&times;</button></div>` : ''}
+                ${task.change_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_change'))}</span> ${linkedRecord(task.change_url, task.change_title || (window.t('tasks.detail.link_change') + ' #' + task.change_id))}<button class="link-remove" onclick="removeLink('change_id')">&times;</button></div>` : ''}
             </div>
             ${!task.ticket_id ? `
             <div class="link-search-container">
@@ -905,11 +905,23 @@ function renderDetailPanel(task) {
                     const dueBadge = s.due_date ? formatDueBadge(s.due_date) : '';
                     const assignee = s.analyst_name ? esc(s.analyst_name) : '';
                     const priorityCls = (s.priority || 'medium').toLowerCase();
+                    // The propagation guard belongs on CLICK, not on CHANGE.
+                    // Ticking a checkbox fires a click on the input, which bubbles
+                    // to the row's onclick — so the row opened the subtask instead
+                    // of the box being ticked. Stopping propagation inside onchange
+                    // was both too late and on an event the row never listens for.
+                    // Ticking a box must tick the box and nothing else.
+                    //
+                    // "checked" comes from the is_closed FLAG, never from comparing
+                    // the status name to the English word Done: rename the status
+                    // and the box would never appear ticked however complete it was.
                     return `
                     <div class="subtask-item" onclick="openDetailPanel(${s.id})">
-                        <input type="checkbox" ${s.status === 'Done' ? 'checked' : ''} onchange="event.stopPropagation(); toggleSubtask(${s.id})">
+                        <input type="checkbox" ${s.status_is_closed ? 'checked' : ''}
+                               onclick="event.stopPropagation()"
+                               onchange="toggleSubtask(${s.id})">
                         <span class="priority-dot ${priorityCls}" title="${esc(s.priority || '')}"></span>
-                        <span class="subtask-title ${s.status === 'Done' ? 'completed' : ''}">${esc(s.title)}</span>
+                        <span class="subtask-title ${s.status_is_closed ? 'completed' : ''}">${esc(s.title)}</span>
                         <span class="subtask-meta">
                             ${assignee ? '<span class="subtask-assignee">' + assignee + '</span>' : ''}
                             ${dueBadge}
@@ -1015,7 +1027,7 @@ async function saveField(field, value) {
 function tagChipHtml(tag, removable) {
     const colour = tag.colour || '#6b7280';
     const x = removable
-        ? `<button type="button" class="tag-chip-x" title="Remove"
+        ? `<button type="button" class="tag-chip-x" title="${escAttr(window.t('tasks.detail.remove_tag'))}"
              onclick="event.stopPropagation(); removeDetailTag(${tag.id})">&times;</button>`
         : '';
     return `<span class="tag-chip" style="background:${escAttr(colour)}1f;` +
@@ -1110,9 +1122,10 @@ async function createAndAddTag() {
             const fresh = document.getElementById('tagPickerInput');
             if (fresh) fresh.focus();
         } else {
-            showToast(data.error || window.t('tasks.toast.tag_create_failed'), 'success');
+            // 'error', not 'success' - this is the failure branch.
+            showToast(data.error || window.t('tasks.toast.tag_create_failed'), 'error');
         }
-    } catch (e) { showToast(window.t('tasks.toast.tag_create_failed'), 'success'); }
+    } catch (e) { showToast(window.t('tasks.toast.tag_create_failed'), 'error'); }
 }
 
 function saveDetailTags() {
@@ -1123,13 +1136,25 @@ function saveDetailTags() {
 
 async function toggleSubtask(id) {
     try {
-        await fetch(API_BASE + 'toggle_subtask.php', {
+        // The response used to be thrown away — not parsed, not checked. The
+        // server could refuse outright and the only visible result was the panel
+        // repainting with the box still empty and nothing in the console, which
+        // is exactly how issue #88 was reported. A refusal must say so.
+        const data = await fetch(API_BASE + 'toggle_subtask.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id })
-        });
+        }).then(r => r.json());
+
+        if (!data.success) {
+            showToast(data.error || window.t('tasks.toast.subtask_toggle_failed'), 'error');
+        }
         if (selectedTaskId) openDetailPanel(selectedTaskId);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+        showToast(window.t('tasks.toast.subtask_toggle_failed'), 'error');
+        if (selectedTaskId) openDetailPanel(selectedTaskId);
+    }
 }
 
 async function addSubtask() {

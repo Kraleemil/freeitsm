@@ -173,6 +173,6 @@ $translationNamespaces = ['common', 'tasks'];
     <script>window.API_BASE = '../api/tasks/';
     window.APP_BASE = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>';</script>
     <script src="../assets/js/tasks-ctx-menu.js?v=1"></script>
-    <script src="../assets/js/tasks.js?v=15"></script>
+    <script src="../assets/js/tasks.js?v=17"></script>
 </body>
 </html>

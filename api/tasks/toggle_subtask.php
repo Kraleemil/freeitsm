@@ -50,21 +50,57 @@ try {
         exit;
     }
 
-    // Toggle: closed -> "To Do", anything else -> "Done"
-    $newStatusName = $task['status_is_closed'] ? 'To Do' : 'Done';
-    $newStatusStmt = $conn->prepare("SELECT id, is_closed FROM task_statuses WHERE name = ? LIMIT 1");
-    $newStatusStmt->execute([$newStatusName]);
+    // Toggle: closed -> the default OPEN status, anything else -> a CLOSED one.
+    //
+    // Chosen by the is_closed FLAG, never by name. This used to ask for the
+    // status literally called 'To Do' or 'Done', which is the same fault as
+    // GH #79: those are display names, listed under Tasks > Settings > Statuses
+    // precisely so they can be renamed. On any installation that had renamed
+    // them — a German site calling them 'Zu erledigen' and 'Erledigt', say —
+    // the lookup matched nothing and a subtask could never be completed at all.
+    //
+    // Reopening prefers the status marked as the default (that is what the
+    // default is for) and otherwise takes the first open one in display order.
+    // Completing takes the first closed one in display order, which puts 'Done'
+    // ahead of 'Cancelled' — completing a subtask must not cancel it.
+    $newStatusStmt = $conn->prepare(
+        $task['status_is_closed']
+            ? "SELECT id, name, is_closed FROM task_statuses
+               WHERE is_closed = 0 AND is_active = 1
+               ORDER BY is_default DESC, display_order ASC LIMIT 1"
+            : "SELECT id, name, is_closed FROM task_statuses
+               WHERE is_closed = 1 AND is_active = 1
+               ORDER BY display_order ASC LIMIT 1"
+    );
+    $newStatusStmt->execute();
     $newStatusRow = $newStatusStmt->fetch(PDO::FETCH_ASSOC);
     if (!$newStatusRow) {
-        echo json_encode(['success' => false, 'error' => "Status '$newStatusName' not configured"]);
+        // Reachable only if an administrator has deactivated every status of
+        // one kind, so the message names the real problem rather than a word.
+        echo json_encode([
+            'success' => false,
+            'error'   => $task['status_is_closed']
+                ? 'No active open status is configured for tasks.'
+                : 'No active completed status is configured for tasks.',
+        ]);
         exit;
     }
     $newStatusId = (int)$newStatusRow['id'];
-    $completedDt = $newStatusRow['is_closed'] ? date('Y-m-d H:i:s') : null;
 
-    $stmt = $conn->prepare("UPDATE tasks SET status_id = ?, completed_datetime = ?, updated_datetime = UTC_TIMESTAMP() WHERE id = ?");
-    $stmt->execute([$newStatusId, $completedDt, $id]);
-    $newStatus = $newStatusName;
+    // completed_datetime in UTC, like every other datetime in the app. This used
+    // to write date('Y-m-d H:i:s') — the SERVER's local clock — into a column
+    // sitting beside updated_datetime = UTC_TIMESTAMP(). On any server not set
+    // to UTC the two disagreed, and api/tasks/reorder.php already wrote the same
+    // column with UTC_TIMESTAMP(), so the value depended on which route closed it.
+    $completedSql = $newStatusRow['is_closed'] ? 'UTC_TIMESTAMP()' : 'NULL';
+
+    $stmt = $conn->prepare(
+        "UPDATE tasks SET status_id = ?, completed_datetime = {$completedSql},
+                          updated_datetime = UTC_TIMESTAMP()
+         WHERE id = ?"
+    );
+    $stmt->execute([$newStatusId, $id]);
+    $newStatus = $newStatusRow['name'];
 
     // Update parent's updated_datetime
     if ($task['parent_task_id']) {
