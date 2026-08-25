@@ -3279,4 +3279,79 @@
     /* Both rows may wrap: a 16px gap between meta items is a desktop luxury. */
     .change-card-meta { flex-wrap: wrap; gap: 2px 12px; }
     .change-card-badges { flex-wrap: wrap; flex-shrink: 1; gap: 6px; }
+
+    /* ---- 23b: the risk matrix (Ed's device pass) -------------------------
+       Reported as "a scrollbar appears but the contents don't scroll" while
+       viewing a change. The scrollbar was HORIZONTAL and belonged to
+       .changes-main: the risk matrix laid out as a flex ROW — a 140px info
+       panel, a 30px gap and a 256px grid = 426px in a 336px pane.
+
+       ⚠️ WHY THE PANE SCROLLED SIDEWAYS AT ALL. `.changes-main` sets only
+       `overflow-y: auto`, and per spec a non-`visible` value on ONE axis
+       computes the OTHER to `auto` — so it was silently a horizontal scroller
+       too. That is also why every containment check passed: the overflow was
+       absorbed by an ancestor scroller, which the detector deliberately
+       excludes. The page was contained and the content still went off the edge.
+
+       Stacked, the 256px grid fits a 360px screen with room to spare, and the
+       pane stops scrolling sideways entirely — fixing the cause rather than
+       hiding it with `overflow-x: hidden`, which would have clipped the matrix
+       instead of showing it. */
+    .risk-matrix-wrapper {
+        flex-direction: column;
+        gap: 14px;
+    }
+    .risk-matrix-info { min-width: 0; width: 100%; }
+
+    /* ⚠️ A NEGATIVE MARGIN MUST MATCH THE PADDING OF ITS OWN PARENT — and the
+       parent is not always the one you assumed. The sticky header full-bleeds
+       with `margin: -30px`, and I first matched it to `.changes-main`. Wrong
+       box: its parent is `.change-detail-content`, whose 30px padding is what
+       the -30px cancels. Setting -12px against a still-30px padding UN-bled it
+       and made the overflow worse, which is how the mistake announced itself.
+       Both numbers have to move together. 30px of padding is a desktop luxury
+       on a 360px screen anyway. */
+    .change-detail-content { padding: 12px; }
+    .change-detail-sticky-header {
+        margin: -12px -12px 14px;
+        padding: 12px;
+        top: -12px;
+    }
+
+    /* The detail's action buttons were a nowrap flex row running past the edge.
+       `.change-detail-header` is `space-between` — Back pinned left, actions
+       pushed right — so once the actions wrapped to two lines, Back sat
+       vertically centred against the block and read as though Delete were
+       lying on top of it. Packing everything from the left instead lets the
+       four buttons flow and wrap as one group. */
+    .change-detail-header {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+    }
+    .change-detail-actions { flex-wrap: wrap; gap: 6px; }
+
+    /* Linked incidents: a card feed, by Techniques §11 — the `subject` column
+       holds prose, and the table is HEADERLESS to begin with, so reading order
+       is already carrying the meaning. Reference, then subject, then status,
+       then the row's actions.
+       ⚠️ `.linked-incidents-empty` is one `<td colspan="4">`, so it is both the
+       first and last child of its row — guarded, or the "no incidents" message
+       disappears. */
+    .linked-incidents-table,
+    .linked-incidents-table tbody { display: block; width: 100%; }
+    .linked-incidents-table tbody tr {
+        display: block;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    .linked-incidents-table tbody tr:last-child { border-bottom: none; }
+    .linked-incidents-table tbody td {
+        display: block;
+        padding: 1px 0;
+        border-bottom: none;
+    }
+    .linked-incidents-table tbody tr:not(.linked-incidents-empty) td:first-child { font-weight: 600; }
+    .linked-incidents-table .linked-incidents-actions { margin-top: 4px; }
+    .linked-incidents-table tr.linked-incidents-empty td { text-align: center; padding: 6px 0; }
 }
