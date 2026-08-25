@@ -5002,10 +5002,24 @@ async function saveNote() {
                 // than a toast. Names the files, because "1 of 3 failed" without
                 // saying which is not actionable.
                 if (res.failed.length) {
+                    // ⚠️ Say WHY, not just which. uploadFiles() already collects the
+                    // server's reason per file — "That file's contents do not match
+                    // its txt extension" — and this used to map to f.name alone and
+                    // throw the reason away. The result was a message naming a file
+                    // and giving no clue what was wrong with it, for a refusal the
+                    // person can usually act on once they know: rename it, convert
+                    // it, or send it another way. The note cannot be un-saved and a
+                    // note has no per-note file controls, so this toast is the ONLY
+                    // chance to explain.
                     showToast(t('tickets.note_modal.files_failed', {
                         n:     res.failed.length,
                         total: filesToAttach.length,
-                        names: res.failed.map(f => f.name).join(', ')
+                        // The server's reasons are whole sentences ending in a full
+                        // stop, and the string adds one after {names} — so trim
+                        // theirs rather than showing "…extension.. The note…".
+                        names: res.failed
+                            .map(f => f.name + ' — ' + String(f.error || '').replace(/\s*\.\s*$/, ''))
+                            .join('; ')
                     }), 'error');
                 }
             }

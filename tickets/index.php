@@ -901,7 +901,7 @@ $translationNamespaces = ['common', 'tickets'];
          three because this page was the one that never loaded tz.js. -->
     <script src="../assets/js/tz.js?v=4"></script>
     <script src="../assets/js/schedule.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=107"></script>
+    <script src="../assets/js/inbox.js?v=109"></script>
     <script src="../assets/js/mobile.js?v=27"></script>
     <script>
     // Auto-check mailboxes every 60 seconds
