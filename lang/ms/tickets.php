@@ -799,6 +799,7 @@ return [
                 'event_trigger'       => 'Pencetus acara',
                 'event_select'        => 'Pilih acara...',
                 'event_new_ticket'    => 'Tiket baharu daripada e-mel',
+                'event_note_shared'          => 'Nota dikongsi dengan pemohon',
                 'event_csat_request'         => 'Tinjauan CSAT',
             'event_assigned'      => 'Tiket ditugaskan',
                 'event_closed'        => 'Tiket ditutup',

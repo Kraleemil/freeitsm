@@ -318,6 +318,7 @@ return [
                 'event_new_ticket'    => 'Nieuw ticket uit e-mail',
                 'event_assigned'      => 'Ticket toegewezen',
                 'event_closed'        => 'Ticket gesloten',
+                'event_note_shared'          => 'Notitie gedeeld met melder',
                 'subject'             => 'Onderwerp',
                 'subject_placeholder' => 'bv. Uw aanvraag is ontvangen',
                 'subject_help'        => '[SDREF:...] wordt automatisch toegevoegd voor de antwoordthread.',

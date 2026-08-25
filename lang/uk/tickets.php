@@ -383,6 +383,7 @@ return [
                 'event_trigger'       => 'Подія-тригер',
                 'event_select'        => 'Оберіть подію...',
                 'event_new_ticket'    => 'Нова заявка з електронної пошти',
+                'event_note_shared'          => 'Нотатку надано заявнику',
                 'event_csat_request'         => 'Опитування CSAT',
             'event_assigned'      => 'Заявку призначено',
                 'event_closed'        => 'Заявку закрито',

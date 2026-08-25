@@ -318,6 +318,7 @@ return [
                 'event_new_ticket'    => 'ਈਮੇਲ ਤੋਂ ਨਵੀਂ ਟਿਕਟ',
                 'event_assigned'      => 'ਟਿਕਟ ਨਿਰਧਾਰਤ',
                 'event_closed'        => 'ਟਿਕਟ ਬੰਦ',
+                'event_note_shared'          => 'ਬੇਨਤੀਕਰਤਾ ਨਾਲ ਨੋਟ ਸਾਂਝਾ ਕੀਤਾ',
                 'subject'             => 'ਵਿਸ਼ਾ',
                 'subject_placeholder' => 'ਜਿਵੇਂ ਤੁਹਾਡੀ ਬੇਨਤੀ ਪ੍ਰਾਪਤ ਹੋਈ ਹੈ',
                 'subject_help'        => 'ਜਵਾਬ ਥਰੈਡਿੰਗ ਲਈ [SDREF:...] ਆਪਣੇ ਆਪ ਜੋੜਿਆ ਜਾਂਦਾ ਹੈ।',

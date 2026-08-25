@@ -318,6 +318,7 @@ return [
                 'event_new_ticket'    => 'Nowe zgłoszenie z e-maila',
                 'event_assigned'      => 'Zgłoszenie przypisane',
                 'event_closed'        => 'Zgłoszenie zamknięte',
+                'event_note_shared'          => 'Notatka udostępniona zgłaszającemu',
                 'subject'             => 'Temat',
                 'subject_placeholder' => 'np. Twoje zgłoszenie zostało odebrane',
                 'subject_help'        => '[SDREF:...] jest dodawany automatycznie w celu wątkowania odpowiedzi.',

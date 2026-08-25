@@ -362,6 +362,7 @@ return [
                 'event_new_ticket'    => 'Tiket baru dari email',
                 'event_assigned'      => 'Tiket ditugaskan',
                 'event_closed'        => 'Tiket ditutup',
+                'event_note_shared'          => 'Catatan dibagikan ke pemohon',
                 'subject'             => 'Subjek',
                 'subject_placeholder' => 'misal, Permintaan Anda telah diterima',
                 'subject_help'        => '[SDREF:...] ditambahkan secara otomatis untuk threading balasan.',

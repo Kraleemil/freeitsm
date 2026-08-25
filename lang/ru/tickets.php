@@ -318,6 +318,7 @@ return [
                 'event_new_ticket'    => 'Новая заявка из эл. почты',
                 'event_assigned'      => 'Заявка назначена',
                 'event_closed'        => 'Заявка закрыта',
+                'event_note_shared'          => 'Заметка доступна заявителю',
                 'subject'             => 'Тема',
                 'subject_placeholder' => 'напр. Ваш запрос получен',
                 'subject_help'        => '[SDREF:...] добавляется автоматически для связывания ответов.',

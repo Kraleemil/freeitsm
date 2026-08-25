@@ -343,6 +343,7 @@ return [
                 'event_new_ticket'    => 'Nuwe kaartjie uit e-pos',
                 'event_assigned'      => 'Kaartjie toegewys',
                 'event_closed'        => 'Kaartjie gesluit',
+                'event_note_shared'          => 'Nota met aanvraer gedeel',
                 'subject'             => 'Onderwerp',
                 'subject_placeholder' => 'bv. U aanvraag is ontvang',
                 'subject_help'        => '[SDREF:...] word outomaties bygevoeg vir antwoorddraad.',

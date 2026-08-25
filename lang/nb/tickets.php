@@ -807,6 +807,7 @@ return [
                 'event_trigger'       => 'Hendelsesutløser',
                 'event_select'        => 'Velg hendelse ...',
                 'event_new_ticket'    => 'Ny sak fra e-post',
+                'event_note_shared'          => 'Notat delt med innmelder',
                 'event_csat_request'  => 'KTI-undersøkelse',
                 'event_assigned'      => 'Sak tildelt',
                 'event_closed'        => 'Sak lukket',

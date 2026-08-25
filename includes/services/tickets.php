@@ -608,6 +608,41 @@ class TicketsService
             error_log('Workflow dispatch error in TicketsService createNote: ' . $wfEx->getMessage());
         }
 
+        // Email the requester, IF an administrator has configured a template for
+        // it (discussion #103). A shared note appears in the self-service portal,
+        // which reaches nobody who never signs into the portal — and for a
+        // requester who only ever emails, "Share with the requester" reached
+        // nobody at all.
+        //
+        // 🔴 SHARED NOTES ONLY. An internal note is a private remark between
+        // colleagues; emailing one to the customer is the single worst thing
+        // this file could do. The guard is the first condition, and the trigger
+        // is named `note_shared` rather than `note_added` so that an
+        // administrator reading the dropdown cannot mistake what fires it.
+        //
+        // Off unless configured: sendTemplateEmail() is a no-op when no ACTIVE
+        // template carries this trigger, so an existing installation sends
+        // nothing new until somebody deliberately writes one.
+        //
+        // [note_text] is passed the way CSAT passes [csat_link] — so the template
+        // decides whether the mail carries the note itself or simply says there
+        // is an update and points at [ticket_url]. Attachments are deliberately
+        // NOT emailed: the portal link already reaches them, and a file is the
+        // part worth not sending to an address that may be a shared mailbox.
+        if (!$isInternal) {
+            try {
+                require_once __DIR__ . '/../template_email.php';
+                sendTemplateEmail($conn, $ticketId, 'note_shared', [
+                    'note_text' => $text,
+                ]);
+            } catch (Exception $mailEx) {
+                // Non-fatal, like the dispatch above: the note is saved whether
+                // or not the mail goes. It is already visible in the portal.
+                error_log('note_shared template email failed for ticket ' . $ticketId
+                        . ': ' . $mailEx->getMessage());
+            }
+        }
+
         return $noteId;
     }
 

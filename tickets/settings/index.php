@@ -1193,6 +1193,7 @@ $translationNamespaces = ['common', 'tickets'];
                         <option value="new_ticket_email"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_new_ticket')); ?></option>
                         <option value="ticket_assigned"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_assigned')); ?></option>
                         <option value="ticket_closed"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_closed')); ?></option>
+                        <option value="note_shared"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_note_shared')); ?></option>
                         <option value="csat_request"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_csat_request')); ?></option>
                     </select>
                     <input type="text" id="tplSimEmail" autocomplete="off" placeholder="<?php echo htmlspecialchars(t('tickets.settings.scope.sim_placeholder')); ?>" onkeydown="if(event.key==='Enter'){event.preventDefault();runTemplateSimulator();}">
@@ -2495,6 +2496,7 @@ $translationNamespaces = ['common', 'tickets'];
                             <option value="new_ticket_email"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_new_ticket')); ?></option>
                             <option value="ticket_assigned"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_assigned')); ?></option>
                             <option value="ticket_closed"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_closed')); ?></option>
+                            <option value="note_shared"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_note_shared')); ?></option>
                             <option value="csat_request"><?php echo htmlspecialchars(t('tickets.settings.modals.template.event_csat_request')); ?></option>
                         </select>
                     </div>
@@ -5824,6 +5826,7 @@ $translationNamespaces = ['common', 'tickets'];
             'new_ticket_email': 'New ticket from email',
             'ticket_assigned': 'Ticket assigned',
             'ticket_closed': 'Ticket closed',
+            'note_shared': 'Note shared with requester',
             'csat_request': 'CSAT survey'
         };
 
@@ -5984,6 +5987,7 @@ $translationNamespaces = ['common', 'tickets'];
             new_ticket_email: t('tickets.settings.modals.template.event_new_ticket'),
             ticket_assigned:  t('tickets.settings.modals.template.event_assigned'),
             ticket_closed:    t('tickets.settings.modals.template.event_closed'),
+            note_shared:      t('tickets.settings.modals.template.event_note_shared'),
             csat_request:     t('tickets.settings.modals.template.event_csat_request')
         };
 

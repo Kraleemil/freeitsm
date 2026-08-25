@@ -58,6 +58,31 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
         $mergeData = array_merge($mergeData, $extraMergeData);
 
         // Resolve merge codes in subject and body
+        // ⚠️ Decide plain-vs-HTML from the TEMPLATE, before anything is merged in.
+        //
+        // buildTemplateEmailBody() makes the same decision by testing the body it
+        // is handed — but by then the merge codes have been substituted, so a
+        // VALUE containing a tag flipped the verdict for the whole template. A
+        // note reading "use the <table> in the office" would have turned an
+        // otherwise plain-text template into an HTML one, and everything else in
+        // it would silently stop being escaped. Whether the template is HTML is a
+        // property of the template the administrator wrote, not of today's data.
+        $bodyIsHtml = strip_tags($template['body_template']) !== $template['body_template'];
+
+        // Caller-supplied values are free-form text — a note body, most of all —
+        // so they are escaped when they are about to land inside HTML. Values
+        // built from the ticket are left as they were: they already render
+        // correctly today and this is not the change to alter them in.
+        //
+        // When the template is PLAIN text nothing is escaped here, because
+        // buildTemplateEmailBody() escapes the whole body afterwards; escaping
+        // twice would show the customer literal &amp;lt; and &lt;br&gt;.
+        if ($bodyIsHtml) {
+            foreach ($extraMergeData as $k => $v) {
+                $mergeData[$k] = nl2br(htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'));
+            }
+        }
+
         $subject = resolveMergeCodes($template['subject_template'], $mergeData);
         $body = resolveMergeCodes($template['body_template'], $mergeData);
 
@@ -122,7 +147,7 @@ function sendTemplateEmail(PDO $conn, int $ticketId, string $eventTrigger, array
         $fullSubject = "[SDREF:$ticketNumber] $subject";
 
         // Build HTML body with reply marker
-        $fullBody = buildTemplateEmailBody($body, $ticketNumber);
+        $fullBody = buildTemplateEmailBody($body, $ticketNumber, $bodyIsHtml);
 
         // Send via appropriate API
         if ($provider === 'imap') {
@@ -338,9 +363,19 @@ function resolveMergeCodes(string $template, array $mergeData): string {
 /**
  * Build the full HTML body with reply marker for threading.
  */
-function buildTemplateEmailBody(string $bodyContent, string $ticketNumber): string {
-    // Convert newlines to <br> if the body appears to be plain text (no HTML tags)
-    if (strip_tags($bodyContent) === $bodyContent) {
+/**
+ * @param ?bool $isHtml Whether the TEMPLATE was HTML, decided before merge codes
+ *                      were substituted. Pass it whenever you know: sniffing the
+ *                      merged body means a data value containing a tag decides
+ *                      the question for the whole email. Null keeps the old
+ *                      sniff for callers that have no template to inspect.
+ */
+function buildTemplateEmailBody(string $bodyContent, string $ticketNumber, ?bool $isHtml = null): string {
+    // Convert newlines to <br> if the body is plain text (no HTML tags)
+    if ($isHtml === null) {
+        $isHtml = strip_tags($bodyContent) !== $bodyContent;
+    }
+    if (!$isHtml) {
         $bodyContent = nl2br(htmlspecialchars($bodyContent, ENT_QUOTES, 'UTF-8'));
     }
 

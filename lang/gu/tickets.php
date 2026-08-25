@@ -318,6 +318,7 @@ return [
                 'event_new_ticket'    => 'ઈમેઈલમાંથી નવી ટિકિટ',
                 'event_assigned'      => 'ટિકિટ સોંપાઈ',
                 'event_closed'        => 'ટિકિટ બંધ થઈ',
+                'event_note_shared'          => 'વિનંતીકર્તા સાથે નોંધ શેર કરી',
                 'subject'             => 'વિષય',
                 'subject_placeholder' => 'દા.ત. તમારી વિનંતી પ્રાપ્ત થઈ છે',
                 'subject_help'        => 'જવાબ થ્રેડિંગ માટે [SDREF:...] આપમેળે ઉમેરાય છે.',

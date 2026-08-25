@@ -318,6 +318,7 @@ return [
                 'event_new_ticket'    => 'ईमेल से नया टिकट',
                 'event_assigned'      => 'टिकट असाइन किया गया',
                 'event_closed'        => 'टिकट बंद हुआ',
+                'event_note_shared'          => 'अनुरोधकर्ता के साथ नोट साझा किया गया',
                 'subject'             => 'विषय',
                 'subject_placeholder' => 'जैसे आपका अनुरोध प्राप्त हो गया है',
                 'subject_help'        => 'उत्तर थ्रेडिंग के लिए [SDREF:...] स्वचालित रूप से जोड़ा जाता है।',

@@ -738,6 +738,7 @@ return [
                 'event_trigger' => 'Evento disparador',
                 'event_select' => 'Selecionar evento…',
                 'event_new_ticket' => 'Novo ticket por e-mail',
+                'event_note_shared'          => 'Nota compartilhada com o solicitante',
                 'event_csat_request' => 'Pesquisa CSAT',
                 'event_assigned' => 'Ticket atribuído',
                 'event_closed' => 'Ticket fechado',

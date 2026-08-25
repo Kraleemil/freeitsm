@@ -318,6 +318,7 @@ return [
                 'event_new_ticket'    => 'Nouveau ticket par e-mail',
                 'event_assigned'      => 'Ticket attribué',
                 'event_closed'        => 'Ticket fermé',
+                'event_note_shared'          => 'Note partagée avec le demandeur',
                 'subject'             => 'Sujet',
                 'subject_placeholder' => 'p. ex. Votre demande a bien été reçue',
                 'subject_help'        => '[SDREF:...] est ajouté automatiquement pour le suivi des réponses.',

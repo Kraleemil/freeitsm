@@ -806,6 +806,7 @@ return [
                 'event_trigger'       => 'Hendingsutløysar',
                 'event_select'        => 'Vel hending ...',
                 'event_new_ticket'    => 'Ny sak frå e-post',
+                'event_note_shared'          => 'Notat delt med innmeldar',
                 'event_csat_request'  => 'KTI-undersøking',
                 'event_assigned'      => 'Sak tildelt',
                 'event_closed'        => 'Sak lukka',
