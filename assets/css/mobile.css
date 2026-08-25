@@ -3312,10 +3312,34 @@
        Both numbers have to move together. 30px of padding is a desktop luxury
        on a 360px screen anyway. */
     .change-detail-content { padding: 12px; }
+
+    /* 🔴 NOT STICKY ON A PHONE. This is the bug Ed reported as "all the info is
+       there but the page will not scroll", and it is worth understanding
+       exactly, because nothing about it looks like a scrolling problem.
+
+       `.change-detail-sticky-header` holds the title, the actions AND the
+       11-item meta grid. On a wide screen that grid is a few short rows and the
+       bar is 388px inside a 592px pane — it pins, the body scrolls under it,
+       and it behaves. On a 360px screen the grid stacks and the bar becomes
+       **818px inside a 590px pane**.
+
+       ⚠️ A `position: sticky` element TALLER THAN ITS SCROLLPORT can never
+       scroll away: it stays pinned, covering the whole visible area, and the
+       content scrolling beneath it is never seen to move. Impact, Category and
+       Requester were not the top of a page that would not scroll — they WERE
+       the stuck header, filling the screen.
+
+       So the page did scroll the entire time, which is why every measurement
+       said so: scrollHeight, clientHeight and even scrollTop were all correct.
+       elementFromPoint() at the middle of the screen is what gave it away —
+       a finger there lands on the header, not on the content.
+
+       Static on mobile. A sticky summary earns its place on a desktop pane; on
+       a phone it is 818px of chrome that cannot be scrolled past. */
     .change-detail-sticky-header {
+        position: static;
         margin: -12px -12px 14px;
         padding: 12px;
-        top: -12px;
     }
 
     /* The detail's action buttons were a nowrap flex row running past the edge.
