@@ -3478,4 +3478,37 @@
         border: none;
         border-radius: 0;
     }
+
+    /* ---- 23d: the editor was spending 88px of a 360px screen on nothing ---
+       Ed: "on the edit change screen there is lots of padding around the
+       panels - we only need a few pixels."
+
+       Measured from the viewport down to a field:
+
+           .editor-form   margin 20px 30px  +  padding 30px (desktop card)
+                          = 88px of 360, and the field ended up 264px wide
+
+       The 30px is right on a wide screen — the form is a card floating on the
+       app background, and a card needs to breathe. At 360px there is nothing
+       to float against.
+
+       ⚠️ ALL FOUR SELECTORS ARE SHARED WITH KNOWLEDGE (`.editor-form`,
+       `.editor-header`, `.editor-footer`, `.editor-scroll`). LAYER 17's bare
+       `.editor-form { padding: 14px }` is a Knowledge rule that has been
+       reaching this page all along. So every rule here is scoped to
+       `body.cm-editor-open`, which only change-management.js ever sets —
+       and that also beats the LAYER 17 rule on specificity (0,2,0 > 0,1,0)
+       rather than on load order.
+
+       12px matches `.change-detail-content`, so reading a change and editing
+       one now sit on the same margin. */
+    body.cm-editor-open .editor-form {
+        margin: 8px;
+        padding: 12px;
+    }
+    body.cm-editor-open .editor-header { padding: 12px; }
+    body.cm-editor-open .editor-footer { padding: 10px 12px 12px; }
+    /* The section headings inside the card carry desktop spacing too. */
+    body.cm-editor-open .cm-form-section { margin-bottom: 14px; }
+    body.cm-editor-open .form-group { margin-bottom: 14px; }
 }
