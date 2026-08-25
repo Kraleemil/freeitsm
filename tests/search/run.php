@@ -65,6 +65,45 @@ ok("CONTROL — requiring a dropped term would have produced a query that matche
 $p = searchParseQuery('tower +++ ~~~ london', 3);
 ok("boolean operators typed by a user are stripped, not honoured", $p['expr'] === '+tower* +london*');
 
+
+// --- Punctuation inside a word (GH #102) -----------------------------------
+// The value 05145-8841815 in an attachment is indexed by MySQL as TWO tokens,
+// because MySQL splits on punctuation. Deleting the punctuation here glued them
+// into "051458841815", which appears nowhere — so the search silently found
+// nothing while the same value typed with a space found it at once.
+$p = searchParseQuery('05145-8841815', 3);
+ok("a hyphenated value SPLITS into the tokens MySQL indexed",
+   $p['expr'] === '+05145* +8841815*');
+ok("...and is NOT glued into one token that was never indexed",
+   strpos($p['expr'], '051458841815') === false);
+
+ok("a hyphenated WORD splits the same way",
+   searchParseQuery('pre-flight', 3)['expr'] === '+pre* +flight*');
+
+ok("every separator behaves alike — dot, comma, slash, colon",
+   searchParseQuery('05145.884', 3)['expr'] === '+05145* +884*'
+   && searchParseQuery('05145,884', 3)['expr'] === '+05145* +884*'
+   && searchParseQuery('05145/884', 3)['expr'] === '+05145* +884*'
+   && searchParseQuery('05145:884', 3)['expr'] === '+05145* +884*');
+
+ok("a hyphenated word reads the same as typing it with a space",
+   searchParseQuery('pre-flight', 3)['expr'] === searchParseQuery('pre flight', 3)['expr']);
+
+// The LEADING minus is still the user's exclusion operator, and now applies to
+// every part of the word it is attached to.
+$p = searchParseQuery('printer -pre-flight', 3);
+ok("a leading minus still excludes, across the whole hyphenated word",
+   $p['expr'] === '+printer* -pre -flight');
+
+// A separator must not smuggle a boolean operator into the expression.
+ok("operators embedded mid-word are separators, not operators",
+   searchParseQuery('tower+london', 3)['expr'] === '+tower* +london*');
+
+// Short pieces are still dropped rather than required — requiring a token below
+// the index minimum makes the WHOLE query match nothing.
+$p = searchParseQuery('B4-05145', 3);
+ok("a piece below the index minimum is dropped, the usable one survives",
+   $p['expr'] === '+05145*' && $p['dropped'] === ['B4']);
 ok("an empty query yields an empty expression", searchParseQuery('   ', 3)['expr'] === '');
 
 // ===========================================================================

@@ -75,11 +75,31 @@ function searchParseQuery(string $raw, int $minToken = 3): array {
 
     foreach (preg_split('~\s+~u', (string)$raw, -1, PREG_SPLIT_NO_EMPTY) as $word) {
         $negate = ($word[0] ?? '') === '-';
-        // Strip every boolean operator: they are ours to add, not the user's to inject.
-        $clean = preg_replace('~[+\-><()\~*@"]+~u', '', $word);
-        if ($clean === '' || $clean === null) continue;
-        if (mb_strlen($clean, 'UTF-8') < max(1, $minToken)) { $dropped[] = $clean; continue; }
-        if ($negate) $excluded[] = $clean; else $terms[] = $clean;
+        if ($negate) $word = mb_substr($word, 1, null, 'UTF-8');
+
+        // SPLIT on anything that is not a word character — do not DELETE it.
+        //
+        // This used to strip the punctuation out and glue what was left
+        // together, so "05145-8841815" was searched for as the single token
+        // "051458841815". MySQL had indexed it as TWO tokens, "05145" and
+        // "8841815", because it splits on punctuation exactly like this — so the
+        // glued-together string appeared nowhere and the search found nothing,
+        // while the very same value typed with a space found it at once (GH #102).
+        //
+        // The quoted-phrase branch above never had the bug: it replaces the same
+        // characters with a SPACE. The two branches differed by one character.
+        //
+        // Word characters here mirror what InnoDB's default parser treats as one:
+        // letters, digits and underscore. Everything else — hyphen, slash, dot,
+        // comma, colon, apostrophe, and the boolean operators, which are ours to
+        // add rather than the user's to inject — is a separator.
+        $bits = preg_split('~[^\p{L}\p{N}_]+~u', (string)$word, -1, PREG_SPLIT_NO_EMPTY);
+        if (!$bits) continue;
+
+        foreach ($bits as $clean) {
+            if (mb_strlen($clean, 'UTF-8') < max(1, $minToken)) { $dropped[] = $clean; continue; }
+            if ($negate) $excluded[] = $clean; else $terms[] = $clean;
+        }
     }
 
     $parts = [];
