@@ -312,5 +312,34 @@ return [
             'saturday'  => 'Saturday',
             'sunday'    => 'Sunday',
         ],
+
+        // Abbreviated forms, used by the date formatter (DateFmt / fmtDate) for
+        // the "25 Aug 2026" family of formats. Kept beside the full names so a
+        // translator sees both together. Where a language does not abbreviate a
+        // month, repeat the full word - do NOT invent an abbreviation.
+        'months_short' => [
+            'january'   => 'Jan',
+            'february'  => 'Feb',
+            'march'     => 'Mar',
+            'april'     => 'Apr',
+            'may'       => 'May',
+            'june'      => 'Jun',
+            'july'      => 'Jul',
+            'august'    => 'Aug',
+            'september' => 'Sep',
+            'october'   => 'Oct',
+            'november'  => 'Nov',
+            'december'  => 'Dec',
+        ],
+
+        'weekdays_short' => [
+            'monday'    => 'Mon',
+            'tuesday'   => 'Tue',
+            'wednesday' => 'Wed',
+            'thursday'  => 'Thu',
+            'friday'    => 'Fri',
+            'saturday'  => 'Sat',
+            'sunday'    => 'Sun',
+        ],
     ],
 ];

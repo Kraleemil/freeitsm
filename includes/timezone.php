@@ -74,9 +74,21 @@ class Tz {
      * A <script> tag that publishes the effective zone to the browser so JS
      * date helpers can convert UTC → the analyst's zone. Emit once in <head>,
      * before any script that formats dates.
+     *
+     * Also publishes the analyst's date/time FORMAT choice and the month and
+     * weekday names for the interface language (see DateFmt below), so the JS
+     * formatters in assets/js/tz.js have everything they need. Riding this one
+     * tag — already emitted by every analyst page — means the format feature
+     * needed no new plumbing on 144 pages.
+     *
+     * The names are published here rather than read from window.translations
+     * because that object is namespace-scoped per page, and a page that does
+     * not export 'common' would otherwise render months as dotted key paths.
      */
     public static function scriptTag() {
-        return '<script>window.USER_TIMEZONE = ' . json_encode(self::current()) . ';</script>';
+        $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE;
+        return '<script>window.USER_TIMEZONE = ' . json_encode(self::current(), $flags) . ';'
+             . 'window.DATE_FORMAT = ' . json_encode(DateFmt::jsPayload(), $flags) . ';</script>';
     }
 }
 
@@ -99,4 +111,285 @@ function fmt_local(?string $utc, string $format = 'Y-m-d H:i'): string {
     } catch (Throwable $e) {
         return (string)$utc;
     }
+}
+
+/**
+ * Per-user date & time FORMAT (GH #105).
+ *
+ * Deliberately SEPARATE from Tz above, because they answer different questions:
+ *   Tz      -> WHICH INSTANT      ('14:30' vs '15:30')
+ *   DateFmt -> WHAT IT LOOKS LIKE ('14:30' vs '2:30 PM')
+ * Changing one must never move the other. DateFmt receives a datetime that Tz
+ * has already placed in the right zone and only decides how to write it down.
+ *
+ * Format is NOT inferred from the interface language. German speakers at a UK
+ * MSP may want German labels and 25/08/2026, and inside one country people
+ * disagree about 25/08/2026 vs 25.08.2026 vs 25 Aug 2026. So we ask.
+ *
+ * Resolution order mirrors Tz::init():
+ *   1. The analyst's `date_format` / `time_format` user preference
+ *   2. The install-wide system_settings row. No UI surfaces this yet - it is the
+ *      fallback the self-service portal needs, since portal users are not
+ *      analysts and have no preferences to read.
+ *   3. The built-in default, chosen to reproduce what the app rendered BEFORE
+ *      this feature existed, so no existing install sees a date change.
+ *
+ * The stored value is a KEY ('dmy_dot'), never a pattern string - an unvalidated
+ * free-text pattern is a footgun, and PHP date() and JS Intl share no syntax.
+ * Both renderers consume the SAME token template below, so they cannot drift.
+ */
+class DateFmt {
+    /** Reproduces pre-#105 output: en-GB {day:'2-digit',month:'short',year:'numeric'} + {hour,minute}. */
+    const DEFAULT_DATE = 'd_mon_y';
+    const DEFAULT_TIME = '24h';
+
+    /**
+     * Tokens: DD 2-digit day | D numeric day | MM 2-digit month | MON short
+     * month name | MONTH full month name | YYYY 4-digit year | YY 2-digit year.
+     * Anything that is not a token is a literal.
+     */
+    const DATE_TEMPLATES = [
+        'd_mon_y'   => 'DD MON YYYY',
+        'd_month_y' => 'D MONTH YYYY',
+        'mon_d_y'   => 'MON D, YYYY',
+        'dmy_slash' => 'DD/MM/YYYY',
+        'dmy_dot'   => 'DD.MM.YYYY',
+        'dmy_dash'  => 'DD-MM-YYYY',
+        'dmy_short' => 'DD/MM/YY',
+        'mdy_slash' => 'MM/DD/YYYY',
+        'iso'       => 'YYYY-MM-DD',
+    ];
+
+    /** Tokens: HH 2-digit 24h hour | h 12h hour | mi 2-digit minute | A AM/PM. */
+    const TIME_TEMPLATES = [
+        '24h' => 'HH:mi',
+        '12h' => 'h:mi A',
+    ];
+
+    /** Day-and-month-only (compact chips), derived from the chosen date format. */
+    const DAY_MONTH_TEMPLATES = [
+        'd_mon_y'   => 'DD MON',
+        'd_month_y' => 'D MONTH',
+        'mon_d_y'   => 'MON D',
+        'dmy_slash' => 'DD/MM',
+        'dmy_dot'   => 'DD.MM',
+        'dmy_dash'  => 'DD-MM',
+        'dmy_short' => 'DD/MM',
+        'mdy_slash' => 'MM/DD',
+        'iso'       => 'MM-DD',
+    ];
+
+    private static $date = null;
+    private static $time = null;
+
+    /** Resolve both formats for this request. Safe without a DB - falls back to the defaults. */
+    public static function init() {
+        if (!function_exists('connectToDatabase') && is_file(__DIR__ . '/functions.php')) {
+            require_once __DIR__ . '/functions.php';
+        }
+
+        self::$date = self::DEFAULT_DATE;
+        self::$time = self::DEFAULT_TIME;
+        if (!function_exists('connectToDatabase')) return;
+
+        try {
+            $conn = connectToDatabase();
+
+            // Level 2 first, so a level-1 hit overwrites it.
+            $stmt = $conn->prepare(
+                "SELECT setting_key, setting_value FROM system_settings
+                 WHERE setting_key IN ('date_format','time_format')"
+            );
+            $stmt->execute();
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                self::apply($row['setting_key'], $row['setting_value']);
+            }
+
+            if (!empty($_SESSION['analyst_id'])) {
+                $stmt = $conn->prepare(
+                    "SELECT preference_key, preference_value FROM user_preferences
+                     WHERE analyst_id = ? AND preference_key IN ('date_format','time_format')"
+                );
+                $stmt->execute([(int)$_SESSION['analyst_id']]);
+                foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                    // '' means "follow the install default" - the same idiom
+                    // default_landing_page uses on the preferences page.
+                    self::apply($row['preference_key'], $row['preference_value']);
+                }
+            }
+        } catch (Throwable $e) {
+            // Defaults stand
+        }
+    }
+
+    /** Accept a candidate value for one of the two keys, ignoring blanks and unknown values. */
+    private static function apply($key, $value) {
+        if ($value === null || $value === '') return;
+        if ($key === 'date_format' && isset(self::DATE_TEMPLATES[$value])) self::$date = $value;
+        if ($key === 'time_format' && isset(self::TIME_TEMPLATES[$value])) self::$time = $value;
+    }
+
+    /** The effective date-format key. Lazily initialises to the built-in default. */
+    public static function dateKey() {
+        if (self::$date === null) self::$date = self::DEFAULT_DATE;
+        return self::$date;
+    }
+
+    /** The effective time-format key. Lazily initialises to the built-in default. */
+    public static function timeKey() {
+        if (self::$time === null) self::$time = self::DEFAULT_TIME;
+        return self::$time;
+    }
+
+    /** Ordered month names for the interface language. $short picks the abbreviated set. */
+    public static function months($short = false) {
+        return self::names('months', $short, [
+            'january','february','march','april','may','june',
+            'july','august','september','october','november','december',
+        ]);
+    }
+
+    /** Ordered weekday names, MONDAY FIRST (index 0 = Monday). */
+    public static function weekdays($short = false) {
+        return self::names('weekdays', $short, [
+            'monday','tuesday','wednesday','thursday','friday','saturday','sunday',
+        ]);
+    }
+
+    private static function names($group, $short, array $keys) {
+        if (!function_exists('t') && is_file(__DIR__ . '/i18n.php')) {
+            require_once __DIR__ . '/i18n.php';
+        }
+        $ns  = 'common.calendar.' . $group . ($short ? '_short' : '');
+        $out = [];
+        foreach ($keys as $k) {
+            // A locale that has no _short block falls back to ENGLISH, per the
+            // standard I18n fallback chain — so a German analyst sees 'Wed'
+            // beside 'Mittwoch' until lang/de gains the 19 short strings. That
+            // is deliberate: behaving differently here than every other string
+            // in the app would be the worse surprise. Filling _short for all
+            // locales is a required step, not an optional polish.
+            //
+            // The guard below only catches a key missing from English too, i.e.
+            // somebody deleting a string — it prints the English word rather
+            // than a dotted key path in the middle of a date.
+            $val = function_exists('t') ? t("$ns.$k") : ucfirst($k);
+            $out[] = ($val === "$ns.$k" || $val === '') ? ucfirst($k) : $val;
+        }
+        return $out;
+    }
+
+    /** Render a DateTime through a token template. The single PHP-side renderer. */
+    public static function render(DateTime $dt, $template) {
+        $months      = self::months(false);
+        $monthsShort = self::months(true);
+        $hour24      = (int)$dt->format('G');
+        $hour12      = $hour24 % 12;
+        if ($hour12 === 0) $hour12 = 12;
+
+        // Longest token first, so MONTH is not eaten by MON, nor YYYY by YY.
+        $map = [
+            'MONTH' => $months[(int)$dt->format('n') - 1],
+            'YYYY'  => $dt->format('Y'),
+            'MON'   => $monthsShort[(int)$dt->format('n') - 1],
+            'DD'    => $dt->format('d'),
+            'MM'    => $dt->format('m'),
+            'YY'    => $dt->format('y'),
+            'mi'    => $dt->format('i'),
+            'HH'    => sprintf('%02d', $hour24),
+            'D'     => (string)(int)$dt->format('j'),
+            'h'     => (string)$hour12,
+            'A'     => $hour24 < 12 ? 'AM' : 'PM',
+        ];
+        return strtr($template, $map);
+    }
+
+    /**
+     * Everything the browser needs to render dates itself, published by
+     * Tz::scriptTag(). Kept here so the PHP and JS renderers read one source.
+     */
+    public static function jsPayload() {
+        return [
+            'dateTemplate'     => self::DATE_TEMPLATES[self::dateKey()],
+            'timeTemplate'     => self::TIME_TEMPLATES[self::timeKey()],
+            'dayMonthTemplate' => self::DAY_MONTH_TEMPLATES[self::dateKey()],
+            'months'           => self::months(false),
+            'monthsShort'      => self::months(true),
+            'weekdays'         => self::weekdays(false),
+            'weekdaysShort'    => self::weekdays(true),
+        ];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// PHP DISPLAY formatters. Each takes a UTC datetime string as stored in the DB,
+// converts it to the analyst's display zone, and renders it in the chosen
+// format.
+//
+// For MACHINE output - SQL values, <input type="date">, sort keys, ICS - use
+// fmt_local($utc, 'Y-m-d') with an explicit pattern, which never consults the
+// format setting. Routing a sort key through this display family would reorder
+// tables the moment somebody picks a different format.
+// ---------------------------------------------------------------------------
+
+/** Internal: UTC string -> DateTime in the display zone, or null if unparseable. */
+function _fmt_dt(?string $utc): ?DateTime {
+    if ($utc === null || $utc === '') return null;
+    try {
+        $dt = new DateTime($utc, new DateTimeZone('UTC'));
+        $dt->setTimezone(new DateTimeZone(Tz::current()));
+        return $dt;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/** '25 Aug 2026' */
+function fmt_date(?string $utc): string {
+    if ($utc === null || $utc === '') return '';
+    $dt = _fmt_dt($utc);
+    if (!$dt) return (string)$utc;
+    return DateFmt::render($dt, DateFmt::DATE_TEMPLATES[DateFmt::dateKey()]);
+}
+
+/** '14:30' */
+function fmt_time(?string $utc): string {
+    if ($utc === null || $utc === '') return '';
+    $dt = _fmt_dt($utc);
+    if (!$dt) return (string)$utc;
+    return DateFmt::render($dt, DateFmt::TIME_TEMPLATES[DateFmt::timeKey()]);
+}
+
+/** '25 Aug 2026 14:30' */
+function fmt_datetime(?string $utc): string {
+    if ($utc === null || $utc === '') return '';
+    $dt = _fmt_dt($utc);
+    if (!$dt) return (string)$utc;
+    return DateFmt::render($dt, DateFmt::DATE_TEMPLATES[DateFmt::dateKey()])
+         . ' ' . DateFmt::render($dt, DateFmt::TIME_TEMPLATES[DateFmt::timeKey()]);
+}
+
+/** '25 Aug' - compact chips and list rows where the year is implied. */
+function fmt_day_month(?string $utc): string {
+    if ($utc === null || $utc === '') return '';
+    $dt = _fmt_dt($utc);
+    if (!$dt) return (string)$utc;
+    return DateFmt::render($dt, DateFmt::DAY_MONTH_TEMPLATES[DateFmt::dateKey()]);
+}
+
+/** 'August 2026' - calendar headers. Always the full month name. */
+function fmt_month_year(?string $utc): string {
+    if ($utc === null || $utc === '') return '';
+    $dt = _fmt_dt($utc);
+    if (!$dt) return (string)$utc;
+    return DateFmt::render($dt, 'MONTH YYYY');
+}
+
+/** 'Tuesday' / 'Tue' */
+function fmt_weekday(?string $utc, bool $short = false): string {
+    if ($utc === null || $utc === '') return '';
+    $dt = _fmt_dt($utc);
+    if (!$dt) return (string)$utc;
+    // format('N'): 1 = Monday, matching DateFmt::weekdays() index 0.
+    return DateFmt::weekdays($short)[(int)$dt->format('N') - 1];
 }

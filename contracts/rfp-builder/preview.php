@@ -68,7 +68,7 @@ $today = date('j F Y');
     <meta charset="UTF-8">
     <title><?= htmlspecialchars(t('contracts.rfp.preview.title_prefix') . ' · ' . $rfp['name'], ENT_QUOTES) ?></title>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=1"></script>
+    <script src="../../assets/js/tz.js?v=2"></script>
     <style>
         * { box-sizing: border-box; }
         body {

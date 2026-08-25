@@ -142,7 +142,7 @@ $apiBaseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_UR
         [data-theme-mode="dark"] .table-action-btn.danger:hover { background: #3a1a1d; color: #fca5a5; }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=1"></script>
+    <script src="../../assets/js/tz.js?v=2"></script>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>

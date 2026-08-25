@@ -97,7 +97,7 @@ if (!isset($_SESSION['analyst_id'])) {
         [data-theme-mode="dark"] .topo-error { color: #fca5a5; }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="<?php echo $path_prefix; ?>assets/js/tz.js?v=1"></script>
+    <script src="<?php echo $path_prefix; ?>assets/js/tz.js?v=2"></script>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
