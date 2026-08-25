@@ -1380,7 +1380,18 @@ $translationNamespaces = ['common', 'asset-management'];
                 loadLocationsForDropdown(),
                 loadAssetSuppliersForDropdown()
             ]).then(function() {
-                var aid = new URLSearchParams(window.location.search).get('asset_id');
+                // `asset_id` is the canonical spelling (includes/entity_links.php).
+                // `asset` is accepted as a LEGACY alias because the table view
+                // sent it until issue #84 was fixed, so it is already sitting in
+                // people's history and bookmarks.
+                //
+                // Accepted, but NOT silently: selectAsset() rewrites the address
+                // bar to the canonical form, so an old link works once and then
+                // corrects itself. That is deliberately different from being
+                // tolerant — a reader that quietly accepts both spellings is how
+                // the two drifted apart without anyone noticing (see GH #91).
+                var params = new URLSearchParams(window.location.search);
+                var aid = params.get('asset_id') || params.get('asset');
                 if (aid) {
                     var n = parseInt(aid, 10);
                     if (n) selectAsset(n);
@@ -1678,6 +1689,26 @@ $translationNamespaces = ['common', 'asset-management'];
         async function selectAsset(assetId) {
             selectedAssetId = assetId;
             selectedAsset = assets.find(a => a.id == assetId);
+
+            // Put the open asset in the address bar, so the URL can be copied,
+            // bookmarked or reloaded and land back on the same asset. replaceState
+            // rather than pushState: the list stays on screen, so choosing an
+            // asset is not navigation — pushing would fill the Back button with
+            // steps that never visibly go anywhere. Matches the portal ticket
+            // list (self-service/tickets.php).
+            //
+            // It also normalises the legacy `?asset=` spelling on arrival, so an
+            // old link corrects itself the moment it lands.
+            //
+            // Guarded: history writes throw in some contexts (file:// origins,
+            // strict embedders), and a URL nicety must never stop the asset
+            // itself loading.
+            try {
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({ assetId: Number(assetId) }, '',
+                        window.location.pathname + '?asset_id=' + Number(assetId));
+                }
+            } catch (e) { /* not fatal */ }
 
             // The asset you have OPEN is part of the selection — the way the
             // highlighted row is in Explorer and Outlook. Opening one and then

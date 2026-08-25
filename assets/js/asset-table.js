@@ -64,7 +64,12 @@
         exportName: 'assets',
         defaultSort: { key: 'hostname', dir: 'asc' },
         columns: COLUMNS,
-        onRowClick: row => { window.location.href = `index.php?asset=${row.id}`; },
+        // `asset_id`, NOT `asset` (issue #84). The split-pane view reads only
+        // `asset_id` — the spelling includes/entity_links.php declares canonical
+        // and the ticket inbox already uses — so `asset` opened the module and
+        // then sat there with nothing selected, which reads as "the asset failed
+        // to load" rather than as a bad link.
+        onRowClick: row => { window.location.href = `index.php?asset_id=${row.id}`; },
         pdf: { title: tt('nav.assets'), headFill: [0, 120, 212], logo: '../assets/images/CompanyLogo.png' },
 
         load: async () => {
