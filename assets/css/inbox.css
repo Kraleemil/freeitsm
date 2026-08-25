@@ -1782,6 +1782,32 @@ a.note-file:hover { background: var(--surface-hover, #f0f0f0); }
 .ctx-cmdb-result-name { color: var(--text, #333); }
 .ctx-cmdb-result-class { color: var(--text-dim, #888); font-size: 11px; }
 
+/* TinyMCE dialogs must clear our modals (issue #101).
+ *
+ * TinyMCE appends its dialogs and menus to <body>, outside whatever opened
+ * them, into a sink of its own at z-index 1300. Our .modal below is 2000, so
+ * an editor inside a modal had every one of its dialogs render BEHIND the
+ * modal: Source code, Insert link, Insert table, Special character. Visible
+ * through the overlay, but impossible to reach.
+ *
+ * Raising the sink is enough. Everything TinyMCE pops up — the dialog wrapper
+ * at its own z-index 1100, menus, tooltips — lives INSIDE this element, so it
+ * all moves with it as one stacking context. (`.tox-dialog-wrap` cannot be
+ * targeted here anyway: the skin styles it as `.tox .tox-dialog-wrap`, which
+ * outranks anything sensible we could write.)
+ *
+ * 2500 sits above every container that can hold an editor — .modal and the two
+ * mobile full-screen editors are all 2000 — while staying below .search-modal
+ * (3000) and .toast (10000), so a toast can still be read over an open dialog.
+ *
+ * `body ` is a specificity bump, not decoration: TinyMCE injects its skin
+ * stylesheet at RUNTIME, so it lands after this file and would win any tie on
+ * document order. Beating it on specificity avoids !important.
+ */
+body .tox-tinymce-aux {
+    z-index: 2500;
+}
+
 /* Modal */
 .modal {
     position: fixed;
