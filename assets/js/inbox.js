@@ -4157,47 +4157,30 @@ function senderLabel(name, address, withAngles) {
         : escapeHtml(n);
 }
 
-// Utility: Format date/time
-// Parse a DB datetime string as UTC (append Z if no timezone indicator)
-function parseUTCDate(dateStr) {
-    if (!dateStr) return null;
-    // If the string doesn't already end with Z or have a timezone offset, treat as UTC
-    if (!/[Z+\-]\d{0,4}$/.test(dateStr)) {
-        dateStr = dateStr.replace(' ', 'T') + 'Z';
-    }
-    return new Date(dateStr);
-}
-
-// Merge the analyst's chosen display timezone into an Intl options object.
-// window.USER_TIMEZONE is published server-side (Tz::scriptTag). When it's
-// unset the option is omitted, so dates fall back to the browser's own zone.
-function tzOpts(extra) {
-    const o = Object.assign({}, extra || {});
-    if (window.USER_TIMEZONE) o.timeZone = window.USER_TIMEZONE;
-    return o;
-}
-
-// 'YYYY-MM-DD' for a Date, evaluated in the analyst's display zone. Used to
-// bucket into Today / Yesterday against the same zone the time is shown in.
-function ymdInZone(date) {
-    return date.toLocaleDateString('en-CA', tzOpts());
-}
+// parseUTCDate / tzOpts / ymdInZone used to be defined here — inbox.js predates
+// assets/js/tz.js, which was written by lifting these very functions out of it.
+// tickets/index.php was then the one page still not loading tz.js, so the copies
+// had to stay. It loads it now, and the copies are gone: two identical
+// implementations of a date helper is exactly how the 'en-GB' drift behind
+// GH #105 spread in the first place.
 
 function formatDateTime(dateStr) {
     if (!dateStr) return '';
     const date = parseUTCDate(dateStr);
     const now = new Date();
+    // ymdInZone is a MACHINE format (always ISO) — it is a bucket key compared
+    // against another bucket key, never shown. It must not follow the analyst's
+    // chosen date format or Today/Yesterday would stop matching.
     const todayStr = ymdInZone(now);
     const yesterdayStr = ymdInZone(new Date(now.getTime() - 86400000));
     const dateYmd = ymdInZone(date);
 
     if (dateYmd === todayStr) {
-        return date.toLocaleTimeString('en-US', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+        return fmtTime(date);
     } else if (dateYmd === yesterdayStr) {
-        return 'Yesterday ' + date.toLocaleTimeString('en-US', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+        return 'Yesterday ' + fmtTime(date);
     } else {
-        return date.toLocaleDateString('en-US', tzOpts({ month: 'short', day: 'numeric' })) + ' ' +
-               date.toLocaleTimeString('en-US', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+        return fmtDayMonth(date) + ' ' + fmtTime(date);
     }
 }
 
@@ -4205,12 +4188,7 @@ function formatDateTime(dateStr) {
 function formatFullDateTime(dateStr) {
     if (!dateStr) return '';
     const date = parseUTCDate(dateStr);
-    return date.toLocaleDateString('en-GB', tzOpts({
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    })) + ' ' + date.toLocaleTimeString('en-US', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+    return fmtWeekday(date, true) + ' ' + fmtDate(date) + ' ' + fmtTime(date);
 }
 
 // Format a NAIVE wall-clock datetime (a user-entered scheduling value stored
@@ -4219,12 +4197,9 @@ function formatFullDateTime(dateStr) {
 // are naive; only server-stamped UTC timestamps (received/created/…) convert.
 function formatNaiveFullDateTime(dateStr) {
     if (!dateStr) return '';
-    const m = String(dateStr).replace('T', ' ').match(/(\d{4})-(\d{2})-(\d{2})[ ](\d{1,2}):(\d{2})/);
-    if (!m) return dateStr;
-    const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
-    return d.toLocaleDateString('en-GB', {
-        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
-    }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const d = parseNaiveDate(dateStr);
+    if (!d || isNaN(d.getTime())) return dateStr;
+    return fmtNaiveWeekday(d, true) + ' ' + fmtNaiveDate(d) + ' ' + fmtNaiveTime(d);
 }
 
 // Toggle ticket properties panel
@@ -8135,12 +8110,12 @@ function formatWakeTime(value) {
     if (!value) return '';
     const d = (value instanceof Date) ? value : parseUTCDate(value);
     if (!d || isNaN(d.getTime())) return '';
-    const time = d.toLocaleTimeString('en-GB', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+    const time = fmtTime(d);
     const ymd = ymdInZone(d);
     const now = new Date();
     if (ymd === ymdInZone(now)) return t('tickets.snooze.today_at').replace('%s', time);
     if (ymd === ymdInZone(new Date(now.getTime() + 86400000))) return t('tickets.snooze.tomorrow_at').replace('%s', time);
-    const day = d.toLocaleDateString('en-GB', tzOpts({ weekday: 'short', day: 'numeric', month: 'short' }));
+    const day = fmtWeekday(d, true) + ' ' + fmtDayMonth(d);
     return `${day}, ${time}`;
 }
 

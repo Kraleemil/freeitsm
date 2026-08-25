@@ -245,4 +245,11 @@
         var d = naive(value); if (!d) return '';
         return render(partsNaive(d), cfg().dayMonthTemplate);
     };
+
+    /** 'Tuesday' / 'Tue' for a naive wall-clock value. */
+    window.fmtNaiveWeekday = function (value, short) {
+        var d = naive(value); if (!d) return '';
+        var c = cfg();
+        return (short ? c.weekdaysShort : c.weekdays)[isoWeekday(partsNaive(d)) - 1];
+    };
 })();
