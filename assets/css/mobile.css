@@ -3056,4 +3056,74 @@
     }
     .pm-modal-body { flex: 1 1 auto; overflow-y: auto; }
     .pm-modal-foot { position: sticky; bottom: 0; background: var(--surface, #fff); }
+
+    /* --------------------------------------------------------------------
+       22b — The detail view's tables become card feeds (Ed's device pass).
+
+       ⚠️ TWO of the three were CRUSHED, not spilling, which is why only one of
+       them got reported. With a realistic subject the Linked-incidents table
+       measured 294px — inside its 328px section, so it "fits" — while the
+       Subject cell itself was **82px wide and 134px tall**: seven lines for one
+       sentence. History was the honest one and actually overflowed (345px in a
+       328px section), which is the half a person notices.
+
+       THE RULE, sharpened from the one already stated at LAYER 15 above:
+         - The reader COMPARES values down a column, or the values need their
+           header to make sense (an unlabelled "Resolved?" boolean), or the
+           columns are user-chosen → keep the table, contain it in a scroller.
+         - The reader reads ONE ROW at a time and reading order carries the
+           meaning → card feed.
+
+       The tell that settles nearly every case: **does a column hold prose?**
+       A sentence cannot be horizontally scrolled — you would scroll right to
+       finish it and left again for the next row — and it cannot be squeezed:
+       82px turns it into a word per line. Every table here has one (What,
+       Subject, Title), so all three become card feeds.
+       -------------------------------------------------------------------- */
+    .pm-table,
+    .pm-table tbody { display: block; width: 100%; }
+    .pm-table thead { display: none; }
+
+    .pm-table tbody tr {
+        display: block;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    .pm-table tbody tr:last-child { border-bottom: none; }
+    .pm-table tbody td {
+        display: block;
+        padding: 2px 0;
+        border-bottom: none;
+    }
+
+    /* History reads as the module's own notes do: a quiet "when · who" line,
+       then what actually happened. The two meta cells are put back inline so
+       they share one line — a flex column could not, since flex blockifies its
+       items. `.pm-when` exists only on audit rows, so `:has()` scopes this to
+       the History table without needing a class added to the markup. */
+    .pm-table tbody tr:has(.pm-when) .pm-when,
+    .pm-table tbody tr:has(.pm-when) .pm-when + td {
+        display: inline;
+        font-size: 12px;
+        color: var(--text-dim, #6b7280);
+    }
+    .pm-table tbody tr:has(.pm-when) .pm-when::after { content: " · "; }
+
+    /* Linked incidents / Fix: the reference leads, then the subject, then the
+       status, then the row's actions. */
+    .pm-table tbody tr:not(:has(.pm-when)) td:first-child { font-weight: 600; }
+    .pm-table tbody td:has(.pm-icon-btn) {
+        margin-top: 4px;
+        display: flex;
+        gap: 4px;
+    }
+
+    /* ⚠️ The empty state is a single `<td colspan>` — the first AND last child
+       of its row. A rule keyed on either would swallow it, which is exactly how
+       the Calendar card feed lost its "nothing here yet" message. */
+    .pm-table tbody tr.pm-empty-row td {
+        display: block;
+        text-align: center;
+        padding: 6px 0;
+    }
 }
