@@ -927,6 +927,15 @@ body {
 
 .link-item .link-remove:hover { color: var(--danger-accent, #dc3545); }
 
+/* A reference to another record, when there is somewhere to go (GH #91). Uses
+   the same accent the row's type badge does, with the same fallback, so it
+   reads as part of the row rather than as a pasted-in hyperlink. */
+.link-item .linked-record {
+    color: var(--tsk-accent, #7c3aed);
+    text-decoration: none;
+}
+.link-item .linked-record:hover { text-decoration: underline; }
+
 .link-search-container { position: relative; margin-top: 8px; }
 
 .link-search-input {

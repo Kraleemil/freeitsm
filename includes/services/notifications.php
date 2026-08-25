@@ -27,6 +27,7 @@
  */
 
 require_once __DIR__ . '/../service_context.php';
+require_once __DIR__ . '/../entity_links.php';   // entityLink() — the one record→URL map
 
 class NotificationsService
 {
@@ -292,14 +293,15 @@ class NotificationsService
      */
     public static function linkFor(string $entityType, int $entityId): ?string
     {
-        switch ($entityType) {
-            // ⚠️ `ticket_id`, not `ticket` or `id`. assets/js/inbox.js reads exactly
-            // one parameter name and ignores the rest, so the wrong one loads the
-            // inbox and quietly does nothing — a link that looks like it worked.
-            case 'ticket': return 'tickets/?ticket_id=' . $entityId;
-            case 'task':   return 'tasks/?task=' . $entityId;
-        }
-        return null;
+        // Delegates to the one resolver (includes/entity_links.php). This used to
+        // be its own switch knowing `ticket` and `task` only, so a notification
+        // about a change, a problem or an asset rendered href="#" and went
+        // nowhere — the module could not be reached because this map had never
+        // been told it existed.
+        //
+        // NULL still happens and is still correct: a lookup row such as
+        // `ticket_status` or `impact_level` has no page to open.
+        return entityLink($entityType, $entityId);
     }
 
     /** Mark specific ids read. Scoped to the analyst, so ids from elsewhere do nothing. */

@@ -874,8 +874,8 @@ function renderDetailPanel(task) {
         <div class="link-section">
             <h4>${esc(window.t('tasks.detail.links'))}</h4>
             <div id="linkList">
-                ${task.ticket_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_ticket'))}</span> #${esc(task.ticket_number)} — ${esc(task.ticket_subject || '')}<button class="link-remove" onclick="removeLink('ticket_id')">&times;</button></div>` : ''}
-                ${task.change_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_change'))}</span> ${esc(task.change_title || 'Change #' + task.change_id)}<button class="link-remove" onclick="removeLink('change_id')">&times;</button></div>` : ''}
+                ${task.ticket_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_ticket'))}</span> ${linkedRecord(task.ticket_url, '#' + (task.ticket_number || task.ticket_id) + ' — ' + (task.ticket_subject || ''))}<button class="link-remove" onclick="removeLink('ticket_id')">&times;</button></div>` : ''}
+                ${task.change_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_change'))}</span> ${linkedRecord(task.change_url, task.change_title || ('Change #' + task.change_id))}<button class="link-remove" onclick="removeLink('change_id')">&times;</button></div>` : ''}
             </div>
             ${!task.ticket_id ? `
             <div class="link-search-container">
@@ -1269,6 +1269,25 @@ function escAttr(value) {
 }
 
 // ── Utilities ──────────────────────────────────────────────────────
+
+/**
+ * Render a reference to another record as a link when there is somewhere to go,
+ * and as plain text when there is not (GH #91).
+ *
+ * ⚠️ The URL is supplied by the SERVER, from entityLink() in
+ * includes/entity_links.php. Do not rebuild it here. Three separate copies of
+ * that map had already drifted apart, and the two links that turned out to be
+ * dead were both hand-built ones pointing at the two modules that accept exactly
+ * one parameter name each.
+ *
+ * A missing url renders as text rather than href="#": an anchor that goes
+ * nowhere is worse than no anchor, because it looks like it should work.
+ */
+function linkedRecord(url, label) {
+    if (!url) return esc(label);
+    const base = window.APP_BASE || '';
+    return `<a class="linked-record" href="${escAttr(base + url)}">${esc(label)}</a>`;
+}
 
 function esc(text) {
     if (!text) return '';

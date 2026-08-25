@@ -31,6 +31,7 @@ require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/documents.php';
+require_once '../../includes/entity_links.php';   // entityLink() — the one record→URL map
 
 header('Content-Type: application/json');
 
@@ -80,7 +81,7 @@ try {
                     'id'       => (int) $r['id'],
                     'title'    => $r['subject'],
                     'subtitle' => $r['ticket_number'],
-                    'url'      => 'tickets/?ticket_id=' . (int) $r['id'],
+                    'url'      => entityLink('ticket', (int) $r['id']),
                 ];
             }
         } catch (Exception $e) { /* table not ready — no ticket results */ }
@@ -105,7 +106,7 @@ try {
                     'id'       => (int) $r['id'],
                     'title'    => $r['name'],
                     'subtitle' => $r['class_name'],
-                    'url'      => 'cmdb/object.php?id=' . (int) $r['id'],
+                    'url'      => entityLink('cmdb_object', (int) $r['id']),
                 ];
             }
         } catch (Exception $e) { /* table not ready — no CI results */ }
@@ -197,7 +198,7 @@ try {
                     'id'       => $id,
                     'title'    => $r['hostname'],
                     'subtitle' => $subtitle,
-                    'url'      => 'asset-management/?asset_id=' . $id,
+                    'url'      => entityLink('asset', (int) $id),
                 ];
             }
         } catch (Exception $e) { /* table not ready — no asset results */ }
@@ -228,7 +229,7 @@ try {
                     'id'       => (int) $r['id'],
                     'title'    => $r['title'],
                     'subtitle' => sprintf('CHG-%04d', (int) $r['id']),
-                    'url'      => 'change-management/?change_id=' . (int) $r['id'],
+                    'url'      => entityLink('change', (int) $r['id']),
                 ];
             }
         } catch (Exception $e) { /* table not ready — no change results */ }
@@ -252,7 +253,7 @@ try {
                     'id'       => (int) $r['id'],
                     'title'    => $r['title'],
                     'subtitle' => (string) ($r['problem_number'] ?? ''),
-                    'url'      => 'problem-management/?problem_id=' . (int) $r['id'],
+                    'url'      => entityLink('problem', (int) $r['id']),
                 ];
             }
         } catch (Exception $e) { /* table not ready — no problem results */ }
@@ -281,7 +282,7 @@ try {
                     'id'       => (int) $r['id'],
                     'title'    => $r['title'],
                     'subtitle' => '',
-                    'url'      => 'knowledge/?article=' . (int) $r['id'],
+                    'url'      => entityLink('knowledge_article', (int) $r['id']),
                 ];
             }
         } catch (Exception $e) { /* table not ready — no knowledge results */ }
@@ -306,7 +307,7 @@ try {
                     'id'       => (int) $r['id'],
                     'title'    => $r['title'],
                     'subtitle' => (string) ($r['contract_number'] ?? ''),
-                    'url'      => 'contracts/view.php?id=' . (int) $r['id'],
+                    'url'      => entityLink('contract', (int) $r['id']),
                 ];
             }
         } catch (Exception $e) { /* table not ready — no contract results */ }
@@ -445,7 +446,7 @@ try {
                             'id'       => $tid,
                             'title'    => $m['subject'],
                             'subtitle' => $m['ticket_number'],
-                            'url'      => 'tickets/?ticket_id=' . $tid,
+                            'url'      => entityLink('ticket', (int) $tid),
                         ];
                     }
                 }
@@ -482,7 +483,7 @@ try {
                                 'subtitle' => '',
                                 // Same URL shape as the title-matching knowledge
                                 // source above, not one invented here.
-                                'url'      => 'knowledge/?article=' . $aid,
+                                'url'      => entityLink('knowledge_article', (int) $aid),
                             ];
                         }
                     }

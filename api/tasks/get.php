@@ -7,6 +7,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/entity_links.php';
 
 header('Content-Type: application/json');
 
@@ -58,6 +59,14 @@ try {
         echo json_encode(['success' => false, 'error' => 'Task not found']);
         exit;
     }
+
+    // Deep links for the records this task points at (GH #91). Built HERE, from
+    // the one resolver, rather than assembled in JavaScript — a second copy of
+    // the record→URL map in the client is precisely the drift entity_links.php
+    // exists to end. NULL when there is no link, which the client renders as
+    // plain text rather than a dead anchor.
+    $task['ticket_url'] = $task['ticket_id'] ? entityLink('ticket', (int) $task['ticket_id']) : null;
+    $task['change_url'] = $task['change_id'] ? entityLink('change', (int) $task['change_id']) : null;
 
     // Get parent task info if this is a subtask
     if ($task['parent_task_id']) {
