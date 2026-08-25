@@ -94,6 +94,9 @@ return [
         'integrations_title'    => 'Integrasi',
         'integrations_desc'     => 'Sambungkan FreeITSM kepada penjejak isu yang digunakan pasukan pembangunan anda, supaya tiket yang didapati sebenarnya pepijat boleh dinaikkan taraf dan dijejaki tanpa meninggalkan meja perkhidmatan.',
         'integrations_keywords' => 'integrations integration jira atlassian issue tracker bug escalate escalation github gitlab azure devops connector developer dev team link linked issue integrasi penjejak isu pepijat naik taraf pembangun pasukan pautan',
+        'date_formats_title' => 'Format tarikh dan masa',
+        'date_formats_desc' => 'Cara tarikh dan masa ditulis di seluruh FreeITSM - 25/08/2026, 25.08.2026 atau 25 Ogo 2026, dan 14:30 atau 2:30 PM. Menetapkan lalai untuk semua orang; penganalisis boleh memilih format mereka sendiri.',
+        'date_formats_keywords' => 'tarikh masa format hh/bb/tttt bb/hh/tttt iso 24 jam 12 jam am pm serantau',
     ],
 
     // Integrasi (system/integrations/)
@@ -482,6 +485,13 @@ return [
         'pos_preview'   => 'Pemberitahuan akan muncul di sini',
         'anim_preview'  => 'Pratonton: animasi {anim}',
         'save_failed'   => 'Gagal menyimpan',
+        'timezone_desc' => 'Zon waktu yang digunakan untuk menukar masa sebelum ia dipaparkan kepada anda. Lalainya ialah zon waktu pelayan sehingga anda memilih satu. Ini mengubah masa itu sendiri, bukan cara ia ditulis.',
+        'dateformat_heading' => 'Format tarikh',
+        'dateformat_desc' => 'Cara sesuatu tarikh ditulis. Ini mengenai susunan sahaja - tarikh itu sendiri tidak pernah berubah, dan nama bulan sentiasa mengikut bahasa antara muka anda.',
+        'timeformat_heading' => 'Format masa',
+        'timeformat_desc' => 'Jam 24 jam, atau jam 12 jam dengan AM dan PM.',
+        'format_follow_default' => 'Guna lalai sistem ({example})',
+        'format_saved' => 'Format disimpan',
     ],
 
     // Halaman keselamatan (system/security/index.php)
@@ -821,5 +831,23 @@ return [
         'step_domain_nodomain'=> 'Tiada domain penghantar diberikan, jadi tiada apa untuk dipadankan.',
         'step_triage'         => 'Baris gilir triage',
         'step_triage_detail'  => 'Tiada apa sepadan, jadi tiket ditinggalkan tanpa syarikat dan menunggu dalam baris gilir triage untuk difailkan secara manual. Tiada apa hilang.',
+    ],
+
+    // Date and time formats page (system/date-formats/index.php)
+    'dateformat' => [
+        'title' => 'Format tarikh dan masa',
+        'subtitle' => 'Cara tarikh dan masa ditulis di seluruh FreeITSM. Ini ialah lalai untuk semua orang; mana-mana penganalisis boleh memilih format lain untuk diri mereka dalam Keutamaan.',
+        'date_heading' => 'Format tarikh',
+        'date_desc' => 'Pilih cara sesuatu tarikh ditulis. Ini mengenai susunan sahaja - hari, bulan dan tahun itu sendiri tidak pernah berubah, dan nama bulan sentiasa mengikut bahasa antara muka.',
+        'time_heading' => 'Format masa',
+        'time_desc' => 'Pilih antara jam 24 jam dan jam 12 jam dengan AM dan PM. Ini tidak mengubah masa itu sendiri, hanya cara ia ditulis.',
+        'preview_heading' => 'Pratonton',
+        'preview_desc' => 'Contoh tarikh dan masa sebagaimana ia akan kelihatan selepas anda menyimpan.',
+        'preview_label' => 'Tarikh akan kelihatan seperti',
+        'scope_heading' => 'Apa yang tidak berubah.',
+        'scope_note' => 'Tiada apa-apa mengenai masa itu sendiri. Zon waktu yang digunakan untuk memaparkan masa ditetapkan secara berasingan, bagi setiap penganalisis, dalam Keutamaan - dan tarikh disimpan tanpa perubahan dalam kedua-dua keadaan, jadi sasaran tahap perkhidmatan, laporan dan eksport tidak terjejas.',
+        'saved' => 'Format tarikh dan masa disimpan',
+        'error' => 'Tidak dapat menyimpan: {error}',
+        'save_failed' => 'Format tarikh dan masa tidak dapat disimpan',
     ],
 ];

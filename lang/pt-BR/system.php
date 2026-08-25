@@ -88,6 +88,9 @@ return [
         'integrations_title'    => 'Integrações',
         'integrations_desc'     => 'Conecte o FreeITSM aos rastreadores de problemas que a sua equipe de desenvolvimento usa, para que um chamado que se revele um bug possa ser escalado e acompanhado sem sair da central de serviços.',
         'integrations_keywords' => 'integrations integration integrações jira atlassian issue tracker bug escalate escalation github gitlab azure devops connector desenvolvimento chamado vinculado',
+        'date_formats_title' => 'Formatos de data e hora',
+        'date_formats_desc' => 'Como datas e horas são escritas no FreeITSM - 25/08/2026, 25.08.2026 ou 25 ago 2026, e 14:30 ou 2:30 PM. Define o padrão para todos; cada analista pode escolher o seu.',
+        'date_formats_keywords' => 'data hora formato formatos dd/mm/aaaa mm/dd/aaaa iso 24 horas 12 horas am pm regional',
     ],
 
     // Integrations (system/integrations/)
@@ -465,6 +468,13 @@ return [
         'pos_preview'   => 'As notificações aparecerão aqui',
         'anim_preview'  => 'Pré-visualização: animação {anim}',
         'save_failed'   => 'Falha ao salvar',
+        'timezone_desc' => 'Para qual fuso horário os horários são convertidos antes de serem exibidos para você. O padrão é o fuso horário do servidor até que você escolha um. Isso muda o horário em si, não como ele é escrito.',
+        'dateformat_heading' => 'Formato de data',
+        'dateformat_desc' => 'Como uma data é escrita. Trata-se apenas da disposição - a data em si nunca muda, e os nomes dos meses sempre seguem o idioma da interface.',
+        'timeformat_heading' => 'Formato de hora',
+        'timeformat_desc' => 'O relógio de 24 horas, ou um relógio de 12 horas com AM e PM.',
+        'format_follow_default' => 'Usar o padrão do sistema ({example})',
+        'format_saved' => 'Formato salvo',
     ],
 
     // Security page (system/security/index.php)
@@ -957,5 +967,23 @@ return [
         'step_domain_nodomain'=> 'Nenhum domínio de remetente foi fornecido, então não há nada a corresponder.',
         'step_triage'         => 'Fila de triagem',
         'step_triage_detail'  => 'Nada correspondeu, então o ticket fica sem empresa e aguarda na fila de triagem para ser arquivado manualmente. Nada é perdido.',
+    ],
+
+    // Date and time formats page (system/date-formats/index.php)
+    'dateformat' => [
+        'title' => 'Formatos de data e hora',
+        'subtitle' => 'Como datas e horas são escritas no FreeITSM. Este é o padrão para todos; qualquer analista pode escolher outro para si em Preferências.',
+        'date_heading' => 'Formato de data',
+        'date_desc' => 'Escolha como uma data é escrita. Trata-se apenas da disposição - o dia, o mês e o ano em si nunca mudam, e os nomes dos meses sempre seguem o idioma da interface.',
+        'time_heading' => 'Formato de hora',
+        'time_desc' => 'Escolha entre o relógio de 24 horas e um relógio de 12 horas com AM e PM. Isso não muda o horário em si, apenas como ele é escrito.',
+        'preview_heading' => 'Prévia',
+        'preview_desc' => 'Um exemplo de data e hora como aparecerão depois que você salvar.',
+        'preview_label' => 'As datas ficarão assim',
+        'scope_heading' => 'O que isto não muda.',
+        'scope_note' => 'Nada sobre os horários em si. O fuso horário em que um horário é exibido é definido separadamente, por analista, em Preferências - e as datas são armazenadas sem alteração de qualquer forma, de modo que metas de nível de serviço, relatórios e exportações não são afetados.',
+        'saved' => 'Formatos de data e hora salvos',
+        'error' => 'Não foi possível salvar: {error}',
+        'save_failed' => 'Não foi possível salvar os formatos de data e hora',
     ],
 ];

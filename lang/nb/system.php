@@ -105,6 +105,9 @@ return [
         'integrations_title'    => 'Integrasjoner',
         'integrations_desc'     => 'Koble FreeITSM til issue-trackerne utviklingsteamet ditt bruker, slik at en sak som viser seg å være en feil kan eskaleres og følges opp uten å forlate servicedesken.',
         'integrations_keywords' => 'integrations integration jira atlassian issue tracker bug escalate escalation github gitlab azure devops connector developer dev team link linked issue integrasjoner feil eskalere utvikling koblet sak',
+        'date_formats_title' => 'Dato- og tidsformater',
+        'date_formats_desc' => 'Hvordan datoer og klokkeslett skrives i FreeITSM - 25.08.2026, 25/08/2026 eller 25 aug 2026, og 14:30 eller 2:30 PM. Angir standarden for alle; analytikere kan velge sin egen.',
+        'date_formats_keywords' => 'dato tid format formater dd.mm.åååå mm/dd/åååå iso 24 timer 12 timer am pm regional',
     ],
 
     // Integrasjoner (system/integrations/)
@@ -494,6 +497,13 @@ return [
         'pos_preview'   => 'Varsler vises her',
         'anim_preview'  => 'Forhåndsvisning: {anim}-animasjon',
         'save_failed'   => 'Klarte ikke å lagre',
+        'timezone_desc' => 'Hvilken tidssone klokkeslett regnes om til før de vises for deg. Standarden er serverens tidssone til du velger en. Dette endrer selve klokkeslettet, ikke hvordan det skrives.',
+        'dateformat_heading' => 'Datoformat',
+        'dateformat_desc' => 'Hvordan en dato skrives. Dette gjelder bare rekkefølgen - selve datoen endres aldri, og månedsnavn følger alltid grensesnittspråket ditt.',
+        'timeformat_heading' => 'Tidsformat',
+        'timeformat_desc' => '24-timersklokke, eller 12-timersklokke med AM og PM.',
+        'format_follow_default' => 'Bruk systemstandarden ({example})',
+        'format_saved' => 'Formatet er lagret',
     ],
 
     // Sikkerhet (system/security/index.php)
@@ -986,5 +996,23 @@ return [
         'step_domain_nodomain'=> 'Det ble ikke oppgitt noe avsenderdomene, så det er ingenting å matche på.',
         'step_triage'         => 'Triagekø',
         'step_triage_detail'  => 'Ingenting traff, så saken blir stående uten selskap og venter i triagekøen på å bli sortert manuelt. Ingenting går tapt.',
+    ],
+
+    // Date and time formats page (system/date-formats/index.php)
+    'dateformat' => [
+        'title' => 'Dato- og tidsformater',
+        'subtitle' => 'Hvordan datoer og klokkeslett skrives i FreeITSM. Dette er standarden for alle; enhver analytiker kan velge en annen for seg selv under Innstillinger.',
+        'date_heading' => 'Datoformat',
+        'date_desc' => 'Velg hvordan en dato skrives. Dette gjelder bare rekkefølgen - selve dagen, måneden og året endres aldri, og månedsnavn følger alltid grensesnittspråket.',
+        'time_heading' => 'Tidsformat',
+        'time_desc' => 'Velg mellom 24-timersklokke og 12-timersklokke med AM og PM. Dette endrer ikke selve klokkeslettet, bare hvordan det skrives.',
+        'preview_heading' => 'Forhåndsvisning',
+        'preview_desc' => 'Et eksempel på dato og klokkeslett slik de vil se ut når du har lagret.',
+        'preview_label' => 'Datoer vil se slik ut',
+        'scope_heading' => 'Hva dette ikke endrer.',
+        'scope_note' => 'Ingenting ved selve klokkeslettene. Hvilken tidssone et klokkeslett vises i, angis separat per analytiker under Innstillinger - og datoer lagres uendret uansett, så tjenestenivåmål, rapporter og eksporter påvirkes ikke.',
+        'saved' => 'Dato- og tidsformater er lagret',
+        'error' => 'Kunne ikke lagre: {error}',
+        'save_failed' => 'Kunne ikke lagre dato- og tidsformatene',
     ],
 ];
