@@ -151,8 +151,13 @@ $translationNamespaces = ['common', 'forms'];
                 let footer;
                 if (decided) {
                     const badge = `<span class="ca-badge ${it.approval_status}">${esc(window.t('forms.approval.status_' + it.approval_status))}</span>`;
-                    const ticket = (it.approval_status === 'approved' && it.ticket_number)
-                        ? ` — <a href="../tickets/?ticket=${encodeURIComponent(it.ticket_number)}">${esc(it.ticket_number)}</a>` : '';
+                    // ⚠️ `?ticket_id=` with the ID. This used to be `?ticket=` with
+                    // the ticket NUMBER, which is wrong twice over: the inbox reads
+                    // exactly one parameter name and it is not that one, so the link
+                    // opened the ticket list and did nothing. `ticket_id` is already
+                    // in this response — see catalogueApprovalsList().
+                    const ticket = (it.approval_status === 'approved' && it.ticket_number && it.ticket_id)
+                        ? ` — <a href="../tickets/?ticket_id=${encodeURIComponent(it.ticket_id)}">${esc(it.ticket_number)}</a>` : '';
                     const cmt = it.approval_comment ? `<div class="ca-decided-note">${esc(it.approval_comment)}</div>` : '';
                     footer = `<div class="ca-decided-note">${badge}${ticket}</div>${cmt}`;
                 } else {
