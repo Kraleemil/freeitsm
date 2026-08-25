@@ -150,5 +150,32 @@ return [
             'saturday'  => 'Sabtu',
             'sunday'    => 'Minggu',
         ],
+
+        // Abbreviated forms, used by the date formatter for the
+        // "25 Aug 2026" family of formats (GH #105).
+        'months_short' => [
+            'january'   => 'Jan',
+            'february'  => 'Feb',
+            'march'     => 'Mar',
+            'april'     => 'Apr',
+            'may'       => 'Mei',
+            'june'      => 'Jun',
+            'july'      => 'Jul',
+            'august'    => 'Agu',
+            'september' => 'Sep',
+            'october'   => 'Okt',
+            'november'  => 'Nov',
+            'december'  => 'Des',
+        ],
+
+        'weekdays_short' => [
+            'monday'    => 'Sen',
+            'tuesday'   => 'Sel',
+            'wednesday' => 'Rab',
+            'thursday'  => 'Kam',
+            'friday'    => 'Jum',
+            'saturday'  => 'Sab',
+            'sunday'    => 'Min',
+        ],
     ],
 ];

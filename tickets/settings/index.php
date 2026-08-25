@@ -7550,7 +7550,7 @@ $translationNamespaces = ['common', 'tickets'];
 
     </script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=3"></script>
+    <script src="../../assets/js/tz.js?v=4"></script>
     <script src="../../assets/js/mobile.js?v=27"></script>
 </body>
 </html>

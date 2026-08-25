@@ -165,9 +165,15 @@
     function render(p, template) {
         var c = cfg();
         var hour12 = p.hour % 12; if (hour12 === 0) hour12 = 12;
+        // A day number beside the month selects the in-date month form for the
+        // languages that inflect — Russian "март" standing alone becomes
+        // "5 марта" in a date; Polish "marzec" becomes "5 marca". Mirrors
+        // DateFmt::render(). Locales that do not need it publish the same list.
+        var monthNames = (String(template).indexOf('D') !== -1 && c.monthsInDate)
+            ? c.monthsInDate : c.months;
         return String(template).replace(TOKENS, function (tok) {
             switch (tok) {
-                case 'MONTH': return c.months[p.month - 1];
+                case 'MONTH': return monthNames[p.month - 1];
                 case 'YYYY':  return String(p.year);
                 case 'MON':   return c.monthsShort[p.month - 1];
                 case 'DD':    return pad2(p.day);

@@ -142,5 +142,32 @@ return [
             'saturday'  => 'samedi',
             'sunday'    => 'dimanche',
         ],
+
+        // Abbreviated forms, used by the date formatter for the
+        // "25 Aug 2026" family of formats (GH #105).
+        'months_short' => [
+            'january'   => 'janv.',
+            'february'  => 'févr.',
+            'march'     => 'mars',
+            'april'     => 'avr.',
+            'may'       => 'mai',
+            'june'      => 'juin',
+            'july'      => 'juil.',
+            'august'    => 'août',
+            'september' => 'sept.',
+            'october'   => 'oct.',
+            'november'  => 'nov.',
+            'december'  => 'déc.',
+        ],
+
+        'weekdays_short' => [
+            'monday'    => 'lun.',
+            'tuesday'   => 'mar.',
+            'wednesday' => 'mer.',
+            'thursday'  => 'jeu.',
+            'friday'    => 'ven.',
+            'saturday'  => 'sam.',
+            'sunday'    => 'dim.',
+        ],
     ],
 ];

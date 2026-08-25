@@ -142,5 +142,50 @@ return [
             'saturday'  => 'sobota',
             'sunday'    => 'niedziela',
         ],
+
+        // Abbreviated forms, used by the date formatter for the
+        // "25 Aug 2026" family of formats (GH #105).
+        'months_short' => [
+            'january'   => 'sty',
+            'february'  => 'lut',
+            'march'     => 'mar',
+            'april'     => 'kwi',
+            'may'       => 'maj',
+            'june'      => 'cze',
+            'july'      => 'lip',
+            'august'    => 'sie',
+            'september' => 'wrz',
+            'october'   => 'paź',
+            'november'  => 'lis',
+            'december'  => 'gru',
+        ],
+
+        // The form a month takes WHEN A DAY NUMBER IS BESIDE IT.
+        // Standalone is nominative (a calendar heading); in a date it
+        // inflects. Used only by the "5 March 2026" family (GH #105).
+        'months_in_date' => [
+            'january'     => 'stycznia',
+            'february'    => 'lutego',
+            'march'       => 'marca',
+            'april'       => 'kwietnia',
+            'may'         => 'maja',
+            'june'        => 'czerwca',
+            'july'        => 'lipca',
+            'august'      => 'sierpnia',
+            'september'   => 'września',
+            'october'     => 'października',
+            'november'    => 'listopada',
+            'december'    => 'grudnia',
+        ],
+
+        'weekdays_short' => [
+            'monday'    => 'pon.',
+            'tuesday'   => 'wt.',
+            'wednesday' => 'śr.',
+            'thursday'  => 'czw.',
+            'friday'    => 'pt.',
+            'saturday'  => 'sob.',
+            'sunday'    => 'niedz.',
+        ],
     ],
 ];

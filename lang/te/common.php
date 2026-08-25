@@ -142,5 +142,32 @@ return [
             'saturday'  => 'శనివారం',
             'sunday'    => 'ఆదివారం',
         ],
+
+        // Abbreviated forms, used by the date formatter for the
+        // "25 Aug 2026" family of formats (GH #105).
+        'months_short' => [
+            'january'   => 'జనవరి',
+            'february'  => 'ఫిబ్రవరి',
+            'march'     => 'మార్చి',
+            'april'     => 'ఏప్రిల్',
+            'may'       => 'మే',
+            'june'      => 'జూన్',
+            'july'      => 'జూలై',
+            'august'    => 'ఆగస్టు',
+            'september' => 'సెప్టెంబర్',
+            'october'   => 'అక్టోబర్',
+            'november'  => 'నవంబర్',
+            'december'  => 'డిసెంబర్',
+        ],
+
+        'weekdays_short' => [
+            'monday'    => 'సోమ',
+            'tuesday'   => 'మంగళ',
+            'wednesday' => 'బుధ',
+            'thursday'  => 'గురు',
+            'friday'    => 'శుక్ర',
+            'saturday'  => 'శని',
+            'sunday'    => 'ఆది',
+        ],
     ],
 ];

@@ -27,7 +27,7 @@ $translationNamespaces = ['common', 'forms'];
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=3"></script>
+    <script src="../assets/js/tz.js?v=4"></script>
     <!-- Shared with the builder preview and the portal: field types + conditional
          visibility. Mirrors includes/form_logic.php, which decides on submit. -->
     <script src="../assets/js/form-logic.js?v=2"></script>

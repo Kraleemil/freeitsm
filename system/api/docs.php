@@ -183,7 +183,7 @@ $__extrasJson = $__spec ? json_encode($__spec['extras']) : '{}';
         [data-theme-mode="dark"] .err-2 { color: #81c784; }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=3"></script>
+    <script src="../../assets/js/tz.js?v=4"></script>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>

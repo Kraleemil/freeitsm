@@ -265,11 +265,29 @@ class DateFmt {
     }
 
     /** Ordered month names for the interface language. $short picks the abbreviated set. */
-    public static function months($short = false) {
-        return self::names('months', $short, [
+    /**
+     * Ordered month names. $short picks the abbreviated set.
+     *
+     * $inDate asks for the form a month takes WHEN A DAY NUMBER IS BESIDE IT.
+     * In English there is no difference, but Slavic languages inflect: Russian
+     * standing alone is "март", inside a date it is "5 марта"; Polish
+     * "marzec" becomes "5 marca"; Ukrainian "березень" becomes "5 березня".
+     * Rendering the standalone form in a date reads plainly wrong to a native
+     * speaker, and it is a full month name so the abbreviation cannot hide it.
+     *
+     * A locale supplies 'months_in_date' only if it needs one; everything else
+     * falls through to 'months' and is unaffected.
+     */
+    public static function months($short = false, $inDate = false) {
+        $keys = [
             'january','february','march','april','may','june',
             'july','august','september','october','november','december',
-        ]);
+        ];
+        if ($inDate && !$short) {
+            $declined = self::names('months_in_date', false, $keys, true);
+            if ($declined !== null) return $declined;
+        }
+        return self::names('months', $short, $keys);
     }
 
     /** Ordered weekday names, MONDAY FIRST (index 0 = Monday). */
@@ -279,11 +297,31 @@ class DateFmt {
         ]);
     }
 
-    private static function names($group, $short, array $keys) {
+    /**
+     * @param bool $optional When true, return NULL if the locale does not define
+     *                       this group at all, rather than falling back. Used by
+     *                       months_in_date, which most languages do not need.
+     */
+    private static function names($group, $short, array $keys, $optional = false) {
         if (!function_exists('t') && is_file(__DIR__ . '/i18n.php')) {
             require_once __DIR__ . '/i18n.php';
         }
         $ns  = 'common.calendar.' . $group . ($short ? '_short' : '');
+        if ($optional) {
+            // t() falls back to English, and English has no months_in_date, so a
+            // missing key comes back as the key path - that is the "not defined"
+            // signal. Probing one key is enough: the block is added whole.
+            //
+            // ⚠️ lang/en MUST NOT gain a months_in_date block. English does not
+            // inflect, so it would only ever duplicate 'months' - but its mere
+            // presence would make this probe succeed for EVERY locale, and the
+            // English fallback would then feed English month names into every
+            // other language's dates. The absence is load-bearing. The i18n
+            // audit reports months_in_date as an EXTRA key in ru/pl/uk for this
+            // reason; that is correct, not drift.
+            $probe = function_exists('t') ? t("$ns." . $keys[0]) : "$ns." . $keys[0];
+            if ($probe === "$ns." . $keys[0] || $probe === '') return null;
+        }
         $out = [];
         foreach ($keys as $k) {
             // A locale that has no _short block falls back to ENGLISH, per the
@@ -304,7 +342,11 @@ class DateFmt {
 
     /** Render a DateTime through a token template. The single PHP-side renderer. */
     public static function render(DateTime $dt, $template) {
-        $months      = self::months(false);
+        // A day number beside the month selects the in-date month form for the
+        // languages that inflect (see months()). "March 2026" on a calendar
+        // header stays nominative; "5 March 2026" does not.
+        $withDay     = strpos($template, 'D') !== false;
+        $months      = self::months(false, $withDay);
         $monthsShort = self::months(true);
         $hour24      = (int)$dt->format('G');
         $hour12      = $hour24 % 12;
@@ -337,6 +379,7 @@ class DateFmt {
             'timeTemplate'     => self::TIME_TEMPLATES[self::timeKey()],
             'dayMonthTemplate' => self::DAY_MONTH_TEMPLATES[self::dateKey()],
             'months'           => self::months(false),
+            'monthsInDate'     => self::months(false, true),
             'monthsShort'      => self::months(true),
             'weekdays'         => self::weekdays(false),
             'weekdaysShort'    => self::weekdays(true),

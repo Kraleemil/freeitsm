@@ -188,5 +188,50 @@ return [
             'saturday'  => 'Субота',
             'sunday'    => 'Неділя',
         ],
+
+        // Abbreviated forms, used by the date formatter for the
+        // "25 Aug 2026" family of formats (GH #105).
+        'months_short' => [
+            'january'   => 'січ.',
+            'february'  => 'лют.',
+            'march'     => 'бер.',
+            'april'     => 'квіт.',
+            'may'       => 'трав.',
+            'june'      => 'черв.',
+            'july'      => 'лип.',
+            'august'    => 'серп.',
+            'september' => 'вер.',
+            'october'   => 'жовт.',
+            'november'  => 'лист.',
+            'december'  => 'груд.',
+        ],
+
+        // The form a month takes WHEN A DAY NUMBER IS BESIDE IT.
+        // Standalone is nominative (a calendar heading); in a date it
+        // inflects. Used only by the "5 March 2026" family (GH #105).
+        'months_in_date' => [
+            'january'     => 'січня',
+            'february'    => 'лютого',
+            'march'       => 'березня',
+            'april'       => 'квітня',
+            'may'         => 'травня',
+            'june'        => 'червня',
+            'july'        => 'липня',
+            'august'      => 'серпня',
+            'september'   => 'вересня',
+            'october'     => 'жовтня',
+            'november'    => 'листопада',
+            'december'    => 'грудня',
+        ],
+
+        'weekdays_short' => [
+            'monday'    => 'пн',
+            'tuesday'   => 'вт',
+            'wednesday' => 'ср',
+            'thursday'  => 'чт',
+            'friday'    => 'пт',
+            'saturday'  => 'сб',
+            'sunday'    => 'нд',
+        ],
     ],
 ];
