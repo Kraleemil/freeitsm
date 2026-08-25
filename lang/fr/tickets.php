@@ -28,7 +28,6 @@ return [
         'select_ticket' => 'Sélectionnez un ticket pour voir les détails',
     ],
     'note_modal' => [
-        'files_shared_hint' => 'Les fichiers ne peuvent être joints qu\'à une note interne : le portail libre-service ne peut pas les afficher. Décochez le partage si vous devez en joindre un.',
         'title'       => 'Ajouter une note',
         'note_label'  => 'Note',
         'placeholder' => 'Saisissez votre note ici…',

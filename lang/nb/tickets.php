@@ -276,7 +276,6 @@ return [
     ],
 
     'note_modal' => [
-        'files_shared_hint' => 'Filer kan bare legges ved et internt notat - selvbetjeningsportalen kan ikke vise dem. Fjern haken for deling hvis du må legge ved en.',
         'title'       => 'Legg til notat',
         'note_label'  => 'Notat',
         'placeholder' => 'Skriv notatet ditt her...',

@@ -28,7 +28,6 @@ return [
         'select_ticket' => 'Wybierz zgłoszenie, aby zobaczyć szczegóły',
     ],
     'note_modal' => [
-        'files_shared_hint' => 'Pliki można dołączyć tylko do notatki wewnętrznej - portal samoobsługowy nie potrafi ich wyświetlić. Odznacz udostępnianie, jeśli musisz coś dołączyć.',
         'title'       => 'Dodaj notatkę',
         'note_label'  => 'Notatka',
         'placeholder' => 'Wpisz tutaj swoją notatkę…',

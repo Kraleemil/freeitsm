@@ -195,6 +195,7 @@ return [
         'unknown_sender'      => 'Unbekannt',
         'support'             => 'Support',
         'note'                => 'Notiz',
+        'note_file_link'     => 'Link',
         'message'             => 'Nachricht',
         'reply_heading'       => 'Antworten',
         'reply_placeholder'   => 'Antwort an das Support-Team hinzufügen...',

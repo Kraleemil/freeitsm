@@ -130,12 +130,11 @@ $translationNamespaces = ['common', 'tickets'];
                          uploading first would leave orphaned files on disk every time
                          somebody changed their mind and closed this box.
 
-                         ⚠️ INTERNAL NOTES ONLY. The self-service portal has no documents
-                         path at all, so a file on a shared note would show to analysts
-                         and silently not to the requester it was shared with. The whole
-                         row hides when Share is ticked, and saveNote() asks before
-                         dropping any files already chosen rather than losing them
-                         quietly. */ ?>
+
+                         Files work on a SHARED note too since discussion #103: the
+                         portal serves them through api/self-service/get_document.php.
+                         Before that it could not, so this row used to hide itself
+                         whenever Share was ticked. */ ?>
                 <div class="form-group" id="noteAttachGroup">
                     <label class="form-label"><?php echo htmlspecialchars(t('tickets.note_modal.files_label')); ?></label>
                     <input type="file" id="noteFileInput" multiple style="display:none;">
@@ -143,9 +142,6 @@ $translationNamespaces = ['common', 'tickets'];
                         <button type="button" class="btn btn-secondary" id="noteAttachBtn" onclick="document.getElementById('noteFileInput').click()"><?php echo htmlspecialchars(t('tickets.note_modal.attach_btn')); ?></button>
                     </div>
                     <div id="noteFileList" class="note-file-list"></div>
-                    <div class="form-hint" id="noteFilesSharedHint" style="font-size:12px;color:#666;margin-top:6px;display:none;">
-                        <?php echo htmlspecialchars(t('tickets.note_modal.files_shared_hint')); ?>
-                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -905,7 +901,7 @@ $translationNamespaces = ['common', 'tickets'];
          three because this page was the one that never loaded tz.js. -->
     <script src="../assets/js/tz.js?v=4"></script>
     <script src="../assets/js/schedule.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=106"></script>
+    <script src="../assets/js/inbox.js?v=107"></script>
     <script src="../assets/js/mobile.js?v=27"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

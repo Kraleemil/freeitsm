@@ -313,7 +313,9 @@ return [
         'placeholder' => 'Enter your note here...',
         'save_btn'    => 'Save',
         'share_label'           => 'Share this with the requester',
-        'share_hint'            => 'They will see it in the self-service portal. Leave unticked to keep it internal.',
+        // Says WHERE it goes, because "share" on its own reads as "send". A shared
+        // note appears in the portal; it is not emailed. Reply is what emails.
+        'share_hint'            => 'They will see it, and any files you attach, in the self-service portal. It is not emailed — use Reply for that. Leave unticked to keep it internal.',
         'share_hint_no_mailbox' => 'This person has no email address, so a shared note is the only way to reach them. They will see it in the portal.',
         // Attachments (discussion #69). Internal notes only — the portal cannot
         // show a file, so a shared note carrying one would promise the requester
@@ -321,10 +323,6 @@ return [
         'files_label'           => 'Files',
         'attach_btn'            => 'Attach',
         'remove_file'           => 'Remove',
-        'files_shared_hint'     => 'Files can only go on an internal note - the self-service portal has no way to show them. Untick sharing if you need to attach one.',
-        'shared_files_title'    => 'Save without the files?',
-        'shared_files_body'     => 'This note is shared with the requester, and a shared note cannot carry files — the portal has no way to show them. The note will be saved and the {n} file(s) discarded. To keep them, cancel and untick sharing.',
-        'shared_files_confirm'  => 'Save',
         'files_failed'          => '{n} of {total} file(s) could not be attached: {names}. The note itself was saved.',
     ],
 

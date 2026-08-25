@@ -189,6 +189,7 @@ return [
         'unknown_sender'     => 'Desconhecido',
         'support'            => 'Suporte',
         'note'               => 'Nota',
+        'note_file_link'     => 'Link',
         'message'            => 'Mensagem',
 
         'reply_heading'        => 'Responder',

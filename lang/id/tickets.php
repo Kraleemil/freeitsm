@@ -37,7 +37,6 @@ return [
     ],
 
     'note_modal' => [
-        'files_shared_hint' => 'Berkas hanya dapat dilampirkan pada catatan internal - portal layanan mandiri tidak dapat menampilkannya. Hapus centang berbagi jika Anda perlu melampirkan satu.',
         'title'       => 'Tambah Catatan',
         'note_label'  => 'Catatan',
         'placeholder' => 'Masukkan catatan Anda di sini...',

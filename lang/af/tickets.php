@@ -36,7 +36,6 @@ return [
     ],
 
     'note_modal' => [
-        'files_shared_hint' => 'Lêers kan slegs by \'n interne nota gevoeg word - die selfdiensportaal kan dit nie wys nie. Ontmerk deel as jy een wil aanheg.',
         'title'       => 'Voeg nota by',
         'note_label'  => 'Nota',
         'placeholder' => 'Voer u nota hier in...',

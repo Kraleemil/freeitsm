@@ -253,7 +253,6 @@ return [
     ],
 
     'note_modal' => [
-        'files_shared_hint' => 'Arquivos só podem ser anexados a uma nota interna - o portal de autoatendimento não consegue exibi-los. Desmarque o compartilhamento se precisar anexar um.',
         'title' => 'Adicionar nota',
         'note_label' => 'Nota',
         'placeholder' => 'Digite sua nota aqui…',

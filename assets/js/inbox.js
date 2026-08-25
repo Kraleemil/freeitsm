@@ -4884,28 +4884,12 @@ function renderPendingNoteFiles() {
     `).join('');
 }
 
-// Share and attachments are mutually exclusive - the portal cannot show a file,
-// so a shared note carrying one would be a promise to the requester that is
-// silently not kept. The row hides rather than greying out: `.btn:disabled` is
-// only styled in lms.css, so a disabled button here would look live.
-function syncNoteAttachVisibility() {
-    const shared = document.getElementById('noteShared');
-    const group  = document.getElementById('noteAttachGroup');
-    const hint   = document.getElementById('noteFilesSharedHint');
-    if (!group) return;
-    const isShared = !!(shared && shared.checked);
-    // The files already chosen stay VISIBLE while shared is ticked. Hiding them
-    // would mean the warning talks about files nobody can see, and saveNote()
-    // is about to ask what to do with them.
-    group.querySelector('#noteAttachBtn').style.display = isShared ? 'none' : '';
-    // ⚠️ The reason shows whenever Share is ticked, NOT only when files have
-    // already been chosen. It used to be conditional on pendingNoteFiles.length,
-    // so ticking Share BEFORE picking a file made the Attach button vanish with
-    // nothing said about why — reported as a bug in discussion #103, and fairly:
-    // a control that disappears without explanation is indistinguishable from
-    // one that is broken.
-    if (hint) hint.style.display = isShared ? '' : 'none';
-}
+// Files on a note work whether or not the note is shared. They did NOT before
+// discussion #103: the portal had no way to hand a document back, so the Attach
+// button hid itself when Share was ticked and saveNote() asked before discarding
+// anything already chosen. api/self-service/get_document.php removed that
+// limitation, and syncNoteAttachVisibility() went with it - there is no longer a
+// rule for it to enforce.
 
 // Open note modal
 function openNoteModal() {
@@ -4931,7 +4915,6 @@ function openNoteModal() {
         hint.style.color = noMailbox ? '#b45309' : '#666';
     }
 
-    syncNoteAttachVisibility();
 
     document.getElementById('noteModal').classList.add('active');
     // A note counts as writing too — a colleague should know before they type
@@ -4953,7 +4936,6 @@ document.addEventListener('DOMContentLoaded', function () {
             pendingNoteFiles = pendingNoteFiles.concat(Array.prototype.slice.call(fileInput.files));
             fileInput.value = '';
             renderPendingNoteFiles();
-            syncNoteAttachVisibility();
         });
     }
     const list = document.getElementById('noteFileList');
@@ -4963,11 +4945,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!btn) return;
             pendingNoteFiles.splice(parseInt(btn.dataset.idx, 10), 1);
             renderPendingNoteFiles();
-            syncNoteAttachVisibility();
         });
     }
-    const shared = document.getElementById('noteShared');
-    if (shared) shared.addEventListener('change', syncNoteAttachVisibility);
 });
 
 // Close note modal
@@ -4987,20 +4966,11 @@ async function saveNote() {
 
     const isShared = document.getElementById('noteShared').checked;
 
-    // A shared note cannot carry files (the portal has no way to show them), so
-    // ASK rather than dropping them silently or refusing to save. Losing typed
-    // work to a rule nobody explained is the worse failure of the two.
-    let filesToAttach = pendingNoteFiles;
-    if (isShared && filesToAttach.length) {
-        const go = await showConfirm({
-            title:   t('tickets.note_modal.shared_files_title'),
-            message: t('tickets.note_modal.shared_files_body', { n: filesToAttach.length }),
-            okLabel:     t('tickets.note_modal.shared_files_confirm'),
-            cancelLabel: t('common.cancel')
-        });
-        if (!go) return;
-        filesToAttach = [];
-    }
+    // A shared note used to have to DROP its files, and this asked before doing
+    // so. The portal can serve them now (discussion #103), so there is nothing
+    // to ask and nothing to discard — a shared note's files go to the requester
+    // like any other.
+    const filesToAttach = pendingNoteFiles;
 
     try {
         const response = await fetch(API_BASE + 'save_note.php', {

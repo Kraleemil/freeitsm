@@ -208,6 +208,7 @@ return [
         'unknown_sender'     => 'Ukjent',
         'support'            => 'Brukerstøtte',
         'note'               => 'Notat',
+        'note_file_link'     => 'Lenke',
         'message'            => 'Melding',
 
         'reply_heading'        => 'Svar',

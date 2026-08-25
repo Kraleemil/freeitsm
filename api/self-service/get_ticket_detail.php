@@ -126,7 +126,7 @@ try {
 
     // Fetch non-internal notes only
     $notesStmt = $conn->prepare(
-        "SELECT n.note_text, n.created_datetime, a.full_name as analyst_name
+        "SELECT n.id, n.note_text, n.created_datetime, a.full_name as analyst_name
          FROM ticket_notes n
          LEFT JOIN analysts a ON n.analyst_id = a.id
          WHERE n.ticket_id = ? AND n.is_internal = 0
@@ -134,6 +134,43 @@ try {
     );
     $notesStmt->execute([$ticketId]);
     $notes = $notesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Files attached to those shared notes (discussion #103). Until now a shared
+    // note could not carry one at all, because the portal had no way to hand a
+    // document back — api/self-service/get_document.php is that way.
+    //
+    // Listed only for the notes ALREADY selected above, so a note that failed the
+    // is_internal test cannot contribute a file here. The download endpoint
+    // re-checks the same rule anyway: hiding a link while the URL still works is
+    // decoration, and the file is the sensitive part.
+    if ($notes) {
+        $noteIds = array_column($notes, 'id');
+        $in      = implode(',', array_fill(0, count($noteIds), '?'));
+        $docStmt = $conn->prepare(
+            "SELECT dl.parent_id AS note_id, d.id, d.kind, d.title,
+                    d.original_name, d.size_bytes, d.external_url
+               FROM document_links dl
+               JOIN documents d ON d.id = dl.document_id AND d.deleted_datetime IS NULL
+              WHERE dl.parent_type = 'ticket_note' AND dl.parent_id IN ($in)
+              ORDER BY d.id ASC"
+        );
+        $docStmt->execute($noteIds);
+        $byNote = [];
+        foreach ($docStmt->fetchAll(PDO::FETCH_ASSOC) as $d) {
+            $byNote[(int) $d['note_id']][] = [
+                'id'            => (int) $d['id'],
+                'kind'          => $d['kind'],
+                'title'         => $d['title'],
+                'original_name' => $d['original_name'],
+                'size_bytes'    => $d['size_bytes'] !== null ? (int) $d['size_bytes'] : null,
+                'external_url'  => $d['external_url'],
+            ];
+        }
+        foreach ($notes as &$n) {
+            $n['documents'] = $byNote[(int) $n['id']] ?? [];
+        }
+        unset($n);
+    }
 
     // Screen recordings attached to the ticket
     $recordings = [];

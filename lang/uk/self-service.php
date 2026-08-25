@@ -134,6 +134,7 @@ return [
         'unknown_sender'     => 'Невідомо',
         'support'            => 'Підтримка',
         'note'               => 'Нотатка',
+        'note_file_link'     => 'Посилання',
         'message'            => 'Повідомлення',
     ],
 

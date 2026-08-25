@@ -207,6 +207,7 @@ return [
         'unknown_sender'     => 'Ukjend',
         'support'            => 'Brukarstøtte',
         'note'               => 'Notat',
+        'note_file_link'     => 'Lenkje',
         'message'            => 'Melding',
 
         'reply_heading'        => 'Svar',

@@ -210,6 +210,9 @@ return [
         'unknown_sender'     => 'Unknown',
         'support'            => 'Support',
         'note'               => 'Note',
+        // Shown instead of a file size on a note attachment that is a link out to
+        // a document system rather than a file we hold (discussion #103).
+        'note_file_link'     => 'Link',
         'message'            => 'Message',
 
         'reply_heading'        => 'Reply',

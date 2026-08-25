@@ -28,7 +28,6 @@ return [
         'select_ticket' => 'Selecteer een ticket om details te bekijken',
     ],
     'note_modal' => [
-        'files_shared_hint' => 'Bestanden kunnen alleen bij een interne notitie - het selfserviceportaal kan ze niet tonen. Vink delen uit als je er een wilt toevoegen.',
         'title'       => 'Notitie toevoegen',
         'note_label'  => 'Notitie',
         'placeholder' => 'Voer hier uw notitie in…',

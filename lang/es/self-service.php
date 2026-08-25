@@ -181,6 +181,7 @@ return [
         'unknown_sender'      => 'Desconocido',
         'support'             => 'Soporte',
         'note'                => 'Nota',
+        'note_file_link'     => 'Enlace',
         'message'             => 'Mensaje',
         'reply_heading'       => 'Responder',
         'reply_placeholder'   => 'Escriba una respuesta para el equipo de soporte...',

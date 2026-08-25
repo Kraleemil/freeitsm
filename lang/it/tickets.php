@@ -28,7 +28,6 @@ return [
         'select_ticket' => 'Seleziona un ticket per visualizzarne i dettagli',
     ],
     'note_modal' => [
-        'files_shared_hint' => 'I file possono essere allegati solo a una nota interna: il portale self-service non è in grado di mostrarli. Deseleziona la condivisione se devi allegarne uno.',
         'title'       => 'Aggiungi nota',
         'note_label'  => 'Nota',
         'placeholder' => 'Inserisci la tua nota qui…',

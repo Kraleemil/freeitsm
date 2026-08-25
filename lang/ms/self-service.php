@@ -208,6 +208,7 @@ return [
         'unknown_sender'     => 'Tidak diketahui',
         'support'            => 'Sokongan',
         'note'               => 'Nota',
+        'note_file_link'     => 'Pautan',
         'message'            => 'Mesej',
 
         'reply_heading'        => 'Balas',

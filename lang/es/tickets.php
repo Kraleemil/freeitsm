@@ -91,10 +91,6 @@ return [
         'files_label'           => 'Archivos',
         'attach_btn'            => 'Adjuntar',
         'remove_file'           => 'Quitar',
-        'files_shared_hint'     => 'Los archivos solo pueden ir en una nota interna: el portal de autoservicio no puede mostrarlos. Desmarque la opción de compartir para adjuntarlos, o guarde sin ellos.',
-        'shared_files_title'    => '¿Guardar sin los archivos?',
-        'shared_files_body'     => 'Esta nota se comparte con el solicitante, y una nota compartida no puede llevar archivos: el portal no tiene forma de mostrarlos. La nota se guardará y se descartarán {n} archivo(s). Para conservarlos, cancele y desmarque la opción de compartir.',
-        'shared_files_confirm'  => 'Guardar',
         'files_failed'          => 'No se pudieron adjuntar {n} de {total} archivo(s): {names}. La nota en sí se guardó.',
     ],
     'reply_modal' => [

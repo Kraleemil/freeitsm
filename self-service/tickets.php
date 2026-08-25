@@ -387,6 +387,7 @@ let ssTickets = [];
                         who: n.analyst_name || window.t('self-service.ticket.support'),
                         when: n.created_datetime,
                         html: esc(n.note_text || '').replace(/\n/g, '<br>'),
+                        docs: n.documents || [],
                         cls: 'is-note',
                         badge: window.t('self-service.ticket.note')
                     });
@@ -449,12 +450,34 @@ let ssTickets = [];
                 }).join('')
                 : '';
 
+            // Files attached to a SHARED note (discussion #103). Same .tk-att
+            // markup as an email attachment, because to the person reading it
+            // there is no difference — it is a file their support desk sent.
+            // Different endpoint, because a note's file lives in the documents
+            // store rather than the mail store, and a DMS entry is a link out
+            // rather than something we hold.
+            const docs = (o.docs && o.docs.length)
+                ? '<div class="tk-att">' + o.docs.map(dd => {
+                    const name = dd.original_name || dd.title || '';
+                    const isLink = dd.kind === 'link';
+                    const href = isLink
+                        ? safeExternalUrl(dd.external_url)
+                        : '../api/self-service/get_document.php?id=' + encodeURIComponent(dd.id);
+                    if (!href) return '';
+                    return '<a href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">'
+                         + '<span class="tk-att-name">' + esc(name) + '</span>'
+                         + '<span class="tk-att-size">'
+                         +   (isLink ? esc(window.t('self-service.ticket.note_file_link')) : bytes(dd.size_bytes))
+                         + '</span></a>';
+                  }).join('') + '</div>'
+                : '';
+
             return '<div class="tk-msg ' + (o.cls || '') + '">'
                  +   '<div class="tk-avatar">' + esc(initials(o.who)) + '</div>'
                  +   '<div class="tk-msg-body">'
                  +     '<div class="tk-msg-head"><span class="tk-msg-who">' + esc(o.who) + '</span>'
                  +       '<span class="tk-msg-when">' + esc(fullDate(o.when)) + '</span></div>'
-                 +     '<div class="tk-msg-card">' + o.html + atts + recs + '</div>'
+                 +     '<div class="tk-msg-card">' + o.html + atts + docs + recs + '</div>'
                  +   '</div>'
                  + '</div>';
         }
@@ -642,6 +665,15 @@ let ssTickets = [];
             if (n < 1024) return n + ' B';
             if (n < 1048576) return (n / 1024).toFixed(0) + ' KB';
             return (n / 1048576).toFixed(1) + ' MB';
+        }
+        // A DMS entry's URL was typed by an analyst, so it reaches the CUSTOMER's
+        // browser as data and must never become an href on trust — `javascript:`
+        // in that box would otherwise run for every requester who opens the
+        // ticket. Same allowlist as the analyst side (inbox.js, documents.js);
+        // restated rather than shared because it is one regex and the
+        // alternative is a cross-context util contract for two lines.
+        function safeExternalUrl(url) {
+            return /^https?:\/\//i.test(String(url || '')) ? String(url) : '';
         }
         function stripTags(s) { const d = document.createElement('div'); d.innerHTML = s || ''; return d.textContent || ''; }
         function shortDate(s) {

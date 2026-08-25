@@ -265,7 +265,6 @@ return [
     ],
 
     'note_modal' => [
-        'files_shared_hint' => 'Fail hanya boleh dilampirkan pada nota dalaman - portal layan diri tidak dapat memaparkannya. Nyahtanda perkongsian jika anda perlu melampirkan satu.',
         'title'       => 'Tambah nota',
         'note_label'  => 'Nota',
         'placeholder' => 'Masukkan nota anda di sini...',

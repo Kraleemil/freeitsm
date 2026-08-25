@@ -275,7 +275,6 @@ return [
     ],
 
     'note_modal' => [
-        'files_shared_hint' => 'Filer kan berre leggjast ved eit internt notat - sjølvbeteningsportalen kan ikkje vise dei. Fjern haken for deling dersom du må leggje ved ei.',
         'title'       => 'Legg til notat',
         'note_label'  => 'Notat',
         'placeholder' => 'Skriv notatet ditt her...',

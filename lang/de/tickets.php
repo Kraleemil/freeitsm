@@ -91,10 +91,6 @@ return [
         'files_label'           => 'Dateien',
         'attach_btn'            => 'Anhängen',
         'remove_file'           => 'Entfernen',
-        'files_shared_hint'     => 'Dateien können nur an eine interne Notiz angehängt werden — das Self-Service-Portal kann sie nicht anzeigen. Entfernen Sie das Häkchen bei der Freigabe, um sie anzuhängen, oder speichern Sie ohne sie.',
-        'shared_files_title'    => 'Ohne die Dateien speichern?',
-        'shared_files_body'     => 'Diese Notiz wird mit dem Anfragenden geteilt, und eine geteilte Notiz kann keine Dateien enthalten — das Portal kann sie nicht anzeigen. Die Notiz wird gespeichert und die {n} Datei(en) werden verworfen. Um sie zu behalten, brechen Sie ab und entfernen Sie das Häkchen bei der Freigabe.',
-        'shared_files_confirm'  => 'Speichern',
         'files_failed'          => '{n} von {total} Datei(en) konnten nicht angehängt werden: {names}. Die Notiz selbst wurde gespeichert.',
     ],
     'note_author' => [
