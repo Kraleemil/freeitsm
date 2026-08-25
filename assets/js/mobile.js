@@ -136,6 +136,21 @@
     // ------------------------------------------------------------------
     if (document.querySelector('.pm-container')) { initProblemsMobile(); return; }
 
+    // ------------------------------------------------------------------
+    // CHANGE MANAGEMENT (#1184).
+    //
+    // Same need as Problem Management — the sidebar should step aside while
+    // you read or edit a change — but a cleaner hook: showView('list' |
+    // 'detail' | 'editor') is a single synchronous function, so one wrapper
+    // covers every state and there is no promise to wait on.
+    //
+    // The approvals page has no view switching at all, so it falls through to
+    // the shared shell with only CSS. Its own `.approvals-container` is caught
+    // by the same test purely so the shell still initialises.
+    // ------------------------------------------------------------------
+    if (document.querySelector('.changes-container')) { initChangesMobile(); return; }
+    if (document.querySelector('.approvals-container')) { return; }
+
     // Flat pages (Assets' table view, dashboard, settings, servers — #937) have
     // no pane stack: the shell above is the whole of their JS. The servers page
     // is the reason this test isn't just `!mc` — it DOES carry .main-container
@@ -482,6 +497,30 @@
             one scroll is a lot of thumb;
          2. the whole incident card opens the incident, not just its title.
        ================================================================== */
+    function initChangesMobile() {
+        function setPane(name) {
+            if (!mq.matches) { document.body.removeAttribute('data-cm-pane'); return; }
+            document.body.setAttribute('data-cm-pane', name);
+        }
+
+        // Wrap, don't edit. showView is a top-level declaration, so it is a
+        // property of the global object; the original does the real work and
+        // this only records which pane won.
+        var showView = window.showView;
+        if (typeof showView === 'function') {
+            window.showView = function (view) {
+                var out = showView.apply(this, arguments);
+                setPane(view === 'detail' || view === 'editor' ? view : 'list');
+                return out;
+            };
+        }
+
+        setPane('list');
+        var sync = function () { if (!mq.matches) document.body.removeAttribute('data-cm-pane'); };
+        if (mq.addEventListener) { mq.addEventListener('change', sync); }
+        else if (mq.addListener) { mq.addListener(sync); }
+    }
+
     function initProblemsMobile() {
         function setPane(name) {
             if (!mq.matches) { document.body.removeAttribute('data-pm-pane'); return; }

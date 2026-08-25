@@ -267,12 +267,13 @@ $translationNamespaces = ['common', 'change-management'];
         .modal-header { padding: 0; border-bottom: none; margin-bottom: 20px; font-size: 20px; font-weight: 600; color: var(--text, #333); }
         .modal-actions { margin-top: 20px; }
     </style>
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=49">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../../assets/js/tz.js?v=1"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
 </head>
-<body>
+<body data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
 
     <div class="container">
@@ -1057,5 +1058,6 @@ $translationNamespaces = ['common', 'change-management'];
         }
 
     </script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=24"></script>
 </body>
 </html>

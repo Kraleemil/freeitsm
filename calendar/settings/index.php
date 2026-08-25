@@ -188,7 +188,7 @@ $translationNamespaces = ['common', 'calendar'];
          is why <body> below carries the marker attribute. LAYER 16i adds what
          15e doesn't reach — the .lookup-table, which sits straight inside a
          .tab-content and becomes a card feed rather than a sideways scroll. -->
-    <link rel="stylesheet" href="../../assets/css/mobile.css?v=47">
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=49">
     <script src="../../assets/js/tz.js?v=1"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
 </head>
@@ -524,6 +524,6 @@ $translationNamespaces = ['common', 'calendar'];
             return div.innerHTML;
         }
     </script>
-    <script src="../../assets/js/mobile.js?v=23"></script>
+    <script src="../../assets/js/mobile.js?v=24"></script>
 </body>
 </html>

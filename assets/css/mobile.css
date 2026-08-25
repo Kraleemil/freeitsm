@@ -3126,4 +3126,157 @@
         text-align: center;
         padding: 6px 0;
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LAYER 23 — CHANGE MANAGEMENT module (#1184)
+
+       The same shape as LAYER 22, because the module is built the same way: a
+       fixed sidebar beside a flexible pane, and a list/detail swap the module
+       already performs in its own JS.
+
+       Measured at 360px before opting in, on ALL SIX pages:
+           docScrollW = 1286   (the widest of the rollout so far)
+       and after opting in, which fixed that outright:
+           index.php     sidebar 280  →  list pane  80px
+           approvals.php sidebar 260  →  list pane 100px
+
+       An 80px column is the narrowest yet recorded here. Contained, scrollable,
+       and not a usable screen.
+
+       Three of the six pages needed nothing beyond the opt-in: table.php
+       inherits the `.dt-wrap` scroller from the Assets round, calendar.php the
+       Calendar layer, and settings the shared settings rules — the reward for
+       building those on shared class names.
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    .changes-container,
+    .approvals-container {
+        flex-direction: column;
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* ---- The list page's sidebar becomes a header strip -------------------- */
+    .changes-sidebar {
+        width: auto;
+        min-width: 0;
+        flex: 0 0 auto;
+        overflow: visible;
+        border-right: none;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        padding: 10px 12px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 10px;
+        align-items: center;
+    }
+    /* Search and New change take a column each; the status group spans both.
+       ⚠️ The status section sits BETWEEN them in the DOM, so spanning alone
+       leaves the two buttons on separate rows with the filters in the middle.
+       `order` moves the filters last, which puts the two actions side by side
+       on the first line and reads better anyway — do the thing, then narrow
+       what you are looking at. */
+    .changes-sidebar .sidebar-section { margin: 0; }
+    .changes-sidebar .sidebar-section:has(.status-filter-list) {
+        grid-column: 1 / -1;
+        order: 1;
+    }
+    .changes-sidebar .sidebar-section h3 { margin: 0 0 6px; }
+    .changes-sidebar .btn-full { margin: 0; }
+
+    /* Status filters: one scrolling line, counts kept. Same idiom as
+       #pmStatusFilters, .detail-tabs and .sw-filter-tabs. */
+    .status-filter-list {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 6px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .status-filter-list::-webkit-scrollbar { display: none; }
+    .status-filter {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        gap: 6px;
+    }
+
+    /* ---- The approvals sidebar is a single scrolling row ------------------- */
+    /* Its filters are direct children with no wrapper to turn into a strip, so
+       the sidebar itself becomes the row. The "Filter" heading rides along at
+       the start rather than being hidden — it costs one word of scroll and it
+       is the only thing naming what the chips do. */
+    .approvals-sidebar {
+        width: auto;
+        min-width: 0;
+        flex: 0 0 auto;
+        overflow-x: auto;
+        overflow-y: hidden;
+        border-right: none;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        padding: 10px 12px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        scrollbar-width: none;
+    }
+    .approvals-sidebar::-webkit-scrollbar { display: none; }
+    .approvals-sidebar h3 { margin: 0; flex: 0 0 auto; }
+    .approval-filter {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        gap: 6px;
+    }
+
+    /* ---- Both main panes become the page scroller ------------------------- */
+    .changes-main,
+    .approvals-main {
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 12px;
+    }
+    .change-list-header,
+    .approvals-header { flex-wrap: wrap; gap: 8px; }
+    .change-list-header h2,
+    .approvals-header h2 { font-size: 1.15rem; }
+
+    /* Reading a change — or editing one — gets the whole screen, exactly as the
+       problem detail does. `showView()` is a single function taking
+       list|detail|editor, so one wrapper in mobile.js covers all three states;
+       desktop never receives the attribute. */
+    body[data-cm-pane="detail"] .changes-sidebar,
+    body[data-cm-pane="editor"] .changes-sidebar { display: none; }
+
+    /* ---- The change cards ------------------------------------------------
+       ⚠️ THIS is what the containment check could not see. `.change-card` is a
+       horizontal flex — ref | title+meta | badges — and `.change-card-badges`
+       carries `flex-shrink: 0`. Four badges that refuse to shrink make the card
+       wider than the screen whatever the pane does, and because an ancestor
+       scrolls, `docScrollW === innerWidth` stayed true the whole time. On the
+       page it read as pills marching off the right-hand edge and the assignee
+       colliding with the date.
+
+       Stacked, every part gets the full width and nothing has to give way. */
+    .change-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 12px 14px;
+    }
+    .change-card-ref { min-width: 0; }
+    /* The title can have two lines here rather than an ellipsis: on a phone the
+       reference alone rarely identifies a change, and the card is the only
+       place the title appears before you open it. */
+    .change-card-title {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.3;
+    }
+    /* Both rows may wrap: a 16px gap between meta items is a desktop luxury. */
+    .change-card-meta { flex-wrap: wrap; gap: 2px 12px; }
+    .change-card-badges { flex-wrap: wrap; flex-shrink: 1; gap: 6px; }
 }
