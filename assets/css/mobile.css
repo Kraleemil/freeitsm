@@ -3682,4 +3682,196 @@
     .search-modal textarea {
         font-size: 16px;
     }
+
+    /* ====================================================================
+       LAYER 24 — SOFTWARE  (#1194)
+       ====================================================================
+       Ninth module. Six pages, and the familiar opening number: **1119px on
+       a 360px screen, identically on all six**, which is the shared header
+       row again (`.header-right` at 1119). Opting in took every page to
+       `docScrollW === 360` on its own, exactly as it did for Watchtower,
+       Problem Management and Change Management.
+
+       THREE of the six then needed nothing further, and that is the return on
+       shared class names rather than per-module ones:
+         · dashboard/index.php — `.dashboard-page` + `.widget-grid` came from
+           the Assets round; zero spills, single column.
+         · help.php — inherits 16h.
+         · index.php's TABLE — LAYER 15a's bare `.software-table` card feed,
+           written for Asset Management's Software tab, fits this table
+           exactly. See 24b: I wrote a second one before noticing.
+
+       What was actually left, measured:
+         · `.toolbar-right`  465px (inventory) and 561px (licences), both
+           running off the side — `.search-box` is a flat `width: 350px`.
+         · `.licence-table`  6 columns, every row 76px tall.
+         · `.widget-table`   5 columns, every row **158px** tall.
+         · settings — the table already scrolls correctly (the blunt
+           `body[data-mobile-page="settings"] table` rule caught it), but the
+           page uses `.settings-container`, not `.container`, so it kept its
+           desktop 30px side padding.
+       -------------------------------------------------------------------- */
+
+    /* ---- 24a: the two toolbars ----
+       ⚠️ `.search-box` and `.toolbar-right` are both names several other
+       modules use — Asset Management, Contracts, Forms and Process Mapper
+       among them — so everything here is scoped to this module's own
+       container. (`.software-table` is shared too, but there it turned out to
+       be a reason NOT to scope: see 24b.) */
+    .software-toolbar,
+    .licence-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px;
+    }
+    .software-container .toolbar-right,
+    .licence-container .toolbar-right {
+        flex-wrap: wrap;
+        gap: 8px 10px;
+        align-items: center;
+    }
+    .software-container .search-box,
+    .licence-container .search-box {
+        width: 100%;
+        flex: 1 1 100%;
+        /* 16px, or iOS zooms the page on focus and leaves it zoomed. */
+        font-size: 16px;
+        min-height: 44px;
+    }
+    .licence-container .toolbar-right .btn { flex: 1 1 auto; min-height: 44px; }
+    .software-container .filter-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .software-container .filter-tabs::-webkit-scrollbar { display: none; }
+    .software-container .filter-tab { flex: 0 0 auto; white-space: nowrap; }
+
+    /* ---- 24b: the inventory table was ALREADY DONE ----
+       🔑 I wrote a card feed for `.software-table` here and then deleted it.
+       **LAYER 15a already had one** — bare, because Asset Management's
+       Software tab needed the identical thing — so the moment this page was
+       opted in, its 1555-row inventory picked up the finished treatment.
+
+       ⚠️ AND I MISREAD MY OWN MEASUREMENT. "Application Name 324px, Publisher
+       13px" looked like a column crushed to 13px. It was not: 324 is the
+       heading cell at `display: block`, and 13 is the width of the text "—"
+       in a cell already switched to `display: inline`. **That was the card
+       feed working, and I read it as the bug.** Cells of wildly unequal
+       widths and heights (324×20, 13×17, 34×17) are the signature of a feed;
+       a real table row shares one height across every cell — 43px, as the
+       desktop control shows.
+
+       The one thing 15a never needed and this page does: the loading spinner
+       and the empty state are a single `colspan` cell, which is also
+       `:first-child` and so was being drawn as the card's heading — bold,
+       15px, left-aligned. Bare, like the rules it extends. */
+    .software-table tbody td[colspan] {
+        display: block;
+        padding: 10px 14px !important;
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--text-muted, #666);
+        text-align: center;
+    }
+
+    /* ---- 24c: licences, as a card feed ----
+       Six columns, every row 76px tall. Of the six values only the QUANTITY
+       is ambiguous once the header is gone — a bare "15". It joins the type
+       badge as "Subscription × 15", and `×` is a symbol rather than a word,
+       so it needs no translation. */
+    .licence-container .licence-table,
+    .licence-container .licence-table tbody { display: block; width: 100%; }
+    .licence-container .licence-table thead { display: none; }
+    .licence-container .licence-table tbody tr {
+        display: block;
+        padding: 10px 2px;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    .licence-container .licence-table tbody td {
+        display: inline;
+        padding: 0;
+        border-bottom: none;
+        font-size: 13px;
+    }
+    .licence-container .licence-table tbody td:first-child {
+        display: block;
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        overflow-wrap: anywhere;
+    }
+    .licence-container .licence-table tbody td:nth-child(3)::before { content: '\00d7 '; }
+    .licence-container .licence-table tbody td:nth-child(4)::before,
+    .licence-container .licence-table tbody td:nth-child(5)::before,
+    .licence-container .licence-table tbody td:nth-child(6)::before {
+        content: ' · ';
+        color: var(--text-muted, #999);
+    }
+    .licence-container .licence-table tbody td[colspan] { display: block; text-align: center; }
+
+    /* ---- 24d: the widget library, as a card feed ----
+       Rows were **158px** tall — the worst crush in the module.
+
+       🔑 Scoped to `.library-container .widget-table` rather than to Software:
+       Asset Management and Tickets carry the SAME page with the SAME two
+       class names. Naming the structure instead of the module means those two
+       inherit this the day they are opted in — neither is today, so neither
+       can see it now. */
+    /* ⚠️ THE ONE MY OWN PROBE EXCUSED. `.library-toolbar-right` ran to 527px,
+       which turned `.dashboard-page` into a 527px SIDEWAYS scroller — and the
+       probe passed it, because that check ignores anything with a scrolling
+       ancestor (the Round 1 false-positive filter). Here the ancestor scrolls
+       by ACCIDENT, not by design: `.dashboard-page` sets `overflow-y: auto`
+       and per spec that computes `overflow-x` to `auto` as well, exactly as
+       `.changes-main` did in Round 2. **A screenshot found it; no measurement
+       did.** Same three modules as the table below. */
+    .library-toolbar { flex-wrap: wrap; padding: 12px 14px; }
+    .library-toolbar-left { min-width: 0; }
+    .library-toolbar-right { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
+    .library-toolbar-right .search-input {
+        flex: 1 1 100%;
+        width: auto;
+        min-width: 0;
+        font-size: 16px;
+        min-height: 44px;
+    }
+    .library-toolbar-right .btn { flex: 0 0 auto; min-height: 44px; }
+
+    .library-container .widget-table,
+    .library-container .widget-table tbody { display: block; width: 100%; }
+    .library-container .widget-table thead { display: none; }
+    .library-container .widget-table tbody tr {
+        display: block;
+        padding: 10px 2px;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    .library-container .widget-table tbody td {
+        display: inline;
+        padding: 0;
+        border-bottom: none;
+        font-size: 13px;
+    }
+    .library-container .widget-table tbody td:first-child { display: block; margin-bottom: 4px; }
+    .library-container .widget-table tbody td:nth-child(3)::before,
+    .library-container .widget-table tbody td:nth-child(4)::before {
+        content: ' · ';
+        color: var(--text-muted, #999);
+    }
+    /* The buttons need a line of their own and a real tap target. */
+    .library-container .widget-table tbody td.actions-cell {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .library-container .widget-table tbody td.actions-cell .btn { min-height: 40px; }
+    .library-container .widget-table tbody td[colspan] { display: block; text-align: center; }
+
+    /* ---- 24e: the settings shell ----
+       The shared settings rules key on `.container`; this page (and Morning
+       Checks) uses `.settings-container`, so it kept 30px of desktop side
+       padding and gave the table a 264px window. Same 14px as everywhere
+       else, and still behind the marker so no other page can pick it up. */
+    body[data-mobile-page="settings"] .settings-container { padding: 8px 14px 14px; }
 }
