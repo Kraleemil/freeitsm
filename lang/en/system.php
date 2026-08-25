@@ -95,6 +95,9 @@ return [
         'preferences_title' => 'Preferences',
         'preferences_desc'  => 'Personal settings like notification position. These are saved per-browser and apply only to you.',
         'preferences_keywords' => 'preferences personal settings notifications toast position per-browser',
+        'date_formats_title' => 'Date and time formats',
+        'date_formats_desc'  => 'How dates and times are written across FreeITSM - 25/08/2026, 25.08.2026 or 25 Aug 2026, and 14:30 or 2:30 PM. Sets the default for everyone; analysts can choose their own.',
+        'date_formats_keywords' => 'date time format formats dd/mm/yyyy mm/dd/yyyy iso 24 hour 12 hour am pm regional locale',
         'demo_data_title'   => 'Demo Data',
         'demo_data_desc'    => 'Import realistic sample data across all modules. Ideal for evaluation and testing on a fresh install.',
         'demo_data_keywords' => 'demo data sample seed test evaluation import fixtures example',
@@ -762,6 +765,29 @@ return [
         'pos_preview'   => 'Notifications will appear here',
         'anim_preview'  => 'Preview: {anim} animation',
         'save_failed'   => 'Failed to save',
+    ],
+
+    // Date and time formats page (system/date-formats/index.php)
+    'dateformat' => [
+        'title'    => 'Date and time formats',
+        'subtitle' => 'How dates and times are written across FreeITSM. This is the default for everyone; any analyst can choose a different one for themselves in Preferences.',
+
+        'date_heading' => 'Date format',
+        'date_desc'    => 'Pick how a date is written. This is about the arrangement only - the day, month and year themselves never change, and month names always follow the interface language.',
+
+        'time_heading' => 'Time format',
+        'time_desc'    => 'Pick between the 24-hour clock and a 12-hour clock with AM and PM. This does not change the time itself, only how it is written.',
+
+        'preview_heading' => 'Preview',
+        'preview_desc'    => 'A sample date and time as they will appear once you save.',
+        'preview_label'   => 'Dates will look like',
+
+        'scope_heading' => 'What this does not change.',
+        'scope_note'    => 'Nothing about the times themselves. Which timezone a time is shown in is set separately, per analyst, in Preferences - and dates are stored unchanged either way, so service level targets, reports and exports are unaffected.',
+
+        'saved'       => 'Date and time formats saved',
+        'error'       => 'Could not save: {error}',
+        'save_failed' => 'Could not save the date and time formats',
     ],
 
     // Security page (system/security/index.php)

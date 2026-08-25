@@ -4832,6 +4832,15 @@ INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
     ('sso_enabled', '0'),
     ('local_login_enabled', '1');
 
+-- Install-wide date and time format (GH #105). Set in System > Date and time
+-- formats; an analyst can override it for themselves in Preferences. These are
+-- the values the app rendered BEFORE the setting existed, so seeding them means
+-- an upgrade changes nothing on screen. Values are KEYS from DateFmt, never
+-- pattern strings - see includes/timezone.php.
+INSERT IGNORE INTO `system_settings` (`setting_key`, `setting_value`) VALUES
+    ('date_format', 'd_mon_y'),
+    ('time_format', '24h');
+
 CREATE TABLE IF NOT EXISTS `trusted_devices` (
     `id`                 INT NOT NULL AUTO_INCREMENT,
     `analyst_id`         INT NOT NULL,

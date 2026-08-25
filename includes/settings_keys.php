@@ -115,6 +115,13 @@ function settingKeyOwners(): array
         // --- System: SSO area ---
         'sso_enabled'              => ['module' => 'system', 'cap' => null, 'tab' => 'sso'],
         'local_login_enabled'      => ['module' => 'system', 'cap' => null, 'tab' => 'sso'],
+
+        // --- System: Date and time formats area (GH #105) ---
+        // The install-wide DEFAULT format. Analysts override it per-account in
+        // Preferences (user_preferences, not here); these two rows are what
+        // everyone who has not chosen sees, and the only format the portal reads.
+        'date_format'              => ['module' => 'system', 'cap' => null, 'tab' => 'date-formats'],
+        'time_format'              => ['module' => 'system', 'cap' => null, 'tab' => 'date-formats'],
     ];
 }
 

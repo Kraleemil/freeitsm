@@ -127,6 +127,13 @@ function getSystemAreas() {
             'keywords' => 'system.landing.integrations_keywords',
         ],
         [
+            'icon'     => 'date_formats',
+            'url'      => 'date-formats/',
+            'title'    => 'system.landing.date_formats_title',
+            'desc'     => 'system.landing.date_formats_desc',
+            'keywords' => 'system.landing.date_formats_keywords',
+        ],
+        [
             'icon'     => 'preferences',
             'url'      => 'preferences/',
             'title'    => 'system.landing.preferences_title',
@@ -196,6 +203,9 @@ function systemAreaIcon($key) {
         'integrations' => '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>',
         'colours'     => '<circle cx="13.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="10.5" r="2.5"></circle><circle cx="8.5" cy="7.5" r="2.5"></circle><circle cx="6.5" cy="12.5" r="2.5"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>',
         'branding'    => '<path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle>',
+        // A calendar with a clock in the corner — the two things this area formats.
+        // Distinct from 'calendar_sync', which is a calendar with sync arrows.
+        'date_formats' => '<path d="M21 12V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h7"></path><line x1="3" y1="10" x2="21" y2="10"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="16" y1="2" x2="16" y2="6"></line><circle cx="17.5" cy="17.5" r="4.5"></circle><polyline points="17.5 15.5 17.5 17.5 19 18.6"></polyline>',
         'security'    => '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
         'sso'         => '<path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line>',
         'api'         => '<polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>',

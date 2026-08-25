@@ -36,25 +36,34 @@ class Tz {
             require_once __DIR__ . '/functions.php';
         }
 
-        if (!empty($_SESSION['analyst_id']) && function_exists('connectToDatabase')) {
+        self::$zone = date_default_timezone_get();
+        $conn = null;
+
+        if (function_exists('connectToDatabase')) {
             try {
                 $conn = connectToDatabase();
-                $stmt = $conn->prepare(
-                    "SELECT preference_value FROM user_preferences
-                     WHERE analyst_id = ? AND preference_key = 'timezone' LIMIT 1"
-                );
-                $stmt->execute([(int)$_SESSION['analyst_id']]);
-                $value = $stmt->fetchColumn();
-                if ($value && self::isValid($value)) {
-                    self::$zone = $value;
-                    return;
+                if (!empty($_SESSION['analyst_id'])) {
+                    $stmt = $conn->prepare(
+                        "SELECT preference_value FROM user_preferences
+                         WHERE analyst_id = ? AND preference_key = 'timezone' LIMIT 1"
+                    );
+                    $stmt->execute([(int)$_SESSION['analyst_id']]);
+                    $value = $stmt->fetchColumn();
+                    if ($value && self::isValid($value)) {
+                        self::$zone = $value;
+                    }
                 }
             } catch (Throwable $e) {
-                // Fall through to server default
+                // Server default stands
             }
         }
 
-        self::$zone = date_default_timezone_get();
+        // Zone and format are published together by scriptTag(), so they are
+        // resolved together — a page that set up one and not the other would
+        // hand the browser a correct timezone beside a default format, which is
+        // exactly the bug the first live run of the settings page found. The
+        // connection is passed on so this costs no second connect.
+        DateFmt::init($conn);
     }
 
     /** The effective display zone. Lazily initialises to the server default if init() wasn't called. */
@@ -182,18 +191,22 @@ class DateFmt {
     private static $date = null;
     private static $time = null;
 
-    /** Resolve both formats for this request. Safe without a DB - falls back to the defaults. */
-    public static function init() {
+    /**
+     * Resolve both formats for this request. Safe without a DB - falls back to
+     * the defaults. Normally reached via Tz::init(), which passes its own
+     * connection; call it directly only in a context that has no Tz.
+     */
+    public static function init(?PDO $existing = null) {
         if (!function_exists('connectToDatabase') && is_file(__DIR__ . '/functions.php')) {
             require_once __DIR__ . '/functions.php';
         }
 
         self::$date = self::DEFAULT_DATE;
         self::$time = self::DEFAULT_TIME;
-        if (!function_exists('connectToDatabase')) return;
+        if ($existing === null && !function_exists('connectToDatabase')) return;
 
         try {
-            $conn = connectToDatabase();
+            $conn = $existing ?: connectToDatabase();
 
             // Level 2 first, so a level-1 hit overwrites it.
             $stmt = $conn->prepare(
@@ -229,15 +242,25 @@ class DateFmt {
         if ($key === 'time_format' && isset(self::TIME_TEMPLATES[$value])) self::$time = $value;
     }
 
-    /** The effective date-format key. Lazily initialises to the built-in default. */
+    /**
+     * The effective date-format key.
+     *
+     * Lazily RESOLVES rather than lazily defaulting. The difference matters: the
+     * first live run of the settings page published the built-in default to the
+     * browser while the database said dmy_dot, because nothing had called init()
+     * and the accessor quietly answered with the default. A wrong format that
+     * looks like a deliberate choice is invisible; resolving here means a
+     * context nobody thought about - a cron, an email template, a PDF - still
+     * gets the truth.
+     */
     public static function dateKey() {
-        if (self::$date === null) self::$date = self::DEFAULT_DATE;
+        if (self::$date === null) self::init();
         return self::$date;
     }
 
-    /** The effective time-format key. Lazily initialises to the built-in default. */
+    /** The effective time-format key. Lazily resolves - see dateKey(). */
     public static function timeKey() {
-        if (self::$time === null) self::$time = self::DEFAULT_TIME;
+        if (self::$time === null) self::init();
         return self::$time;
     }
 
