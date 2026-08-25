@@ -339,12 +339,13 @@
         function localDateLabel(dateStr) {
             var d = new Date(dateStr + 'T00:00:00');
             if (isNaN(d.getTime())) return dateStr;
-            /* toLocaleDateString against the page's own lang gives a properly
-               localised date in all 24 locales — better than the module's
-               hardcoded English DAYS/MONTHS arrays, and it needs no new keys. */
+            /* Renders through the shared formatters (assets/js/tz.js), so the
+               weekday and month names follow the interface language and the
+               arrangement follows the analyst's chosen date format - rather
+               than the module's hardcoded English DAYS/MONTHS arrays. The
+               value is date-only, so it is formatted NAIVELY. */
             try {
-                return d.toLocaleDateString(document.documentElement.lang || undefined,
-                    { weekday: 'short', day: 'numeric', month: 'long' });
+                return fmtNaiveWeekday(d, true) + ' ' + fmtNaiveTemplate(d, 'D MONTH');
             } catch (e) {
                 return dateStr;
             }

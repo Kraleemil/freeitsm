@@ -6,10 +6,12 @@
 // API base path - can be overridden by page before loading this script
 const API_BASE = window.API_BASE || 'api/';
 
-// Locale for Intl date/time formatting — sourced from <html lang> so it matches
-// the user's selected interface language. Falls back to en-GB if the bridge
-// hasn't run or the page didn't set <html lang>.
-const PAGE_LOCALE = (document.documentElement.lang || 'en-GB');
+// Dates and times render through the shared formatters in assets/js/tz.js
+// (fmtNaive* here — scheduled work is a naive wall-clock value, shown as typed
+// for every analyst). Month and weekday names follow the interface language;
+// the arrangement follows the analyst's chosen format. This file used to derive
+// a locale from <html lang> and hand it to Intl, which tied how a date LOOKS to
+// which language it is IN — see GH #105.
 
 // Translation lookup with a graceful fallback when the i18n.js bridge isn't loaded.
 function tr(key, params) {
@@ -178,7 +180,7 @@ function shortWeekdayLabel(weekdayIndex) {
     // Build a reference date for that weekday and format it short.
     const refDayOfWeek = (weekdayIndex + 1) % 7; // Convert to Sun=0..Sat=6
     const ref = new Date(2024, 0, 7 + refDayOfWeek); // 7 Jan 2024 = Sunday
-    return ref.toLocaleDateString(PAGE_LOCALE, { weekday: 'short' });
+    return fmtNaiveWeekday(ref, true);
 }
 
 function monthLabel(monthIndex) {
@@ -313,7 +315,7 @@ async function loadScheduledTicketsForRange() {
                 // against it would be the flag being ignored HERE.
                 time: t.work_all_day
                     ? tr('tickets.calendar.all_day')
-                    : new Date(t.work_start_datetime).toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' })
+                    : fmtNaiveTime(t.work_start_datetime)
             }));
         } else {
             console.error('Error loading tickets:', data.error);
@@ -525,7 +527,7 @@ function renderDayView(container) {
     // Header
     html += '<div class="day-header"><div class="day-header-info">';
     html += `<div class="day-header-date">${currentDate.getDate()}</div>`;
-    html += `<div class="day-header-weekday">${currentDate.toLocaleDateString(PAGE_LOCALE, { weekday: 'long', month: 'long', year: 'numeric' })}</div>`;
+    html += `<div class="day-header-weekday">${fmtNaiveWeekday(currentDate) + ' ' + fmtNaiveMonthYear(currentDate)}</div>`;
     html += '</div></div>';
 
     // Body
@@ -564,10 +566,14 @@ function renderDayView(container) {
 }
 
 function formatHourLabel(hour) {
-    // Localised hour label — uses 12h or 24h per locale conventions.
+    // The gutter label down the side of a day/week view: "14" on a 24-hour
+    // clock, "2 PM" on a 12-hour one. Follows the analyst's chosen time format
+    // rather than a locale convention — which is the point of GH #105, since
+    // people in the same country disagree about this.
     const ref = new Date();
     ref.setHours(hour, 0, 0, 0);
-    return ref.toLocaleTimeString(PAGE_LOCALE, { hour: 'numeric' });
+    const twelveHour = String((window.DATE_FORMAT || {}).timeTemplate || '').indexOf('A') !== -1;
+    return fmtNaiveTemplate(ref, twelveHour ? 'h A' : 'HH');
 }
 
 
@@ -693,7 +699,7 @@ async function applyDrag(ticket, start, end, allDay) {
     ticket.duration_minutes    = allDay ? 1440
         : Math.round((new Date(end.replace(' ', 'T')) - new Date(start.replace(' ', 'T'))) / 60000);
     ticket.time = allDay ? tr('tickets.calendar.all_day')
-        : new Date(ticket.work_start_datetime).toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' });
+        : fmtNaiveTime(ticket.work_start_datetime);
     renderCurrentView();
 
     // ⚠️ HOLD OFF THE BACKGROUND REFRESH ACROSS THE WHOLE SAVE. dragTicketId is
@@ -1028,27 +1034,19 @@ function formatScheduleRange(ticket) {
         // formatted "date at time" string: splitting that on its first comma
         // turned "Tue, Sep 1, 2026 at 02:00 PM" into "Tue" and threw the date
         // away — and it would have failed differently in every locale.
-        const d = new Date(ticket.work_start_datetime).toLocaleDateString(PAGE_LOCALE, {
-            weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
-        });
+        const d = fmtNaiveWeekday(ticket.work_start_datetime, true) + ' ' + fmtNaiveDate(ticket.work_start_datetime);
         return `${d} · ${tr('tickets.calendar.all_day')}`;
     }
     const full = formatDateTime(ticket.work_start_datetime);
     if (!ticket.work_end_datetime) return full;
-    const end = new Date(ticket.work_end_datetime)
-        .toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' });
+    const end = fmtNaiveTime(ticket.work_end_datetime);
     return `${full} – ${end}`;
 }
 
 function formatDateTime(dateStr) {
     if (!dateStr) return '';
     const date = new Date(dateStr);
-    const datePart = date.toLocaleDateString(PAGE_LOCALE, {
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    });
-    const timePart = date.toLocaleTimeString(PAGE_LOCALE, { hour: '2-digit', minute: '2-digit' });
+    const datePart = fmtNaiveWeekday(date, true) + ' ' + fmtNaiveDate(date);
+    const timePart = fmtNaiveTime(date);
     return tr('tickets.calendar.date_at_time', { date: datePart, time: timePart });
 }

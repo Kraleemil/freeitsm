@@ -48,10 +48,16 @@
     // parseUTCDate/tzOpts. See the "Timezones and Time Handling" design note.
     window.parseNaiveDate = function (str) {
         if (!str) return null;
-        var m = String(str).replace('T', ' ')
-            .match(/(\d{4})-(\d{2})-(\d{2})[ ](\d{1,2}):(\d{2})/);
-        if (!m) return new Date(str);
-        return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+        var s = String(str).replace('T', ' ');
+        var m = s.match(/(\d{4})-(\d{2})-(\d{2})[ ](\d{1,2}):(\d{2})/);
+        if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+        // DATE-ONLY ('2026-08-05', e.g. a CMDB date property or a task due date).
+        // `new Date('2026-08-05')` parses as UTC midnight, which reads back as
+        // the PREVIOUS day for anyone west of Greenwich. Build it from the
+        // literal components instead, like the branch above.
+        m = s.match(/^\s*(\d{4})-(\d{2})-(\d{2})\s*$/);
+        if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+        return new Date(str);
     };
 })();
 
@@ -251,5 +257,34 @@
         var d = naive(value); if (!d) return '';
         var c = cfg();
         return (short ? c.weekdaysShort : c.weekdays)[isoWeekday(partsNaive(d)) - 1];
+    };
+
+    /** 'August 2026' for a naive wall-clock value — calendar headers. */
+    window.fmtNaiveMonthYear = function (value) {
+        var d = naive(value); if (!d) return '';
+        return render(partsNaive(d), 'MONTH YYYY');
+    };
+
+    // --- Escape hatch for genuinely bespoke labels ---------------------------
+    // A few places need a shape none of the functions above produce - a calendar
+    // week title that compresses "5 - 11 May 2026", say. Before #105 those wrote
+    // their own toLocale* call with a hardcoded locale, which is exactly the
+    // drift this work removes. These render an arbitrary TOKEN TEMPLATE (see the
+    // token list in includes/timezone.php) through the same renderer and the
+    // same localised month and weekday names, so a bespoke label still follows
+    // the analyst's language.
+    //
+    // They do NOT follow the analyst's chosen date FORMAT - the caller is
+    // choosing the arrangement itself. Use them only where the shape is dictated
+    // by the layout rather than by preference, and prefer fmtDate/fmtDateTime
+    // everywhere else.
+    window.fmtTemplate = function (value, template) {
+        var d = toDate(value); if (!d) return '';
+        return render(partsInZone(d), template);
+    };
+
+    window.fmtNaiveTemplate = function (value, template) {
+        var d = naive(value); if (!d) return '';
+        return render(partsNaive(d), template);
     };
 })();

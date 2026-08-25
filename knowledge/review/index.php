@@ -33,7 +33,7 @@ $translationNamespaces = ['common', 'knowledge'];
     <link rel="stylesheet" href="../../assets/css/knowledge.css?v=2">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=2"></script>
+    <script src="../../assets/js/tz.js?v=3"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
     <style>
         /* Layout: the container takes the remaining viewport height and is
@@ -489,6 +489,6 @@ $translationNamespaces = ['common', 'knowledge'];
             return div.innerHTML;
         }
     </script>
-    <script src="../../assets/js/mobile.js?v=26"></script>
+    <script src="../../assets/js/mobile.js?v=27"></script>
 </body>
 </html>

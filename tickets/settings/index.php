@@ -7,8 +7,10 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/i18n.php';
 require_once '../../includes/theme.php';
+require_once '../../includes/timezone.php';
 require_once '../../includes/ai_settings_panel.php';
 I18n::initFromSession();
+Tz::init();
 
 // Check if user is logged in
 if (!isset($_SESSION['analyst_id'])) {
@@ -7547,6 +7549,8 @@ $translationNamespaces = ['common', 'tickets'];
         })();
 
     </script>
-    <script src="../../assets/js/mobile.js?v=26"></script>
+    <?php echo Tz::scriptTag(); ?>
+    <script src="../../assets/js/tz.js?v=3"></script>
+    <script src="../../assets/js/mobile.js?v=27"></script>
 </body>
 </html>

@@ -24,7 +24,7 @@
     function formatDate(iso) {
         if (!iso) return '';
         const d = parseUTCDate(iso);
-        return (!d || isNaN(d.getTime())) ? iso : d.toLocaleDateString(undefined, tzOpts());
+        return (!d || isNaN(d.getTime())) ? iso : fmtDate(d);
     }
 
     const COLUMNS = [

@@ -38,7 +38,7 @@ $translationNamespaces = ['common', 'calendar'];
     <link rel="stylesheet" href="../assets/css/mobile.css?v=62">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
 </head>
 <body>
@@ -210,6 +210,6 @@ $translationNamespaces = ['common', 'calendar'];
     </script>
     </script>
     <!-- Loaded last so it can wrap the calendar's own globals. -->
-    <script src="../assets/js/mobile.js?v=26"></script>
+    <script src="../assets/js/mobile.js?v=27"></script>
 </body>
 </html>

@@ -672,7 +672,7 @@
             doc.text(opts.title || (config.exportName || 'Export'), 10, startY + 5);
             doc.setFontSize(10);
             doc.setTextColor(120, 120, 120);
-            doc.text(`${rows.length} of ${allRows.length} — ${new Date().toLocaleString()}`, 10, startY + 11);
+            doc.text(`${rows.length} of ${allRows.length} — ${fmtDateTime(new Date())}`, 10, startY + 11);
             startY += 18;
 
             doc.autoTable({

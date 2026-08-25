@@ -104,7 +104,7 @@ const LMS = (() => {
                     ? `<span class="scorm-badge">SCORM ${esc(c.scorm_version)}</span>`
                     : `<span style="color:#999;">${esc(window.t('lms.courses.version_unknown'))}</span>`);
 
-            const date = c.created_datetime ? parseUTCDate(c.created_datetime).toLocaleDateString(undefined, tzOpts({})) : '';
+            const date = c.created_datetime ? fmtDate(c.created_datetime) : '';
 
             // Only authored courses can be edited here; a SCORM package is edited in
             // whatever tool built it, so it gets no pencil rather than a broken one.
@@ -335,7 +335,7 @@ const LMS = (() => {
             return;
         }
         tbody.innerHTML = assignments.map(a => {
-            const deadline = a.deadline ? new Date(a.deadline).toLocaleDateString() : `<em style="color:#999;">${esc(window.t('lms.assignments.no_deadline'))}</em>`;
+            const deadline = a.deadline ? fmtNaiveDate(a.deadline) : `<em style="color:#999;">${esc(window.t('lms.assignments.no_deadline'))}</em>`;
             return `<tr>
                 <td>${esc(a.course_title)}</td>
                 <td>${esc(a.group_name)}</td>
@@ -452,8 +452,8 @@ const LMS = (() => {
             }
 
             const score = row.score_raw !== null ? row.score_raw + (row.score_max ? '/' + row.score_max : '') : '';
-            const deadline = row.deadline ? new Date(row.deadline).toLocaleDateString() : '';
-            const lastAccess = row.last_access ? parseUTCDate(row.last_access).toLocaleString(undefined, tzOpts({})) : '';
+            const deadline = row.deadline ? fmtNaiveDate(row.deadline) : '';
+            const lastAccess = row.last_access ? fmtDateTime(row.last_access) : '';
             const trStyle = row.is_overdue ? ' style="background: #fff5f5;"' : '';
 
             const viewBtn = row.status !== 'not_started'
@@ -502,8 +502,8 @@ const LMS = (() => {
                 <div class="ld-stat"><div class="ld-stat-value">${esc(scoreDisplay)}</div><div class="ld-stat-label">${esc(window.t('lms.learner_modal.stat_score'))}</div></div>
                 <div class="ld-stat"><div class="ld-stat-value">${p.attempt_count || 0}</div><div class="ld-stat-label">${esc(window.t('lms.learner_modal.stat_attempts'))}</div></div>
                 <div class="ld-stat"><div class="ld-stat-value">${formatTime(p.total_time)}</div><div class="ld-stat-label">${esc(window.t('lms.learner_modal.stat_time_spent'))}</div></div>
-                <div class="ld-stat"><div class="ld-stat-value">${p.first_access ? parseUTCDate(p.first_access).toLocaleDateString(undefined, tzOpts({})) : '—'}</div><div class="ld-stat-label">${esc(window.t('lms.learner_modal.stat_first_access'))}</div></div>
-                <div class="ld-stat"><div class="ld-stat-value">${p.last_access ? parseUTCDate(p.last_access).toLocaleDateString(undefined, tzOpts({})) : '—'}</div><div class="ld-stat-label">${esc(window.t('lms.learner_modal.stat_last_access'))}</div></div>
+                <div class="ld-stat"><div class="ld-stat-value">${p.first_access ? fmtDate(p.first_access) : '—'}</div><div class="ld-stat-label">${esc(window.t('lms.learner_modal.stat_first_access'))}</div></div>
+                <div class="ld-stat"><div class="ld-stat-value">${p.last_access ? fmtDate(p.last_access) : '—'}</div><div class="ld-stat-label">${esc(window.t('lms.learner_modal.stat_last_access'))}</div></div>
             </div>`;
 
             // Interactions (quiz responses)

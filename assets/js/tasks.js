@@ -40,7 +40,6 @@ const TAG_PALETTE = ['#dc2626', '#ea580c', '#d97706', '#16a34a',
 const ANALYST_ID = document.body.dataset.analystId;
 
 // Locale for date formatting — matches the page's i18n locale
-const UI_LOCALE = document.documentElement.lang || 'en';
 
 // ── Init ───────────────────────────────────────────────────────────
 
@@ -413,8 +412,7 @@ function renderCard(t) {
 // Short date for the start badge, e.g. "12 Jun"
 function formatShortDate(dateStr) {
     if (!dateStr) return '';
-    return new Date(dateStr + 'T00:00:00')
-        .toLocaleDateString(UI_LOCALE, { day: 'numeric', month: 'short' });
+    return fmtNaiveDayMonth(new Date(dateStr + 'T00:00:00'));
 }
 
 // Plain-text excerpt of a (HTML) description, capped at 250 characters.
@@ -436,8 +434,8 @@ function formatDueBadge(dateStr) {
     let text = '';
     if (diff < 0) { cls = 'overdue'; text = window.t('tasks.board.overdue'); }
     else if (diff === 0) { cls = 'today'; text = window.t('tasks.board.due_today'); }
-    else if (diff <= 7) { text = due.toLocaleDateString(UI_LOCALE, { day: 'numeric', month: 'short' }); }
-    else { text = due.toLocaleDateString(UI_LOCALE, { day: 'numeric', month: 'short' }); }
+    else if (diff <= 7) { text = fmtNaiveDayMonth(due); }
+    else { text = fmtNaiveDayMonth(due); }
     return `<span class="due-badge ${cls}">${text}</span>`;
 }
 
@@ -1303,7 +1301,6 @@ function formatDateTime(dt) {
     // timestamps — all true datetimes.
     const d = parseUTCDate(dt);
     if (!d || isNaN(d)) return dt;
-    return d.toLocaleDateString(UI_LOCALE, tzOpts({ day: '2-digit', month: 'short', year: 'numeric' }))
-        + ' ' + d.toLocaleTimeString(UI_LOCALE, tzOpts({ hour: '2-digit', minute: '2-digit' }));
+    return fmtDateTime(d);
 }
 

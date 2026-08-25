@@ -45,7 +45,7 @@ $translationNamespaces = ['common', 'network-mapper'];
         }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
 </head>
 <body>
     <?php include 'includes/header.php'; ?>

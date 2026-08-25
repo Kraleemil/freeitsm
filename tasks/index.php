@@ -28,7 +28,7 @@ $translationNamespaces = ['common', 'tasks'];
     <link rel="stylesheet" href="../assets/css/tasks.css?v=16">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
 </head>
@@ -173,6 +173,6 @@ $translationNamespaces = ['common', 'tasks'];
     <script>window.API_BASE = '../api/tasks/';
     window.APP_BASE = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>';</script>
     <script src="../assets/js/tasks-ctx-menu.js?v=1"></script>
-    <script src="../assets/js/tasks.js?v=14"></script>
+    <script src="../assets/js/tasks.js?v=15"></script>
 </body>
 </html>

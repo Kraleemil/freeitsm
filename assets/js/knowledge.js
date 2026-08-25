@@ -1363,11 +1363,7 @@ function blobToBase64(blob) {
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const date = parseUTCDate(dateStr);
-    return date.toLocaleDateString('en-GB', tzOpts({
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    }));
+    return fmtDate(date);
 }
 
 // ===== AI Chat Functions =====

@@ -22,28 +22,28 @@
     let lookupsLoaded = false;
 
     // Server-stamped UTC timestamp (created / modified) → analyst display zone,
-    // as 'YYYY-MM-DD HH:MM' (parseUTCDate / tzOpts from assets/js/tz.js, loaded
-    // before this file). Only the display text is zoned; the column's `value`
-    // (used for sorting) stays the raw UTC string so ordering is unaffected.
+    // in the analyst's chosen date and time format (parseUTCDate / fmtDateTime
+    // from assets/js/tz.js, loaded before this file). Only the display text is
+    // zoned and formatted; the column's `value` (used for sorting) stays the raw
+    // UTC string, so neither the zone nor the format can reorder the table.
     function fmt(raw) {
         if (!raw) return '';
         const d = parseUTCDate(raw);
         if (!d || isNaN(d.getTime())) return String(raw).replace('T', ' ').slice(0, 16);
-        const datePart = d.toLocaleDateString('en-CA', tzOpts()); // YYYY-MM-DD
-        const timePart = d.toLocaleTimeString('en-GB', tzOpts({ hour: '2-digit', minute: '2-digit', hour12: false })); // HH:MM
-        return datePart + ' ' + timePart;
+        // ISO here was a DISPLAY choice, not a machine format - the column's
+        // sort `value` is the raw UTC string, set separately - so it follows the
+        // analyst's chosen format like every other date on screen.
+        return fmtDateTime(d);
     }
 
     // NAIVE wall-clock scheduling datetime (planned work start / end) — shown
     // exactly as typed for every analyst, NO zone conversion (parseNaiveDate
-    // from tz.js). Same 'YYYY-MM-DD HH:MM' shape as fmt().
+    // from tz.js). Same shape as fmt().
     function fmtNaive(raw) {
         if (!raw) return '';
         const d = parseNaiveDate(raw);
         if (!d || isNaN(d.getTime())) return String(raw).replace('T', ' ').slice(0, 16);
-        const datePart = d.toLocaleDateString('en-CA'); // YYYY-MM-DD, as typed
-        const timePart = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }); // HH:MM
-        return datePart + ' ' + timePart;
+        return fmtNaiveDateTime(d);
     }
 
     const T = (k) => (window.t ? window.t('change-management.table.' + k) : k);

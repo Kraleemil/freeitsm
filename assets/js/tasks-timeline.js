@@ -16,7 +16,6 @@ const SCROLLBAR_PAD = 14;  // reserve space so a vertical scrollbar doesn't trig
 const STATUS_ORDER = ['To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled'];
 
 // Locale for date formatting — matches the page's i18n locale
-const UI_LOCALE = document.documentElement.lang || 'en';
 
 // ── State ──────────────────────────────────────────────────────────
 let currentFilter = 'my';
@@ -212,7 +211,7 @@ function render() {
             if (m !== -1) {
                 const cd = addDays(rangeStartStr, mStart);
                 monthCells += `<div class="tl-month" style="width:${(i - mStart) * dayW}px">` +
-                    cd.toLocaleDateString(UI_LOCALE, { month: 'long', year: 'numeric' }) + '</div>';
+                    fmtNaiveMonthYear(cd) + '</div>';
             }
             m = mm; mStart = i;
         }
@@ -349,8 +348,7 @@ function dayDiff(a, b) {
 }
 
 function fmt(ds) {
-    return new Date(ds + 'T00:00:00').toLocaleDateString(UI_LOCALE,
-        { day: 'numeric', month: 'short' });
+    return fmtNaiveDayMonth(new Date(ds + 'T00:00:00'));
 }
 
 function esc(text) {

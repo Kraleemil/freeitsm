@@ -5,13 +5,19 @@
 const ROTA_API = '../api/tickets/';
 const SETTINGS_API = '../api/settings/';
 
-// Locale sourced from <html lang> so all Intl.DateTimeFormat calls render
-// dates / weekdays / months in the user's chosen interface language.
-const PAGE_LOCALE = document.documentElement.lang || 'en-GB';
-const WEEKDAY_SHORT_FMT = new Intl.DateTimeFormat(PAGE_LOCALE, { weekday: 'short' });
-const MONTH_SHORT_FMT   = new Intl.DateTimeFormat(PAGE_LOCALE, { month: 'short' });
-const DAY_NUM_FMT       = new Intl.DateTimeFormat(PAGE_LOCALE, { day: 'numeric' });
-const MODAL_DATE_FMT    = new Intl.DateTimeFormat(PAGE_LOCALE, { weekday: 'long', day: 'numeric', month: 'short' });
+// Rota labels render through the shared formatters in assets/js/tz.js, so
+// weekday and month names follow the interface language while the arrangement
+// follows the analyst's chosen date format (GH #105). These were four
+// Intl.DateTimeFormat instances built from <html lang>, which tied how a date
+// LOOKS to which language it is IN.
+//
+// A rota grid dictates its own shapes — a column heading is a weekday and a day
+// number, never a full date — so these use fmtNaiveTemplate rather than
+// fmtNaiveDate. Rota dates are date-only wall-clock values, hence naive.
+const WEEKDAY_SHORT_FMT = { format: (d) => fmtNaiveWeekday(d, true) };
+const MONTH_SHORT_FMT   = { format: (d) => fmtNaiveTemplate(d, 'MON') };
+const DAY_NUM_FMT       = { format: (d) => fmtNaiveTemplate(d, 'D') };
+const MODAL_DATE_FMT    = { format: (d) => fmtNaiveWeekday(d, false) + ' ' + fmtNaiveTemplate(d, 'D MON') };
 
 let currentWeekStart = null; // YYYY-MM-DD (Monday)
 let rotaAnalysts = [];

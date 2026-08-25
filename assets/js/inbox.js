@@ -4597,19 +4597,16 @@ function renderAttachmentInfoBar() {
     }
 }
 
-// Format date as dd/mm/yyyy hh:mm
+// A stored UTC timestamp in the analyst's zone and chosen format.
+//
+// This used to hardcode DD/MM/YYYY HH:MM (hence the name). That was one of the
+// 67 places behind GH #105 — the whole point of the setting is that DD/MM/YYYY
+// is a preference, not a fact, so it now renders like every other date.
 function formatDateDMY(dateStr) {
     if (!dateStr) return '';
     const date = parseUTCDate(dateStr);
     if (!date) return '';
-    // Parse the stored value as UTC and render DD/MM/YYYY HH:MM in the
-    // analyst's display zone (previously read browser-local components off an
-    // un-normalised Date, which mis-parsed UTC DB strings).
-    const p = new Intl.DateTimeFormat('en-GB', tzOpts({
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: false
-    })).formatToParts(date).reduce((a, part) => { a[part.type] = part.value; return a; }, {});
-    return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+    return fmtDateTime(date);
 }
 
 // Show attachment list modal

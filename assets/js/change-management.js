@@ -1922,7 +1922,7 @@ function escapeHtml(text) {
 function formatDate(dateStr) {
     if (!dateStr) return '';
     const d = parseNaiveDate(dateStr);
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return fmtNaiveDate(d);
 }
 
 // Server-stamped UTC timestamp (created / modified / approved / CAB vote /
@@ -1930,8 +1930,7 @@ function formatDate(dateStr) {
 function formatDateTime(dateStr) {
     if (!dateStr) return '';
     const d = parseUTCDate(dateStr);
-    return d.toLocaleDateString('en-GB', tzOpts({ day: '2-digit', month: 'short', year: 'numeric' })) +
-           ' ' + d.toLocaleTimeString('en-GB', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+    return fmtDateTime(d);
 }
 
 // NAIVE wall-clock scheduling datetime (work / outage / PIR windows) — shown
@@ -1940,8 +1939,7 @@ function formatDateTime(dateStr) {
 function formatNaiveDateTime(dateStr) {
     if (!dateStr) return '';
     const d = parseNaiveDate(dateStr);
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
-           ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return fmtNaiveDateTime(d);
 }
 
 function toDatetimeLocal(dateStr) {

@@ -903,10 +903,10 @@ $translationNamespaces = ['common', 'tickets'];
     <!-- Must also load BEFORE inbox.js: parseUTCDate / tzOpts / ymdInZone and the
          fmt* date formatters. inbox.js used to carry its own copies of the first
          three because this page was the one that never loaded tz.js. -->
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/schedule.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=104"></script>
-    <script src="../assets/js/mobile.js?v=26"></script>
+    <script src="../assets/js/inbox.js?v=105"></script>
+    <script src="../assets/js/mobile.js?v=27"></script>
     <script>
     // Auto-check mailboxes every 60 seconds
     (function() {

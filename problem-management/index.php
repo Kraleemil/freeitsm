@@ -128,7 +128,7 @@ $translationNamespaces = ['common'];
     </style>
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=62">
     <?php echo Tz::scriptTag(); ?>
-    <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=2"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=3"></script>
 </head>
 <body data-analyst-id="<?php echo $_SESSION['analyst_id'] ?? ''; ?>">
     <?php include __DIR__ . '/includes/header.php'; ?>
@@ -254,7 +254,7 @@ $translationNamespaces = ['common'];
 
     <script src="<?php echo BASE_URL; ?>assets/js/toast.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/confirm.js"></script>
-    <script src="<?php echo BASE_URL; ?>assets/js/problem-management.js?v=17"></script>
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=26"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/problem-management.js?v=18"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=27"></script>
 </body>
 </html>

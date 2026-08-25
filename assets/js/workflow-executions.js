@@ -31,7 +31,7 @@
     /** started_datetime is a server-stamped UTC instant → show in the analyst's zone. */
     function fmtWhen(s) {
         if (!s) return '';
-        try { return window.parseUTCDate(s).toLocaleString(undefined, window.tzOpts({})); }
+        try { return window.fmtDateTime(s); }
         catch (e) { return s; }
     }
 

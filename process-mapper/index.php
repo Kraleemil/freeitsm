@@ -58,7 +58,7 @@ try {
     <link rel="stylesheet" href="../assets/css/process-mapper.css?v=11">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
 </head>
 <body>
@@ -477,6 +477,6 @@ try {
          CDN at print time. Same versions used by Network Mapper (#257). -->
     <script src="../assets/js/vendor/html2canvas.min.js"></script>
     <script src="../assets/js/vendor/jspdf.umd.min.js"></script>
-    <script src="../assets/js/process-mapper.js?v=12"></script>
+    <script src="../assets/js/process-mapper.js?v=13"></script>
 </body>
 </html>

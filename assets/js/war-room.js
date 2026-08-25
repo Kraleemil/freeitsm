@@ -89,7 +89,7 @@
     function localTime(utc) {
         if (window.TZ && typeof window.TZ.time === 'function') return window.TZ.time(utc);
         var d = new Date(String(utc).replace(' ', 'T') + 'Z');
-        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return isNaN(d) ? '' : fmtTime(d);
     }
 
     function bytes(n) {

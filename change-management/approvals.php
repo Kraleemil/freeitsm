@@ -197,7 +197,7 @@ $translationNamespaces = ['common', 'change-management'];
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=62">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
 </head>
 <body>
@@ -331,18 +331,10 @@ $translationNamespaces = ['common', 'change-management'];
         // tzOpts from tz.js) so the manual AM/PM format stays identical.
         function formatDate(dateStr) {
             if (!dateStr) return '';
-            const d = parseUTCDate(dateStr);
-            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-            const parts = new Intl.DateTimeFormat('en-US', tzOpts({
-                month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
-            })).formatToParts(d);
-            const g = {};
-            parts.forEach(p => { if (p.type !== 'literal') g[p.type] = parseInt(p.value, 10); });
-            let hours = (g.hour % 24);
-            const mins = String(g.minute).padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12 || 12;
-            return `${months[g.month - 1]} ${g.day}, ${hours}:${mins} ${ampm}`;
+            // Was a hand-rolled "Aug 5, 2:07 PM" with a hardcoded English month
+            // array and a forced 12-hour clock. Both are now the analyst's
+            // choice (GH #105), and the month name follows their language.
+            return fmtDayMonth(dateStr) + ', ' + fmtTime(dateStr);
         }
 
         // "Work start" = NAIVE wall-clock scheduling value → shown exactly as
@@ -367,6 +359,6 @@ $translationNamespaces = ['common', 'change-management'];
             return div.innerHTML;
         }
     </script>
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=26"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=27"></script>
 </body>
 </html>

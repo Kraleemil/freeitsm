@@ -53,7 +53,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
     <!-- Mobile-friendly overrides (LAYER 17). Linked LAST so its @media rules win ties against knowledge.css. -->
@@ -343,7 +343,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=15"></script>
+    <script src="../assets/js/knowledge.js?v=16"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>
@@ -355,6 +355,6 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/copy-to-clipboard/prism-copy-to-clipboard.min.js"></script>
-    <script src="../assets/js/mobile.js?v=26"></script>
+    <script src="../assets/js/mobile.js?v=27"></script>
 </body>
 </html>

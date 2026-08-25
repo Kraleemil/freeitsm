@@ -113,7 +113,7 @@ $helpNav   = $helpNav  ?? ($helpTopic['sections'] ?? []);
         }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=2"></script>
+    <script src="../../assets/js/tz.js?v=3"></script>
 </head>
 <body>
     <?php include __DIR__ . '/../includes/header.php'; ?>

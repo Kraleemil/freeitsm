@@ -1191,12 +1191,13 @@
                 return '<span class="nm-prop-value ' + cls + '">' + escapeHtml(yes ? t('network-mapper.detail.bool_yes') : t('network-mapper.detail.bool_no')) + '</span>';
             }
             case 'date': {
-                // Dates come back as ISO strings (YYYY-MM-DD). Localised
-                // formatting matches the rest of the app's date rendering.
+                // Dates come back as ISO strings (YYYY-MM-DD) - a date-only value
+                // with no zone, so it is formatted NAIVELY: shifting it into a
+                // display timezone could move it to the previous day.
                 let display = p.value;
                 try {
-                    const d = new Date(String(p.value).replace(' ', 'T'));
-                    if (!isNaN(d.getTime())) display = d.toLocaleDateString();
+                    const shown = fmtNaiveDate(String(p.value).replace(' ', 'T'));
+                    if (shown) display = shown;
                 } catch (_) { /* fall through to raw */ }
                 return '<span class="nm-prop-value">' + escapeHtml(display) + '</span>';
             }
@@ -2692,7 +2693,7 @@
         if (!s) return '—';
         // KIND 1: server-stamped UTC (created/updated_datetime) — convert to the
         // analyst's display zone via the shared tz helpers.
-        try { return parseUTCDate(s).toLocaleString(undefined, tzOpts({})); }
+        try { return fmtDateTime(s); }
         catch (e) { return s; }
     }
 

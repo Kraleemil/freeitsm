@@ -27,7 +27,6 @@ let spanMode = 'deadline';
 let surfaceTags = false;
 
 // Locale for date formatting — matches the page's i18n locale
-const UI_LOCALE = document.documentElement.lang || 'en';
 
 // ── Init ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -248,7 +247,7 @@ function renderMonth() {
     const month = viewDate.getMonth();
 
     document.getElementById('calTitle').textContent =
-        viewDate.toLocaleDateString(UI_LOCALE, { month: 'long', year: 'numeric' });
+        fmtNaiveMonthYear(viewDate);
 
     const first = new Date(year, month, 1);
     const gridStart = new Date(first);
@@ -290,10 +289,12 @@ function renderWeek() {
     // Title — "5 – 11 May 2026" or "28 Apr – 4 May 2026"
     const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
     const sameYear = weekStart.getFullYear() === weekEnd.getFullYear();
-    const startLabel = weekStart.toLocaleDateString(UI_LOCALE,
-        sameMonth ? { day: 'numeric' } : (sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }));
-    const endLabel = weekEnd.toLocaleDateString(UI_LOCALE,
-        { day: 'numeric', month: 'short', year: 'numeric' });
+    // The week title compresses when it can ("5 - 11 May 2026"), so the shape is
+    // dictated by the layout rather than by preference - hence fmtNaiveTemplate
+    // rather than fmtNaiveDate. Month names still follow the language.
+    const startLabel = fmtNaiveTemplate(weekStart,
+        sameMonth ? 'D' : (sameYear ? 'D MON' : 'D MON YYYY'));
+    const endLabel = fmtNaiveTemplate(weekEnd, 'D MON YYYY');
     document.getElementById('calTitle').textContent = `${startLabel} – ${endLabel}`;
 
     const placed = placedTasks();
@@ -312,8 +313,7 @@ function renderDay() {
     grid.className = '';
 
     document.getElementById('calTitle').textContent =
-        viewDate.toLocaleDateString(UI_LOCALE,
-            { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        fmtNaiveWeekday(viewDate) + ' ' + fmtNaiveTemplate(viewDate, 'D MONTH YYYY');
 
     const dayStr = ymd(viewDate);
     const placed = placedTasks().filter(p => p.start <= dayStr && dayStr <= p.end);
@@ -422,8 +422,7 @@ function dayDiff(a, b) {
 }
 
 function fmt(ds) {
-    return new Date(ds + 'T00:00:00').toLocaleDateString(UI_LOCALE,
-        { day: 'numeric', month: 'short' });
+    return fmtNaiveDayMonth(new Date(ds + 'T00:00:00'));
 }
 
 function esc(text) {

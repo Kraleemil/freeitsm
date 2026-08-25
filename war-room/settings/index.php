@@ -17,6 +17,7 @@ require_once '../../includes/i18n.php';
 require_once '../../includes/theme.php';
 require_once '../../includes/ai_settings_panel.php';
 require_once '../../includes/warroom.php';
+require_once '../../includes/timezone.php';
 
 if (!isset($_SESSION['analyst_id'])) {
     header('Location: ../../auth/login.php');
@@ -26,6 +27,7 @@ if (!isset($_SESSION['analyst_id'])) {
 require_once '../../includes/settings_manifest.php';
 requireModuleAccess('war-room');
 I18n::initFromSession();
+Tz::init();
 
 // RBAC Layer 2: only the tabs this analyst may see are rendered.
 $settingsManifest = settingsManifestFor('war-room');
@@ -127,7 +129,9 @@ $choices = [0, 7, 30, 90, 180, 365];
     </div>
 
     <script src="../../assets/js/ai-settings.js"></script>
-    <script src="../../assets/js/mobile.js?v=26"></script>
+    <?php echo Tz::scriptTag(); ?>
+    <script src="../../assets/js/tz.js?v=3"></script>
+    <script src="../../assets/js/mobile.js?v=27"></script>
     <script>
         // ⚠️ The tab bar is rendered by the shared helper but SWITCHING is each
         // page's own job — renderSettingsTabBar() only emits the buttons. This

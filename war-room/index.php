@@ -95,7 +95,7 @@ foreach ($channels as $ch) {
     </style>
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=2"></script>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
 </head>
 <body>
@@ -221,7 +221,7 @@ foreach ($channels as $ch) {
         window.WR_PREF_URL  = '<?php echo BASE_URL; ?>api/system/set_user_preference.php';
         window.WR_MENTION_STYLE = <?php echo json_encode($mentionStyle); ?>;
     </script>
-    <script src="../assets/js/war-room.js?v=7"></script>
-    <script src="../assets/js/mobile.js?v=26"></script>
+    <script src="../assets/js/war-room.js?v=8"></script>
+    <script src="../assets/js/mobile.js?v=27"></script>
 </body>
 </html>

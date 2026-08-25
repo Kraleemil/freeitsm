@@ -45,7 +45,7 @@ $path_prefix = '../../';
     </style>
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=62">
     <?php echo Tz::scriptTag(); ?>
-    <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=2"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=3"></script>
 </head>
 <body data-mobile-page="settings">
     <div class="settings-shell">
@@ -173,5 +173,5 @@ $path_prefix = '../../';
     pmsLoad();
     </script>
 </body>
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=26"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=27"></script>
 </html>

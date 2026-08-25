@@ -1478,7 +1478,7 @@ const WFE = (() => {
         const fmtDate = s => {
             if (!s) return '';
             // started_datetime is a server-stamped UTC instant → show in the analyst's zone.
-            try { return window.parseUTCDate(s).toLocaleString(undefined, window.tzOpts({})); }
+            try { return window.fmtDateTime(s); }
             catch (e) { return s; }
         };
         // A dry run's whole value is in its step log — "here is what it WOULD
