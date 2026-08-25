@@ -443,7 +443,7 @@ $translationNamespaces = ['common', 'contracts'];
             if (!s) return '-';
             const d = parseUTCDate(s);
             if (isNaN(d)) return s;
-            return d.toLocaleDateString('en-GB', tzOpts({ day: '2-digit', month: 'short', year: 'numeric' }));
+            return fmtDate(d);
         }
 
         function escapeHtml(str) {

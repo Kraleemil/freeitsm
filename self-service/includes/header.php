@@ -36,6 +36,14 @@ require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../includes/i18n.php';
 I18n::initFromSession();
 require_once __DIR__ . '/../../includes/theme.php';
+require_once __DIR__ . '/../../includes/timezone.php';
+// The portal had NO timezone or date-format plumbing at all: its dates were
+// rendered from an unmarked `new Date(dbString)`, so they showed the browser's
+// idea of the instant, not the analyst-side one, AND could not follow the
+// install's chosen format. Portal users are not analysts, so Tz falls back to
+// the server zone and DateFmt to the system_settings default - which is exactly
+// what that level exists for.
+Tz::init();
 require_once __DIR__ . '/auth.php';            // redirects to login.php if not signed in
 
 $translationNamespaces = ['common', 'self-service'];
@@ -82,6 +90,8 @@ $pageTitle  = isset($pageTitleKey) ? t($pageTitleKey) : t('self-service.portal')
     <?php if ($pageStyles !== ''): ?>
     <style><?php echo $pageStyles; ?></style>
     <?php endif; ?>
+    <?php echo Tz::scriptTag(); ?>
+    <script src="../assets/js/tz.js?v=3"></script>
     <?php echo $pageHead; ?>
 </head>
 <body class="<?php echo htmlspecialchars($bodyClass); ?>">

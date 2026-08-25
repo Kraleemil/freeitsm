@@ -118,7 +118,7 @@ $translationNamespaces = ['common', 'workflow'];
         function fmtDate(s) {
             if (!s) return '<span style="color:var(--text-faint, #999);">' + esc(window.t('workflow.list.never_run')) + '</span>';
             // last_run_datetime is a server-stamped UTC instant → show in the analyst's zone.
-            try { return esc(window.parseUTCDate(s).toLocaleString(undefined, window.tzOpts({}))); }
+            try { return esc(window.fmtDateTime(s)); }
             catch (e) { return esc(s); }
         }
 

@@ -127,7 +127,7 @@ function formatDate(s) {
     if (!s) return '';
     try {
         const d = parseUTCDate(s);
-        return d.toLocaleString(undefined, tzOpts());
+        return fmtDateTime(d);
     } catch (e) { return s; }
 }
 

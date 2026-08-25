@@ -254,11 +254,12 @@ document.addEventListener('DOMContentLoaded', loadDashboard);
         }
 
         function formatDate(dateStr) {
+            // `new Date(dateStr)` with no Z treated a UTC database value as browser
+            // LOCAL time, so portal timestamps were showing the wrong instant, not
+            // just the wrong shape. parseUTCDate (inside fmtDateTime) marks it UTC.
             if (!dateStr) return '';
             try {
-                const d = new Date(dateStr);
-                return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
-                       ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                return fmtDateTime(dateStr);
             } catch (e) {
                 return dateStr;
             }

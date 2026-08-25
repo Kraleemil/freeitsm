@@ -256,7 +256,7 @@ $translationNamespaces = ['common', 'system-wiki'];
             const sizeKb = (f.file_size_bytes / 1024).toFixed(1);
 
             // Last modified
-            const modified = f.last_modified ? new Date(f.last_modified).toLocaleDateString() : window.t('system-wiki.file.unknown');
+            const modified = f.last_modified ? fmtDate(f.last_modified) : window.t('system-wiki.file.unknown');
 
             let html = `
                 <div class="breadcrumb">${breadcrumb}</div>

@@ -627,10 +627,7 @@ function whAgo($s) {
     // Server-stamped UTC delivery timestamps (kind-1): render in the analyst's zone.
     const fmt = s => {
         const d = parseUTCDate(s);
-        return d ? d.toLocaleString('en-GB', tzOpts({
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', hour12: false
-        })) : '';
+        return d ? fmtDateTime(d) : '';
     };
 
     async function load() {

@@ -1023,7 +1023,7 @@ $translationNamespaces = ['common', 'contracts'];
             if (!s) return '';
             const d = parseUTCDate(s);
             if (isNaN(d)) return s;
-            return d.toLocaleString('en-GB', tzOpts({ day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }));
+            return fmtDayMonth(d) + ' ' + fmtTime(d);
         }
 
         // ─── Procurement context modal ────────────────────────────────

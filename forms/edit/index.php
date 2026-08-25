@@ -719,7 +719,7 @@ $translationNamespaces = ['common', 'forms'];
                 if (!s) return '—';
                 const d = parseUTCDate(s);
                 if (!d || isNaN(d.getTime())) return s;
-                return d.toLocaleString(undefined, tzOpts());
+                return fmtDateTime(d);
             };
             const vLabel = 'v' + (form.version_number || 1);
             document.getElementById('formMetaVersion').textContent    = vLabel;
@@ -806,7 +806,7 @@ $translationNamespaces = ['common', 'forms'];
                 if (!s) return '';
                 const d = parseUTCDate(s);
                 if (!d || isNaN(d.getTime())) return s;
-                return d.toLocaleString(undefined, tzOpts());
+                return fmtDateTime(d);
             };
             // Most recent first reads more naturally in a dropdown
             // (you'd expect "current" + recent forks at the top).

@@ -329,10 +329,7 @@ $translationNamespaces = ['common', 'reporting'];
         function formatDate(dt) {
             if (!dt) return null;
             const d = parseUTCDate(dt);
-            return d.toLocaleString('en-GB', tzOpts({
-                day: '2-digit', month: 'short', year: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            }));
+            return fmtDateTime(d);
         }
 
         async function loadDashboard() {

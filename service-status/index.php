@@ -710,8 +710,7 @@ $translationNamespaces = ['common', 'service-status'];
             try {
                 const d = parseUTCDate(dateStr);
                 if (!d || isNaN(d.getTime())) return dateStr;
-                return d.toLocaleDateString('en-GB', tzOpts({ day: '2-digit', month: 'short', year: 'numeric' })) +
-                       ' ' + d.toLocaleTimeString('en-GB', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+                return fmtDateTime(d);
             } catch (e) {
                 return dateStr;
             }

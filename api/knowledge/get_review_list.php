@@ -6,6 +6,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/timezone.php';   // DateFmt - the analyst's date format
 
 header('Content-Type: application/json');
 
@@ -69,7 +70,7 @@ try {
         if ($article['next_review_date']) {
             $reviewDate = new DateTime($article['next_review_date']);
             $today = new DateTime('today');
-            $article['next_review_date_formatted'] = $reviewDate->format('d M Y');
+            $article['next_review_date_formatted'] = DateFmt::render($reviewDate, DateFmt::DATE_TEMPLATES[DateFmt::dateKey()]);
             $article['is_overdue'] = $reviewDate < $today;
             $article['days_until_review'] = $today->diff($reviewDate)->days * ($reviewDate < $today ? -1 : 1);
         } else {

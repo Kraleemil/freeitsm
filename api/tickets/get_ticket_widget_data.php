@@ -8,6 +8,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/timezone.php';   // DateFmt - the analyst's date format
 
 header('Content-Type: application/json');
 
@@ -225,8 +226,11 @@ function getTimeLabels($dateRange, $timeGrouping) {
 
 function formatLabel($raw, $timeGrouping) {
     switch ($timeGrouping) {
-        case 'day':   return (new DateTime($raw))->format('j M');
-        case 'month': return (new DateTime($raw . '-01'))->format('M Y');
+        // Axis labels. These are bucket dates carrying no zone, so they render
+        // through DateFmt directly rather than fmt_day_month(), which would
+        // convert from UTC and could shift a bucket into the day before.
+        case 'day':   return DateFmt::render(new DateTime($raw), DateFmt::DAY_MONTH_TEMPLATES[DateFmt::dateKey()]);
+        case 'month': return DateFmt::render(new DateTime($raw . '-01'), 'MON YYYY');
         case 'year':  return (string)$raw;
     }
     return $raw;

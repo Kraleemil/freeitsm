@@ -12,7 +12,9 @@ require_once '../config.php';
 require_once '../includes/functions.php';
 require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
+require_once '../includes/timezone.php';
 I18n::initFromSession();
+Tz::init();
 
 requireModuleAccess('assets');
 
@@ -29,6 +31,8 @@ $translationNamespaces = ['common', 'asset-management'];
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
+    <?php echo Tz::scriptTag(); ?>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <!-- Neither was loaded here before: the page had no action that could fail,
          so it needed neither a toast nor a confirmation. Both self-guard against
@@ -260,7 +264,7 @@ function fmtDate(d) {
     // Stored as UTC without a zone marker; without the Z, Safari and Firefox
     // read it as local and the date can slip by a day.
     const dt = new Date(String(d).replace(' ', 'T') + 'Z');
-    return isNaN(dt) ? '—' : dt.toLocaleDateString();
+    return isNaN(dt) ? '—' : fmtDate(dt);
 }
 
 async function loadPeople(search) {

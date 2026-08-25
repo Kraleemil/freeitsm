@@ -533,7 +533,7 @@ if (!$contract_id) {
         function formatDate(dateStr) {
             if (!dateStr) return '-';
             const d = new Date(dateStr);
-            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            return fmtNaiveDate(d);
         }
 
         function formatBool(val) {
@@ -684,8 +684,8 @@ if (!$contract_id) {
         function formatDateTime(dtStr, allDay) {
             if (!dtStr) return '-';
             const d = new Date(dtStr.replace(' ', 'T'));
-            if (allDay) return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-            return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            if (allDay) return fmtNaiveDate(d);
+            return fmtNaiveDateTime(d);
         }
 
         // Modals

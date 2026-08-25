@@ -1878,7 +1878,7 @@ $translationNamespaces = ['common', 'asset-management'];
                         return;
                     }
                     const when = job.finished_datetime || job.started_datetime;
-                    const date = when ? parseUTCDate(when).toLocaleString('en-GB', tzOpts()) : '';
+                    const date = when ? fmtDateTime(when) : '';
                     last.textContent = window.t('asset-management.settings.last_sync', { date: date, status: job.status });
                 } else {
                     last.textContent = '';
@@ -2005,8 +2005,8 @@ $translationNamespaces = ['common', 'asset-management'];
                                 <tr>
                                     <td>#${j.id}</td>
                                     <td><span class="intune-job-status ${escapeHtml(j.status)}">${escapeHtml(j.status)}</span></td>
-                                    <td>${j.started_datetime ? parseUTCDate(j.started_datetime).toLocaleString('en-GB', tzOpts()) : '-'}</td>
-                                    <td>${j.finished_datetime ? parseUTCDate(j.finished_datetime).toLocaleString('en-GB', tzOpts()) : '-'}</td>
+                                    <td>${j.started_datetime ? fmtDateTime(j.started_datetime) : '-'}</td>
+                                    <td>${j.finished_datetime ? fmtDateTime(j.finished_datetime) : '-'}</td>
                                     <td>${j.processed}/${j.total}${j.failed > 0 ? ` ${window.t('asset-management.settings.failed_count', { failed: j.failed })}` : ''}</td>
                                 </tr>
                             `).join('')}

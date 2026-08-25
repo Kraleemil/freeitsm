@@ -502,7 +502,7 @@ $translationNamespaces = ['common', 'tickets'];
                 window._logs = data.entries.map(e => e.processing_log || null);
 
                 tbody.innerHTML = data.entries.map((e, idx) => {
-                    const dt = parseUTCDate(e.created_datetime).toLocaleString(undefined, tzOpts());
+                    const dt = fmtDateTime(e.created_datetime);
                     const badge = e.action === 'imported'
                         ? '<span class="badge-imported">' + escapeHtml(window.t('tickets.activity.badge_imported')) + '</span>'
                         : '<span class="badge-rejected">' + escapeHtml(window.t('tickets.activity.badge_rejected')) + '</span>';
@@ -570,7 +570,7 @@ $translationNamespaces = ['common', 'tickets'];
                 window._logs = entries.map(e => e.processing_log || null);
 
                 tbody.innerHTML = entries.map((e, idx) => {
-                    const dt = parseUTCDate(e.created_datetime).toLocaleString(undefined, tzOpts());
+                    const dt = fmtDateTime(e.created_datetime);
                     const badge = e.action === 'imported'
                         ? '<span class="badge-imported">' + escapeHtml(window.t('tickets.activity.badge_imported')) + '</span>'
                         : '<span class="badge-rejected">' + escapeHtml(window.t('tickets.activity.badge_rejected')) + '</span>';

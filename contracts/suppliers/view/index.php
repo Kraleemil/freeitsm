@@ -572,7 +572,7 @@ $translationNamespaces = ['common', 'contracts'];
             if (!dateStr) return '';
             const d = new Date(dateStr);
             if (isNaN(d.getTime())) return '';
-            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            return fmtNaiveDate(d);
         }
 
         // Edit modal

@@ -649,15 +649,16 @@ let ssTickets = [];
             const d = new Date(String(s).replace(' ', 'T') + 'Z');
             if (isNaN(d)) return '';
             const today = new Date();
-            const sameDay = d.toDateString() === today.toDateString();
-            return sameDay ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-                           : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+            // Bucket on the DISPLAY zone (ymdInZone, a machine format) rather than
+            // the browser's own day, so "today" agrees with the time shown.
+            const sameDay = ymdInZone(d) === ymdInZone(today);
+            return sameDay ? fmtTime(d) : fmtDayMonth(d);
         }
         function fullDate(s) {
             if (!s) return '';
             const d = new Date(String(s).replace(' ', 'T') + 'Z');
             if (isNaN(d)) return '';
-            return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            return fmtDateTime(d);
         }
         function esc(t) { const d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
 JS;

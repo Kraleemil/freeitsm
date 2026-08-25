@@ -216,7 +216,7 @@ $translationNamespaces = ['common', 'forms'];
             if (!dateStr) return '';
             const d = parseUTCDate(dateStr);
             if (!d || isNaN(d.getTime())) return dateStr;
-            return d.toLocaleString(undefined, tzOpts());
+            return fmtDateTime(d);
         }
 
         function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : t); return d.innerHTML; }

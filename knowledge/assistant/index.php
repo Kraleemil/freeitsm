@@ -190,7 +190,7 @@ function esc(s) {
 
 function fmtDate(s) {
     if (!s) return '';
-    try { return new Date(s.replace(' ', 'T') + 'Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
+    try { return fmtDate(s); }
     catch (e) { return s; }
 }
 

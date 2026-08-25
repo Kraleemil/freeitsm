@@ -432,9 +432,7 @@ $translationNamespaces = ['common', 'knowledge'];
                 // Server-stamped UTC — convert to the analyst's zone. The review
                 // due date (next_review_date_formatted) is a bare date, so it's
                 // rendered server-side and left unconverted.
-                const modifiedDate = parseUTCDate(article.modified_datetime).toLocaleDateString('en-GB', tzOpts({
-                    day: 'numeric', month: 'short', year: 'numeric'
-                }));
+                const modifiedDate = fmtDate(article.modified_datetime);
 
                 html += `
                     <tr>

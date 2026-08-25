@@ -159,7 +159,9 @@ $translationNamespaces = ['common', 'tickets'];
     let current = null; // the ticket being resolved
 
     function esc(s) { return (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-    function fmtDate(s) { if (!s) return ''; const d = parseUTCDate(s); return (!d || isNaN(d)) ? esc(s) : d.toLocaleString(undefined, tzOpts()); }
+    // Named fmtWhen, not fmtDate: a top-level `function fmtDate` here would
+    // shadow the global one from tz.js for this whole page.
+    function fmtWhen(s) { if (!s) return ''; const d = parseUTCDate(s); return (!d || isNaN(d)) ? esc(s) : fmtDateTime(d); }
 
     async function loadCompanies() {
         try {
@@ -195,7 +197,7 @@ $translationNamespaces = ['common', 'tickets'];
                     <td>${domainChip}</td>
                     <td class="subject-cell" title="${esc(tk.subject)}"><strong>${esc(tk.ticket_number)}</strong> ${esc(tk.subject)}</td>
                     <td>${esc(tk.mailbox_name)}</td>
-                    <td>${fmtDate(tk.received)}</td>
+                    <td>${fmtWhen(tk.received)}</td>
                     <td style="text-align:right;"><button class="table-action-btn" data-resolve="${tk.ticket_id}">${esc(window.t('tickets.triage.resolve'))}</button></td>
                 </tr>`;
         }).join('');

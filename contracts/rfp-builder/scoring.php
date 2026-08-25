@@ -673,7 +673,7 @@ $translationNamespaces = ['common', 'contracts'];
                 }
                 updateAverages();
                 renderSidebarCategories();
-                document.getElementById('abLastSaved').textContent = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                document.getElementById('abLastSaved').textContent = fmtTime(new Date());
             } catch (err) {
                 if (statusEl) {
                     statusEl.textContent = window.t('contracts.rfp.scoring.error');

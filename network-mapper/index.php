@@ -321,7 +321,7 @@ $translationNamespaces = ['common', 'network-mapper'];
 
         function diagramCardHtml(d) {
             const desc = d.description ? escapeHtml(d.description) : '<span class="empty">' + escapeHtml(t('network-mapper.index.no_description')) + '</span>';
-            const updated = d.updated_datetime ? parseUTCDate(d.updated_datetime).toLocaleString(undefined, tzOpts({})) : '';
+            const updated = d.updated_datetime ? fmtDateTime(d.updated_datetime) : '';
             const author = d.author_name ? d.author_name : t('network-mapper.index.author_unknown');
             const versionLabel = d.version_label ? escapeHtml(d.version_label) : escapeHtml(t('network-mapper.index.version_unknown'));
             const versionCount = d.version_count > 1 ? escapeHtml(t('network-mapper.index.versions_suffix', { count: d.version_count })) : '';

@@ -292,7 +292,7 @@ let hcSearchTimer = null;
             if (!dateStr) return '';
             const d = new Date(dateStr.replace(' ', 'T') + 'Z');
             if (isNaN(d)) return '';
-            return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+            return fmtDate(d);
         }
 
         function escapeHtml(text) {

@@ -4278,7 +4278,7 @@ $translationNamespaces = ['common', 'tickets'];
                     : ' <span class="status-badge status-inactive">Inactive</span>';
 
                 const lastChecked = mb.last_checked_datetime
-                    ? new Date(mb.last_checked_datetime).toLocaleString()
+                    ? fmtDateTime(mb.last_checked_datetime)
                     : 'Never';
 
                 let actions = `<button class="action-btn" onclick="editMailbox(${mb.id})" title="${t('common.edit')}">
@@ -5192,7 +5192,7 @@ $translationNamespaces = ['common', 'tickets'];
                         const cls   = failed ? 'failed' : (skipped ? 'skipped' : 'sent');
                         const label = failed ? 'Failed' : (skipped ? 'Not sent' : 'Sent');
                         return `<tr>
-                            <td style="white-space:nowrap;">${new Date(e.created_datetime + 'Z').toLocaleString()}</td>
+                            <td style="white-space:nowrap;">${fmtDateTime(e.created_datetime)}</td>
                             <td>${escapeHtml(e.to_address || '')}${ticket}</td>
                             <td>${escapeHtml(e.subject || '')}${note}</td>
                             <td style="white-space:nowrap;">${escapeHtml(e.route_label || e.route)}</td>
@@ -5276,7 +5276,7 @@ $translationNamespaces = ['common', 'tickets'];
                 window._activityLogs = data.entries.map(e => e.processing_log || null);
 
                 tbody.innerHTML = data.entries.map((e, idx) => {
-                    const dt = new Date(e.created_datetime + 'Z').toLocaleString();
+                    const dt = fmtDateTime(e.created_datetime);
                     const badge = e.action === 'imported'
                         ? '<span style="display: inline-block; padding: 2px 8px; background: #d4edda; color: #155724; border-radius: 10px; font-size: 11px;">Imported</span>'
                         : '<span style="display: inline-block; padding: 2px 8px; background: #f8d7da; color: #721c24; border-radius: 10px; font-size: 11px;">Rejected</span>';

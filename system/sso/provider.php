@@ -83,6 +83,8 @@ function v($row, string $k): string { return htmlspecialchars((string)($row[$k] 
     <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
+    <?php echo Tz::scriptTag(); ?>
+    <script src="../../assets/js/tz.js?v=3"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
     <script src="../../assets/js/toast.js"></script>
     <script src="../../assets/js/confirm.js"></script>
@@ -995,7 +997,7 @@ function actionLabel(action, mode) {
 async function openRunDetail(runId, mode, startedAt, status) {
     $('runModalTitle').textContent = window.t('system.sso.run_modal_' + (mode === 'preview' ? 'preview' : 'live'));
     $('runModalSub').textContent = startedAt
-        ? new Date(String(startedAt).replace(' ', 'T') + 'Z').toLocaleString()
+        ? fmtDateTime(startedAt)
         : '';
     $('runPreviewBanner').style.display = mode === 'preview' ? '' : 'none';
     $('runFilters').innerHTML = '';
@@ -1096,7 +1098,7 @@ async function loadRuns() {
                 // has listed counts since it was built and never let you see
                 // behind them, which is the half that answers "updated how?".
                 return `<tr class="clickable" onclick="openRunDetail(${Number(r.id)}, '${esc(r.mode)}', '${esc(r.started_datetime)}', '${esc(r.status)}')">
-                    <td>${esc(new Date(String(r.started_datetime).replace(' ','T') + 'Z').toLocaleString())}</td>
+                    <td>${esc(fmtDateTime(r.started_datetime))}</td>
                     <td>${esc(r.mode)}</td>
                     <td><span class="pill ${cls}">${esc(r.status)}</span></td>
                     <td>${r.seen_count}</td><td>${r.created_count}</td>

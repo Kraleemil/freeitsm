@@ -301,7 +301,7 @@ $translationNamespaces = ['common', 'system-wiki'];
                 let scanInfo = '';
                 if (s.last_scan) {
                     const d = new Date(s.last_scan);
-                    scanInfo = window.t('system-wiki.index.last_scan', { date: d.toLocaleDateString(), time: d.toLocaleTimeString(), duration: s.scan_duration_seconds });
+                    scanInfo = window.t('system-wiki.index.last_scan', { date: fmtDate(d), time: fmtTime(d), duration: s.scan_duration_seconds });
                 }
 
                 bar.innerHTML = `

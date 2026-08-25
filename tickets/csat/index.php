@@ -241,7 +241,7 @@ table.analyst-table td.score { font-weight: 600; }
                     </div>
                     <div class="recent-meta">
                         <?= htmlspecialchars($r['analyst_name'] ?? t('tickets.csat.unassigned')) ?><br>
-                        <?= htmlspecialchars(fmt_local($r['responded_datetime'], 'd M Y H:i')) ?>
+                        <?= htmlspecialchars(fmt_datetime($r['responded_datetime'])) ?>
                     </div>
                 </div>
             <?php endforeach; ?>

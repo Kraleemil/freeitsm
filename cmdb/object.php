@@ -912,6 +912,6 @@ $translationNamespaces = ['common', 'cmdb'];
     <script src="../assets/js/network-mapper-icons.js?v=1"></script>
     <!-- The shared dropdown-options editor, same one the settings page uses. -->
     <script src="options-editor.js?v=3"></script>
-    <script src="object.js?v=8"></script>
+    <script src="object.js?v=9"></script>
 </body>
 </html>

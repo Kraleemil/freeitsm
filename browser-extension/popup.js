@@ -91,6 +91,12 @@ function updateTimestamp(iso) {
     let text;
     if (diffMin < 1) text = 'Just now';
     else if (diffMin < 60) text = diffMin + 'm ago';
+    // DELIBERATE CARVE-OUT from the date-format work (GH #105): every other
+    // date in FreeITSM now follows the analyst's chosen format, published by
+    // Tz::scriptTag() and rendered by assets/js/tz.js. This popup is a browser
+    // extension — no PHP, no session, no access to either — so it stays on the
+    // browser's own locale. Not an oversight; there is nothing here to read the
+    // setting from.
     else text = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     document.getElementById('lastUpdated').textContent = text;

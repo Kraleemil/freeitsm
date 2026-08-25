@@ -500,7 +500,7 @@ $translationNamespaces = ['common', 'forms'];
             if (secs < 3600)      return window.t('forms.list.relative_min_ago', { n: Math.floor(secs / 60) });
             if (secs < 86400)     return window.t('forms.list.relative_hr_ago', { n: Math.floor(secs / 3600) });
             if (secs < 604800)    return window.t('forms.list.relative_days_ago', { n: Math.floor(secs / 86400) });
-            return d.toLocaleDateString(undefined, tzOpts());
+            return fmtDate(d);
         }
 
         // Full timestamp for the row's hover title — the UTC value (kind 1)
@@ -509,7 +509,7 @@ $translationNamespaces = ['common', 'forms'];
             if (!iso) return '';
             const d = parseUTCDate(iso);
             if (!d || isNaN(d.getTime())) return iso;
-            return d.toLocaleString(undefined, tzOpts());
+            return fmtDateTime(d);
         }
 
         function esc(text) {

@@ -30,6 +30,8 @@
  * that gets emailed. See renderBlocks().
  */
 
+require_once __DIR__ . '/../timezone.php';   // DateFmt - the merge codes render dates
+
 class HandoverTemplates
 {
     /**
@@ -349,7 +351,7 @@ class HandoverTemplates
             '{{employee.email}}' => (string)($user['email'] ?? ''),
             '{{employee.id}}'    => (string)($user['id'] ?? ''),
             '{{asset_count}}'    => (string)count($assets),
-            '{{date}}'           => date('j F Y'),
+            '{{date}}'           => DateFmt::render(new DateTime('now', new DateTimeZone(Tz::current())), 'D MONTH YYYY'),
             '{{analyst.name}}'   => (string)($analystName ?? ''),
         ];
     }

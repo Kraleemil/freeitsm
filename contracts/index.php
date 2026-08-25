@@ -496,7 +496,7 @@ $translationNamespaces = ['common', 'contracts'];
         function formatDate(dateStr) {
             if (!dateStr) return '-';
             const d = new Date(dateStr);
-            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            return fmtNaiveDate(d);
         }
 
         function escapeHtml(text) {

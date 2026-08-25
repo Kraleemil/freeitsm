@@ -545,7 +545,7 @@ $translationNamespaces = ['common', 'watchtower'];
     function formatTime(dt) {
         if (!dt) return '';
         const d = window.parseNaiveDate(dt);
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return fmtNaiveTime(d);
     }
 
     function attentionItem(level, text) {
@@ -1021,7 +1021,7 @@ $translationNamespaces = ['common', 'watchtower'];
                 // Update timestamp
                 const now = new Date();
                 document.getElementById('wtLastRefresh').textContent =
-                    window.t('watchtower.dashboard.updated', { time: now.toLocaleTimeString([], window.tzOpts({ hour: '2-digit', minute: '2-digit' })) });
+                    window.t('watchtower.dashboard.updated', { time: window.fmtTime(now) });
             })
             .catch(err => {
                 console.error('Watchtower fetch error:', err);

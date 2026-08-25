@@ -195,7 +195,7 @@ $translationNamespaces = ['common', 'system-wiki'];
 
                 tbody.innerHTML = data.scans.map(s => {
                     const started = new Date(s.started_at);
-                    const dateStr = started.toLocaleDateString() + ' ' + started.toLocaleTimeString();
+                    const dateStr = fmtDateTime(started);
                     const duration = s.duration_seconds !== null ? formatDuration(s.duration_seconds) : '-';
 
                     return `

@@ -2963,11 +2963,7 @@ $translationNamespaces = ['common', 'asset-management'];
         function formatDate(dateString) {
             if (!dateString) return '-';
             const date = parseUTCDate(dateString);
-            return date.toLocaleDateString('en-GB', tzOpts({
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-            }));
+            return fmtDate(date);
         }
 
         // Close modal on outside click
@@ -3050,11 +3046,7 @@ $translationNamespaces = ['common', 'asset-management'];
         function formatDateTime(dateString) {
             if (!dateString) return '-';
             const date = parseUTCDate(dateString);
-            return date.toLocaleDateString('en-GB', tzOpts({
-                day: '2-digit', month: 'short', year: 'numeric'
-            })) + ' ' + date.toLocaleTimeString('en-GB', tzOpts({
-                hour: '2-digit', minute: '2-digit'
-            }));
+            return fmtDateTime(date);
         }
 
         function closeHistoryModal() {

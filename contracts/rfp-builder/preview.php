@@ -59,7 +59,7 @@ $catStmt = $conn->prepare(
 $catStmt->execute([$rfpId]);
 $categories = $catStmt->fetchAll(PDO::FETCH_ASSOC);
 
-$today = date('j F Y');
+$today = DateFmt::render(new DateTime('now', new DateTimeZone(Tz::current())), 'D MONTH YYYY');
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>">

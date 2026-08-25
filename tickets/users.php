@@ -7,7 +7,9 @@ require_once '../config.php';
 require_once '../includes/functions.php';
 require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
+require_once '../includes/timezone.php';
 I18n::initFromSession();
+Tz::init();
 
 requireModuleAccess('tickets');
 
@@ -26,6 +28,8 @@ $translationNamespaces = ['common', 'tickets'];
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=37">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
+    <?php echo Tz::scriptTag(); ?>
+    <script src="../assets/js/tz.js?v=3"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <style>
         .users-container {
@@ -605,11 +609,7 @@ $translationNamespaces = ['common', 'tickets'];
         function formatDate(dateString) {
             if (!dateString) return '-';
             const date = new Date(dateString);
-            return date.toLocaleDateString(PAGE_LOCALE, {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric'
-            });
+            return fmtDate(date);
         }
 
         // Open the create/edit modal. Pass an id to edit; omit to create.

@@ -306,6 +306,6 @@ $translationNamespaces = ['common', 'cmdb'];
         </div>
     </div>
 
-    <script src="browse.js?v=3"></script>
+    <script src="browse.js?v=4"></script>
 </body>
 </html>

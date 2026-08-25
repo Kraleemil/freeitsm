@@ -77,7 +77,7 @@ async function postJson(url, body) {
    must never go through the timezone path or it shifts by a day. */
 function fmtDateTime(s) {
     if (!s) return '';
-    try { return parseUTCDate(s).toLocaleString(undefined, tzOpts()); } catch (e) { return s; }
+    try { return fmtDateTime(s); } catch (e) { return s; }
 }
 
 /* "2026-04-15 00:00:00" -> "2026-04-15". Never parsed as a Date: a date

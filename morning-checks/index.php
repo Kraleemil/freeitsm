@@ -267,7 +267,17 @@ $translationNamespaces = ['common', 'morning-checks'];
 
     <div class="container">
         <div class="date-display">
-            <h2 id="dateDisplayText"><?php echo htmlspecialchars(t('morning-checks.dashboard.todays_checks', ['date' => date('l, F j, Y')])); ?></h2>
+            <?php /* Was date('l, F j, Y') — English weekday and month whatever the
+                     interface language, and a US arrangement whatever the analyst
+                     had chosen. Rendered through DateFmt so it matches the same
+                     heading once JS repaints it (formatDate below). */ ?>
+            <h2 id="dateDisplayText"><?php
+                $mcToday = new DateTime('now', new DateTimeZone(Tz::current()));
+                echo htmlspecialchars(t('morning-checks.dashboard.todays_checks', [
+                    'date' => DateFmt::weekdays()[(int)$mcToday->format('N') - 1]
+                            . ' ' . DateFmt::render($mcToday, 'D MONTH YYYY'),
+                ]));
+            ?></h2>
             <div class="date-selector-container">
                 <label for="checkDate"><?php echo htmlspecialchars(t('morning-checks.dashboard.select_date')); ?></label>
                 <input type="date" id="checkDate" value="<?php echo date('Y-m-d'); ?>" onchange="dateChanged()">
@@ -501,8 +511,9 @@ $translationNamespaces = ['common', 'morning-checks'];
         }
 
         function formatDate(date) {
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            return date.toLocaleDateString('en-US', options);
+            // The heading over the day's checks - a full "Wednesday 5 August 2026".
+            // Naive: the date picker's value is a wall-clock day, not an instant.
+            return fmtNaiveWeekday(date) + ' ' + fmtNaiveTemplate(date, 'D MONTH YYYY');
         }
 
         // Pick black/white text for a given hex background so the active
@@ -551,9 +562,9 @@ $translationNamespaces = ['common', 'morning-checks'];
                 if (!d || isNaN(d.getTime())) return utcString;
                 const viewing = document.getElementById('checkDate').value;
                 const today = new Date().toISOString().slice(0, 10);
-                const timeStr = d.toLocaleTimeString('en-GB', tzOpts({ hour: '2-digit', minute: '2-digit' }));
+                const timeStr = fmtTime(d);
                 if (viewing === today) return timeStr;
-                return d.toLocaleDateString('en-GB', tzOpts({ day: '2-digit', month: 'short' })) + ' ' + timeStr;
+                return fmtDayMonth(d) + ' ' + timeStr;
             } catch (e) { return utcString; }
         }
 
@@ -1171,7 +1182,7 @@ $translationNamespaces = ['common', 'morning-checks'];
             if (!rawDates || !rawDates.length) return '';
             const first = new Date(rawDates[0] + 'T00:00:00');
             const last = new Date(rawDates[rawDates.length - 1] + 'T00:00:00');
-            const fmt = d => d.toLocaleString('en-GB', { month: 'long' });
+            const fmt = d => fmtNaiveTemplate(d, 'MONTH');
             const sameMonth = first.getMonth() === last.getMonth()
                 && first.getFullYear() === last.getFullYear();
             return sameMonth ? fmt(first) : (fmt(first) + ' – ' + fmt(last));

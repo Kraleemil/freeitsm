@@ -234,7 +234,7 @@ $title = $asset ? ($asset['asset_tag'] ?: $asset['hostname'] ?: 'Asset') : 'Asse
                 'Serial'    => $asset['service_tag'],
                 'OS'        => $asset['operating_system'],
                 'Warranty'  => $asset['warranty_expiry'],
-                'Last seen' => $asset['last_seen'] ? fmt_local($asset['last_seen'], 'j M Y, H:i') : null,
+                'Last seen' => $asset['last_seen'] ? fmt_datetime($asset['last_seen']) : null,
             ];
             foreach ($facts as $label => $value):
                 if ($value === null || $value === '') continue; ?>

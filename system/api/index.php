@@ -327,10 +327,7 @@ $apiBaseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_UR
             }
             // last_used_at is a server-stamped UTC timestamp (kind-1) — show in the analyst's zone.
         const lu = parseUTCDate(k.last_used_at);
-        const lastUsed = lu ? esc(lu.toLocaleString('en-GB', tzOpts({
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', hour12: false
-        }))) : 'Never';
+        const lastUsed = lu ? esc(fmtDateTime(lu)) : 'Never';
             return `<tr>
                 <td><strong>${esc(k.name)}</strong></td>
                 <td class="key-prefix">${esc(k.key_prefix)}…</td>
