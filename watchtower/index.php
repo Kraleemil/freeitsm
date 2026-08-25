@@ -191,11 +191,16 @@ $translationNamespaces = ['common', 'watchtower'];
         }
         .wt-attention-item {
             display: flex;
-            align-items: center;
+            /* Not `center`: these rows wrap onto two lines whenever the text is
+               long ("12 tickets paused over 24h (SLA clock stopped)"), and
+               centring put the dot halfway between the two lines, belonging to
+               neither. It aligns to the FIRST line, like a bullet. */
+            align-items: flex-start;
             gap: 8px;
             padding: 6px 10px;
             border-radius: 6px;
             font-size: 13px;
+            line-height: 1.45;
             color: var(--text, #334155);
         }
         /* Severity washes = DATA (red/amber/green signalling). Light values kept
@@ -210,6 +215,10 @@ $translationNamespaces = ['common', 'watchtower'];
             height: 6px;
             border-radius: 50%;
             flex-shrink: 0;
+            /* Centres the 6px dot on the first line's box: (13px x 1.45 - 6) / 2
+               = 6.4. A single-line row is therefore unchanged from the old
+               `align-items: center`, so this only alters rows that wrap. */
+            margin-top: 6px;
         }
         .wt-attention-item.red .wt-attention-dot    { background: #ef4444; }
         .wt-attention-item.amber .wt-attention-dot   { background: #f59e0b; }
@@ -355,7 +364,7 @@ $translationNamespaces = ['common', 'watchtower'];
            inline, which reads on both grounds (the tint is the same hue as the
            text), so there is nothing left here to flip for dark mode. */
     </style>
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=44">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=45">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
