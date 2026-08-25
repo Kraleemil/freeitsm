@@ -7,7 +7,9 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/theme.php';
 require_once '../../includes/i18n.php';
+require_once '../../includes/timezone.php';
 I18n::initFromSession();
+Tz::init();
 
 $current_page = 'preferences';
 $path_prefix = '../../';
@@ -24,6 +26,12 @@ $prefDefaults = [
     // analyst picks one; every date across the app is stored UTC and shown
     // in this zone (see includes/timezone.php).
     'timezone'                   => date_default_timezone_get(),
+    // How a date and a time are WRITTEN, as opposed to which instant the zone
+    // above selects. '' means "follow whatever the administrator chose in
+    // System > Date and time formats" — the same idiom default_landing_page
+    // uses below, and the only value that is not itself a format key.
+    'date_format'                => '',
+    'time_format'                => '',
     'toast_position'             => 'bottom-right',
     'toast_animation'            => 'slide',
     // Chime when a notification arrives. 'off' by default — whether a sound at
@@ -74,6 +82,36 @@ if (isset($_SESSION['analyst_id'])) {
         // Defaults stand
     }
 }
+
+// The install-wide format, read separately from the per-analyst values above so
+// the "follow the install default" option can SAY what that currently is. A
+// choice you cannot see the consequence of is not really a choice.
+$installDate = DateFmt::DEFAULT_DATE;
+$installTime = DateFmt::DEFAULT_TIME;
+try {
+    $conn = $conn ?? connectToDatabase();
+    $stmt = $conn->prepare(
+        "SELECT setting_key, setting_value FROM system_settings
+         WHERE setting_key IN ('date_format','time_format')"
+    );
+    $stmt->execute();
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if ($row['setting_value'] === null || $row['setting_value'] === '') continue;
+        if ($row['setting_key'] === 'date_format' && isset(DateFmt::DATE_TEMPLATES[$row['setting_value']])) {
+            $installDate = $row['setting_value'];
+        }
+        if ($row['setting_key'] === 'time_format' && isset(DateFmt::TIME_TEMPLATES[$row['setting_value']])) {
+            $installTime = $row['setting_value'];
+        }
+    }
+} catch (Exception $e) {
+    // Built-in defaults stand
+}
+
+// One sample instant for every example on this page — a single-digit day and an
+// afternoon time are what actually tell the formats apart. Rendered through
+// DateFmt itself, so the examples cannot drift from what the app will do.
+$fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current()));
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
@@ -356,6 +394,46 @@ if (isset($_SESSION['analyst_id'])) {
                     <?php endforeach; ?>
                 </select>
                 <span class="pref-saving-hint" id="tzSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+            </div>
+
+            <?php /* Date and time FORMAT — sits under Timezone because that is where
+                     someone looks next, but answers a different question: the zone above
+                     picks WHICH INSTANT, this picks HOW IT IS WRITTEN. Neither changes
+                     what is stored. Each option is labelled with its rendered example. */ ?>
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.dateformat_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.dateformat_desc')); ?></p>
+                <select id="dateFormatSelect" class="pref-language-select">
+                    <option value="" <?php echo $prefs['date_format'] === '' ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars(t('system.preferences.format_follow_default', [
+                            'example' => DateFmt::render($fmtSample, DateFmt::DATE_TEMPLATES[$installDate]),
+                        ])); ?>
+                    </option>
+                    <?php foreach (DateFmt::DATE_TEMPLATES as $key => $tpl): ?>
+                        <option value="<?php echo htmlspecialchars($key); ?>" <?php echo $prefs['date_format'] === $key ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars(DateFmt::render($fmtSample, $tpl)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="pref-saving-hint" id="dateFormatSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+            </div>
+
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.timeformat_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.timeformat_desc')); ?></p>
+                <select id="timeFormatSelect" class="pref-language-select">
+                    <option value="" <?php echo $prefs['time_format'] === '' ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars(t('system.preferences.format_follow_default', [
+                            'example' => DateFmt::render($fmtSample, DateFmt::TIME_TEMPLATES[$installTime]),
+                        ])); ?>
+                    </option>
+                    <?php foreach (DateFmt::TIME_TEMPLATES as $key => $tpl): ?>
+                        <option value="<?php echo htmlspecialchars($key); ?>" <?php echo $prefs['time_format'] === $key ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars(DateFmt::render($fmtSample, $tpl)); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <span class="pref-saving-hint" id="timeFormatSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
             </div>
 
             <?php
@@ -813,6 +891,23 @@ if (isset($_SESSION['analyst_id'])) {
                 if (ok) showToast(window.t('system.preferences.timezone_saved'), 'success');
             });
         }
+
+        // ===== Date and time format (date_format / time_format) =====
+        // Per-analyst, overriding System > Date and time formats. '' is a real
+        // value here meaning "follow the install default", so it must be saved
+        // as-is rather than treated as "nothing chosen".
+        [['dateFormatSelect', 'dateFormatSavingHint', 'date_format'],
+         ['timeFormatSelect', 'timeFormatSavingHint', 'time_format']].forEach(function (row) {
+            const sel  = document.getElementById(row[0]);
+            const hint = document.getElementById(row[1]);
+            if (!sel) return;
+            sel.addEventListener('change', async function () {
+                hint.classList.add('show');
+                const ok = await savePref(row[2], sel.value);
+                hint.classList.remove('show');
+                if (ok) showToast(window.t('system.preferences.format_saved'), 'success');
+            });
+        });
 
         // ===== Generic two-button toggle wiring =====
         // Used for animation style, sidebar modes, MC fill — anything

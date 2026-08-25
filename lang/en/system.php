@@ -692,9 +692,20 @@ return [
         'landing_portal'  => 'Self-service portal',
         'landing_note'    => 'Unlike your other preferences, this one has to be readable before you log in, so it is also stored in this browser. It is reapplied automatically each time you sign in, including on a new device.',
 
+        // Reworded when the format settings below were added: "shown in this
+        // timezone" read as though it covered how dates are written too. It
+        // decides WHICH INSTANT you see; the two settings under it decide how
+        // that instant is written down.
         'timezone_heading' => 'Timezone',
-        'timezone_desc'    => 'Dates and times across FreeITSM are shown in this timezone. Defaults to the server timezone until you choose one.',
+        'timezone_desc'    => 'Which timezone times are converted to before they are shown to you. Defaults to the server timezone until you choose one. This changes the time itself, not how it is written.',
         'timezone_saved'   => 'Timezone saved',
+
+        'dateformat_heading' => 'Date format',
+        'dateformat_desc'    => 'How a date is written. This is the arrangement only - the date itself never changes, and month names always follow your interface language.',
+        'timeformat_heading' => 'Time format',
+        'timeformat_desc'    => 'The 24-hour clock, or a 12-hour clock with AM and PM.',
+        'format_follow_default' => 'Use the system default ({example})',
+        'format_saved'          => 'Format saved',
 
         'position_heading' => 'Notification position',
         'position_desc'    => 'Where toast notifications appear on the screen.',
