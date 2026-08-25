@@ -524,30 +524,73 @@
             };
         }
 
-        /* ---- full-screen rich-text editing (Ed's ask, #1187) ----
-           The editor's six fields sit behind a tab strip in one widget, so the
-           whole widget goes full screen rather than a single field — full
-           screen on Description that could not reach Rollback would only move
-           the problem. Its own Close bar and the device back button are the
-           two ways out; TinyMCE's built-in fullscreen exits via a toolbar
-           button this init does not include. */
-        function wireFullScreenEditor() {
+        /* =================================================================
+           Rich text on a phone: CARDS, and ONE editor at a time  (#1189)
+           =================================================================
+           #1187 put the whole tabbed widget full screen. That fixed the
+           typing but left six TinyMCE instances living in the form, and Ed
+           came back with "the tinymce editor is still causing a bit of havoc
+           with the screen layout" — which it was: six iframes, each with its
+           own toolbar, sizing themselves independently inside a 312px column.
+
+           So on a phone the widget becomes a list of read-only CARDS — field
+           name, a plain-text excerpt, Edit — and TinyMCE is initialised for
+           ONE field only, on demand, straight into the full-screen panel.
+           Nothing rich-text renders in the form itself.
+
+           🔴 THE TRAP, and the reason this needs care rather than a display
+           rule. `saveChange()` reads all six through `getEditorContent(id)`,
+           which returns '' when `tinymce.get(id)` finds nothing — and
+           `editorsReady` is set but NEVER READ, so nothing guards it. Simply
+           not initialising the editors would make Save silently blank all six
+           fields. The textarea therefore becomes the source of truth on
+           mobile, and the two accessors are wrapped to use it.
+
+           Everything here is wrap-don't-edit: initEditors, destroyEditors,
+           setEditorContent and getEditorContent are all top-level
+           declarations, so they are properties of the global object.
+           `editorIds` is a top-level `const` and is NOT — the field list is
+           read from the DOM instead. */
+        function wireRichTextCards() {
             if (!mq.matches) return;
             var widget = document.getElementById('cmRichTextWidget');
-            if (!widget || widget.dataset.cmFs) return;
-            widget.dataset.cmFs = '1';
+            if (!widget || widget.dataset.cmCards) return;
+            widget.dataset.cmCards = '1';
 
-            var label = tr('change-management.editor.fullscreen', 'Full screen');
+            /* All three keys already exist — the detail view says exactly
+               these words about exactly these fields, so a phone borrows them
+               rather than adding three more strings to 24 locales. */
+            var editLabel = tr('change-management.detail.edit', 'Edit');
+            var emptyLabel = tr('change-management.detail.not_provided', 'Not provided');
             var closeLabel = tr('common.close', 'Close');
 
-            var openBtn = document.createElement('button');
-            openBtn.type = 'button';
-            openBtn.className = 'cm-fs-open';
-            openBtn.textContent = '⤢  ' + label;
+            function panels() {
+                return [].slice.call(widget.querySelectorAll('.rich-text-panel'));
+            }
+            function tabFor(key) {
+                return widget.querySelector('.rich-text-tab[data-field-key="' + key + '"]');
+            }
+            function areaFor(key) {
+                var p = widget.querySelector('.rich-text-panel[data-field-key="' + key + '"]');
+                return p && p.querySelector('textarea');
+            }
+            function liveEditor(id) {
+                return (id && window.tinymce && window.tinymce.get(id)) || null;
+            }
 
-            /* The bar names the FIELD being edited, read live from the active
-               tab. Repeating "Full screen" once you are in it tells nobody
-               anything, and the tab's own text is already translated. */
+            /* The card shows an EXCERPT, never the stored markup. Assigning it
+               through textContent means no author-written HTML is ever parsed
+               into this page, so the card needs no sanitiser — see the
+               safe-html rule. `innerHTML` on a detached div is only used to
+               let the browser do entity decoding and tag stripping for us. */
+            function excerpt(html) {
+                var box = document.createElement('div');
+                box.innerHTML = html || '';
+                var text = (box.textContent || '').replace(/\s+/g, ' ').trim();
+                return text.length > 140 ? text.slice(0, 140) + '…' : text;
+            }
+
+            /* ---- the full-screen panel (kept from #1187, now single-field) -- */
             var barTitle = document.createElement('span');
             barTitle.className = 'cm-fs-title';
             var closeBtn = document.createElement('button');
@@ -559,55 +602,189 @@
             bar.appendChild(barTitle);
             bar.appendChild(closeBtn);
 
+            var list = document.createElement('div');
+            list.className = 'cm-rt-cards';
+
             /* Both go INSIDE the widget. `refreshFormLayout()` re-parents it
                with `host.appendChild(richTextWidget)` so it follows the anchor
-               section, and hides it outright when no section anchors it. A
-               sibling button would be stranded in the old section — or left
-               offering full screen on a widget that is `display: none`. */
+               section, and hides it outright when no section anchors it —
+               anything left outside would be stranded in the old section, or
+               left offering an editor for a widget that is `display: none`. */
             widget.insertBefore(bar, widget.firstChild);
-            widget.insertBefore(openBtn, bar.nextSibling);
+            widget.insertBefore(list, bar.nextSibling);
 
-            function activeFieldName() {
-                var t = widget.querySelector('.rich-text-tab.active');
-                return (t && t.textContent.trim()) || label;
+            var openKey = null;
+
+            function renderCards() {
+                list.innerHTML = '';
+                panels().forEach(function (panel) {
+                    var key = panel.dataset.fieldKey;
+                    var tab = tabFor(key);
+                    /* Respect the module's own per-field visibility. A field
+                       switched off in Form fields settings hides its TAB, and
+                       that is the only place the flag is expressed. */
+                    if (!tab || tab.style.display === 'none') return;
+                    var area = areaFor(key);
+                    if (!area) return;
+
+                    var card = document.createElement('button');
+                    card.type = 'button';                 // never submits the form
+                    card.className = 'cm-rt-card';
+                    card.dataset.fieldKey = key;
+
+                    var head = document.createElement('span');
+                    head.className = 'cm-rt-card-head';
+                    var name = document.createElement('span');
+                    name.className = 'cm-rt-card-name';
+                    name.textContent = tab.textContent.trim();
+                    var act = document.createElement('span');
+                    act.className = 'cm-rt-card-edit';
+                    act.textContent = editLabel;
+                    head.appendChild(name);
+                    head.appendChild(act);
+
+                    var body = document.createElement('span');
+                    var text = excerpt(currentValue(key));
+                    body.className = 'cm-rt-card-body' + (text ? '' : ' cm-rt-card-empty');
+                    body.textContent = text || emptyLabel;
+
+                    card.appendChild(head);
+                    card.appendChild(body);
+                    /* The WHOLE card opens the field, not just the Edit word —
+                       the same call made for the incident cards in LAYER 23. */
+                    card.addEventListener('click', function () { openField(key); });
+                    list.appendChild(card);
+                });
             }
-            function activeEditorId() {
-                var p = widget.querySelector('.rich-text-panel.active textarea');
-                return p && p.id;
+
+            function currentValue(key) {
+                var area = areaFor(key);
+                if (!area) return '';
+                var ed = liveEditor(area.id);
+                return ed ? ed.getContent() : area.value;
             }
-            function setFull(on) {
-                if (on) barTitle.textContent = activeFieldName();
-                document.body.classList.toggle('cm-editor-full', on);
-                openBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
-                /* TinyMCE laid its iframe out to a pixel height worked out
-                   while the container was small. Nudge it after the class flip
-                   or the panel is full screen with a 300px typing area. */
-                var id = activeEditorId();
-                var ed = id && window.tinymce && window.tinymce.get(id);
-                if (ed) setTimeout(function () {
-                    try { ed.execCommand('mceAutoResize'); } catch (e) {}
-                    window.dispatchEvent(new Event('resize'));
-                }, 30);
-            }
-            openBtn.addEventListener('click', function () {
-                setFull(true);
+
+            function openField(key) {
+                var area = areaFor(key);
+                if (!area) return;
+                openKey = key;
+
+                panels().forEach(function (p) { p.classList.toggle('active', p.dataset.fieldKey === key); });
+                var tab = tabFor(key);
+                barTitle.textContent = tab ? tab.textContent.trim() : '';
+
+                document.body.classList.add('cm-editor-full');
                 history.pushState({ cmFull: true }, '');
-            });
+
+                /* One editor, created here and destroyed on the way out. The
+                   init mirrors change-management.js's own so the phone gets
+                   the same toolbar and the same dark-mode skin. */
+                if (!liveEditor(area.id) && window.tinymce) {
+                    var dark = (document.documentElement.getAttribute('data-theme-mode') || 'light') === 'dark';
+                    window.tinymce.init({
+                        selector: '#' + area.id,
+                        license_key: 'gpl',
+                        menubar: false,
+                        statusbar: false,
+                        skin: dark ? 'oxide-dark' : 'oxide',
+                        content_css: dark ? 'dark' : 'default',
+                        plugins: ['advlist', 'autolink', 'lists', 'link', 'wordcount'],
+                        toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat',
+                        content_style: 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-size: 16px; }',
+                        setup: function (editor) {
+                            editor.on('init', function () {
+                                editor.setContent(area.value || '');
+                                window.dispatchEvent(new Event('resize'));
+                            });
+                        }
+                    });
+                }
+            }
+
+            function closeField() {
+                document.body.classList.remove('cm-editor-full');
+                if (openKey) {
+                    var area = areaFor(openKey);
+                    var ed = area && liveEditor(area.id);
+                    /* Write back BEFORE removing — `editor.remove()` is what
+                       would otherwise be the last chance to read it. */
+                    if (ed && area) { area.value = ed.getContent(); ed.remove(); }
+                    openKey = null;
+                }
+                renderCards();
+            }
+
             closeBtn.addEventListener('click', function () {
                 if (history.state && history.state.cmFull) history.back();
-                else setFull(false);
+                else closeField();
             });
-            window.addEventListener('popstate', function () { setFull(false); });
-            /* Switching tabs while full screen must retitle the bar and
-               re-measure the editor that just became visible. */
-            widget.addEventListener('click', function (e) {
-                if (!e.target.closest || !e.target.closest('.rich-text-tab')) return;
-                if (document.body.classList.contains('cm-editor-full')) setTimeout(function () { setFull(true); }, 0);
+            window.addEventListener('popstate', function () {
+                if (document.body.classList.contains('cm-editor-full')) closeField();
             });
+
+            /* ---- the four wrapped accessors ---------------------------------
+               With no editors in the form, the textarea IS the field. */
+            var _init = window.initEditors, _destroy = window.destroyEditors;
+            var _set = window.setEditorContent, _get = window.getEditorContent;
+
+            if (typeof _init === 'function') {
+                window.initEditors = function (callback) {
+                    if (!mq.matches) return _init.apply(this, arguments);
+                    /* 🔴 The create path clears through `tinymce.get(id)`
+                       directly rather than through setEditorContent, so with
+                       no editors it would clear NOTHING and a new change would
+                       open pre-filled with the last one's text. Clearing here
+                       covers both callers. */
+                    panels().forEach(function (p) {
+                        var a = p.querySelector('textarea');
+                        if (a) { var e = liveEditor(a.id); if (e) e.remove(); a.value = ''; }
+                    });
+                    if (callback) callback();
+                    renderCards();
+                    return undefined;
+                };
+            }
+            if (typeof _destroy === 'function') {
+                window.destroyEditors = function () {
+                    if (!mq.matches) return _destroy.apply(this, arguments);
+                    if (document.body.classList.contains('cm-editor-full')) closeField();
+                    return _destroy.apply(this, arguments);   // safe: it no-ops when nothing is live
+                };
+            }
+            if (typeof _set === 'function') {
+                window.setEditorContent = function (id, content) {
+                    if (!mq.matches || liveEditor(id)) return _set.apply(this, arguments);
+                    var a = document.getElementById(id);
+                    if (a) a.value = content || '';
+                    renderCards();
+                };
+            }
+            if (typeof _get === 'function') {
+                window.getEditorContent = function (id) {
+                    var ed = liveEditor(id);
+                    if (ed) return ed.getContent();          // mid-edit: the editor is ahead of the textarea
+                    if (!mq.matches) return _get.apply(this, arguments);
+                    var a = document.getElementById(id);
+                    return a ? a.value : '';
+                };
+            }
+
+            /* refreshFormLayout() decides which fields are visible and runs on
+               every editor open, so the cards are rebuilt behind it. */
+            var _refresh = window.refreshFormLayout;
+            if (typeof _refresh === 'function') {
+                window.refreshFormLayout = function () {
+                    var out = _refresh.apply(this, arguments);
+                    if (mq.matches) renderCards();
+                    return out;
+                };
+            }
+
+            renderCards();
         }
 
         setPane('list');
-        wireFullScreenEditor();
+        wireRichTextCards();
         var sync = function () {
             if (!mq.matches) {
                 document.body.removeAttribute('data-cm-pane');

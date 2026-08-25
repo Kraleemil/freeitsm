@@ -205,7 +205,6 @@ return [
         'rl_4'            => '4 - High',
         'rl_5'            => '5 - Very high',
 
-            'fullscreen'      => 'Full screen',
         'tab_description' => 'Description',
         'tab_reason'      => 'Reason for change',
         'tab_risk'        => 'Risk evaluation',
