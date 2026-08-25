@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'ವಿವರಗಳನ್ನು ನೋಡಲು ಟಿಕೆಟ್ ಆಯ್ಕೆಮಾಡಿ',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'ಫೈಲ್‌ಗಳನ್ನು ಆಂತರಿಕ ಟಿಪ್ಪಣಿಗೆ ಮಾತ್ರ ಲಗತ್ತಿಸಬಹುದು - ಸ್ವಯಂ-ಸೇವಾ ಪೋರ್ಟಲ್ ಅವುಗಳನ್ನು ತೋರಿಸಲಾಗದು. ಲಗತ್ತಿಸಲು ಹಂಚಿಕೆಯನ್ನು ಅನ್‌ಚೆಕ್ ಮಾಡಿ.',
         'title'       => 'ಟಿಪ್ಪಣಿ ಸೇರಿಸಿ',
         'note_label'  => 'ಟಿಪ್ಪಣಿ',
         'placeholder' => 'ಇಲ್ಲಿ ನಿಮ್ಮ ಟಿಪ್ಪಣಿಯನ್ನು ನಮೂದಿಸಿ…',
@@ -410,5 +411,14 @@ return [
             'department' => 'ವಿಭಾಗ:',
             'owner'      => 'ಮಾಲೀಕ:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'ಆಂತರಿಕ',
+        'internal_title' => 'ಇದನ್ನು ಸಹೋದ್ಯೋಗಿಗಳು ಮಾತ್ರ ನೋಡಬಹುದು. ಸ್ವಯಂ-ಸೇವಾ ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ತೋರಿಸಲಾಗುವುದಿಲ್ಲ.',
+        'shared'         => 'ವಿನಂತಿದಾರರಿಗೆ ಗೋಚರ',
+        'shared_title'   => 'ವಿನಂತಿದಾರರು ಇದನ್ನು ಸ್ವಯಂ-ಸೇವಾ ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ಓದಬಹುದು.',
     ],
 ];

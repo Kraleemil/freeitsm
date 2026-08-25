@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'വിശദാംശങ്ങൾ കാണാൻ ടിക്കറ്റ് തിരഞ്ഞെടുക്കുക',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'ഫയലുകൾ ആന്തരിക കുറിപ്പിൽ മാത്രമേ ചേർക്കാനാകൂ - സെൽഫ്-സർവീസ് പോർട്ടലിന് അവ കാണിക്കാനാകില്ല. ചേർക്കാൻ പങ്കിടൽ ഒഴിവാക്കുക.',
         'title'       => 'കുറിപ്പ് ചേർക്കുക',
         'note_label'  => 'കുറിപ്പ്',
         'placeholder' => 'നിങ്ങളുടെ കുറിപ്പ് ഇവിടെ നൽകുക…',
@@ -410,5 +411,14 @@ return [
             'department' => 'വകുപ്പ്:',
             'owner'      => 'ഉടമ:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'ആന്തരികം',
+        'internal_title' => 'സഹപ്രവർത്തകർക്ക് മാത്രമേ ഇത് കാണാനാകൂ. സെൽഫ്-സർവീസ് പോർട്ടലിൽ കാണിക്കില്ല.',
+        'shared'         => 'അപേക്ഷകന് ദൃശ്യം',
+        'shared_title'   => 'അപേക്ഷകന് ഇത് സെൽഫ്-സർവീസ് പോർട്ടലിൽ വായിക്കാം.',
     ],
 ];

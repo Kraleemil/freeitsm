@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'Wybierz zgłoszenie, aby zobaczyć szczegóły',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'Pliki można dołączyć tylko do notatki wewnętrznej - portal samoobsługowy nie potrafi ich wyświetlić. Odznacz udostępnianie, jeśli musisz coś dołączyć.',
         'title'       => 'Dodaj notatkę',
         'note_label'  => 'Notatka',
         'placeholder' => 'Wpisz tutaj swoją notatkę…',
@@ -410,5 +411,14 @@ return [
             'department' => 'Dział:',
             'owner'      => 'Właściciel:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Wewnętrzna',
+        'internal_title' => 'Widzą to tylko współpracownicy. Nie jest pokazywane w portalu samoobsługowym.',
+        'shared'         => 'Widoczna dla zgłaszającego',
+        'shared_title'   => 'Zgłaszający może to przeczytać w portalu samoobsługowym.',
     ],
 ];

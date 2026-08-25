@@ -2008,4 +2008,13 @@ Do 10:00 &mdash; Ticket geschlossen (insgesamt 6 Std. verbraucht). <strong>SLA e
         'linked_toast'       => '{name} verknüpft',
         'already_linked'     => '{name} ist bereits verknüpft',
     ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Intern',
+        'internal_title' => 'Nur Kolleginnen und Kollegen sehen dies. Im Self-Service-Portal wird es nicht angezeigt.',
+        'shared'         => 'Für Anfragenden sichtbar',
+        'shared_title'   => 'Der Anfragende kann dies im Self-Service-Portal lesen.',
+    ],
 ];

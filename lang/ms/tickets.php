@@ -265,6 +265,7 @@ return [
     ],
 
     'note_modal' => [
+        'files_shared_hint' => 'Fail hanya boleh dilampirkan pada nota dalaman - portal layan diri tidak dapat memaparkannya. Nyahtanda perkongsian jika anda perlu melampirkan satu.',
         'title'       => 'Tambah nota',
         'note_label'  => 'Nota',
         'placeholder' => 'Masukkan nota anda di sini...',
@@ -1938,4 +1939,13 @@ return [
         ],
     ],
 
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Dalaman',
+        'internal_title' => 'Hanya rakan sekerja boleh melihatnya. Ia tidak dipaparkan dalam portal layan diri.',
+        'shared'         => 'Kelihatan kepada pemohon',
+        'shared_title'   => 'Pemohon boleh membacanya dalam portal layan diri.',
+    ],
 ];

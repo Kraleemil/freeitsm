@@ -1973,4 +1973,13 @@ Jue 10:00 &mdash; se cierra el ticket (6h consumidas en total). <strong>SLA cump
             'widget_created'          => 'Widget creado',
         ],
     ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Interna',
+        'internal_title' => 'Solo la ven sus compañeros. No se muestra en el portal de autoservicio.',
+        'shared'         => 'Visible para el solicitante',
+        'shared_title'   => 'El solicitante puede leerla en el portal de autoservicio.',
+    ],
 ];

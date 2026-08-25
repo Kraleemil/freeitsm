@@ -253,6 +253,7 @@ return [
     ],
 
     'note_modal' => [
+        'files_shared_hint' => 'Arquivos só podem ser anexados a uma nota interna - o portal de autoatendimento não consegue exibi-los. Desmarque o compartilhamento se precisar anexar um.',
         'title' => 'Adicionar nota',
         'note_label' => 'Nota',
         'placeholder' => 'Digite sua nota aqui…',
@@ -1837,5 +1838,14 @@ Qui 10:00 &mdash; ticket fechado (6h consumidas no total). <strong>SLA cumprido<
             'r8_c' => 'Este IP atingiu mais de 10 tentativas de token errado na última hora. Aguarde 1 hora ou limpe as falhas: <code>DELETE FROM sla_cron_runs WHERE client_ip = \'...\' AND outcome = \'auth_failed\'</code>.',
             'tip' => 'Para um passo a passo técnico aprofundado da configuração do cron, incluindo exemplos de Linux e integração com agendadores remotos, consulte <code>docs/sla-cron-setup.md</code> no diretório de instalação do FreeITSM.',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Interna',
+        'internal_title' => 'Somente colegas podem ver isto. Não é exibido no portal de autoatendimento.',
+        'shared'         => 'Visível ao solicitante',
+        'shared_title'   => 'O solicitante pode ler isto no portal de autoatendimento.',
     ],
 ];

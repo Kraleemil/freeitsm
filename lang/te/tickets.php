@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'వివరాలను చూడటానికి టికెట్‌ను ఎంచుకోండి',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'ఫైళ్లను అంతర్గత గమనికకు మాత్రమే జోడించగలరు - సెల్ఫ్-సర్వీస్ పోర్టల్ వాటిని చూపలేదు. జోడించాలంటే భాగస్వామ్యాన్ని తీసివేయండి.',
         'title'       => 'గమనిక జోడించండి',
         'note_label'  => 'గమనిక',
         'placeholder' => 'ఇక్కడ మీ గమనికను నమోదు చేయండి…',
@@ -410,5 +411,14 @@ return [
             'department' => 'విభాగం:',
             'owner'      => 'యజమాని:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'అంతర్గత',
+        'internal_title' => 'దీన్ని సహోద్యోగులు మాత్రమే చూడగలరు. సెల్ఫ్-సర్వీస్ పోర్టల్‌లో చూపబడదు.',
+        'shared'         => 'అభ్యర్థికి కనిపిస్తుంది',
+        'shared_title'   => 'అభ్యర్థి దీన్ని సెల్ఫ్-సర్వీస్ పోర్టల్‌లో చదవగలరు.',
     ],
 ];

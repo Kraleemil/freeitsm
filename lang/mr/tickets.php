@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'तपशील पाहण्यासाठी तिकीट निवडा',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'फाइल्स फक्त अंतर्गत नोंदीला जोडता येतात - सेल्फ-सर्व्हिस पोर्टल त्या दाखवू शकत नाही. जोडण्यासाठी शेअरिंग अनचेक करा.',
         'title'       => 'नोंद जोडा',
         'note_label'  => 'नोंद',
         'placeholder' => 'आपली नोंद इथे टाइप करा…',
@@ -410,5 +411,14 @@ return [
             'department' => 'विभाग:',
             'owner'      => 'मालक:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'अंतर्गत',
+        'internal_title' => 'हे फक्त सहकाऱ्यांना दिसते. सेल्फ-सर्व्हिस पोर्टलमध्ये दाखवले जात नाही.',
+        'shared'         => 'विनंतीकर्त्याला दिसेल',
+        'shared_title'   => 'विनंतीकर्ता हे सेल्फ-सर्व्हिस पोर्टलमध्ये वाचू शकतो.',
     ],
 ];

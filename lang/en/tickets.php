@@ -218,6 +218,17 @@ return [
         'system' => 'System',
     ],
 
+    // Who can see a note, said on the note itself (discussion #103). BOTH states
+    // are labelled rather than only the unusual one: if only shared notes were
+    // marked, "no label" would have to mean internal, and any note type added
+    // later would silently inherit that meaning.
+    'note_visibility' => [
+        'internal'       => 'Internal',
+        'internal_title' => 'Only colleagues can see this. It is not shown in the self-service portal.',
+        'shared'         => 'Visible to requester',
+        'shared_title'   => 'The requester can read this in the self-service portal.',
+    ],
+
     // Tasks on a ticket (discussion #83). One picker does both verbs, so the
     // strings distinguish creating from linking rather than the UI doing it.
     'tasks' => [
@@ -310,7 +321,7 @@ return [
         'files_label'           => 'Files',
         'attach_btn'            => 'Attach',
         'remove_file'           => 'Remove',
-        'files_shared_hint'     => 'Files can only go on an internal note — the self-service portal cannot show them. Untick sharing to attach these, or save without them.',
+        'files_shared_hint'     => 'Files can only go on an internal note - the self-service portal has no way to show them. Untick sharing if you need to attach one.',
         'shared_files_title'    => 'Save without the files?',
         'shared_files_body'     => 'This note is shared with the requester, and a shared note cannot carry files — the portal has no way to show them. The note will be saved and the {n} file(s) discarded. To keep them, cancel and untick sharing.',
         'shared_files_confirm'  => 'Save',

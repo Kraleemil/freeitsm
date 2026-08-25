@@ -275,6 +275,7 @@ return [
     ],
 
     'note_modal' => [
+        'files_shared_hint' => 'Filer kan berre leggjast ved eit internt notat - sjølvbeteningsportalen kan ikkje vise dei. Fjern haken for deling dersom du må leggje ved ei.',
         'title'       => 'Legg til notat',
         'note_label'  => 'Notat',
         'placeholder' => 'Skriv notatet ditt her...',
@@ -1943,5 +1944,14 @@ return [
             'r8_c' => 'Denne IP-en har passert 10 forsøk med feil token den siste timen. Vent 1 time, eller tøm feila: <code>DELETE FROM sla_cron_runs WHERE client_ip = \'...\' AND outcome = \'auth_failed\'</code>.',
             'tip'  => 'For ein grundig teknisk gjennomgang av cron-oppsettet, medrekna Linux-døme og integrasjon med planleggjarar andre stader, sjå <code>docs/sla-cron-setup.md</code> i installasjonsmappa til FreeITSM.',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Intern',
+        'internal_title' => 'Berre kollegaer kan sjå dette. Det vert ikkje vist i sjølvbeteningsportalen.',
+        'shared'         => 'Synleg for innmeldar',
+        'shared_title'   => 'Innmeldaren kan lese dette i sjølvbeteningsportalen.',
     ],
 ];

@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'বিস্তারিত দেখতে একটি টিকিট নির্বাচন করুন',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'ফাইল শুধু অভ্যন্তরীণ নোটে যুক্ত করা যায় - সেলফ-সার্ভিস পোর্টাল সেগুলি দেখাতে পারে না। সংযুক্ত করতে হলে শেয়ারিং বন্ধ করুন।',
         'title'       => 'নোট যোগ করুন',
         'note_label'  => 'নোট',
         'placeholder' => 'এখানে আপনার নোট লিখুন…',
@@ -410,5 +411,14 @@ return [
             'department' => 'বিভাগ:',
             'owner'      => 'মালিক:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'অভ্যন্তরীণ',
+        'internal_title' => 'শুধু সহকর্মীরা এটি দেখতে পারেন। এটি সেলফ-সার্ভিস পোর্টালে দেখানো হয় না।',
+        'shared'         => 'অনুরোধকারী দেখতে পাবেন',
+        'shared_title'   => 'অনুরোধকারী সেলফ-সার্ভিস পোর্টালে এটি পড়তে পারবেন।',
     ],
 ];

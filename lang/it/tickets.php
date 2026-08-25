@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'Seleziona un ticket per visualizzarne i dettagli',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'I file possono essere allegati solo a una nota interna: il portale self-service non è in grado di mostrarli. Deseleziona la condivisione se devi allegarne uno.',
         'title'       => 'Aggiungi nota',
         'note_label'  => 'Nota',
         'placeholder' => 'Inserisci la tua nota qui…',
@@ -410,5 +411,14 @@ return [
             'department' => 'Dipartimento:',
             'owner'      => 'Responsabile:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Interna',
+        'internal_title' => 'Solo i colleghi possono vederla. Non viene mostrata nel portale self-service.',
+        'shared'         => 'Visibile al richiedente',
+        'shared_title'   => 'Il richiedente può leggerla nel portale self-service.',
     ],
 ];

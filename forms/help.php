@@ -33,7 +33,7 @@ $translationNamespaces = ['common', 'forms'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=4"></script>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
-    <link rel="stylesheet" href="../assets/css/inbox.css?v=61">
+    <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
     <link rel="stylesheet" href="../assets/css/help.css?v=1">
     <style>
         /* The only thing a help page should need to say for itself: its colour. */

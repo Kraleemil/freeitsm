@@ -1360,6 +1360,53 @@ body.ticket-popout .ticket-toolbar {
     border-left-color: var(--text-muted, #666);
 }
 
+/* Who can see a note (discussion #103).
+ *
+ * Zammad answers this by painting INTERNAL notes red. We do not, for two
+ * reasons. In FreeITSM a note is internal unless somebody deliberately says
+ * otherwise, so internal is the normal case and the majority — colouring the
+ * majority red makes an ordinary ticket history read as a wall of alarms. And
+ * red is this palette's danger colour, spent on things that are actually wrong;
+ * a colleague writing a private remark is not one of them.
+ *
+ * So the eye goes to the consequential, unusual state instead: this one LEFT
+ * THE BUILDING. That also reuses the signal .note-item already establishes —
+ * the left border says what KIND of note this is — rather than introducing a
+ * second visual language for the same question.
+ */
+.note-item-shared {
+    border-left-color: var(--success-accent, #16a34a);
+}
+
+.note-visibility {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.6;
+    vertical-align: middle;
+    border: 1px solid transparent;
+    cursor: default;
+}
+
+/* Internal is the default and the majority, so it whispers: it exists to remove
+   ambiguity, not to draw the eye. */
+.note-visibility.is-internal {
+    background: var(--surface-hover, #eee);
+    color: var(--text-muted, #666);
+    border-color: var(--border-soft, #e5e5e5);
+    font-weight: 500;
+}
+
+/* Shared is the exception and the one with consequences outside this system. */
+.note-visibility.is-shared {
+    background: var(--success-bg, #dcfce7);
+    color: var(--success-text, #166534);
+    border-color: var(--success-border, #b7e1c4);
+}
+
 .note-header {
     display: flex;
     justify-content: space-between;

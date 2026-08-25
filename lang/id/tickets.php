@@ -37,6 +37,7 @@ return [
     ],
 
     'note_modal' => [
+        'files_shared_hint' => 'Berkas hanya dapat dilampirkan pada catatan internal - portal layanan mandiri tidak dapat menampilkannya. Hapus centang berbagi jika Anda perlu melampirkan satu.',
         'title'       => 'Tambah Catatan',
         'note_label'  => 'Catatan',
         'placeholder' => 'Masukkan catatan Anda di sini...',
@@ -456,5 +457,14 @@ return [
             'department' => 'Departemen:',
             'owner'      => 'Pemilik:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Internal',
+        'internal_title' => 'Hanya rekan kerja yang dapat melihatnya. Tidak ditampilkan di portal layanan mandiri.',
+        'shared'         => 'Terlihat oleh pemohon',
+        'shared_title'   => 'Pemohon dapat membacanya di portal layanan mandiri.',
     ],
 ];

@@ -4807,10 +4807,29 @@ function renderNotes() {
             }).join('') + '</div>';
         }
 
+        // Who can see this note (discussion #103). Until now a ticket's history
+        // gave no way to tell an internal remark from something the requester
+        // can read, which makes a mixed thread impossible to audit after the
+        // fact. BOTH states carry a label: if only shared notes were marked,
+        // "no label" would have to mean internal, and any note kind added later
+        // would silently inherit that meaning.
+        //
+        // A note imported from a tracker is neither — it is not ours to describe
+        // as internal or shared — so it gets no visibility label at all.
+        const isShared = note.is_internal === false;
+        const visClass = note.source ? '' : (isShared ? ' note-item-shared' : ' note-item-internal');
+        const visBadge = note.source ? '' : `
+                    <span class="note-visibility ${isShared ? 'is-shared' : 'is-internal'}"
+                          title="${escapeHtml(t(isShared ? 'tickets.note_visibility.shared_title'
+                                                        : 'tickets.note_visibility.internal_title'))}">
+                        ${escapeHtml(t(isShared ? 'tickets.note_visibility.shared'
+                                                : 'tickets.note_visibility.internal'))}
+                    </span>`;
+
         html += `
-            <div class="note-item${external}">
+            <div class="note-item${external}${visClass}">
                 <div class="note-header">
-                    <span class="note-author">${escapeHtml(author)}</span>
+                    <span class="note-author">${escapeHtml(author)}${visBadge}</span>
                     <span>${formatDateTime(note.created_datetime)}</span>
                 </div>
                 <div class="note-text">${escapeHtml(note.note_text)}</div>
@@ -4879,7 +4898,13 @@ function syncNoteAttachVisibility() {
     // would mean the warning talks about files nobody can see, and saveNote()
     // is about to ask what to do with them.
     group.querySelector('#noteAttachBtn').style.display = isShared ? 'none' : '';
-    if (hint) hint.style.display = (isShared && pendingNoteFiles.length) ? '' : 'none';
+    // ⚠️ The reason shows whenever Share is ticked, NOT only when files have
+    // already been chosen. It used to be conditional on pendingNoteFiles.length,
+    // so ticking Share BEFORE picking a file made the Attach button vanish with
+    // nothing said about why — reported as a bug in discussion #103, and fairly:
+    // a control that disappears without explanation is indistinguishable from
+    // one that is broken.
+    if (hint) hint.style.display = isShared ? '' : 'none';
 }
 
 // Open note modal

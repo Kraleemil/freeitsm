@@ -28,6 +28,7 @@ return [
         'select_ticket' => 'Sélectionnez un ticket pour voir les détails',
     ],
     'note_modal' => [
+        'files_shared_hint' => 'Les fichiers ne peuvent être joints qu\'à une note interne : le portail libre-service ne peut pas les afficher. Décochez le partage si vous devez en joindre un.',
         'title'       => 'Ajouter une note',
         'note_label'  => 'Note',
         'placeholder' => 'Saisissez votre note ici…',
@@ -410,5 +411,14 @@ return [
             'department' => 'Département :',
             'owner'      => 'Propriétaire :',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Interne',
+        'internal_title' => 'Seuls vos collègues la voient. Elle n\'apparaît pas dans le portail libre-service.',
+        'shared'         => 'Visible par le demandeur',
+        'shared_title'   => 'Le demandeur peut la lire dans le portail libre-service.',
     ],
 ];

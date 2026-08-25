@@ -36,6 +36,7 @@ return [
     ],
 
     'note_modal' => [
+        'files_shared_hint' => 'Lêers kan slegs by \'n interne nota gevoeg word - die selfdiensportaal kan dit nie wys nie. Ontmerk deel as jy een wil aanheg.',
         'title'       => 'Voeg nota by',
         'note_label'  => 'Nota',
         'placeholder' => 'Voer u nota hier in...',
@@ -437,5 +438,14 @@ return [
             'department' => 'Departement:',
             'owner'      => 'Eienaar:',
         ],
+    ],
+
+    // Who can see a note (discussion #103). Both states are labelled,
+    // so "no label" never has to mean internal by implication.
+    'note_visibility' => [
+        'internal'       => 'Intern',
+        'internal_title' => 'Slegs kollegas kan dit sien. Dit word nie in die selfdiensportaal gewys nie.',
+        'shared'         => 'Sigbaar vir aanvraer',
+        'shared_title'   => 'Die aanvraer kan dit in die selfdiensportaal lees.',
     ],
 ];
