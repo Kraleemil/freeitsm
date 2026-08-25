@@ -176,6 +176,7 @@ return [
         'rl_3'                  => '3 - Mittel',
         'rl_4'                  => '4 - Hoch',
         'rl_5'                  => '5 - Sehr hoch',
+            'fullscreen'      => 'Vollbild',
         'tab_description'       => 'Beschreibung',
         'tab_reason'            => 'Grund für den Change',
         'tab_risk'              => 'Risikobewertung',

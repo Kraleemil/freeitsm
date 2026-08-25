@@ -498,6 +498,15 @@
          2. the whole incident card opens the incident, not just its title.
        ================================================================== */
     function initChangesMobile() {
+        /* Local, like every other module branch has: the sibling `tr`s are
+           nested inside THEIR functions and are not in scope here. A missing
+           one is a runtime ReferenceError that no parse check would catch. */
+        function tr(key, fallback) {
+            if (typeof window.t !== 'function') return fallback;
+            var v = window.t(key);
+            return (!v || v === key) ? fallback : v;
+        }
+
         function setPane(name) {
             if (!mq.matches) { document.body.removeAttribute('data-cm-pane'); return; }
             document.body.setAttribute('data-cm-pane', name);
@@ -515,8 +524,96 @@
             };
         }
 
+        /* ---- full-screen rich-text editing (Ed's ask, #1187) ----
+           The editor's six fields sit behind a tab strip in one widget, so the
+           whole widget goes full screen rather than a single field — full
+           screen on Description that could not reach Rollback would only move
+           the problem. Its own Close bar and the device back button are the
+           two ways out; TinyMCE's built-in fullscreen exits via a toolbar
+           button this init does not include. */
+        function wireFullScreenEditor() {
+            if (!mq.matches) return;
+            var widget = document.getElementById('cmRichTextWidget');
+            if (!widget || widget.dataset.cmFs) return;
+            widget.dataset.cmFs = '1';
+
+            var label = tr('change-management.editor.fullscreen', 'Full screen');
+            var closeLabel = tr('common.close', 'Close');
+
+            var openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.className = 'cm-fs-open';
+            openBtn.textContent = '⤢  ' + label;
+
+            /* The bar names the FIELD being edited, read live from the active
+               tab. Repeating "Full screen" once you are in it tells nobody
+               anything, and the tab's own text is already translated. */
+            var barTitle = document.createElement('span');
+            barTitle.className = 'cm-fs-title';
+            var closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'ms-close';
+            closeBtn.textContent = closeLabel;
+            var bar = document.createElement('div');
+            bar.className = 'cm-fs-bar';
+            bar.appendChild(barTitle);
+            bar.appendChild(closeBtn);
+
+            /* Both go INSIDE the widget. `refreshFormLayout()` re-parents it
+               with `host.appendChild(richTextWidget)` so it follows the anchor
+               section, and hides it outright when no section anchors it. A
+               sibling button would be stranded in the old section — or left
+               offering full screen on a widget that is `display: none`. */
+            widget.insertBefore(bar, widget.firstChild);
+            widget.insertBefore(openBtn, bar.nextSibling);
+
+            function activeFieldName() {
+                var t = widget.querySelector('.rich-text-tab.active');
+                return (t && t.textContent.trim()) || label;
+            }
+            function activeEditorId() {
+                var p = widget.querySelector('.rich-text-panel.active textarea');
+                return p && p.id;
+            }
+            function setFull(on) {
+                if (on) barTitle.textContent = activeFieldName();
+                document.body.classList.toggle('cm-editor-full', on);
+                openBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+                /* TinyMCE laid its iframe out to a pixel height worked out
+                   while the container was small. Nudge it after the class flip
+                   or the panel is full screen with a 300px typing area. */
+                var id = activeEditorId();
+                var ed = id && window.tinymce && window.tinymce.get(id);
+                if (ed) setTimeout(function () {
+                    try { ed.execCommand('mceAutoResize'); } catch (e) {}
+                    window.dispatchEvent(new Event('resize'));
+                }, 30);
+            }
+            openBtn.addEventListener('click', function () {
+                setFull(true);
+                history.pushState({ cmFull: true }, '');
+            });
+            closeBtn.addEventListener('click', function () {
+                if (history.state && history.state.cmFull) history.back();
+                else setFull(false);
+            });
+            window.addEventListener('popstate', function () { setFull(false); });
+            /* Switching tabs while full screen must retitle the bar and
+               re-measure the editor that just became visible. */
+            widget.addEventListener('click', function (e) {
+                if (!e.target.closest || !e.target.closest('.rich-text-tab')) return;
+                if (document.body.classList.contains('cm-editor-full')) setTimeout(function () { setFull(true); }, 0);
+            });
+        }
+
         setPane('list');
-        var sync = function () { if (!mq.matches) document.body.removeAttribute('data-cm-pane'); };
+        wireFullScreenEditor();
+        var sync = function () {
+            if (!mq.matches) {
+                document.body.removeAttribute('data-cm-pane');
+                document.body.classList.remove('cm-editor-full');   // never strand it on desktop
+            }
+        };
         if (mq.addEventListener) { mq.addEventListener('change', sync); }
         else if (mq.addListener) { mq.addListener(sync); }
     }

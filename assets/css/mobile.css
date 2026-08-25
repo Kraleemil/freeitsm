@@ -3378,4 +3378,104 @@
     .linked-incidents-table tbody tr:not(.linked-incidents-empty) td:first-child { font-weight: 600; }
     .linked-incidents-table .linked-incidents-actions { margin-top: 4px; }
     .linked-incidents-table tr.linked-incidents-empty td { text-align: center; padding: 6px 0; }
+
+    /* ---- 23c: the change EDITOR (Ed's ask) -------------------------------
+       "Put the TinyMCE editor on its own full-screen panel — it's causing all
+       sorts of things to spill off the side."
+
+       Both halves of that were true and they had different causes.
+
+       ⚠️ THE SPILL. `.cm-rich-text-widget` measured **578px inside a 264px flex
+       parent**. It is a flex item, and a flex item defaults to
+       `min-width: auto`, which refuses to shrink below its own min-content
+       width — here the six tabs laid end to end. TinyMCE then sized itself to
+       that 578px, and `.editor-form` (a scroller) absorbed the rest, so no
+       containment check ever complained.
+
+       Same `min-width: 0` as the metrics grid in LAYER 21 and the same tab
+       scroller as everywhere else. The two together bring the widget back to
+       the width of the screen. */
+    .cm-rich-text-widget { min-width: 0; }
+    .rich-text-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .rich-text-tabs::-webkit-scrollbar { display: none; }
+    .rich-text-tab { flex: 0 0 auto; white-space: nowrap; }
+
+    /* ---- the full-screen panel ----
+       Modelled on the Knowledge editor's (LAYER 17i), with one difference that
+       matters: this widget has SIX fields behind a tab strip, so the strip
+       stays inside the panel. Full screen on "Description" that could not
+       reach "Rollback" would just move the problem.
+
+       As there, it carries its own Close bar and answers the device back
+       button, so a phone user can always get out — TinyMCE's own fullscreen
+       plugin exits via a toolbar button this init does not have. */
+    .cm-fs-open {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        margin-bottom: 8px;
+        padding: 10px 14px;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 8px;
+        background: var(--surface-2, #f5f5f5);
+        color: var(--text, #333);
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .cm-fs-bar { display: none; }
+
+    body.cm-editor-full .cm-rich-text-widget {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        margin: 0;
+        padding: 0;
+        background: var(--surface, #fff);
+        display: flex;
+        flex-direction: column;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    body.cm-editor-full .cm-fs-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-shrink: 0;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border, #ddd);
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+    }
+    .cm-fs-title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    body.cm-editor-full .cm-fs-open { display: none; }
+    /* The tab strip keeps its place under the bar; the active panel takes the
+       rest and the editor fills it. */
+    body.cm-editor-full .rich-text-tabs { flex-shrink: 0; }
+    body.cm-editor-full .rich-text-panel.active {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        margin: 0;
+    }
+    body.cm-editor-full .rich-text-panel .tox-tinymce {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto !important;      /* beat TinyMCE's inline pixel height */
+        border: none;
+        border-radius: 0;
+    }
 }
