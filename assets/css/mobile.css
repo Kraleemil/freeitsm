@@ -3874,4 +3874,222 @@
        padding and gave the table a 264px window. Same 14px as everywhere
        else, and still behind the marker so no other page can pick it up. */
     body[data-mobile-page="settings"] .settings-container { padding: 8px 14px 14px; }
+
+    /* ====================================================================
+       LAYER 25 — TASKS module (#1205)
+
+       Every one of the six Tasks pages was 1144px wide on a 360px screen,
+       and identically so: the 730px `.header-nav` bar, exactly as in the
+       Watchtower, Problem Management and Software rounds. Opting the pages
+       in fixed all six at once, and most of what was left was already
+       handled by rules built for other modules:
+
+         table.php     the shared `.dt-wrap` scroller (Assets round)
+         settings      `.lookup-table` scrolls sideways with every other
+                       settings table (#1004 — consistency over bespoke)
+         help.php      the `.help-sidebar` contents strip
+         detail panel  tasks.css already carries its own
+                       `@media (max-width: 900px) { .detail-panel { width: 100% } }`
+
+       ⚠️ tasks.css has TWO media queries of its own (900px and 600px). This
+       layer has to out-rank the 600px one, which it does on document order
+       because the page links mobile.css last — but only if the property is
+       actually restated. `min-width` below is there for that reason.
+
+       WHAT WAS LEFT: the board, and the list table.
+       -------------------------------------------------------------------- */
+
+    /* ---- 25a: the Kanban board — one column per screen, swipe between ----
+
+       The board is a flex row of status columns that scrolls sideways. At
+       240px a column left the phone showing 1.5 of them: one column and a
+       distracting sliver of the next, which is the worst of both worlds —
+       too narrow to read comfortably, too wide to be a clean page.
+
+       So a column takes the full width and the board snaps, which turns a
+       sideways drag into a page turn: To Do → In Progress → Blocked. That
+       is the same gesture people already use on a phone Kanban elsewhere,
+       and it means the cards get the whole screen rather than 240px of it.
+
+       ⭐ `flex: 0 0 100%` resolves against the flex container's CONTENT box,
+       so it is already the viewport minus the board's own padding — no
+       `100vw` arithmetic that a scrollbar could throw out by 15px.
+
+       🔴 `min-width: 0` is load-bearing. tasks.css sets `min-width: 280px`
+       (240px under its own 600px query), and a flex item cannot shrink
+       below its min-width however small its basis — the commonest reason a
+       row will not fit, and invisible to a `docScrollW === innerWidth`
+       check because the board scrolls rather than the page.
+
+       Drag-and-drop between columns stays a desktop interaction (see the
+       scope note in the Mobile-Friendly wiki page); this makes the board
+       READABLE on a phone, not draggable. */
+    .board-view {
+        padding: 12px;
+        gap: 12px;
+        scroll-snap-type: x mandatory;
+        scroll-padding-left: 12px;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+    .board-view .board-column {
+        flex: 0 0 100%;
+        min-width: 0;
+        scroll-snap-align: start;
+    }
+    /* The column's own heading is the "which page am I on" signal, so it
+       stays put while the cards under it scroll. */
+    .board-view .board-column-header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: inherit;
+        border-radius: 10px 10px 0 0;
+    }
+    .board-view .task-card { padding: 12px; }
+    /* A card is now the width of the screen, so its title can afford to be
+       read at a comfortable size rather than a dense-board size. */
+    .board-view .task-card-title { font-size: 15px; line-height: 1.35; }
+
+    /* ---- 25b: which column am I on ----
+
+       With a column taking the whole screen there is no visible edge of the
+       next one, so nothing on screen says a swipe would do anything. A dot
+       per column, injected by mobile.js, is the carousel convention and
+       says it without spending vertical space on a second scroller. */
+    .tsk-board-dots {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 0 10px;
+        flex: 0 0 auto;
+    }
+    .tsk-board-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--border, #d0d0d0);
+        transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .tsk-board-dot.is-current {
+        background: var(--tsk-accent, #7c3aed);
+        transform: scale(1.45);
+    }
+
+    /* ---- 25c: the list view — a card feed ----
+
+       The list table is 593px of Title / Assignee / Due / Priority / Status
+       in 360px. Techniques §11: the tell is whether a column holds prose,
+       and the Title column does — so this is a feed, not a scroller.
+
+       Note this deliberately DIFFERS from the table view one page over,
+       which keeps its columns and scrolls. That is not an inconsistency:
+       the two views exist precisely because one is for reading and the
+       other is for comparing across columns. The settings tables scroll for
+       the same reason they always have (#1004) — they are a set, and this
+       is not part of it. */
+    .task-table thead { display: none; }
+    .task-table,
+    .task-table tbody,
+    .task-table tr { display: block; width: 100%; }
+    .task-table tbody tr {
+        background: var(--surface, #fff);
+        border: 1px solid var(--border-soft, #eee);
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+    }
+    .task-table tbody td {
+        display: inline;
+        border: none;
+        padding: 0;
+    }
+    /* The title leads and owns its own line; everything else reads as one
+       run of detail underneath, separated rather than stacked, so a card
+       stays three lines rather than six. */
+    .task-table tbody td:first-child {
+        display: block;
+        font-weight: 600;
+        font-size: 15px;
+        margin-bottom: 6px;
+    }
+    .task-table tbody td:not(:first-child) {
+        font-size: 13px;
+        color: var(--text-muted, #666);
+    }
+    .task-table tbody td:not(:first-child):not(:nth-child(2))::before {
+        content: ' · ';
+        color: var(--text-faint, #999);
+    }
+    /* ⚠️ Do not swallow the empty state: "No tasks" is a single cell
+       spanning the row and must stay centred rather than becoming a
+       title-styled card. */
+    .task-table tbody td[colspan] {
+        display: block;
+        text-align: center;
+        font-weight: normal;
+        color: var(--text-muted, #666);
+    }
+    .task-table tbody td[colspan]::before { content: none; }
+
+    /* ---- 25d: the detail panel — nothing to drag sideways ----
+
+       Reported from a device: on the task detail screen a horizontal swipe
+       moved things "a hint" and then rubber-banded back, with nothing
+       visibly spilling off the right. Nothing was: the panel measures
+       360/360 and no child crosses its right edge.
+
+       Two things underneath it can move, and both chain outward because
+       neither sets overscroll-behavior:
+
+         · the BOARD is still there behind the fixed panel, and it is a
+           snap scroller with ~1400px of range. Snapping back is exactly
+           what "rubber-banded to the right place" describes.
+         · the title `<input>` holds ~70px of text past its right edge. An
+           input scrolls its own value, and when that runs out the gesture
+           chains to whatever is behind it.
+
+       ⭐ Neither shows up as a layout overflow, which is why looking for
+       something spilling off the right found nothing. A drag does not need
+       an element to be too wide — only a scrollport with somewhere to go.
+
+       `contain` keeps a swipe inside the panel: it may still scroll the
+       title's own text, but it can no longer reach past it. */
+    .detail-panel {
+        overscroll-behavior: contain;
+        overflow-x: hidden;
+    }
+    .detail-panel-body,
+    .detail-panel .detail-content {
+        overscroll-behavior: contain;
+    }
+    /* Show the end of a long title as an ellipsis rather than as a strip of
+       text you have to drag. Editing still scrolls normally once focused. */
+    .detail-title-input:not(:focus) { text-overflow: ellipsis; }
+
+    /* ---- 25e: the Tasks calendar's view switcher ----
+
+       Month / Week / Day sat 69px wide inside a 64px slot — squeezed, not
+       spilling, so the page still measured as contained.
+
+       ⚠️ `.view-toggle` / `.view-btn` are FOUR modules' class names: the
+       Calendar module, Change Management, the tickets calendar and this.
+       mobile.css already fixes them — scoped to `.calendar-main`, which the
+       Tasks calendar does not have, so it missed out. Scoped here to
+       `.tasks-main`, a marker only this module sets, rather than widening
+       the existing rule and restyling three other modules by accident. */
+    .tasks-main .view-toggle { width: 100%; }
+    .tasks-main .view-btn {
+        flex: 1;
+        min-width: 0;
+        padding: 10px 4px;
+        font-size: 13px;
+        min-height: 40px;
+    }
+
+    /* The Gantt's "today" flag pokes 7px past its marker. It sits inside the
+       timeline's own sideways scroller, so it costs nothing on desktop and
+       is only worth pinning so the marker line stays where the date is. */
+    .tl-today-flag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 }

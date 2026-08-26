@@ -1587,4 +1587,86 @@
     syncBar();
     if (mq.addEventListener) { mq.addEventListener('change', syncBar); }
     else if (mq.addListener) { mq.addListener(syncBar); }
+
+})();
+
+/* ====================================================================
+   TASKS — which board column am I on (#1205)
+
+   A SEPARATE top-level IIFE, deliberately. The block above returns
+   early on any page without an .email-list-container — it is the
+   tickets inbox wiring — so anything appended inside it never runs
+   anywhere else. The first version of this was written in there and
+   simply did nothing: the dots were absent rather than broken, which
+   is the quiet kind of failure. Its own IIFE, its own mq.
+   ==================================================================== */
+(function () {
+    var mq = window.matchMedia('(max-width: 768px)');
+    var board = document.getElementById('boardView');
+    if (!board) return;                       // not the Tasks board page
+
+    var dots = document.createElement('div');
+    dots.className = 'tsk-board-dots';
+    // ⚠️ Created hidden inline. mobile.css is @media-only, so it CANNOT
+    // supply a desktop default of display:none — the element would show
+    // on a wide screen. sync() below is what turns it on.
+    dots.style.display = 'none';
+    board.parentNode.insertBefore(dots, board.nextSibling);
+
+    function columns() {
+        return board.querySelectorAll('.board-column');
+    }
+
+    function build() {
+        var n = columns().length;
+        if (dots.childElementCount !== n) {
+            dots.innerHTML = '';
+            for (var i = 0; i < n; i++) {
+                var d = document.createElement('span');
+                d.className = 'tsk-board-dot';
+                dots.appendChild(d);
+            }
+        }
+        // One column is not a carousel — nothing to say, so say nothing.
+        dots.style.display = (mq.matches && n > 1) ? 'flex' : 'none';
+        mark();
+    }
+
+    function mark() {
+        var cols = columns();
+        if (!cols.length) return;
+        // Which column is nearest the left edge of the scroller. Derived
+        // from scrollLeft rather than a stored index, so it stays right
+        // whether the board was swiped, scrolled or jumped to.
+        var step = board.scrollWidth / cols.length;
+        var at   = Math.round(board.scrollLeft / step);
+        if (at < 0) at = 0;
+        if (at > cols.length - 1) at = cols.length - 1;
+        for (var i = 0; i < dots.children.length; i++) {
+            dots.children[i].classList.toggle('is-current', i === at);
+        }
+    }
+
+    var tick = null;
+    board.addEventListener('scroll', function () {
+        if (tick) return;
+        tick = requestAnimationFrame(function () { tick = null; mark(); });
+    }, { passive: true });
+
+    // Wrap the global tasks.js already exposes. Guarded: if the board page
+    // ever stops defining it, the dots simply never rebuild rather than
+    // the whole mobile bundle throwing on load.
+    if (typeof window.renderBoard === 'function') {
+        var realRenderBoard = window.renderBoard;
+        window.renderBoard = function () {
+            var r = realRenderBoard.apply(this, arguments);
+            build();
+            return r;
+        };
+    }
+
+    function sync() { build(); }
+    sync();
+    if (mq.addEventListener) { mq.addEventListener('change', sync); }
+    else if (mq.addListener) { mq.addListener(sync); }
 })();
