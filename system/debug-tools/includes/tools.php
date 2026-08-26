@@ -280,6 +280,37 @@ function getDebugTools() {
             'duration' => '~1 second',
             'persists' => 'None. Read-only, and deliberately does NOT contact the directory — this is a question about configuration, and a tool that hangs for thirty seconds on an unreachable host answers nothing useful. DNs, bind accounts and filters are masked so the report can be sent on.',
         ],
+        [
+            'id'       => 'D012',
+            'slug'     => 'd012',
+            'file'     => 'D012_ticket_attachments.php',
+            'title'    => 'Ticket attachments — every file, end to end',
+            'category' => 'Tickets',
+            'icon'     => 'clip',
+            'desc'     => 'Name a ticket and check every file on it: the row, the folder, the path, the bytes — and whether it would actually download.',
+            'keywords' => 'attachment attachments document documents file files download missing storage recorded but missing note notes recording upload uploads htaccess permissions hash corrupt truncated 410 guard access denied leak tenancy ticket d012',
+            'when'     => 'Run this when somebody reports that an attachment will not open — especially "That file is recorded but missing from storage", a download that returns nothing, or a file that used to work and now does not. Enter the ticket reference and it checks every file on that ticket, of every kind. It is also the fastest way to answer the question that usually comes first: WHICH attachment do they mean? A ticket carries files from four separate subsystems — email attachments, documents attached to the ticket, documents attached to a note, and screen recordings — and they share no table, no folder, no reader and no id sequence. The report names the subsystem and the exact URL on every line, so a reporter\'s screenshot can be matched to a row without guessing.',
+            'input'    => ['name' => 'ref', 'label' => 'Ticket reference', 'placeholder' => 'e.g. TICKET-000107'],
+            'checks'   => [
+                'Resolves the ticket from its reference (ticket_number, or the raw id as a fallback) and says if it is in the trash',
+                'Whether each of the four attachment subsystems even exists on this install — tables and columns — so an installation older than a feature identifies itself instead of just reporting nothing found',
+                'The three storage folders: exist, readable, writable, how many files they hold, and whether the .htaccess and web.config guards are present AND actually contain a deny rule',
+                'Every file on the ticket, listed with its subsystem, its database row, the value stored for it, and the exact endpoint URL that serves it',
+                'Per file: the path resolved through the application\'s own resolver (not a copy of the rule), containment inside its folder, existence, readability, and the mode on disk',
+                'Per file: every byte read through to the end, which is what catches a truncated or locked file that passes every earlier check',
+                'Per file: length against the length recorded at upload, and SHA-256 against the hash stored at upload where there is one — so "present" is separated from "intact"',
+                'Per file: what Content-Type and disposition the browser would actually receive, and what the leading bytes say the file really is',
+                'Per file: a real download round trip — copied to the system temp folder, verified byte-for-byte, deleted, and the deletion confirmed',
+                'For anything reported missing, WHY the check failed: genuinely absent, the path is a folder, a broken symlink, present under a different casing (a Windows-to-Linux move, which Linux cares about and Windows does not), a containing folder PHP may not read (where the file is present and the check still says no), or an open_basedir that excludes it',
+                'The permission guards themselves — documentCanView() and analystCanAccessTicket() are called for real, and every refusal is paired with a positive control so a guard that refuses everybody cannot pass as a guard that works',
+                'Whether the module gate, the company gate and the guessed-id gate each actually refuse, and whether the requester could fetch a note\'s file through the portal — which must be true for a shared note and false for an internal one',
+                'A control that cannot run says so rather than passing: on a single-company install there is no second company to be refused, and reporting that as a pass would be a lie about the one thing the section exists to establish',
+                'External-link documents and soft-deleted documents are reported as what they are rather than as missing files',
+                'A verdict that names the case: all failures missing from one folder decided from the state of the FOLDER, not from this ticket\'s handful of files — an absent or empty folder reads as an upgrade that left the uploads behind, a folder still holding files reads as deletion',
+            ],
+            'duration' => '~1 second, plus a moment per megabyte attached',
+            'persists' => 'None that survive the run. Read-only against the database and the application\'s files; the only write is one temp-folder copy per file, made outside the application, verified, then deleted — and the report says whether each deletion succeeded.',
+        ],
     ];
 }
 
@@ -304,6 +335,7 @@ function debugToolIcon($key) {
         'shield' => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline>',
         'people' => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
         'sync'   => '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
+        'clip'   => '<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>',
     ];
     $inner = $icons[$key] ?? '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>';
     return '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' . $inner . '</svg>';
