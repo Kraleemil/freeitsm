@@ -67,6 +67,8 @@ body {
 .portal-nav { display: flex; align-items: center; gap: 8px; margin-left: 40px; }
 .portal-nav .nav-btn { min-width: 104px; justify-content: center; }
 .portal-user { display: flex; align-items: center; position: relative; }
+/* Phone-only control; the @media block near the bottom of this file reveals it. */
+.ss-nav-btn, .ss-nav-overlay { display: none; }
 
 /* ── App-shell pages ────────────────────────────────────────────────────── */
 /* Most portal pages scroll normally (the body override above undoes inbox.css's
@@ -528,4 +530,276 @@ body.portal-app .portal-layout { padding: 0; max-width: none; margin: 0; }
     /* Table rows get cramped; hide the least important columns rather than
        letting the table scroll sideways — see the mobile-friendly guidance. */
     .ticket-table .col-optional { display: none; }
+}
+
+/* ── Phone layout ────────────────────────────────────────────────────────────
+ *
+ * The portal keeps its OWN mobile layer rather than opting into the analyst
+ * app's `mobile.css`. The ten module rounds so far all began by opting in,
+ * because those modules share the app shell — the same `nav.header-nav`, the
+ * same waffle menu, the same 1144px overflow. The portal shares none of it:
+ * it has `.portal-header`, `.portal-nav`, `.portal-brand` and its own layout.
+ * Pulling in ~4,200 lines written against analyst markup would drag the
+ * §15 hazard across a public-facing surface, and `.summary-cards`,
+ * `.search-box`, `.form-input` and `.modal-content` already exist on BOTH
+ * sides. The techniques come from the wiki; the stylesheet stays local.
+ *
+ * ⚠️ This block sits AFTER the 900/640/500 blocks above deliberately. At
+ * 360px all of them apply, so where they disagree this one wins on document
+ * order at equal specificity. That is load-bearing in one place — see the
+ * brand wordmark below.
+ * ──────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+    /* ---- the header, which was the whole 633px ----
+     *
+     * All six signed-in pages measured 633px on a 360px screen, identically,
+     * because the cause is the one shared header rather than any page:
+     *
+     *     4 nav buttons x 104px min-width  = 416
+     *   + 3 gaps x 8px                     =  24
+     *   + .portal-nav margin-left          =  40
+     *                                        ---
+     *                                        480   before brand or avatar
+     *
+     * 🔴 The 640px block above already tried: `.portal-nav a { padding: 6px
+     * 10px }`. That was INERT — padding cannot shrink a button held open by
+     * `min-width: 104px`. The floor is the constraint, and releasing it is
+     * the fix. Same family as the Tasks board (Techniques 14): a flex item
+     * will not go below its floor however little room you leave it. */
+    .portal-header {
+        height: 48px;
+        padding: 0 12px;
+    }
+    .portal-brand { flex: 1 1 auto; min-width: 0; gap: 8px; }
+    .portal-user  { flex: 0 0 auto; }
+
+    /* ---- the nav becomes a right-side drawer ----
+     *
+     * The same move the ten analyst modules make. `mobile.js`'s
+     * `injectViewsHamburger()` turns `.header-nav` — a bar of destinations in
+     * the module header — into a ☰ drawer at top right, and `.portal-nav` is
+     * structurally the same thing, so it behaves the same way. (The scrolling
+     * chip rows elsewhere in the rollout are for FILTERS, which is a
+     * different job: a filter row is worth its vertical space because you
+     * change filters constantly; you pick a destination once.)
+     *
+     * Built here rather than by opting into mobile.js, for the reason at the
+     * top of this block — but deliberately to the same dimensions, so the
+     * portal and the app feel like one product on a phone. */
+    .portal-nav {
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: auto;
+        margin-left: 0;
+        height: 100dvh;
+        width: 74vw;
+        max-width: 300px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        background: var(--surface, #fff);
+        box-shadow: -4px 0 30px rgba(0, 0, 0, 0.35);
+        padding: 58px 12px 16px;        /* top pad clears the bar */
+        overflow-y: auto;
+        z-index: 3000;
+        transform: translateX(100%);
+        visibility: hidden;
+        transition: transform .22s ease, visibility .22s;
+    }
+    body.ss-nav-open .portal-nav { transform: translateX(0); visibility: visible; }
+
+    /* 🔴 In the white drawer these need dark text. `.nav-btn` comes from
+     * inbox.css and is written light-on-accent for the header bar, so without
+     * this it is white text on white — invisible but tappable, which is the
+     * worst failure mode. `!important` because inbox.css's `.nav-btn:link`
+     * carries the colour and out-specifies a bare class. */
+    .portal-nav .nav-btn,
+    .portal-nav .nav-btn:link,
+    .portal-nav .nav-btn:visited {
+        color: var(--text, #333) !important;
+        background: none !important;
+        border: none !important;
+        min-width: 0;              /* the floor that made the header 633px */
+        justify-content: flex-start;
+        padding: 12px 14px;
+        font-size: 15px;
+        min-height: 44px;
+    }
+    .portal-nav .nav-btn.active {
+        background: var(--ss-accent-soft, #d1fae5) !important;
+        font-weight: 600;
+    }
+
+    .ss-nav-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        margin-right: 6px;
+        border: none;
+        background: none;
+        /* ⚠️ NOT `inherit`. On the analyst side that mistake produced a
+         * near-black glyph on a near-black bar — tappable but invisible. The
+         * avatar beside this states its own colour and was never affected;
+         * this states its own for the same reason. */
+        color: #fff;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        border-radius: 6px;
+    }
+    .ss-nav-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, .35);
+        z-index: 2999;
+        display: none;
+    }
+    body.ss-nav-open .ss-nav-overlay { display: block; }
+
+    /* ---- keep the wordmark: it is the branding ----
+     *
+     * The 640px block hides `.portal-brand span` outright to buy nav room.
+     * With the nav on its own row that room is no longer needed, and hiding
+     * it is actively wrong for a branded portal: the wordmark IS the
+     * customer's identity, so deleting it on the device most requesters use
+     * removes the branding exactly where it matters. It truncates instead.
+     *
+     * This rule only works because this block comes after the 640px one. */
+    .portal-brand span {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+    }
+    /* 🔑 Sized by max-height AND max-width, never by an assumed aspect ratio.
+     * The stock logo is 1124x301 (a wide wordmark), but a customer swapping
+     * `assets/images/CompanyLogo.png` could hand us a square badge or a tall
+     * crest. `object-fit: contain` keeps whatever they supply inside the bar
+     * instead of stretching it or pushing the header wide. */
+    .portal-brand img {
+        height: 24px;
+        max-width: 120px;
+        object-fit: contain;
+    }
+
+    /* ---- iOS anti-zoom, portal-wide ----
+     *
+     * iOS zooms into any field whose text is under 16px and does NOT zoom
+     * back out, so one tap on a search box leaves the whole portal
+     * magnified. Every portal page had at least one: 12px on the ticket
+     * filter, 13.3px on the new-ticket description, 14px on the reply box
+     * and the mailbox picker, 15px on the subject and the help search.
+     *
+     * ⚠️ `!important` is load-bearing, not laziness. Page CSS arrives via
+     * `$pageStyles`, which header.php emits in a <style> AFTER this
+     * stylesheet, so `.compose-top input` (0,1,1) and `.tk-filter` (0,1,0)
+     * both beat anything of equal weight written here. mobile.css's
+     * settings-page rule carries `!important` for exactly this reason.
+     *
+     * 🔑 Written as an EXCLUSION rather than a list of the types that need
+     * it — a field type added to the portal later is covered by default
+     * instead of quietly missed, which is how the settings rule once let a
+     * `datetime-local` through at the browser default. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="range"]):not([type="color"]):not([type="submit"]):not([type="button"]),
+    select,
+    textarea {
+        font-size: 16px !important;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    /* A native date field ignores the width it is given on iOS and sizes
+     * itself to the date it draws — and iOS spells the month out. Techniques
+     * 20; the sixth place in this product to need it. */
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        min-width: 0;
+    }
+    input[type="date"]::-webkit-date-and-time-value,
+    input[type="time"]::-webkit-date-and-time-value {
+        margin: 0;
+        text-align: left;
+    }
+
+    /* ---- the dashboard's ticket tables become a card feed ----
+     *
+     * The tickets table is Ticket / Subject / Status / Priority / Updated —
+     * 542px of it on a 360px screen. The Subject column holds prose, which
+     * is the tell for a feed rather than a sideways scroller (Techniques 11).
+     *
+     * 🔴 The 500px block above intends to handle this: `.ticket-table
+     * .col-optional { display: none }`. That class appears NOWHERE in the
+     * markup, so the rule has never matched anything and the table has been
+     * 542px the whole time. Second inert rule in this file, after the nav
+     * padding one — both look like the problem is handled when it is not.
+     *
+     * Hiding columns would have been the wrong answer anyway: it decides FOR
+     * the requester that priority does not matter to them. The feed keeps
+     * every value and gives the subject the room to be read. */
+    .ticket-table thead { display: none; }
+    .ticket-table,
+    .ticket-table tbody,
+    .ticket-table tr { display: block; width: 100%; }
+    .ticket-table tbody tr {
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        background: var(--surface, #fff);
+    }
+    .ticket-table tbody td {
+        display: inline;
+        border: none;
+        padding: 0;
+    }
+    /* The reference leads on its own line, the subject gets the next, and
+     * the badges and date read as one run underneath — three lines per
+     * ticket rather than five stacked cells. */
+    .ticket-table tbody td:first-child { display: block; margin-bottom: 2px; }
+    .ticket-table tbody td:nth-child(2) {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 8px;
+        line-height: 1.35;
+    }
+    .ticket-table tbody td:nth-child(n+3) { margin-right: 8px; }
+    .ticket-table tbody td:nth-child(n+3) .ticket-date { font-size: 13px; }
+    /* ⚠️ Do not swallow the empty state — "no tickets" is one cell spanning
+     * the row and must stay a centred sentence, not a subject-styled card. */
+    .ticket-table tbody td[colspan] {
+        display: block;
+        text-align: center;
+        font-weight: normal;
+        margin: 0;
+    }
+
+    /* A tap target has to be reachable, not just present. */
+    .portal-nav .nav-btn,
+    .portal-action,
+    .ticket-table .ticket-link { min-height: 24px; }
+    .portal-action { min-height: 44px; }
+
+    /* 🔴 The drawer lives inside `.portal-header`, which is `position: sticky`
+     * with `z-index: 100` — and that creates a STACKING CONTEXT. So the nav's
+     * `z-index: 3000` is resolved INSIDE the header and the whole drawer
+     * paints at the header's level 100, underneath the overlay at 2999.
+     *
+     * The drawer still slid in, still measured on screen, still had the right
+     * colours — it was only untappable, because the overlay was in front of
+     * it. `elementFromPoint` on a nav link returned `.ss-nav-overlay`, which
+     * is the only check that catches this; every geometry assertion passed.
+     *
+     * Raising the header only while the drawer is open keeps the change to
+     * the moment it is needed, rather than re-stacking a sticky header for
+     * every page all the time. */
+    body.ss-nav-open .portal-header { z-index: 3000; }
 }

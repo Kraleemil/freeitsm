@@ -86,7 +86,7 @@ $pageTitle  = isset($pageTitleKey) ? t($pageTitleKey) : t('self-service.portal')
     <title><?php echo htmlspecialchars($pageTitle); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/self-service.css?v=2">
+    <link rel="stylesheet" href="../assets/css/self-service.css?v=6">
     <?php if ($pageStyles !== ''): ?>
     <style><?php echo $pageStyles; ?></style>
     <?php endif; ?>
@@ -100,7 +100,7 @@ $pageTitle  = isset($pageTitleKey) ? t($pageTitleKey) : t('self-service.portal')
             <img src="../assets/images/CompanyLogo.png" alt="">
             <span><?php echo htmlspecialchars(t('self-service.portal')); ?></span>
         </div>
-        <nav class="portal-nav">
+        <nav class="portal-nav" id="portalNav">
             <?php foreach ($portalNav as $key => $item): ?>
             <a href="<?php echo htmlspecialchars($item['href']); ?>"
                class="nav-btn<?php echo $key === $activeNav ? ' active' : ''; ?>">
@@ -108,7 +108,32 @@ $pageTitle  = isset($pageTitleKey) ? t($pageTitleKey) : t('self-service.portal')
             </a>
             <?php endforeach; ?>
         </nav>
+        <?php
+        /*
+         * The nav's phone control. On a phone `.portal-nav` becomes a right-side
+         * drawer (see the @media block in self-service.css) — the same move
+         * mobile.js makes for `.header-nav` across the analyst modules, so the
+         * portal and the app behave alike. Both this button and the overlay are
+         * `display: none` until that breakpoint, so desktop is untouched.
+         *
+         * Rendered unconditionally rather than injected by script: the nav it
+         * opens is server-rendered, so building the opener the same way means
+         * there is no moment where the drawer exists but cannot be opened.
+         */
+        ?>
+        <button type="button" class="ss-nav-btn" onclick="ssToggleNav()"
+                aria-label="<?php echo htmlspecialchars(t('self-service.nav.menu')); ?>"
+                aria-expanded="false" aria-controls="portalNav">&#9776;</button>
         <?php include __DIR__ . '/user-menu.php'; ?>
     </div>
+    <div class="ss-nav-overlay" onclick="ssToggleNav()"></div>
+    <script>
+    /* Mirrors ssToggleMenu() in user-menu.php — one drawer idiom for the portal. */
+    function ssToggleNav() {
+        var open = document.body.classList.toggle('ss-nav-open');
+        var btn  = document.querySelector('.ss-nav-btn');
+        if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    </script>
 
     <div class="portal-layout">

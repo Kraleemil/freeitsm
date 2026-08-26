@@ -24,6 +24,8 @@ return [
         'tickets'     => 'My Tickets',
         'help_centre' => 'Knowledge',
         'help'        => 'Help',
+        // Screen-reader label for the phone nav drawer's toggle.
+        'menu'        => 'Menu',
     ],
 
     'catalogue' => [

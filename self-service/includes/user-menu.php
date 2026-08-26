@@ -271,6 +271,17 @@ if (count($_um_parts) > 1) {
         text-align: center;
         font-family: 'Consolas', monospace;
     }
+
+    /* ── Phone ──────────────────────────────────────────────────────────────
+     * iOS zooms into any field under 16px and stays zoomed. These live here
+     * rather than in self-service.css because this component's <style> is
+     * included in the BODY, after that stylesheet in the <head> — so a rule
+     * there at equal specificity would lose on document order and do nothing.
+     * The component owns its own styles; this keeps that true on a phone. */
+    @media (max-width: 768px) {
+        .ss-form-input { font-size: 16px; min-height: 44px; }
+        .ss-menu-item  { min-height: 44px; }
+    }
 </style>
 
 <div class="portal-user">
