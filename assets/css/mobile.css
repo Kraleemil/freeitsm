@@ -4092,4 +4092,156 @@
        timeline's own sideways scroller, so it costs nothing on desktop and
        is only worth pinning so the marker line stays where the date is. */
     .tl-today-flag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ---- 25f: stop iOS zooming the page when a field is focused ----
+
+       Ed: "when adding a task on mobile can you use that trick to stop it
+       zooming in". iOS Safari zooms in on focus for ANY form field whose
+       text is under 16px, and does not zoom back out afterwards — so one
+       tap on the quick-add box leaves the whole board magnified.
+
+       Adding a task is NOT a modal in this module — it is an inline
+       `.quick-add-input` that unfolds under a column heading — so LAYER 3's
+       anti-zoom, which only knows `.modal-content` and `.modal .form-group`,
+       could never reach it. Same shape as the search-modal fix in #1193.
+
+       🔴 The reported field was one of NINE: tasks.css sets 13px on every
+       field in the module, so the search box, the three sidebar filters, the
+       subtask add box, the comment box, the tag picker, both link searches
+       and the detail selects and date fields all zoom identically. Fixing
+       only the quick-add box would have left eight ways to hit it.
+       `.detail-title-input` is already 18px and is the only one that was safe.
+
+       ⚠️ TWO scopes are needed, not one: `.detail-panel` is a SIBLING of
+       `.tasks-container`, not a child of it, so a single container scope
+       silently misses every field in the panel — which is most of them.
+
+       ⚠️ `.search-input` is FOUR modules' class (Tasks plus the asset,
+       software and ticket libraries). Scoped to `.tasks-container` so this
+       does not restyle the other three, which have their own rule already.
+       Every other class here is Tasks-only, verified against the markup.
+
+       Note the sidebar is `display:none` under 600px in tasks.css, so its
+       search and filters only matter in the 601-768px band — a phone in
+       landscape. They are included because the band is real, not decorative. */
+    .tasks-container .search-input,
+    .tasks-container .sidebar-select,
+    .tasks-container .quick-add-input,
+    .detail-panel .detail-input,
+    .detail-panel .detail-select,
+    .detail-panel .tag-picker-input,
+    .detail-panel .link-search-input,
+    .detail-panel .subtask-add input,
+    .detail-panel .comment-add textarea {
+        font-size: 16px;
+    }
+    /* The standing 44px touch target, on the controls that are tapped rather
+       than read. Left off the comment textarea, which sizes itself. */
+    .tasks-container .quick-add-input,
+    .tasks-container .sidebar-select,
+    .detail-panel .detail-input,
+    .detail-panel .detail-select,
+    .detail-panel .subtask-add input,
+    .detail-panel .tag-picker-input,
+    .detail-panel .link-search-input {
+        min-height: 44px;
+        box-sizing: border-box;
+    }
+
+    /* ---- 25g: the detail panel's paired rows must stack ----
+
+       Ed: "on task details the due date form field is spilling off to the
+       right which is giving a bit of horizontal scroll".
+
+       `.detail-row` is a flex pair — Status+Priority, Assignee+Team, and
+       Start date+Due date — with `.detail-field { flex: 1 }`. A flex item
+       defaults to `min-width: auto`, so it cannot shrink below its content's
+       intrinsic width however small the basis. A date input's intrinsic
+       width is set by the date text plus its own padding and border.
+
+       ⚠️ That text is NOT the same width everywhere, and the difference is
+       most of the bug. A native date input is drawn by the platform, and iOS
+       Safari spells the month out — Ed: "the example date is 12 May 2026 —
+       much bigger than numbers" — where Chrome on Windows shows 12/05/2026.
+       Measured in headless Chrome the pair needs 330px in a 312px row, an
+       18px floor; on an iPhone, with a spelled-out month at 16px, it is a
+       good deal worse. A desktop measurement UNDERSTATES this one and at
+       13px showed it fitting — which is exactly why it reached Ed. Do not
+       trust a desktop browser to clear a native date field.
+
+       🔴 The panel CLIPS the overflow, so a "does anything cross the panel's
+       right edge" check returns NONE and the page stays 360px wide. This is
+       a SHRINK FLOOR, not an overflow, and the only measurement that shows
+       it is the row's own scrollWidth against its clientWidth. I went
+       looking for this with the wrong comparison in #1205 and concluded the
+       rubber-band was pure overscroll — it was half overscroll and half
+       this, and Ed spotted the half I had measured past.
+
+       Stacking every pair rather than only the date one: the select rows sit
+       ~30px inside the same floor, so a longer status name or a
+       double-barrelled team name puts them in exactly the same place, and a
+       phone wants one labelled field per line regardless. `min-width: 0`
+       releases the floor for anything inside the panel that stays in a row. */
+    .detail-panel .detail-row {
+        flex-direction: column;
+        gap: 12px;
+    }
+    .detail-panel .detail-row .detail-field {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: 100%;
+    }
+    /* Belt and braces for the field itself: `width: 100%` in tasks.css is
+       already border-box (inbox.css sets it globally), so this only has to
+       stop the input asserting its intrinsic width as a minimum. */
+    .detail-panel .detail-input,
+    .detail-panel .detail-select {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    /* The task title is a plain input carrying the full title, so its text
+       runs ~43px past the field on a phone. It cannot scroll the page (an
+       input clips its own overflow) but a clipped word mid-letter reads as
+       broken, and a horizontal drag over it moves the text rather than the
+       panel, which is its own small confusion. Truncate it instead; the
+       whole title is still there on focus and in the board card. */
+    .detail-panel .detail-title-input {
+        text-overflow: ellipsis;
+    }
+
+    /* ---- 25h: why the date fields were WIDER than the dropdowns ----
+
+       Ed: "the start date and due date form fields are wider than the
+       dropdowns (status, priority etc) why is this?"
+
+       Because they are not being sized by the CSS at all. tasks.css gives
+       `.detail-select` and `.detail-input` ONE shared rule — same
+       `width: 100%`, same padding, same border — so nothing in the
+       stylesheet makes them differ. But a native date input on iOS Safari
+       IGNORES `width: 100%` and keeps its own intrinsic width, which is set
+       by the spelled-out date it draws. The select obeys the CSS; the date
+       field does not. That is the whole difference, and it is also what was
+       spilling off the right in the first place.
+
+       `-webkit-appearance: none` makes iOS honour the box model, and the
+       ::-webkit-date-and-time-value reset clears a default margin that also
+       pushes the width out. The native picker still opens on tap.
+
+       🔑 This is the FIFTH time this exact control has needed this exact
+       fix — LAYER 3 for `.modal-content`, the asset detail pane (the #767
+       spill), the settings pages and the Knowledge editor all carry it
+       already. None of their selectors can see `.detail-input`, so Tasks
+       had to have its own copy. Worth knowing that a bare `input[type=date]`
+       inside a phone layout needs this EVERY time, not occasionally. */
+    .detail-panel .detail-input[type="date"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .detail-panel .detail-input[type="date"]::-webkit-date-and-time-value {
+        margin: 0;
+        text-align: left;
+    }
 }
