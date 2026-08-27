@@ -38,6 +38,7 @@
 
 require_once __DIR__ . '/../capabilities.php';
 require_once __DIR__ . '/../rbac.php';
+require_once __DIR__ . '/../knowledge/visibility.php';
 
 /**
  * @return array<string,array{description:string,schema:array,capability:?string,handler:callable}>
@@ -757,13 +758,28 @@ function warbotToolSearchKnowledge(PDO $conn, array $args, int $analystId): stri
     if ($q === '') return 'Give me something to search for.';
     $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
 
+    // ⚠️ BEHAVIOUR CHANGE on multi-company installs. This search took $analystId
+    // and never used it: it matched titles across EVERY company, and Warbot
+    // answers in a channel where everyone sees the reply. It now reads through
+    // includes/knowledge/visibility.php as the asking analyst, so it returns the
+    // company they are working in plus everything shared — the same rule as every
+    // other Knowledge reader, and the access list when that lands.
+    //
+    // 📌 The broader question is NOT settled here: no Warbot tool is company-
+    // scoped, and the header above reasons about WHAT a tool may return (no
+    // bodies, no requester details) without ever reaching WHOSE it may return.
+    // Whether a war room is deliberately install-wide is a decision about the
+    // module, not about Knowledge, and it is left open rather than answered by
+    // one tool quietly disagreeing with the rest.
+    $viewer = KnowledgeViewer::forAnalyst($conn, $analystId);
+    [$visSql, $visParams] = knowledgeVisibilitySql($conn, $viewer, '', ['lifecycle' => 'live']);
+
     $stmt = $conn->prepare(
         "SELECT id, title FROM knowledge_articles
-          WHERE title LIKE :q ESCAPE '\\\\'
-            AND is_published = 1 AND (is_archived IS NULL OR is_archived = 0)
+          WHERE title LIKE ? ESCAPE '\\\\'" . $visSql . "
           ORDER BY view_count DESC, title LIMIT 8"
     );
-    $stmt->execute([':q' => $like]);
+    $stmt->execute(array_merge([$like], $visParams));
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (!$rows) return "No published article title matches \"$q\".";

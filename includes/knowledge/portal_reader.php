@@ -75,7 +75,7 @@ function portalKnowledgeScope(PDO $conn, ?int $tenantId, string $alias = 'a'): a
     //
     // The CUSTOMER rung stays hard-coded (via forPortalUser), for the reason in
     // the header: whoever is asking does not get to declare how trusted they are.
-    $viewer = KnowledgeViewer::forPortalUser(null, $tenantId);
+    $viewer = KnowledgeViewer::forPortalUser($conn, null, $tenantId);
     [$sql, $params] = knowledgeVisibilitySql($conn, $viewer, $alias, ['lifecycle' => 'live']);
 
     // This function's contract is a WHERE fragment with NO leading AND — three

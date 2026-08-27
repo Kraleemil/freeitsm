@@ -108,7 +108,7 @@ function kbRetrieveArticles(PDO $conn, string $question, int $limit = 5, ?int $t
     // without anyone remembering to come back here.
     $kv = ($viewer instanceof KnowledgeViewer)
         ? $viewer
-        : KnowledgeViewer::fromLegacyAudienceString($tenantId, (string) $viewer);
+        : KnowledgeViewer::fromLegacyAudienceString($conn, $tenantId, (string) $viewer);
 
     [$scopeSql, $scopeParams] = knowledgeVisibilitySql($conn, $kv, '', ['lifecycle' => 'live']);
 

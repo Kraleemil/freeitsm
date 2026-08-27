@@ -40,6 +40,7 @@
 require_once dirname(__DIR__, 3) . '/includes/service_context.php';
 require_once dirname(__DIR__, 3) . '/includes/services/knowledge.php';
 require_once dirname(__DIR__, 3) . '/includes/knowledge/audience.php';   // Audience:: used directly below
+require_once dirname(__DIR__, 3) . '/includes/knowledge/visibility.php';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -215,13 +216,22 @@ function apiKnowledgeArticlesList(PDO $conn, array $apiKey, array $params, array
         $args[]  = $_GET['audience'];
     }
 
-    // The key's company scope. NOTE: apiKeyKnowledgeFilter, NOT apiKeyTenantFilter —
-    // shared (NULL) articles belong to every company here, not to Default. See the
-    // docblock on that function.
-    [$tenantSql, $tenantParams] = apiKeyKnowledgeFilter($conn, $apiKey, 'a');
-    if ($tenantSql !== '') {
-        $where[] = ltrim(substr($tenantSql, 5));   // strip the leading ' AND '
-        $args    = array_merge($args, $tenantParams);
+    // What this key may read: its company scope, the audience ladder, and the
+    // access list when it lands — from includes/knowledge/visibility.php, so the
+    // API cannot drift from the UI.
+    //
+    // Lifecycle is deliberately 'any': this endpoint has its own is_published /
+    // is_archived filters above, driven by query parameters, and the REST API is
+    // an authoring interface as much as a reading one. Lifecycle is not a
+    // permission, which is exactly why it is a separate knob.
+    //
+    // ⚠️ forApiKey(), NOT forAnalyst(). A key carries its own company_scope —
+    // possibly several companies — and does not follow its analyst's header
+    // switcher. Mirrors apiKeyKnowledgeFilter(), which this replaces.
+    [$visSql, $visParams] = knowledgeVisibilitySql($conn, KnowledgeViewer::forApiKey($conn, $apiKey), 'a', ['lifecycle' => 'any']);
+    if ($visSql !== '') {
+        $where[] = ltrim(substr($visSql, 5));   // strip the leading ' AND '
+        $args    = array_merge($args, $visParams);
     }
 
     $sortable = [

@@ -81,11 +81,25 @@ final class KnowledgeViewer
     private ?int $userId;
 
     /**
-     * The company whose view this is — already resolved (an analyst's is their
-     * switched-to company, from the header switcher). NULL means "no company
-     * context", which for Knowledge means shared articles only.
+     * The companies whose view this is, already resolved. THREE states, and they
+     * are not interchangeable:
+     *
+     *   null   no company filtering at all — a single-company install, or an
+     *          all-access API key
+     *   []     SHARED ARTICLES ONLY — a reader with no company context
+     *   [ids]  those companies, PLUS everything shared
+     *
+     * A SET rather than one id because the two kinds of reader genuinely differ:
+     * a signed-in analyst has ONE active company (the header switcher), while an
+     * API key carries a LIST. Modelling it as a single id forced the key through
+     * the analyst's rule, which is the wrong question and quietly the wrong
+     * answer. This reproduces both knowledgeTenantFilterForCompany() and
+     * apiKeyKnowledgeFilter() exactly.
+     *
+     * ⚠️ In every state, `tenant_id IS NULL` stays visible — in Knowledge that
+     * means SHARED WITH EVERY COMPANY, the opposite of tickets and assets.
      */
-    private ?int $tenantId;
+    private ?array $companyScope;
 
     /**
      * True only for trusted internal machinery that must see everything —
@@ -99,16 +113,31 @@ final class KnowledgeViewer
         string $level,
         ?int $analystId,
         ?int $userId,
-        ?int $tenantId,
+        ?array $companyScope,
         bool $unrestricted = false,
         string $unrestrictedReason = ''
     ) {
         $this->level              = Audience::normalise($level);
         $this->analystId          = $analystId;
         $this->userId             = $userId;
-        $this->tenantId           = $tenantId;
+        $this->companyScope       = $companyScope;
         $this->unrestricted       = $unrestricted;
         $this->unrestrictedReason = $unrestrictedReason;
+    }
+
+    /**
+     * One company id in the set form, honouring the two conditions under which
+     * Knowledge does no company filtering at all: multi-tenancy dormant, or the
+     * column absent on an install that has not run Database Verify.
+     *
+     * NULL $tenantId means "no company context" => shared only, which is what
+     * knowledgeTenantFilterForCompany() has always done with a null.
+     */
+    private static function scopeForOneCompany(PDO $conn, ?int $tenantId): ?array
+    {
+        if (!function_exists('isMultiTenant') || !isMultiTenant($conn)) return null;
+        if (!tenancyColumnExists($conn, 'knowledge_articles', 'tenant_id')) return null;
+        return $tenantId === null ? [] : [$tenantId];
     }
 
     /**
@@ -120,11 +149,13 @@ final class KnowledgeViewer
      */
     public static function forAnalyst(PDO $conn, int $analystId): self
     {
-        $tenantId = null;
-        if (function_exists('isMultiTenant') && isMultiTenant($conn) && $analystId > 0) {
-            $tenantId = getActiveTenantId($conn, $analystId);
-        }
-        return new self(Audience::INTERNAL, $analystId > 0 ? $analystId : null, null, $tenantId);
+        $tenantId = ($analystId > 0) ? getActiveTenantId($conn, $analystId) : null;
+        return new self(
+            Audience::INTERNAL,
+            $analystId > 0 ? $analystId : null,
+            null,
+            self::scopeForOneCompany($conn, $tenantId)
+        );
     }
 
     /**
@@ -137,22 +168,37 @@ final class KnowledgeViewer
      */
     public static function forApiKey(PDO $conn, array $apiKey): self
     {
-        return self::forAnalyst($conn, (int)($apiKey['analyst_id'] ?? 0));
+        $analystId = (int)($apiKey["analyst_id"] ?? 0);
+
+        // ⚠️ NOT forAnalyst(). A key does NOT read from its analyst's active
+        // company — it carries its own company_scope, which may name several at
+        // once and has no header switcher behind it. Routing a key through the
+        // analyst rule answers the wrong question, and answers it quietly.
+        // Mirrors apiKeyKnowledgeFilter() in api/v1/lib/auth.php: null scope or
+        // a dormant multi-tenancy means no filtering; an empty list means shared
+        // articles only.
+        $scope = $apiKey["company_scope"] ?? null;
+        if (!function_exists("isMultiTenant") || !isMultiTenant($conn) || $scope === null) {
+            $scope = null;
+        } else {
+            $scope = array_map("intval", (array)$scope);
+        }
+        return new self(Audience::INTERNAL, $analystId > 0 ? $analystId : null, null, $scope);
     }
 
     /** A signed-in self-service portal user. */
-    public static function forPortalUser(?int $userId, ?int $tenantId): self
+    public static function forPortalUser(PDO $conn, ?int $userId, ?int $tenantId): self
     {
-        return new self(Audience::CUSTOMER, null, $userId > 0 ? $userId : null, $tenantId);
+        return new self(Audience::CUSTOMER, null, $userId > 0 ? $userId : null, self::scopeForOneCompany($conn, $tenantId));
     }
 
     /**
      * An anonymous web-chat visitor. They typed a name and an email and neither
      * was verified, which is the whole reason PUBLIC is the bottom rung.
      */
-    public static function forWebChat(?int $tenantId): self
+    public static function forWebChat(PDO $conn, ?int $tenantId): self
     {
-        return new self(Audience::PUBLIC, null, null, $tenantId);
+        return new self(Audience::PUBLIC, null, null, self::scopeForOneCompany($conn, $tenantId));
     }
 
     /**
@@ -169,9 +215,9 @@ final class KnowledgeViewer
      * level accepted from request data is a privilege escalation waiting to be
      * found. Deleting this method is the last step of the migration.
      */
-    public static function fromLegacyAudienceString(?int $tenantId, string $level): self
+    public static function fromLegacyAudienceString(PDO $conn, ?int $tenantId, string $level): self
     {
-        return new self(Audience::normalise($level), null, null, $tenantId);
+        return new self(Audience::normalise($level), null, null, self::scopeForOneCompany($conn, $tenantId));
     }
 
     /**
@@ -194,7 +240,7 @@ final class KnowledgeViewer
     public function level(): string             { return $this->level; }
     public function analystId(): ?int           { return $this->analystId; }
     public function userId(): ?int              { return $this->userId; }
-    public function tenantId(): ?int            { return $this->tenantId; }
+    public function companyScope(): ?array      { return $this->companyScope; }
     public function isUnrestricted(): bool      { return $this->unrestricted; }
     public function unrestrictedReason(): string { return $this->unrestrictedReason; }
     public function isAnalyst(): bool           { return $this->level === Audience::INTERNAL && !$this->unrestricted; }
@@ -263,12 +309,23 @@ function knowledgeVisibilitySql(PDO $conn, KnowledgeViewer $viewer, string $alia
     }
 
     // ── 2. Company ──────────────────────────────────────────────────────────
-    // ⚠️ knowledgeTenantFilterForCompany(), never activeTenantFilter():
-    // tenant_id IS NULL means SHARED WITH EVERY COMPANY in Knowledge, the
-    // opposite of tickets/assets. See the essay in tenancy.php.
-    [$tenantSql, $tenantParams] = knowledgeTenantFilterForCompany($conn, $viewer->tenantId(), $alias);
-    $sql .= $tenantSql;
-    $params = array_merge($params, $tenantParams);
+    // ⚠️ `tenant_id IS NULL` means SHARED WITH EVERY COMPANY in Knowledge — the
+    // opposite of tickets and assets, where it means the Default company's. So
+    // NULL survives EVERY branch below. Run Knowledge through a ticket-shaped
+    // filter and every shared article silently vanishes; see the essay on
+    // knowledgeTenantFilterForCompany() in tenancy.php. This has bitten twice.
+    $scope = $viewer->companyScope();
+    if ($scope !== null) {
+        $col = $q('tenant_id');
+        if (!$scope) {
+            // No company context at all — shared articles only.
+            $sql .= ' AND ' . $col . ' IS NULL';
+        } else {
+            $marks = implode(',', array_fill(0, count($scope), '?'));
+            $sql .= ' AND (' . $col . ' IN (' . $marks . ') OR ' . $col . ' IS NULL)';
+            $params = array_merge($params, $scope);
+        }
+    }
 
     // ── 3. Audience ─────────────────────────────────────────────────────────
     // Returns ['', []] for an analyst, who reads every rung — so an analyst

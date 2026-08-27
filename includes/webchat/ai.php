@@ -48,7 +48,7 @@ function webchatAiReply(PDO $conn, string $question, array $history = [], ?int $
     // forWebChat() fixes the rung at PUBLIC from the identity itself rather than
     // asserting it as an argument, and carries the company so the access list has
     // a principal to match when it lands.
-    $ret     = kbRetrieveArticles($conn, $question, 5, null, KnowledgeViewer::forWebChat($tenantId));
+    $ret     = kbRetrieveArticles($conn, $question, 5, null, KnowledgeViewer::forWebChat($conn, $tenantId));
     $context = kbBuildContext($ret['articles']);
 
     $system = "You are a friendly website support assistant. Answer the visitor's question using ONLY the "
