@@ -7,6 +7,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 require_once '../../includes/services/knowledge.php';
 
 header('Content-Type: application/json');
@@ -53,7 +54,10 @@ function handleList($conn) {
 
     // The recycle bin is scoped like the live list — otherwise deleting an article
     // would make it visible to companies that could never see it when it was live.
-    [$tenantSql, $tenantParams] = knowledgeTenantFilter($conn, (int)$_SESSION['analyst_id'], 'a');
+    // The recycle bin: the ONE reader that wants archived rows, which is exactly
+    // why lifecycle is a separate knob from permission rather than welded into it.
+    $viewer = KnowledgeViewer::forAnalyst($conn, (int)$_SESSION["analyst_id"]);
+    [$tenantSql, $tenantParams] = knowledgeVisibilitySql($conn, $viewer, "a", ["lifecycle" => "archived"]);
 
     $sql = "SELECT a.id, a.title, a.created_datetime, a.modified_datetime,
                    a.archived_datetime, a.view_count,

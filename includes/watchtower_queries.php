@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/tenancy.php';   // knowledgeTenantFilter() for the Knowledge card
+require_once __DIR__ . '/knowledge/visibility.php';   // the Knowledge card reads through the choke point
 require_once __DIR__ . '/watchtower_settings.php';   // which cards show, which statuses count
 
 /**
@@ -433,17 +434,25 @@ function getWatchtowerData($conn, $analystId = 0) {
     // something this introduced. Scoped here anyway: an article carries an owning
     // company now, so surfacing another company's titles on the dashboard would be
     // a hole in Knowledge, whatever the neighbouring cards do.
-    $kbTenantSql    = '';
-    $kbTenantParams = [];
-    if ($analystId > 0 && function_exists('knowledgeTenantFilter')) {
-        [$kbTenantSql, $kbTenantParams] = knowledgeTenantFilter($conn, $analystId, 'ka');
-    }
+    // The whole visibility rule, not just the company half, so the dashboard
+    // inherits the access list when it lands without anyone returning here.
+    //
+    // ⚠️ Computed unconditionally. The published/not-archived test used to be
+    // written into the two queries below, so an early return from this block
+    // left it applied regardless; now that it comes from the clause, skipping
+    // the clause would silently put unpublished drafts and recycled articles on
+    // the dashboard. No analyst (a cron or a widget context) therefore still
+    // gets the lifecycle — it just gets no company narrowing, which is exactly
+    // what this code did before.
+    $kbViewer = $analystId > 0
+        ? KnowledgeViewer::forAnalyst($conn, $analystId)
+        : KnowledgeViewer::forSystem('Watchtower with no analyst context: company scoping is not possible, and this preserves the pre-existing behaviour of counting across companies rather than inventing one.');
+    [$kbTenantSql, $kbTenantParams] = knowledgeVisibilitySql($conn, $kbViewer, 'ka', ['lifecycle' => 'live']);
 
     $kbRecentStmt = $conn->prepare(
         "SELECT ka.id, ka.title, ka.created_datetime
          FROM knowledge_articles ka
-         WHERE ka.is_published = 1 AND ka.is_archived = 0
-           AND ka.created_datetime >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+         WHERE ka.created_datetime >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
          . $kbTenantSql . "
          ORDER BY ka.created_datetime DESC
          LIMIT 5"
@@ -453,8 +462,7 @@ function getWatchtowerData($conn, $analystId = 0) {
 
     $kbOverdueStmt = $conn->prepare(
         "SELECT COUNT(*) FROM knowledge_articles ka
-         WHERE ka.is_published = 1 AND ka.is_archived = 0
-           AND ka.next_review_date IS NOT NULL AND ka.next_review_date < CURDATE()"
+         WHERE ka.next_review_date IS NOT NULL AND ka.next_review_date < CURDATE()"
          . $kbTenantSql
     );
     $kbOverdueStmt->execute($kbTenantParams);

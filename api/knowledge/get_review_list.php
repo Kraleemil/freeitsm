@@ -6,6 +6,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 require_once '../../includes/timezone.php';   // DateFmt - the analyst's date format
 
 header('Content-Type: application/json');
@@ -20,8 +21,12 @@ requireModuleAccessJson('knowledge');
 try {
     $conn = connectToDatabase();
 
-    // Company scope, applied to both the list and the badge count below.
-    [$tenantSql, $tenantParams] = knowledgeTenantFilter($conn, (int)$_SESSION['analyst_id'], 'ka');
+    // Everything this analyst may read, applied to BOTH the list and the badge
+    // count below — one clause, so the badge cannot disagree with what clicking it
+    // returns. 'live' because a review queue is about articles that are actually
+    // published: an unpublished draft is not overdue for review, it is unfinished.
+    $viewer = KnowledgeViewer::forAnalyst($conn, (int)$_SESSION["analyst_id"]);
+    [$tenantSql, $tenantParams] = knowledgeVisibilitySql($conn, $viewer, "ka", ["lifecycle" => "live"]);
 
     // Get filter parameter (all, overdue, upcoming, no_date)
     $filter = $_GET['filter'] ?? 'all';
@@ -38,8 +43,7 @@ try {
             FROM knowledge_articles ka
             LEFT JOIN analysts owner ON ka.owner_id = owner.id
             LEFT JOIN analysts author ON ka.author_id = author.id
-            WHERE ka.is_published = 1
-              AND (ka.is_archived = 0 OR ka.is_archived IS NULL)";
+            WHERE 1=1";
 
     switch ($filter) {
         case 'overdue':
@@ -87,8 +91,7 @@ try {
         SUM(CASE WHEN next_review_date >= DATE(UTC_TIMESTAMP()) AND next_review_date <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as upcoming,
         SUM(CASE WHEN next_review_date IS NULL THEN 1 ELSE 0 END) as no_date
     FROM knowledge_articles ka
-    WHERE ka.is_published = 1
-    AND (ka.is_archived = 0 OR ka.is_archived IS NULL)" . $tenantSql;
+    WHERE 1=1" . $tenantSql;
     $countsStmt = $conn->prepare($countsSql);
     $countsStmt->execute($tenantParams);
     $counts = $countsStmt->fetch(PDO::FETCH_ASSOC);
