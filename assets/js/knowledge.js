@@ -32,7 +32,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Auto-open AI chat if redirected from Settings/Review
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('askai') === '1') {
-        history.replaceState(null, '', window.location.pathname);
+        // Strip only askai, not the whole querystring: `?article=N&askai=1` is a
+        // legitimate combination, and blanking the search threw the article away
+        // before the deep-link handler below ever looked at it.
+        const url = new URL(window.location.href);
+        url.searchParams.delete('askai');
+        const qs = url.searchParams.toString();
+        history.replaceState(null, '', url.pathname + (qs ? '?' + qs : ''));
         openAiChat();
     }
 });
@@ -893,6 +899,55 @@ function cancelEdit() {
 // fully reset by the page reload. Other call sites still use
 // showView('list') after save / archive flows.)
 
+/**
+ * Keep the address bar on the article you are actually looking at.
+ *
+ * Deep links IN already worked (`?article=N`); what was missing was the other
+ * direction, so clicking through the list left the URL on the bare module page
+ * and there was nothing to copy, bookmark or reload. Same behaviour Assets
+ * gained in #1198.
+ *
+ * Called from showView() rather than from viewArticle(): that is the ONE place
+ * every view transition passes through, so the URL cannot drift out of step
+ * with the screen via a path somebody forgot to update.
+ *
+ * replaceState, NOT pushState — on purpose. A list-and-detail screen would
+ * otherwise stack a history entry per article clicked, and Back would crawl
+ * through them one at a time instead of leaving the module.
+ *
+ * `?id=` (the accepted alias) and `&edit=1` are dropped as the URL is rewritten,
+ * so a link arriving in either form quietly corrects itself to the canonical
+ * `?article=N` that includes/entity_links.php produces. `edit=1` is deliberately
+ * NOT re-added when the editor opens: the URL names the ARTICLE, not what you
+ * happen to be doing to it, and a copied link should not drop a colleague
+ * straight into an editor.
+ */
+function syncArticleUrl(view) {
+    if (!window.history || !history.replaceState) return;
+
+    const url = new URL(window.location.href);
+    const showsAnArticle = (view === 'detail' || view === 'editor')
+                        && currentArticle && currentArticle.id;
+
+    if (showsAnArticle) {
+        url.searchParams.set('article', currentArticle.id);
+    } else if (view === 'list' || view === 'editor') {
+        // 'editor' with no current article is a NEW article — there is no id to
+        // name yet, so the URL must not keep pointing at the last one read.
+        url.searchParams.delete('article');
+    } else {
+        return;
+    }
+    // One-shot params that must never survive into a copied link.
+    ['id', 'edit', 'askai'].forEach(function (k) { url.searchParams.delete(k); });
+
+    const qs = url.searchParams.toString();
+    const next = url.pathname + (qs ? '?' + qs : '');
+    if (next !== window.location.pathname + window.location.search) {
+        history.replaceState(null, '', next);
+    }
+}
+
 // Show/hide views
 function showView(view) {
     document.getElementById('articleListView').style.display = view === 'list' ? 'block' : 'none';
@@ -917,6 +972,8 @@ function showView(view) {
         if (toggle) toggle.classList.remove('active');
         if (header) header.textContent = window.t('knowledge.list.heading');
     }
+
+    syncArticleUrl(view);
 }
 
 // Tag input functions
