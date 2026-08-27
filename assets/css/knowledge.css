@@ -1222,3 +1222,28 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     transform: translateX(-50%) translateY(0);
     opacity: 1;
 }
+
+/* ---------------------------------------------------------------------------
+   "Also allow anyone on the internet" — the opt-in beneath "Who can see this".
+   It is a tickbox rather than a third dropdown choice because reaching the open
+   internet is a different KIND of decision from the other two, and as the last
+   item in a list it read as their peer.
+   --------------------------------------------------------------------------- */
+.kb-audience-public {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+}
+.kb-audience-public input { margin: 0; cursor: pointer; }
+
+/* Disabled while "Analysts only" is selected — that combination would mean
+   "on the internet but not visible to analysts", which must stay unsayable. */
+.kb-audience-public.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.kb-audience-public.is-disabled input { cursor: not-allowed; }

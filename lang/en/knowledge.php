@@ -103,7 +103,21 @@ return [
         'field_audience'   => 'Who can see this',
         'audience_internal'=> 'Analysts only',
         'audience_customer'=> 'Analysts and signed-in customers',
-        'audience_public'  => 'Anyone, including website chat',
+        // ⚠️ Describes the REACH, not the channel. This used to read "Anyone,
+        // including website chat", which was accurate only while web chat was
+        // the single thing reading at this level. The moment a second public
+        // reader exists (a public help site, a public API) a channel-named label
+        // becomes wrong — and wrong in the dangerous direction, understating the
+        // exposure. Which channels are involved belongs in the hint below, where
+        // it can be updated; the label states the consequence, which never changes.
+        'audience_public'  => 'Analysts, customers and anyone on the internet',
+        // The editor presents this level as an opt-in tickbox rather than a third
+        // dropdown choice: it is a different kind of decision from the other two,
+        // and it deserves to look like a deliberate act rather than the next item
+        // in a list. The STORED value is unchanged ('public') — this is wording
+        // and presentation only.
+        'audience_public_toggle'   => 'Also allow anyone on the internet',
+        'audience_public_channels' => 'Currently reaches the web chat widget on your website.',
         'audience_hint_internal' => 'Only your own team. Never shown to customers or the website chat.',
         // This rung is LIVE as of the portal Help Centre — it used to say "not yet
         // in use", which was honest at the time and became wrong the moment a
@@ -359,9 +373,9 @@ return [
         'writing_step4'   => '<strong>Assign an owner</strong> &mdash; the owner is the person responsible for keeping the article up to date. When it comes up for review, the owner gets notified.',
         'writing_step5'   => '<strong>Set a review date</strong> &mdash; knowledge goes stale. Set a next-review date so the article surfaces in the review queue at the right time. Quarterly reviews work well for most content; critical procedures might need monthly checks.',
         'writing_step6'   => '<strong>Write the content</strong> &mdash; the rich text editor supports headings, bold, italic, bullet and numbered lists, tables, code blocks with syntax highlighting, images, and links. Structure your article with clear headings so readers can scan it quickly.',
-        'writing_step_visibility' => '<strong>Decide who can see it</strong> &mdash; <em>Who can see this</em> controls the audience. <strong>Analysts only</strong> (the default) keeps it inside your team. <strong>Anyone, including website chat</strong> lets the chat widget answer visitors from it &mdash; only choose that for things you would happily show a stranger. If you run more than one company you can also give the article a <em>Company</em>, or leave it shared with everyone.',
+        'writing_step_visibility' => '<strong>Decide who can see it</strong> &mdash; <em>Who can see this</em> controls the audience. <strong>Analysts only</strong> (the default) keeps it inside your team. Ticking <strong>Also allow anyone on the internet</strong> lets the website chat widget answer visitors from it &mdash; only tick that for things you would happily show a stranger. It is a tickbox rather than a third choice because it is a different kind of decision from the other two. If you run more than one company you can also give the article a <em>Company</em>, or leave it shared with everyone.',
         'writing_step7'   => "<strong>Save</strong> &mdash; your article is saved as a draft. You can come back and edit it anytime. When you're happy with it, submit it for review or publish it directly depending on your team's workflow.",
-        'writing_visibility_callout' => '<strong>Why your chat widget might not be answering:</strong> every article starts as <em>Analysts only</em>, including ones written before this setting existed. The website chat can only use articles marked <em>Anyone, including website chat</em>, so mark a few of your customer-facing ones public and it will start using them. That default is deliberate &mdash; nothing you wrote for internal use gets shown to the public unless you say so.',
+        'writing_visibility_callout' => '<strong>Why your chat widget might not be answering:</strong> every article starts as <em>Analysts only</em>, including ones written before this setting existed. The website chat can only use articles where <em>Also allow anyone on the internet</em> is ticked, so tick it on a few of your customer-facing ones and it will start using them. That default is deliberate &mdash; nothing you wrote for internal use gets shown to the public unless you say so.',
         'writing_tip'     => 'Every time you save significant changes, use the "Save as new version" option. This creates a versioned snapshot so you can always look back at what the article said previously. Version numbers display on the article view so readers know how current it is.',
 
         'review_heading' => 'Review workflow — getting articles approved',

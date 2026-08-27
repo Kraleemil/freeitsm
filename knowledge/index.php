@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=2">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=3">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -216,11 +216,26 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                                      an anonymous web chat visitor. -->
                                 <div class="form-group" style="flex: 1;">
                                     <label class="form-label"><?php echo htmlspecialchars(t('knowledge.editor.field_audience')); ?></label>
+                                    <!-- TWO choices plus an opt-in, not three choices.
+                                         Reaching the open internet is a different KIND of
+                                         decision from the other two, and as the third item
+                                         in a dropdown it looked like their peer. As a
+                                         tickbox it looks like what it is: a deliberate act.
+                                         The stored value is unchanged — ticked means
+                                         audience='public'. See knowledge.js. -->
                                     <select class="form-input" id="articleAudience">
                                         <option value="internal"><?php echo htmlspecialchars(t('knowledge.editor.audience_internal')); ?></option>
                                         <option value="customer"><?php echo htmlspecialchars(t('knowledge.editor.audience_customer')); ?></option>
-                                        <option value="public"><?php echo htmlspecialchars(t('knowledge.editor.audience_public')); ?></option>
                                     </select>
+                                    <label class="kb-audience-public" for="articleAudiencePublic">
+                                        <input type="checkbox" id="articleAudiencePublic" onchange="updateAudienceHint()">
+                                        <span><?php echo htmlspecialchars(t('knowledge.editor.audience_public_toggle')); ?></span>
+                                    </label>
+                                    <!-- Which channels that actually reaches, shown only when
+                                         ticked. Separate from the label on purpose: the label
+                                         states the consequence and never changes, this names
+                                         today's channels and gets updated as they are added. -->
+                                    <small class="field-hint" id="audiencePublicChannels" style="display:none;"><?php echo htmlspecialchars(t('knowledge.editor.audience_public_channels')); ?></small>
                                     <small class="field-hint" id="audienceHint"></small>
                                 </div>
                                 <!-- Company. Hidden unless the install has more than one
@@ -343,7 +358,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=17"></script>
+    <script src="../assets/js/knowledge.js?v=18"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>

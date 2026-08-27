@@ -81,28 +81,70 @@ async function loadCompanies() {
     group.style.display = '';
 }
 
+/**
+ * The editor shows the three stored audiences as TWO choices plus an opt-in
+ * tickbox. This pair converts between the two shapes; nothing else in the
+ * product knows the difference, because the stored value is unchanged.
+ *
+ *   internal  -> 'Analysts only',                 unticked
+ *   customer  -> 'Analysts and signed-in...',     unticked
+ *   public    -> 'Analysts and signed-in...',     TICKED
+ */
+function audienceFromControls() {
+    const sel = document.getElementById('articleAudience');
+    const pub = document.getElementById('articleAudiencePublic');
+    const base = sel ? sel.value : 'internal';
+    // ⚠️ Ticked only counts when the dropdown is already at 'customer'. The
+    // stored values are a LADDER, and its guarantee is that a contradiction
+    // cannot be expressed — "on the internet but not visible to analysts" must
+    // stay unsayable. The tickbox is also disabled below, so this is the second
+    // of two locks rather than the only one.
+    return (base === 'customer' && pub && pub.checked) ? 'public' : base;
+}
+
+function audienceToControls(stored) {
+    const sel = document.getElementById('articleAudience');
+    const pub = document.getElementById('articleAudiencePublic');
+    const val = stored || 'internal';
+    if (sel) sel.value = (val === 'public') ? 'customer' : val;
+    if (pub) pub.checked = (val === 'public');
+    updateAudienceHint();
+}
+
 /** Spell out what the chosen audience actually means, in the editor. */
 function updateAudienceHint() {
     const sel  = document.getElementById('articleAudience');
     const hint = document.getElementById('audienceHint');
+    const pub  = document.getElementById('articleAudiencePublic');
     if (!sel || !hint) return;
-    hint.textContent = window.t('knowledge.editor.audience_hint_' + sel.value);
+
+    // 'Analysts only' cannot also be on the internet. Rather than let someone
+    // tick it and silently ignore them, the box is disabled and cleared — a
+    // control that accepts input and discards it is worse than one that says no.
+    if (pub) {
+        const allowed = sel.value === 'customer';
+        pub.disabled = !allowed;
+        if (!allowed) pub.checked = false;
+        const wrap = pub.closest('.kb-audience-public');
+        if (wrap) wrap.classList.toggle('is-disabled', !allowed);
+        const channels = document.getElementById('audiencePublicChannels');
+        if (channels) channels.style.display = pub.checked ? '' : 'none';
+    }
+
+    hint.textContent = window.t('knowledge.editor.audience_hint_' + audienceFromControls());
 }
 
 /** Put the two visibility controls back to the safe default (a new article). */
 function resetVisibilityFields() {
-    const aud = document.getElementById('articleAudience');
-    if (aud) aud.value = 'internal';
+    audienceToControls('internal');
     const co = document.getElementById('articleCompany');
     if (co) co.value = '';
-    updateAudienceHint();
 }
 
 /** The visibility half of a save payload. */
 function visibilityPayload() {
-    const aud = document.getElementById('articleAudience');
     const co  = document.getElementById('articleCompany');
-    const out = { audience: aud ? aud.value : 'internal' };
+    const out = { audience: audienceFromControls() };
     // Only send a company when the picker is actually in play; otherwise a
     // single-company install would post an empty string on every save.
     if (co && kbCompanies.length >= 2) {
