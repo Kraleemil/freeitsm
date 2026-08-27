@@ -10,6 +10,7 @@ require_once '../../includes/functions.php';
 require_once '../../includes/encryption.php';
 require_once '../../includes/ai_settings.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 
 header('Content-Type: application/json');
 
@@ -105,21 +106,30 @@ try {
     $openaiRow = $openaiStmt->fetch(PDO::FETCH_ASSOC);
     $openaiApiKey = decryptValue($openaiRow['setting_value'] ?? '');
 
-    // Check if we have articles with embeddings
-    $archiveFilter = $includeArchived ? '' : ' AND (is_archived = 0 OR is_archived IS NULL)';
-
-    // Company scope. This is an ANALYST asking, so there is no audience filter —
-    // the ladder only holds back customers and the public.
     // NOTE: this file still carries its own copy of the embedding/cosine code that
     // includes/knowledge/kb_ai.php factored out (see the note at the top of that
-    // file). It is not consolidated here because kbRetrieveArticles has no
-    // include-archived mode, and rewriting a working AI path was not worth bundling
-    // into a security fix. The tenant filter is applied to BOTH copies instead.
-    [$tenantSql, $tenantParams] = knowledgeTenantFilter($conn, (int)$_SESSION['analyst_id'], '');
+    // file). Still not consolidated — kbRetrieveArticles has no include-archived
+    // mode, and rewriting a working AI path is not this change's job. What IS
+    // consolidated is the part that matters: the VISIBILITY, which now comes from
+    // includes/knowledge/visibility.php in both copies rather than being
+    // hand-assembled here. That is what makes this retrieval path inherit the
+    // access list when it lands, instead of quietly becoming the way around it.
+    //
+    // This is an ANALYST asking, so the audience ladder contributes nothing — it
+    // only holds back customers and the public — and the clause is the tenant
+    // filter plus lifecycle, exactly as before.
+    $viewer = KnowledgeViewer::forAnalyst($conn, (int)$_SESSION['analyst_id']);
+    $lc = $includeArchived ? 'published' : 'live';
+    [$scopeSql, $scopeParams] = knowledgeVisibilitySql($conn, $viewer, '', ['lifecycle' => $lc]);
 
-    $embeddingCountSql = "SELECT COUNT(*) as count FROM knowledge_articles WHERE is_published = 1" . $archiveFilter . $tenantSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0";
+    // The two stats below deliberately count on DIFFERENT lifecycles, so each
+    // asks for its own rather than sharing one and patching it afterwards.
+    [$anySql,  $anyParams]  = knowledgeVisibilitySql($conn, $viewer, '', ['lifecycle' => 'any']);
+    [$pubSql,  $pubParams]  = knowledgeVisibilitySql($conn, $viewer, '', ['lifecycle' => 'published']);
+
+    $embeddingCountSql = "SELECT COUNT(*) as count FROM knowledge_articles WHERE 1=1" . $scopeSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0";
     $embeddingCountStmt = $conn->prepare($embeddingCountSql);
-    $embeddingCountStmt->execute($tenantParams);
+    $embeddingCountStmt->execute($scopeParams);
     $embeddingCount = $embeddingCountStmt->fetch(PDO::FETCH_ASSOC)['count'];
 
     $useVectorSearch = !empty($openaiApiKey) && $embeddingCount > 0;
@@ -137,9 +147,9 @@ try {
             // Fetch all articles with embeddings
             $articleSql = "SELECT id, title, body, embedding
                           FROM knowledge_articles
-                          WHERE is_published = 1" . $archiveFilter . $tenantSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0";
+                          WHERE 1=1" . $scopeSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0";
             $articleStmt = $conn->prepare($articleSql);
-            $articleStmt->execute($tenantParams);
+            $articleStmt->execute($scopeParams);
             $allArticles = $articleStmt->fetchAll(PDO::FETCH_ASSOC);
 
             // Calculate similarity scores
@@ -173,9 +183,9 @@ try {
     if (!$useVectorSearch) {
         // Fallback: fetch all published articles
         $searchMethod = 'all';
-        $articleSql = "SELECT id, title, body FROM knowledge_articles WHERE is_published = 1" . $archiveFilter . $tenantSql . " ORDER BY title";
+        $articleSql = "SELECT id, title, body FROM knowledge_articles WHERE 1=1" . $scopeSql . " ORDER BY title";
         $articleStmt = $conn->prepare($articleSql);
-        $articleStmt->execute($tenantParams);
+        $articleStmt->execute($scopeParams);
         $articles = $articleStmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -183,20 +193,20 @@ try {
         // These counts are reported back to the user in the messages below, so they
         // must be scoped too — an unscoped count tells one company how many articles
         // another company has.
-        $totalSql = "SELECT COUNT(*) as total FROM knowledge_articles WHERE 1=1" . $tenantSql;
+        $totalSql = "SELECT COUNT(*) as total FROM knowledge_articles WHERE 1=1" . $anySql;
         $totalStmt = $conn->prepare($totalSql);
-        $totalStmt->execute($tenantParams);
+        $totalStmt->execute($anyParams);
         $totalCount = $totalStmt->fetch(PDO::FETCH_ASSOC)['total'];
 
-        $publishedSql = "SELECT COUNT(*) as published FROM knowledge_articles WHERE is_published = 1" . $tenantSql;
+        $publishedSql = "SELECT COUNT(*) as published FROM knowledge_articles WHERE 1=1" . $pubSql;
         $publishedStmt = $conn->prepare($publishedSql);
-        $publishedStmt->execute($tenantParams);
+        $publishedStmt->execute($pubParams);
         $publishedCount = $publishedStmt->fetch(PDO::FETCH_ASSOC)['published'];
 
         // Check how many are available after the archive filter
-        $availableSql = "SELECT COUNT(*) as available FROM knowledge_articles WHERE is_published = 1" . $archiveFilter . $tenantSql;
+        $availableSql = "SELECT COUNT(*) as available FROM knowledge_articles WHERE 1=1" . $scopeSql;
         $availableStmt = $conn->prepare($availableSql);
-        $availableStmt->execute($tenantParams);
+        $availableStmt->execute($scopeParams);
         $availableCount = $availableStmt->fetch(PDO::FETCH_ASSOC)['available'];
 
         if ($totalCount == 0) {

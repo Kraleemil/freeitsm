@@ -17,6 +17,7 @@ require_once __DIR__ . '/writeup_ai.php';
 require_once __DIR__ . '/kb_ai.php';
 require_once __DIR__ . '/../encryption.php';
 require_once __DIR__ . '/../tenancy.php';
+require_once __DIR__ . '/visibility.php';
 
 /**
  * The OpenAI key used for ARTICLE embeddings, reused deliberately.
@@ -196,9 +197,22 @@ function gapAnalyse(PDO $conn, int $analystId, array $opts = []): array
 
     // The knowledge base as it stands. Published and not in the recycle bin —
     // an archived article answers nobody's question.
-    $articles = $conn->query(
-        "SELECT id, title, embedding FROM knowledge_articles WHERE " . KB_VISIBLE_SQL
-    )->fetchAll(PDO::FETCH_ASSOC);
+    //
+    // ⚠️ SCOPED TO THE SAME ANALYST AS THE TICKETS ABOVE. This read used to be
+    // bare, while gapWindowSql() has always company-scoped the ticket side — so
+    // one company's tickets were matched against EVERY company's articles. That
+    // had two faces, and the quieter one is the worse:
+    //   • the matched article_id is stored on the cluster and api/knowledge/
+    //     gap_clusters.php joins back for its title, so another company's
+    //     article title could be displayed;
+    //   • a ticket "covered" by an article this company cannot see is dropped
+    //     from the results — the feature exists to report what is MISSING, and
+    //     it was silently under-reporting with no error and no empty state.
+    $gapViewer = KnowledgeViewer::forAnalyst($conn, $analystId);
+    [$artSql, $artParams] = knowledgeVisibilitySql($conn, $gapViewer, '', ['lifecycle' => 'live']);
+    $artStmt = $conn->prepare("SELECT id, title, embedding FROM knowledge_articles WHERE 1=1" . $artSql);
+    $artStmt->execute($artParams);
+    $articles = $artStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $articleVecs = [];
     $articleToks = [];

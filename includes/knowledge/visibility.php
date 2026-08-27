@@ -156,6 +156,25 @@ final class KnowledgeViewer
     }
 
     /**
+     * ⚠️ COMPATIBILITY ONLY — do not use in new code.
+     *
+     * kbRetrieveArticles() has long accepted a bare Audience:: string, and its
+     * harness passes every rung through it. Rather than rewrite the code and the
+     * test that guards it in the same breath — which would leave the test unable
+     * to catch the rewrite — that form still works, and lands here.
+     *
+     * This is the ONE place a caller may state its own rung. It is named to be
+     * obvious and greppable for exactly that reason: everything else must use a
+     * constructor that DERIVES the rung from who is actually asking, because a
+     * level accepted from request data is a privilege escalation waiting to be
+     * found. Deleting this method is the last step of the migration.
+     */
+    public static function fromLegacyAudienceString(?int $tenantId, string $level): self
+    {
+        return new self(Audience::normalise($level), null, null, $tenantId);
+    }
+
+    /**
      * No filtering whatsoever — for internal machinery that must process every
      * article regardless of who could read it (the search indexer building rows
      * it will later filter at query time; the embedding backfill).
@@ -192,12 +211,13 @@ final class KnowledgeViewer
  * $alias is the table alias ('' for an unaliased query).
  *
  * $opts:
- *   'lifecycle' => 'live' (default) | 'unarchived' | 'archived' | 'any'
+ *   'lifecycle' => 'live' (default) | 'published' | 'unarchived' | 'archived' | 'any'
  *
  *       live        published AND not archived — every customer-facing reader
- *       unarchived  not archived, ANY publish state
+ *       published   published, ANY archive state (the AI chat's include-archived)
+ *       unarchived  not archived, ANY publish state (the analyst list, with drafts)
  *       archived    archived only (the recycle bin)
- *       any         no lifecycle filter at all
+ *       any         no lifecycle filter at all (the indexer, and total counts)
  *
  *       Lifecycle is NOT a permission and is therefore separable. Three real
  *       callers prove it has to be: the recycle bin wants archived rows, the
@@ -225,8 +245,11 @@ function knowledgeVisibilitySql(PDO $conn, KnowledgeViewer $viewer, string $alia
     // Archiving does NOT unpublish, so 'live' has to check both flags — an
     // archived article can still carry is_published = 1.
     $notArchived = ' AND (' . $q('is_archived') . ' = 0 OR ' . $q('is_archived') . ' IS NULL)';
+    $published   = ' AND ' . $q('is_published') . ' = 1';
     if ($lifecycle === 'live') {
-        $sql .= ' AND ' . $q('is_published') . ' = 1' . $notArchived;
+        $sql .= $published . $notArchived;
+    } elseif ($lifecycle === 'published') {
+        $sql .= $published;
     } elseif ($lifecycle === 'unarchived') {
         $sql .= $notArchived;
     } elseif ($lifecycle === 'archived') {

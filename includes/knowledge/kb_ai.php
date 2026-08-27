@@ -17,6 +17,7 @@
 require_once __DIR__ . '/../encryption.php';
 require_once __DIR__ . '/audience.php';
 require_once __DIR__ . '/../tenancy.php';
+require_once __DIR__ . '/visibility.php';
 
 /** Cosine similarity of two equal-ish length vectors (0 if either is a zero vector). */
 function kbCosineSimilarity(array $a, array $b): float
@@ -86,19 +87,30 @@ const KB_VISIBLE_SQL = "is_published = 1 AND (is_archived = 0 OR is_archived IS 
  * function's only caller is the anonymous web chat, so a future caller that forgets
  * to think about scope gets too little, never too much.
  *
+ * ⚠️ $viewer ALSO accepts a KnowledgeViewer, and that is the form to use. An
+ * Audience:: string names a RUNG; it cannot name a PERSON, so it can never carry
+ * the access list — and this is the retrieval path where a missed filter is the
+ * worst kind of leak, because the model paraphrases the article into an answer
+ * and nothing records that the article was ever read. The string form is kept so
+ * existing callers (and the harness that guards them) stay valid; when a
+ * KnowledgeViewer is passed it is authoritative and $tenantId is ignored, since
+ * the viewer already carries its own company.
+ *
  * Filtering happens in SQL, before scoring: it is both the security boundary and
- * strictly less work than decoding vectors we would discard.
+ * strictly less work than decoding vectors we would discard. Filtering the
+ * ANSWER afterwards would not work at all — by then the model has read the text.
  */
-function kbRetrieveArticles(PDO $conn, string $question, int $limit = 5, ?int $tenantId = null, string $viewer = Audience::PUBLIC): array
+function kbRetrieveArticles(PDO $conn, string $question, int $limit = 5, ?int $tenantId = null, $viewer = Audience::PUBLIC): array
 {
-    // Company scope + audience. Both degrade to no-op on installs that predate the
-    // columns, where every article is shared and public by definition anyway.
-    [$tenantSql, $tenantParams] = knowledgeTenantFilterForCompany($conn, $tenantId, '');
-    [$audSql, $audParams] = tenancyColumnExists($conn, 'knowledge_articles', 'audience')
-        ? Audience::sqlFilter($viewer, '')
-        : ['', []];
-    $scopeSql    = $tenantSql . $audSql;
-    $scopeParams = array_merge($tenantParams, $audParams);
+    // One clause for lifecycle + company + audience + access list. KB_VISIBLE_SQL
+    // below is now only the 'live' half of it and stays for the constant's other
+    // readers; this call is what makes the AI path inherit every future axis
+    // without anyone remembering to come back here.
+    $kv = ($viewer instanceof KnowledgeViewer)
+        ? $viewer
+        : KnowledgeViewer::fromLegacyAudienceString($tenantId, (string) $viewer);
+
+    [$scopeSql, $scopeParams] = knowledgeVisibilitySql($conn, $kv, '', ['lifecycle' => 'live']);
 
     $openaiKey = '';
     try {
@@ -112,7 +124,7 @@ function kbRetrieveArticles(PDO $conn, string $question, int $limit = 5, ?int $t
     // cannot see, then score an empty set.
     $haveEmbeddings = false;
     try {
-        $st = $conn->prepare("SELECT COUNT(*) FROM knowledge_articles WHERE " . KB_VISIBLE_SQL . $scopeSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0");
+        $st = $conn->prepare("SELECT COUNT(*) FROM knowledge_articles WHERE 1=1" . $scopeSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0");
         $st->execute($scopeParams);
         $haveEmbeddings = (int) $st->fetchColumn() > 0;
     } catch (Exception $e) { $haveEmbeddings = false; }
@@ -120,7 +132,7 @@ function kbRetrieveArticles(PDO $conn, string $question, int $limit = 5, ?int $t
     if ($openaiKey !== '' && $haveEmbeddings) {
         $qvec = kbGenerateEmbedding($question, $openaiKey);
         if ($qvec) {
-            $st = $conn->prepare("SELECT id, title, body, embedding FROM knowledge_articles WHERE " . KB_VISIBLE_SQL . $scopeSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0");
+            $st = $conn->prepare("SELECT id, title, body, embedding FROM knowledge_articles WHERE 1=1" . $scopeSql . " AND embedding IS NOT NULL AND LENGTH(embedding) > 0");
             $st->execute($scopeParams);
             $rows = $st->fetchAll(PDO::FETCH_ASSOC);
             $scored = [];
@@ -138,7 +150,7 @@ function kbRetrieveArticles(PDO $conn, string $question, int $limit = 5, ?int $t
     // Fallback: every in-scope article (context is capped by kbBuildContext anyway).
     // This path is the one that would hurt most if unscoped — with no API key it
     // hands the caller the whole knowledge base.
-    $st = $conn->prepare("SELECT id, title, body FROM knowledge_articles WHERE " . KB_VISIBLE_SQL . $scopeSql . " ORDER BY title");
+    $st = $conn->prepare("SELECT id, title, body FROM knowledge_articles WHERE 1=1" . $scopeSql . " ORDER BY title");
     $st->execute($scopeParams);
     $all = $st->fetchAll(PDO::FETCH_ASSOC);
     return ['articles' => array_slice($all, 0, max($limit, 10)), 'method' => 'all'];
