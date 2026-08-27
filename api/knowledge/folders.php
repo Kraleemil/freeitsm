@@ -47,7 +47,10 @@ try {
         case 'rename': handleRename($conn, $analystId, $input); break;
         case 'move':   handleMove($conn, $analystId, $input); break;
         case 'delete': handleDelete($conn, $analystId, $input); break;
-        case 'move_article': handleMoveArticle($conn, $analystId, $input); break;
+        case 'move_article':      handleMoveArticle($conn, $analystId, $input); break;
+        case 'add_shortcut':      handleAddShortcut($conn, $analystId, $input); break;
+        case 'remove_shortcut':   handleRemoveShortcut($conn, $analystId, $input); break;
+        case 'exceptions':        handleExceptions($conn, $analystId); break;
         default:
             echo json_encode(['success' => false, 'error' => 'Invalid action']);
     }
@@ -301,6 +304,131 @@ function handleMoveArticle(PDO $conn, int $analystId, array $in): void
 
     knowledgeAudit($conn, 'article', $articleId, 'move', $analystId, ['folder_id' => $folder]);
     echo json_encode(['success' => true]);
+}
+
+/**
+ * Make an article appear in a second folder.
+ *
+ * 🔑 A SHORTCUT HAS NO PERMISSIONS OF ITS OWN. It resolves to the target and the
+ * target's rules decide — which is exactly what lets the tree stay single-parent
+ * (one home, one answer to "who can see it") while a document still appears in
+ * two places. Two consequences, both load-bearing:
+ *
+ *   • a shortcut can never GRANT. If you cannot read the target, the shortcut is
+ *     not a way in — the list query filters on the TARGET, so the row simply is
+ *     not returned rather than being returned and hidden.
+ *   • creating one requires being able to read the target, or a shortcut would
+ *     be a way to confirm that an article you cannot see exists.
+ */
+function handleAddShortcut(PDO $conn, int $analystId, array $in): void
+{
+    $articleId = (int)($in['article_id'] ?? 0);
+    $folder    = isset($in['folder_id']) && $in['folder_id'] !== null && $in['folder_id'] !== ''
+        ? (int)$in['folder_id'] : null;
+    if (!$articleId || $folder === null) {
+        echo json_encode(['success' => false, 'error' => 'An article and a folder are required']);
+        return;
+    }
+    requireFolderAccess($conn, $analystId, $folder);
+
+    $viewer = KnowledgeViewer::forAnalyst($conn, $analystId);
+    if (!knowledgeCanRead($conn, $viewer, $articleId, ['lifecycle' => 'any'])) {
+        echo json_encode(['success' => false, 'error' => 'Article not found']);
+        return;
+    }
+
+    // Pointing a shortcut at the folder the article already lives in would show
+    // it twice in one list. Harmless, but it looks like a bug to whoever sees it.
+    $st = $conn->prepare("SELECT folder_id FROM knowledge_articles WHERE id = ?");
+    $st->execute([$articleId]);
+    if ((int)$st->fetchColumn() === $folder) {
+        echo json_encode(['success' => false, 'error' => 'That article already lives in this folder.']);
+        return;
+    }
+
+    try {
+        $conn->prepare(
+            "INSERT INTO knowledge_shortcuts (folder_id, article_id, created_by_id, created_datetime)
+             VALUES (?, ?, ?, UTC_TIMESTAMP())"
+        )->execute([$folder, $articleId, $analystId]);
+    } catch (PDOException $e) {
+        // The unique key: already there is the state the caller wanted.
+        if ($e->getCode() !== '23000') throw $e;
+    }
+    knowledgeAudit($conn, 'article', $articleId, 'move', $analystId, ['shortcut_into' => $folder]);
+    echo json_encode(['success' => true]);
+}
+
+/** Remove a shortcut. The article itself is untouched — that is the whole point. */
+function handleRemoveShortcut(PDO $conn, int $analystId, array $in): void
+{
+    $articleId = (int)($in['article_id'] ?? 0);
+    $folder    = (int)($in['folder_id'] ?? 0);
+    if (!$articleId || !$folder) { echo json_encode(['success' => false, 'error' => 'Nothing to remove']); return; }
+    requireFolderAccess($conn, $analystId, $folder);
+
+    $conn->prepare("DELETE FROM knowledge_shortcuts WHERE article_id = ? AND folder_id = ?")
+         ->execute([$articleId, $folder]);
+    knowledgeAudit($conn, 'article', $articleId, 'move', $analystId, ['shortcut_removed_from' => $folder]);
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * Everything on this install carrying its OWN permissions rather than its
+ * parent's — the report from §9 of the design page.
+ *
+ * ⚠️ THIS IS THE ANSWER TO THE ONE THING THAT MAKES PERMISSION SYSTEMS
+ * UNMANAGEABLE. A document whose rules differ from its folder is invisible from
+ * the tree: you cannot look at a folder and know what is true inside it. At ten
+ * exceptions that is fine and at four hundred it is not, so the exceptions get a
+ * list of their own. Nothing here is a permission check — it is a way of finding
+ * the things that need checking.
+ */
+function handleExceptions(PDO $conn, int $analystId): void
+{
+    $viewer = KnowledgeViewer::forAnalyst($conn, $analystId);
+    if (!knowledgeViewerHasAdminFloor($conn, $viewer)) {
+        echo json_encode(['success' => false, 'error' => 'You do not have permission to manage access.']);
+        return;
+    }
+
+    $out = [];
+
+    $st = $conn->query(
+        "SELECT f.id, f.name, f.is_restricted,
+                (SELECT COUNT(*) FROM knowledge_acl a WHERE a.object_type = 'folder' AND a.object_id = f.id) AS entries
+           FROM knowledge_folders f
+          WHERE f.inherit_permissions = 0
+          ORDER BY f.name"
+    );
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'type'          => 'folder',
+            'id'            => (int)$r['id'],
+            'name'          => $r['name'],
+            'is_restricted' => (int)$r['is_restricted'],
+            'entries'       => (int)$r['entries'],
+        ];
+    }
+
+    $st = $conn->query(
+        "SELECT a.id, a.title, a.is_restricted,
+                (SELECT COUNT(*) FROM knowledge_acl x WHERE x.object_type = 'article' AND x.object_id = a.id) AS entries
+           FROM knowledge_articles a
+          WHERE a.inherit_permissions = 0 AND (a.is_archived = 0 OR a.is_archived IS NULL)
+          ORDER BY a.title"
+    );
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $out[] = [
+            'type'          => 'article',
+            'id'            => (int)$r['id'],
+            'name'          => $r['title'],
+            'is_restricted' => (int)$r['is_restricted'],
+            'entries'       => (int)$r['entries'],
+        ];
+    }
+
+    echo json_encode(['success' => true, 'exceptions' => $out]);
 }
 
 /** One audit row. Best-effort: never fail the action because the log is unwritable. */

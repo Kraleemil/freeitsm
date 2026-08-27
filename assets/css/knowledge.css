@@ -1392,3 +1392,12 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     white-space: nowrap;
 }
 .kb-context-item:hover { background: var(--surface-hover); }
+
+/* A small marker in an article title: ↗ shown here by a shortcut, 🔒 carries its
+   own permissions. Both are the "visible and rare" rule — an exception nobody
+   can see from the list is an exception nobody will ever audit. */
+.kb-badge {
+    font-size: 11px;
+    opacity: 0.75;
+    cursor: help;
+}

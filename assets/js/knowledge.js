@@ -324,6 +324,10 @@ async function loadFolders() {
         if (!d.success) throw new Error(d.error || 'failed');
         kbFolders = d.folders || [];
         kbCanManagePerms = !!d.can_manage;
+        // The exceptions report is an administrator's tool, so it appears only for
+        // someone who can act on what it shows.
+        const exSec = document.getElementById('kbExceptionsSection');
+        if (exSec) exSec.style.display = kbCanManagePerms ? '' : 'none';
         renderFolderTree(d.root_count || 0);
         renderFolderPicker();
     } catch (e) {
@@ -513,7 +517,15 @@ async function kbDrop(e, folderId) {
     kbDrag = null;
 
     if (drag.type === 'article') {
-        await folderAction({ action: 'move_article', article_id: drag.id, folder_id: folderId }, 'knowledge.folders.moved_article');
+        // Ctrl-drag makes a SHORTCUT instead of moving — the same modifier
+        // Explorer uses for "copy here rather than move here", so the muscle
+        // memory already exists. A shortcut needs a destination folder, so
+        // dropping on "All articles" (null) is always a move.
+        if (e.ctrlKey && folderId !== null) {
+            await folderAction({ action: 'add_shortcut', article_id: drag.id, folder_id: folderId }, 'knowledge.folders.shortcut_added');
+        } else {
+            await folderAction({ action: 'move_article', article_id: drag.id, folder_id: folderId }, 'knowledge.folders.moved_article');
+        }
     } else {
         if (String(drag.id) === String(folderId)) return;
         // The server refuses a cycle; this only avoids the pointless round trip.
@@ -541,7 +553,17 @@ function kbContextMenu(e, type, id, name) {
     } else {
         items.push([window.t('knowledge.detail.edit'), `viewArticle(${id}).then(editCurrentArticle)`]);
         if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), `openPermModal('article', ${id}, ${JSON.stringify(name)})`]);
-        items.push([window.t('knowledge.folders.move_to_root'), `folderAction({action:'move_article',article_id:${id},folder_id:null},'knowledge.folders.moved_article')`]);
+        // A row showing in a folder it does not LIVE in is being shown by a
+        // shortcut, which is computable from what we already have — the article
+        // carries its real folder_id. Removing the shortcut must never be
+        // offered as "delete", because it takes away a pointer and leaves the
+        // document exactly where it lives.
+        if (kbRowIsShortcut(id)) {
+            items.push([window.t('knowledge.folders.shortcut_remove'),
+                        `folderAction({action:'remove_shortcut',article_id:${id},folder_id:${activeFolder}},'knowledge.folders.shortcut_removed')`]);
+        } else {
+            items.push([window.t('knowledge.folders.move_to_root'), `folderAction({action:'move_article',article_id:${id},folder_id:null},'knowledge.folders.moved_article')`]);
+        }
     }
 
     const menu = document.createElement('div');
@@ -572,6 +594,56 @@ async function createFolderIn(parentId) {
     const name = prompt(window.t('knowledge.folders.new_prompt'));
     if (name === null || name.trim() === '') return;
     await folderAction({ action: 'create', name: name.trim(), parent_id: parentId }, 'knowledge.folders.created');
+}
+
+/**
+ * Is this row appearing here because of a shortcut rather than because it lives
+ * here? No extra column needed: a row whose real folder_id differs from the
+ * folder being viewed is, by definition, being shown by a pointer.
+ */
+function kbRowIsShortcut(articleId) {
+    if (activeFolder === '' || activeFolder === 'root') return false;
+    const a = articles.find(x => x.id === articleId);
+    return !!a && String(a.folder_id) !== String(activeFolder);
+}
+
+/**
+ * Everything with its OWN permissions rather than its parent's.
+ *
+ * ⚠️ THIS SCREEN IS WHY PER-DOCUMENT PERMISSIONS ARE MANAGEABLE AT ALL. An
+ * exception is invisible from the tree — you cannot look at a folder and know
+ * what is true inside it — so without a list of them, the count only ever goes
+ * up and nobody can audit it.
+ */
+async function openExceptionsModal() {
+    const box = document.getElementById('kbExceptionsList');
+    document.getElementById('kbExceptionsModal').classList.add('active');
+    box.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+        const r = await fetch(API_BASE + 'folders.php?action=exceptions');
+        const d = await r.json();
+        if (!d.success) { box.innerHTML = '<div class="no-results">' + escapeHtml(d.error) + '</div>'; return; }
+        const rows = d.exceptions || [];
+        if (!rows.length) {
+            box.innerHTML = '<div class="no-results">' + escapeHtml(window.t('knowledge.exceptions.none')) + '</div>';
+            return;
+        }
+        box.innerHTML = rows.map(x => `
+            <div class="kb-perm-entry">
+                <span class="kb-perm-entry-name">${x.is_restricted ? '🔒 ' : ''}${escapeHtml(x.name)}</span>
+                <span class="kb-perm-entry-kind">${escapeHtml(window.t('knowledge.exceptions.' + x.type))}
+                    · ${x.entries} ${escapeHtml(window.t('knowledge.exceptions.listed'))}</span>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="closeExceptionsModal(); openPermModal('${escapeHtml(x.type)}', ${x.id}, ${JSON.stringify(x.name)})">
+                    ${escapeHtml(window.t('knowledge.perm.manage'))}</button>
+            </div>`).join('');
+    } catch (e) {
+        box.innerHTML = '<div class="no-results">' + escapeHtml(window.t('knowledge.perm.failed')) + '</div>';
+    }
+}
+
+function closeExceptionsModal() {
+    document.getElementById('kbExceptionsModal').classList.remove('active');
 }
 
 /** The article being read. Its own rules, not its folder's. */
@@ -909,7 +981,13 @@ function renderArticleList() {
                        ${kbSelected.has(article.id) ? 'checked' : ''}
                        onchange="toggleArticleSelected(${article.id}, this.checked)">
             </label>
-            <div class="article-card-title">${escapeHtml(article.title)}</div>
+            <div class="article-card-title">${
+                // ↗ it is here via a shortcut; 🔒 it carries its OWN permissions.
+                // The second is the §9 badge: an exception you cannot see from
+                // the list is an exception nobody will ever audit.
+                (kbRowIsShortcut(article.id) ? '<span class="kb-badge" title="' + escapeHtml(window.t('knowledge.folders.is_shortcut')) + '">↗</span> ' : '')
+              + (Number(article.inherit_permissions) === 0 ? '<span class="kb-badge" title="' + escapeHtml(window.t('knowledge.exceptions.own_rules')) + '">🔒</span> ' : '')
+            }${escapeHtml(article.title)}</div>
             <div class="article-card-preview">${escapeHtml(article.preview || '')}</div>
             <div class="article-card-meta">
                 <div class="article-card-tags">

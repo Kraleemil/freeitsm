@@ -38,6 +38,7 @@ try {
     // is_published = 1, so nothing unreviewed can reach a requester.
     $sql = "SELECT DISTINCT a.id, a.title, a.created_datetime, a.modified_datetime, a.view_count,
                    a.tenant_id, a.audience, a.is_published,
+                   a.folder_id, a.inherit_permissions, a.is_restricted,
                    LEFT(a.body, 300) as preview,
                    COALESCE(an.full_name, '(deleted analyst)') as author_name
             FROM knowledge_articles a
@@ -63,7 +64,13 @@ try {
     if ($folder === 'root') {
         $sql .= " AND a.folder_id IS NULL";
     } elseif ($folder !== '' && ctype_digit((string)$folder)) {
-        $sql .= " AND a.folder_id = ?";
+        // Filed here, OR pointed at from here by a shortcut. A shortcut has no
+        // permissions of its own — it resolves to the target, and the visibility
+        // clause above has already decided whether the target may be seen. So a
+        // shortcut to something you cannot read simply yields no row, rather
+        // than a row that leaks the target's title.
+        $sql .= " AND (a.folder_id = ? OR EXISTS (SELECT 1 FROM knowledge_shortcuts s WHERE s.article_id = a.id AND s.folder_id = ?))";
+        $params[] = (int)$folder;
         $params[] = (int)$folder;
     }
 

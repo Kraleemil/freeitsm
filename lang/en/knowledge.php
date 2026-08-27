@@ -149,10 +149,25 @@ return [
         'deleted'       => 'Folder deleted',
         'moved'         => 'Folder moved',
         'moved_article' => 'Article moved',
-        'move_to_root'  => 'Move out of its folder',
+        'move_to_root'     => 'Move out of its folder',
+        'shortcut_added'   => 'Shortcut created',
+        'shortcut_removed' => 'Shortcut removed',
+        'shortcut_remove'  => 'Remove shortcut from this folder',
+        'is_shortcut'      => 'Shown here by a shortcut. It lives in another folder.',
         'restricted'    => 'Restricted to chosen people',
         'load_failed'   => 'Could not load folders',
         'none'          => 'No folders yet',
+    ],
+
+    'exceptions' => [
+        'title'      => 'Documents and folders with their own permissions',
+        'button'     => 'Permission exceptions',
+        'hint'       => 'These do not follow the folder above them, so what is true inside a folder cannot be told by looking at the folder. Everything else inherits.',
+        'none'       => 'Nothing has its own permissions. Everything follows its folder.',
+        'folder'     => 'Folder',
+        'article'    => 'Article',
+        'listed'     => 'listed',
+        'own_rules'  => 'This has its own permissions and does not follow its folder.',
     ],
 
     'perm' => [

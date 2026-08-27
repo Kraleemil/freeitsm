@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=6">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=7">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -91,6 +91,10 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
             </div>
             <div class="sidebar-section">
                 <button class="btn btn-primary btn-full" onclick="openCreateArticle()"><?php echo htmlspecialchars(t('knowledge.sidebar.new_article')); ?></button>
+            </div>
+            <!-- Shown only to someone who may manage access; see knowledge.js. -->
+            <div class="sidebar-section" id="kbExceptionsSection" style="display:none;">
+                <button class="btn btn-secondary btn-full" onclick="openExceptionsModal()"><?php echo htmlspecialchars(t('knowledge.exceptions.button')); ?></button>
             </div>
             <div class="sidebar-section">
                 <button class="btn btn-secondary btn-full recycle-bin-toggle" id="recycleBinToggle" onclick="toggleRecycleBin()">
@@ -290,6 +294,24 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     </div>
 
     <!-- Share Email Modal -->
+    <!-- Everything carrying its own permissions rather than its parent's.
+         An exception is invisible from the tree, so without a list of them the
+         count only goes up and nobody can audit it. -->
+    <div class="modal" id="kbExceptionsModal">
+        <div class="modal-content" style="max-width: 620px;">
+            <div class="modal-header">
+                <h3><?php echo htmlspecialchars(t('knowledge.exceptions.title')); ?></h3>
+            </div>
+            <div class="modal-body">
+                <p class="field-hint"><?php echo htmlspecialchars(t('knowledge.exceptions.hint')); ?></p>
+                <div class="kb-perm-list" id="kbExceptionsList"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeExceptionsModal()"><?php echo htmlspecialchars(t('knowledge.modal.close')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Who can see this folder / article.
          A modal rather than a second tab on the left panel: the panel is 280px,
          and a principal search plus a list of people does not read at that
@@ -421,7 +443,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=21"></script>
+    <script src="../assets/js/knowledge.js?v=22"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>
