@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=3">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=4">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -69,6 +69,18 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                 <h3><?php echo htmlspecialchars(t('knowledge.sidebar.search_heading')); ?></h3>
                 <div class="search-box">
                     <input type="text" id="articleSearch" placeholder="<?php echo htmlspecialchars(t('knowledge.sidebar.search_placeholder')); ?>" onkeyup="debounceSearch()">
+                </div>
+            </div>
+            <!-- Folders. One tree and one list is what Explorer actually is;
+                 three view modes would be three renderers to build, test, theme
+                 and mobile-proof for one module. -->
+            <div class="sidebar-section">
+                <h3>
+                    <?php echo htmlspecialchars(t('knowledge.sidebar.folders_heading')); ?>
+                    <button type="button" class="kb-folder-add" id="kbFolderAdd" onclick="createFolderPrompt()" title="<?php echo htmlspecialchars(t('knowledge.folders.new')); ?>">+</button>
+                </h3>
+                <div class="kb-folder-tree" id="kbFolderTree">
+                    <div class="loading"><div class="spinner"></div></div>
                 </div>
             </div>
             <div class="sidebar-section">
@@ -238,6 +250,15 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                                     <small class="field-hint" id="audiencePublicChannels" style="display:none;"><?php echo htmlspecialchars(t('knowledge.editor.audience_public_channels')); ?></small>
                                     <small class="field-hint" id="audienceHint"></small>
                                 </div>
+                                <!-- Which folder it is filed in. One folder, never
+                                     several — see the design page. -->
+                                <div class="form-group" style="flex: 1;">
+                                    <label class="form-label"><?php echo htmlspecialchars(t('knowledge.editor.field_folder')); ?></label>
+                                    <select class="form-input" id="articleFolder">
+                                        <option value=""><?php echo htmlspecialchars(t('knowledge.folders.root')); ?></option>
+                                    </select>
+                                    <small class="field-hint"><?php echo htmlspecialchars(t('knowledge.editor.folder_hint')); ?></small>
+                                </div>
                                 <!-- Company. Hidden unless the install has more than one
                                      (the isMultiTenant mirror) — invisible at N=1. -->
                                 <div class="form-group" style="flex: 1; display: none;" id="articleCompanyGroup">
@@ -358,7 +379,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=18"></script>
+    <script src="../assets/js/knowledge.js?v=19"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>

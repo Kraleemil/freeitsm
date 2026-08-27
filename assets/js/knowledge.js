@@ -14,9 +14,17 @@ let searchTimeout = null;
 let activeTagFilters = [];
 let isRecycleBinView = false;
 
+// Folders. `activeFolder` is '' for every article, 'root' for the ones filed
+// nowhere, or a folder id — three distinct states, which is why it is not a
+// nullable number: "no filter" and "the folder that is not a row" are different
+// questions and an empty value cannot mean both.
+let kbFolders = [];
+let activeFolder = '';
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadTags();
+    loadFolders();
     loadArticles();
     loadAnalysts();
     loadCompanies();
@@ -139,12 +147,21 @@ function resetVisibilityFields() {
     audienceToControls('internal');
     const co = document.getElementById('articleCompany');
     if (co) co.value = '';
+    // A new article is created in whatever folder you are looking at — that is
+    // what "New article" means while a folder is selected. 'root' and '' both
+    // mean the top level here.
+    const fo = document.getElementById('articleFolder');
+    if (fo) fo.value = (activeFolder && activeFolder !== 'root') ? activeFolder : '';
 }
 
 /** The visibility half of a save payload. */
 function visibilityPayload() {
     const co  = document.getElementById('articleCompany');
+    const fo  = document.getElementById("articleFolder");
     const out = { audience: audienceFromControls() };
+    // Sent only when the picker exists, so an install whose page predates it
+    // cannot post folder_id: null on every save and quietly unfile everything.
+    if (fo) out.folder_id = fo.value === "" ? null : parseInt(fo.value, 10);
     // Only send a company when the picker is actually in play; otherwise a
     // single-company install would post an empty string on every save.
     if (co && kbCompanies.length >= 2) {
@@ -285,6 +302,135 @@ function applySidebarMode(mode) {
     container.classList.toggle('sidebar-hover', mode === 'hover');
 }
 
+// ---------------------------------------------------------------------------
+//  Folders
+//
+//  The tree arrives ALREADY FILTERED — a folder you may not read is not sent at
+//  all, rather than sent with a flag for this code to respect. Filtering here
+//  would mean the names had already crossed the wire, and a folder name is
+//  exactly the sort of thing worth restricting.
+// ---------------------------------------------------------------------------
+
+async function loadFolders() {
+    const box = document.getElementById('kbFolderTree');
+    if (!box) return;
+    try {
+        const r = await fetch(API_BASE + 'folders.php?action=list');
+        const d = await r.json();
+        if (!d.success) throw new Error(d.error || 'failed');
+        kbFolders = d.folders || [];
+        renderFolderTree(d.root_count || 0);
+        renderFolderPicker();
+    } catch (e) {
+        // Say so rather than rendering an empty tree: "no folders" and "the
+        // folders did not load" look identical, and one of them is a lie that
+        // makes a document look deleted.
+        box.innerHTML = '<div class="no-results">' + escapeHtml(window.t('knowledge.folders.load_failed')) + '</div>';
+    }
+}
+
+/** Children of `parent`, in the order the server sent them (by name). */
+function folderChildren(parent) {
+    return kbFolders.filter(f => f.parent_id === parent);
+}
+
+function renderFolderTree(rootCount) {
+    const box = document.getElementById('kbFolderTree');
+    if (!box) return;
+
+    const line = (label, value, count, extra) =>
+        `<div class="kb-folder${activeFolder === value ? ' active' : ''}${extra || ''}" data-folder="${escapeHtml(String(value))}">
+            <span class="kb-folder-name" onclick="selectFolder('${escapeHtml(String(value))}')">${escapeHtml(label)}</span>
+            <span class="kb-folder-count">${count}</span>
+         </div>`;
+
+    // "All articles" is the no-filter state, not a folder — hence value ''.
+    let html = line(window.t('knowledge.folders.root'), '', rootCount + kbFolders.reduce((n, f) => n + f.article_count, 0), '');
+
+    const walk = (parent, depth) => {
+        for (const f of folderChildren(parent)) {
+            const restricted = f.is_restricted ? ' 🔒' : '';
+            html += `<div class="kb-folder${activeFolder === String(f.id) ? ' active' : ''}" data-folder="${f.id}" style="padding-left:${8 + depth * 14}px"
+                          title="${f.is_restricted ? escapeHtml(window.t('knowledge.folders.restricted')) : ''}">
+                        <span class="kb-folder-name" onclick="selectFolder('${f.id}')">${escapeHtml(f.name)}${restricted}</span>
+                        <span class="kb-folder-count">${f.article_count}</span>
+                     </div>`;
+            walk(f.id, depth + 1);
+        }
+    };
+    walk(null, 0);
+
+    box.innerHTML = html;
+}
+
+/** Fill the editor's folder picker, indented so the shape is readable. */
+function renderFolderPicker() {
+    const sel = document.getElementById('articleFolder');
+    if (!sel) return;
+    const keep = sel.value;
+    sel.innerHTML = '';
+    const root = document.createElement('option');
+    root.value = '';
+    root.textContent = window.t('knowledge.folders.root');
+    sel.appendChild(root);
+
+    const walk = (parent, depth) => {
+        for (const f of folderChildren(parent)) {
+            const o = document.createElement('option');
+            o.value = String(f.id);
+            o.textContent = ' '.repeat(depth * 3) + f.name;
+            sel.appendChild(o);
+            walk(f.id, depth + 1);
+        }
+    };
+    walk(null, 0);
+    sel.value = keep;
+}
+
+function selectFolder(value) {
+    activeFolder = String(value);
+    renderFolderTree(0);   // repaint the selection; counts come back on reload
+    loadFolders();
+    loadArticles(document.getElementById('articleSearch').value, activeTagFilters);
+}
+
+async function createFolderPrompt() {
+    const name = prompt(window.t('knowledge.folders.new_prompt'));
+    if (name === null || name.trim() === '') return;
+    // Create inside whatever is selected, which is what "new folder" means when
+    // you are looking at one. '' (All articles) means the top level.
+    const parent = (activeFolder && activeFolder !== 'root') ? activeFolder : null;
+    await folderAction({ action: 'create', name: name.trim(), parent_id: parent }, 'knowledge.folders.created');
+}
+
+async function renameFolderPrompt(id, current) {
+    const name = prompt(window.t('knowledge.folders.rename_prompt'), current);
+    if (name === null || name.trim() === '') return;
+    await folderAction({ action: 'rename', id: id, name: name.trim() }, 'knowledge.folders.renamed');
+}
+
+async function deleteFolderPrompt(id, name) {
+    if (!confirm(window.t('knowledge.folders.delete_confirm', { name: name }))) return;
+    await folderAction({ action: 'delete', id: id }, 'knowledge.folders.deleted');
+}
+
+async function folderAction(payload, okKey) {
+    try {
+        const r = await fetch(API_BASE + 'folders.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        if (!d.success) { showToast(d.error || window.t('knowledge.folders.load_failed'), 'error'); return; }
+        showToast(window.t(okKey), 'success');
+        await loadFolders();
+        loadArticles(document.getElementById('articleSearch').value, activeTagFilters);
+    } catch (e) {
+        showToast(window.t('knowledge.folders.load_failed'), 'error');
+    }
+}
+
 async function loadTags() {
     try {
         const response = await fetch(API_BASE + 'knowledge_tags.php');
@@ -309,6 +455,7 @@ async function loadArticles(search = '', tagIds = []) {
         let url = API_BASE + 'knowledge_articles.php?';
         if (search) url += `search=${encodeURIComponent(search)}&`;
         if (tagIds.length > 0) url += `tags=${tagIds.join(',')}&`;
+        if (activeFolder !== '') url += `folder=${encodeURIComponent(activeFolder)}&`;
 
         const response = await fetch(url);
         const data = await response.json();
@@ -593,11 +740,17 @@ function editCurrentArticle() {
 
     // Set visibility from the stored article. Fall back to the safe end if the
     // read endpoint hasn't been taught these fields yet.
-    const audienceSelect = document.getElementById('articleAudience');
-    if (audienceSelect) audienceSelect.value = currentArticle.audience || 'internal';
+    //
+    // ⚠️ audienceToControls(), NOT a direct assignment to the dropdown. The
+    // dropdown has only TWO options now, so `select.value = 'public'` silently
+    // matches nothing and the browser clears the control — the editor would open
+    // showing "Analysts only" on an article visible to the whole internet, and
+    // saving would then quietly narrow it.
+    audienceToControls(currentArticle.audience);
     const companySelect = document.getElementById('articleCompany');
     if (companySelect) companySelect.value = currentArticle.tenant_id || '';
-    updateAudienceHint();
+    const folderSelect = document.getElementById('articleFolder');
+    if (folderSelect) folderSelect.value = currentArticle.folder_id ? String(currentArticle.folder_id) : '';
 
     // Set owner and review date
     const ownerSelect = document.getElementById('articleOwner');

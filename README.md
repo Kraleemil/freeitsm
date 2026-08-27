@@ -71,7 +71,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | [Self-Service Portal](https://github.com/edmozley/freeitsm/wiki/Self-Service-Portal) | End-user portal — request catalogue, knowledge, replies, screen recording; works even with no email address. Can be set as the page people land on (**System → Branding**), with a per-analyst override |
 | [Tasks](https://github.com/edmozley/freeitsm/wiki/Tasks) | Kanban board, list, calendar and timeline views for internal work |
 | [Assets](https://github.com/edmozley/freeitsm/wiki/Assets) | Asset register with custody tracking, locations, warranties, [QR labels and an in-app camera scanner for stocktakes](https://github.com/edmozley/freeitsm/wiki/Asset-QR-Labels), a per-person view of who holds what with a printable handover document, vCenter and Intune sync |
-| [Knowledge](https://github.com/edmozley/freeitsm/wiki/Knowledge) | Rich-text articles with AI chat, vector search, review workflow and per-audience visibility |
+| [Knowledge](https://github.com/edmozley/freeitsm/wiki/Knowledge) | Rich-text articles organised in [folders](https://github.com/edmozley/freeitsm/wiki/Knowledge-Folders-and-Permissions), with AI chat, vector search, review workflow and per-audience visibility |
 | [Change Management](https://github.com/edmozley/freeitsm/wiki/Change-Management) | ITIL changes with CAB voting, risk matrix and post-implementation review |
 | [Problem Management](https://github.com/edmozley/freeitsm/wiki/Problem-Management) | Root causes behind recurring incidents, known errors, AI-assisted RCA |
 | [Workflows](https://github.com/edmozley/freeitsm/wiki/Workflows) | Cross-module automation — visual canvas, 138+ triggers, outbound webhooks, AI co-author |

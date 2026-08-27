@@ -1247,3 +1247,51 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     cursor: not-allowed;
 }
 .kb-audience-public.is-disabled input { cursor: not-allowed; }
+
+/* ---------------------------------------------------------------------------
+   Folder tree. One tree and one list is what Explorer actually is; three view
+   modes would be three renderers to build, test, theme and mobile-proof.
+   --------------------------------------------------------------------------- */
+.kb-folder-tree { display: flex; flex-direction: column; gap: 1px; }
+
+.kb-folder {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+}
+.kb-folder:hover { background: var(--surface-hover); }
+.kb-folder.active { background: var(--accent-soft); font-weight: 600; }
+
+/* The name takes the free space so the count sits hard right and the column of
+   numbers lines up however deep the nesting goes. */
+.kb-folder-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.kb-folder-count {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* The + beside the "Folders" heading. */
+.kb-folder-add {
+    float: right;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+.kb-folder-add:hover { color: var(--text); }

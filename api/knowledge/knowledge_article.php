@@ -36,7 +36,7 @@ try {
                    a.author_id, a.owner_id, a.next_review_date,
                    a.created_datetime, a.modified_datetime, a.view_count,
                    a.is_archived, a.archived_datetime, a.version,
-                   a.tenant_id, a.audience,
+                   a.tenant_id, a.audience, a.folder_id, a.is_restricted, a.inherit_permissions,
                    COALESCE(an.full_name, '(deleted analyst)') as author_name,
                    owner.full_name as owner_name
             FROM knowledge_articles a

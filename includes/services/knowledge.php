@@ -70,6 +70,37 @@ class KnowledgeService
     }
 
     /**
+     * Validate a submitted folder.
+     *
+     * '' / null => NULL => the root, which is where every article lived before
+     * folders existed and where anything unfiled belongs.
+     *
+     * A folder that does not exist is REJECTED rather than quietly becoming the
+     * root: filing a document somewhere and finding it at the top level instead
+     * is the kind of silent miss that makes people distrust the whole tree. Same
+     * reasoning as resolveAudience() rejecting a bogus value on the write path
+     * while the read path normalises.
+     */
+    private static function resolveFolderId(PDO $conn, $raw): ?int
+    {
+        if ($raw === '' || $raw === null) return null;
+        $id = (int)$raw;
+        if ($id <= 0) return null;
+        try {
+            $st = $conn->prepare("SELECT 1 FROM knowledge_folders WHERE id = ?");
+            $st->execute([$id]);
+            if (!$st->fetchColumn()) {
+                throw new ServiceError('validation', 'invalid_field', "'folder_id' is not a known folder.");
+            }
+        } catch (PDOException $e) {
+            // Table absent (pre-Database-Verify): no folders exist, so the only
+            // honest answer is the root.
+            return null;
+        }
+        return $id;
+    }
+
+    /**
      * Validate a submitted audience. Unlike the read path — which normalises junk
      * down to 'internal' so a bad value can never widen visibility — a WRITE with a
      * bogus audience is a caller bug and is rejected outright, so nobody silently
@@ -168,6 +199,14 @@ class KnowledgeService
                 $updates[] = 'audience = ?';
                 $args[]    = self::resolveAudience($in['audience']);
             }
+            // Which folder it is filed in. Same "only when sent" rule as the two
+            // above, for the same reason: an adapter that knows nothing about
+            // folders (the REST API today, an importer) must not silently move
+            // an article to the root every time it saves a title.
+            if (array_key_exists('folder_id', $in)) {
+                $updates[] = 'folder_id = ?';
+                $args[]    = self::resolveFolderId($conn, $in['folder_id']);
+            }
 
             $saveAsVersion = !empty($in['save_as_version']);
 
@@ -231,9 +270,10 @@ class KnowledgeService
                 "INSERT INTO knowledge_articles
                     (title, body, author_id, owner_id, next_review_date,
                      created_datetime, modified_datetime, is_published, view_count,
-                     tenant_id, audience)
-                 VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP(), ?, 0, ?, ?)"
-            )->execute([$title, $bodyHtml, $ctx->actorId, $ownerId, $nextReview, $isPublished, $tenantId, $audience]);
+                     tenant_id, audience, folder_id)
+                 VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP(), ?, 0, ?, ?, ?)"
+            )->execute([$title, $bodyHtml, $ctx->actorId, $ownerId, $nextReview, $isPublished, $tenantId, $audience,
+                        self::resolveFolderId($conn, $in['folder_id'] ?? null)]);
             $articleId = (int)$conn->lastInsertId();
 
             if (isset($in['tags']) && is_array($in['tags'])) {

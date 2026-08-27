@@ -51,6 +51,22 @@ try {
     [$visSql, $params] = knowledgeVisibilitySql($conn, $viewer, 'a', ['lifecycle' => 'unarchived']);
     $sql .= $visSql;
 
+    // Folder filter. 'root' means the articles filed nowhere — the folder that
+    // is not a row — which is distinct from "no filter at all", so it needs its
+    // own value rather than an empty string.
+    //
+    // Not access-checked here on purpose: the visibility clause above already
+    // decides what may be returned, so naming a folder you cannot read yields an
+    // empty list rather than a refusal. That is the same answer an empty folder
+    // gives, which is exactly right — a refusal would confirm the folder exists.
+    $folder = $_GET['folder'] ?? '';
+    if ($folder === 'root') {
+        $sql .= " AND a.folder_id IS NULL";
+    } elseif ($folder !== '' && ctype_digit((string)$folder)) {
+        $sql .= " AND a.folder_id = ?";
+        $params[] = (int)$folder;
+    }
+
     // Search filter
     if (!empty($search)) {
         $sql .= " AND (a.title LIKE ? OR a.body LIKE ?)";
