@@ -576,6 +576,28 @@ $translationNamespaces = ['common', 'knowledge'];
                         </span>
                     </label>
                 </div>
+
+                <!-- WHERE you browse folders. The left panel already carries
+                     search, folders, tags, buttons and the bin; folders are the
+                     newest and largest thing on it, so being able to move them
+                     out is the point of this setting. -->
+                <div class="form-group" style="margin-top: 24px;">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 500; color: var(--text, #333);"><?php echo htmlspecialchars(t('knowledge.settings.browse_heading')); ?></label>
+                    <label style="display: block; padding: 10px 14px; border: 1px solid var(--border, #ddd); border-radius: 6px; margin-bottom: 8px; cursor: pointer;">
+                        <input type="radio" name="kbBrowseMode" value="panel" onchange="saveBrowseMode(this.value)">
+                        <strong><?php echo htmlspecialchars(t('knowledge.settings.browse_panel_title')); ?></strong>
+                        <span style="display: block; font-size: 12px; color: var(--text-dim, #777); margin-top: 4px; margin-left: 22px;">
+                            <?php echo htmlspecialchars(t('knowledge.settings.browse_panel_desc')); ?>
+                        </span>
+                    </label>
+                    <label style="display: block; padding: 10px 14px; border: 1px solid var(--border, #ddd); border-radius: 6px; cursor: pointer;">
+                        <input type="radio" name="kbBrowseMode" value="explorer" onchange="saveBrowseMode(this.value)">
+                        <strong><?php echo htmlspecialchars(t('knowledge.settings.browse_explorer_title')); ?></strong>
+                        <span style="display: block; font-size: 12px; color: var(--text-dim, #777); margin-top: 4px; margin-left: 22px;">
+                            <?php echo htmlspecialchars(t('knowledge.settings.browse_explorer_desc')); ?>
+                        </span>
+                    </label>
+                </div>
             </form>
         </div>
     </div>
@@ -591,7 +613,7 @@ $translationNamespaces = ['common', 'knowledge'];
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.getElementById(tab + '-tab').classList.add('active');
             // Lazy-load the Left panel preference the first time the tab opens.
-            if (tab === 'left-panel') loadSidebarMode();
+            if (tab === 'left-panel') { loadSidebarMode(); loadBrowseMode(); }
         }
 
         // --- Left panel preference ------------------------------------
@@ -695,6 +717,36 @@ $translationNamespaces = ['common', 'knowledge'];
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ key: SIDEBAR_MODE_KEY, value: value })
+                });
+                const d = await r.json();
+                if (d.success) showToast(window.t('knowledge.settings.toast_saved'), 'success');
+            } catch (e) { /* no-op */ }
+        }
+
+        // Where folders are browsed. Same shape as the sidebar mode above; both
+        // are per-analyst display preferences rather than install settings,
+        // because two people sharing a service desk genuinely disagree about
+        // this and neither is wrong.
+        const BROWSE_MODE_KEY = 'knowledge_browse_mode';
+        async function loadBrowseMode() {
+            try {
+                const r = await fetch('../../api/system/get_user_preference.php?key=' + encodeURIComponent(BROWSE_MODE_KEY), { credentials: 'same-origin' });
+                const d = await r.json();
+                const mode = (d.success && d.value === 'explorer') ? 'explorer' : 'panel';
+                document.querySelectorAll('input[name="kbBrowseMode"]').forEach(i => { i.checked = (i.value === mode); });
+            } catch (e) {
+                const first = document.querySelector('input[name="kbBrowseMode"][value="panel"]');
+                if (first) first.checked = true;
+            }
+        }
+        async function saveBrowseMode(value) {
+            if (value !== 'panel' && value !== 'explorer') return;
+            try {
+                const r = await fetch('../../api/system/set_user_preference.php', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: BROWSE_MODE_KEY, value: value })
                 });
                 const d = await r.json();
                 if (d.success) showToast(window.t('knowledge.settings.toast_saved'), 'success');

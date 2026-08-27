@@ -29,6 +29,8 @@ let kbCanManagePerms = false;
 document.addEventListener('DOMContentLoaded', function() {
     loadTags();
     loadFolders();
+    loadBrowseModePreference();
+    loadLayoutPreference();
     loadArticles();
     loadAnalysts();
     loadCompanies();
@@ -290,6 +292,159 @@ function initTagInput() {
 // the .sidebar-hover class on .knowledge-container. Pattern mirrors the
 // Process Mapper module (#324). Set under Knowledge → Settings → Left panel.
 const KB_SIDEBAR_MODE_KEY = 'knowledge_sidebar_mode';
+
+/**
+ * WHERE you browse folders. Per analyst, like the sidebar mode above.
+ *
+ *   'panel'    (default) the tree lives in the left panel and the main pane
+ *              shows a flat list at "All articles" — the behaviour that has
+ *              always existed.
+ *   'explorer' the tree section is taken OUT of the left panel and the main
+ *              pane does the browsing: top-level folders at "All articles",
+ *              then in and out with the breadcrumb.
+ *
+ * A preference rather than a toggle in the toolbar, matching how the left panel
+ * itself is configured — and because it is a working style, not something you
+ * flip twice an hour. Ed's reason for wanting it is the one that decides the
+ * default: the left panel already carries search, folders, tags, three buttons
+ * and the bin, and folders are the newest and largest addition to it. Moving
+ * them out is a choice, not an improvement everyone wants, so 'panel' stays the
+ * default and nobody's screen changes without them asking.
+ */
+const KB_BROWSE_MODE_KEY = 'knowledge_browse_mode';
+let kbBrowseMode = 'panel';
+
+/**
+ * HOW the main pane draws things: 'list' (default) | 'cards' | 'tree'.
+ *
+ * I argued against offering three layouts, on the grounds that "details" and
+ * "tree" already existed as the list and the left panel. Ed asked for them in
+ * the MAIN PANE twice, having used the thing, and that settles it — the
+ * argument was about duplication in a 280px strip, and the main pane is where
+ * the room is. Recorded because the reasoning against is still on the wiki and
+ * a later reader deserves to know it was overtaken rather than forgotten.
+ *
+ *   list   full-width rows with a preview. What has always existed.
+ *   cards  a grid, matching the System landing page — many titles at a glance,
+ *          which is what you want when you know roughly what you are after.
+ *   tree   folders expanded in place with their articles inside, so the whole
+ *          shape is visible at once rather than one level at a time.
+ *
+ * A toggle in the header rather than only a setting: unlike where you browse,
+ * this is something people genuinely flip during a session. It still persists,
+ * so it is not forgotten between visits.
+ */
+const KB_LAYOUT_KEY = 'knowledge_main_layout';
+let kbLayout = 'list';
+
+async function loadBrowseModePreference() {
+    try {
+        const r = await fetch('../api/system/get_user_preference.php?key=' + encodeURIComponent(KB_BROWSE_MODE_KEY), { credentials: 'same-origin' });
+        const d = await r.json();
+        kbBrowseMode = (d.success && d.value === 'explorer') ? 'explorer' : 'panel';
+    } catch (e) {
+        kbBrowseMode = 'panel';
+    }
+    applyBrowseMode();
+}
+
+async function loadLayoutPreference() {
+    try {
+        const r = await fetch('../api/system/get_user_preference.php?key=' + encodeURIComponent(KB_LAYOUT_KEY), { credentials: 'same-origin' });
+        const d = await r.json();
+        kbLayout = (d.success && ['list', 'cards', 'tree'].includes(d.value)) ? d.value : 'list';
+    } catch (e) {
+        kbLayout = 'list';
+    }
+    applyLayout(false);
+}
+
+function applyLayout(save) {
+    document.querySelectorAll('.kb-layout-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.layout === kbLayout);
+    });
+    if (typeof articles !== 'undefined') renderArticleList();
+    if (save) {
+        fetch('../api/system/set_user_preference.php', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: KB_LAYOUT_KEY, value: kbLayout })
+        }).catch(() => { /* the layout still changed; only the memory of it failed */ });
+    }
+}
+
+function setLayout(mode) {
+    if (!['list', 'cards', 'tree'].includes(mode)) return;
+    kbLayout = mode;
+    // The tree draws the WHOLE shape, so it needs every folder's articles rather
+    // than the one folder currently selected. Reload unfiltered when switching
+    // into it, or it would show a tree containing one branch.
+    if (mode === 'tree') {
+        activeFolder = '';
+        renderBreadcrumb();
+        loadArticles(document.getElementById('articleSearch').value, activeTagFilters).then(() => applyLayout(true));
+        return;
+    }
+    applyLayout(true);
+}
+
+/**
+ * The whole shape at once: every folder, expanded, with its articles inside.
+ *
+ * Built from what is already loaded rather than from a new endpoint — the tree
+ * comes from loadFolders() and the articles from the unfiltered list, both of
+ * which are already filtered to what this analyst may see. A second endpoint
+ * would be a second place for the permission rules to be got wrong.
+ */
+function renderTreeLayout() {
+    const byFolder = {};
+    for (const a of articles) {
+        const k = a.folder_id === null ? 'root' : String(a.folder_id);
+        (byFolder[k] = byFolder[k] || []).push(a);
+    }
+
+    const article = (a, depth) => `
+        <div class="kb-tree-article" style="padding-left:${10 + depth * 18}px" onclick="viewArticle(${a.id})"
+             draggable="true" ondragstart="kbDragStart(event, 'article', ${a.id})" ondragend="kbDragEnd()"
+             oncontextmenu="kbContextMenu(event, 'article', ${a.id}, ${JSON.stringify(a.title)})">
+            <span class="kb-tree-icon">📄</span>
+            <span class="kb-tree-label">${Number(a.inherit_permissions) === 0 ? '🔒 ' : ''}${escapeHtml(a.title)}</span>
+        </div>`;
+
+    let html = '';
+    const walk = (parent, depth) => {
+        for (const f of kbFolders.filter(x => x.parent_id === parent)) {
+            html += `
+                <div class="kb-tree-folder" style="padding-left:${10 + depth * 18}px"
+                     ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
+                     data-folder="${f.id}" onclick="selectFolder('${f.id}')"
+                     oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${JSON.stringify(f.name)})">
+                    <span class="kb-tree-icon">📁</span>
+                    <span class="kb-tree-label">${escapeHtml(f.name)}${f.is_restricted ? ' 🔒' : ''}</span>
+                    <span class="kb-folder-count">${f.article_count}</span>
+                </div>`;
+            for (const a of (byFolder[String(f.id)] || [])) html += article(a, depth + 1);
+            walk(f.id, depth + 1);
+        }
+    };
+    walk(null, 0);
+
+    // Articles filed nowhere belong at the bottom, not silently omitted — the
+    // tree is meant to show everything, and "everything except the unfiled ones"
+    // is exactly the sort of quiet gap that makes people distrust a view.
+    for (const a of (byFolder['root'] || [])) html += article(a, 0);
+
+    return html || `<div class="no-results">${escapeHtml(window.t('knowledge.list.no_articles'))}</div>`;
+}
+
+function applyBrowseMode() {
+    // Hiding the tree section is the whole point on the explorer setting: the
+    // complaint was a crowded panel, so leaving the tree there and ALSO putting
+    // folders in the main pane would make it worse, not better.
+    const sec = document.getElementById('kbFolderSection');
+    if (sec) sec.style.display = (kbBrowseMode === 'explorer') ? 'none' : '';
+    if (typeof articles !== 'undefined') renderArticleList();
+}
 async function loadSidebarModePreference() {
     try {
         const r = await fetch('../api/system/get_user_preference.php?key=' + encodeURIComponent(KB_SIDEBAR_MODE_KEY), { credentials: 'same-origin' });
@@ -489,7 +644,10 @@ function kbDragStart(e, type, id) {
 
 function kbDragEnd() {
     kbDrag = null;
-    document.querySelectorAll('.kb-folder.drop-target')
+    // Every kind of drop target, not just the tree in the panel — the folder
+    // CARDS and the tree ROWS in the main pane are targets too, and a highlight
+    // left behind after an abandoned drag looks like the row is selected.
+    document.querySelectorAll('.drop-target')
             .forEach(el => el.classList.remove('drop-target'));
 }
 
@@ -670,7 +828,11 @@ function renderFolderRows() {
         // width is. A width guess duplicates the breakpoint in a second place and
         // then drifts from it; measuring the panel asks the real question, and
         // answers it correctly for a narrow window on a desktop too.
-        if (kbTreeIsVisible()) return '';
+        // Two reasons to put the top-level folders here: the tree is not on
+        // screen at all (a phone), or the analyst has asked for the main pane to
+        // do the browsing. Both are "the tree is not doing this job", which is
+        // the only question that matters.
+        if (kbBrowseMode !== 'explorer' && kbTreeIsVisible()) return '';
         kids = kbFolders.filter(f => f.parent_id === null);
     } else {
         kids = kbFolders.filter(f => String(f.parent_id) === String(activeFolder));
@@ -1055,6 +1217,14 @@ function renderArticleList() {
 
     countEl.textContent = window.t(articles.length === 1 ? 'knowledge.list.count_one' : 'knowledge.list.count', { count: articles.length });
     renderBreadcrumb();
+
+    // The tree draws folders and articles together, so it replaces the whole
+    // pane rather than sitting above the usual rows.
+    container.className = 'article-list kb-layout-' + kbLayout;
+    if (kbLayout === 'tree') {
+        container.innerHTML = renderTreeLayout();
+        return;
+    }
 
     // ⚠️ An empty FOLDER is not an empty knowledge base. Showing "create your
     // first article" inside a folder that merely holds subfolders would be

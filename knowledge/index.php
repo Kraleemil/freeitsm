@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=9">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=10">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -74,7 +74,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
             <!-- Folders. One tree and one list is what Explorer actually is;
                  three view modes would be three renderers to build, test, theme
                  and mobile-proof for one module. -->
-            <div class="sidebar-section">
+            <div class="sidebar-section" id="kbFolderSection">
                 <h3>
                     <?php echo htmlspecialchars(t('knowledge.sidebar.folders_heading')); ?>
                     <button type="button" class="kb-folder-add" id="kbFolderAdd" onclick="createFolderPrompt()" title="<?php echo htmlspecialchars(t('knowledge.folders.new')); ?>">+</button>
@@ -114,6 +114,14 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                 <div class="article-list-header">
                     <h2 id="articleListHeader"><?php echo htmlspecialchars(t('knowledge.list.heading')); ?></h2>
                     <div class="article-count" id="articleCount"></div>
+                    <!-- How the main pane draws things. A toggle rather than only
+                         a setting: unlike WHERE you browse, this is something
+                         people flip during a session. It persists all the same. -->
+                    <div class="kb-layout-toggle">
+                        <button type="button" class="kb-layout-btn active" data-layout="list" onclick="setLayout('list')" title="<?php echo htmlspecialchars(t('knowledge.layout.list')); ?>">☰</button>
+                        <button type="button" class="kb-layout-btn" data-layout="cards" onclick="setLayout('cards')" title="<?php echo htmlspecialchars(t('knowledge.layout.cards')); ?>">▦</button>
+                        <button type="button" class="kb-layout-btn" data-layout="tree" onclick="setLayout('tree')" title="<?php echo htmlspecialchars(t('knowledge.layout.tree')); ?>">🌳</button>
+                    </div>
                 </div>
 
                 <!-- Bulk audience bar. Hidden until something is ticked; selection
@@ -446,7 +454,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=24"></script>
+    <script src="../assets/js/knowledge.js?v=26"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>

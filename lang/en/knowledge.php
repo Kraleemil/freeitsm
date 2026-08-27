@@ -136,6 +136,12 @@ return [
         'create_tag'       => 'Create "{name}"',
     ],
 
+    'layout' => [
+        'list'  => 'List',
+        'cards' => 'Cards',
+        'tree'  => 'Tree',
+    ],
+
     'folders' => [
         'root'          => 'All articles',
         'new'           => 'New folder',
@@ -299,6 +305,11 @@ return [
         'tab_ai'         => 'AI',
         'tab_embeddings' => 'Embeddings',
         'tab_recycle'    => 'Recycle bin',
+        'browse_heading'         => 'Where you browse folders',
+        'browse_panel_title'     => 'In the left panel',
+        'browse_panel_desc'      => 'The folder tree sits in the panel on the left, and the main list shows every article until you pick one. This is the default.',
+        'browse_explorer_title'  => 'In the main pane',
+        'browse_explorer_desc'   => 'Folders come out of the left panel, freeing it up, and you browse in the main list instead - folders first, then articles, with a trail across the top. Closer to a file explorer.',
         'tab_permissions'        => 'Folder permissions',
         'perm_model_heading'     => 'How folder permissions apply',
         'perm_model_intro'       => 'When a folder is restricted, does that restriction cover everything inside it, or only the folder itself? Both are reasonable; pick the one that matches how your team files things. This applies to the whole installation.',
