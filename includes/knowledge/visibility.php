@@ -733,13 +733,29 @@ function knowledgeFolderPermissionModel(PDO $conn): string
     return KnowledgeAclCache::set("mode", ($v === "filing") ? "filing" : "containers");
 }
 
-/** Are there ANY access rows at all? The cheap test that skips all the work. */
+/**
+ * Is ANYTHING restricted on this install? The cheap test that skips all the work.
+ *
+ * ⚠️ IT IS NOT ENOUGH TO ASK WHETHER knowledge_acl HAS ROWS, and that mistake
+ * shipped for exactly one afternoon. A **Restricted object with an empty list**
+ * is a real restriction — it means "restricted to nobody" — and it has no access
+ * rows at all. Asking only about rows meant that emptying a list (or flipping an
+ * Open object to Restricted, which WIPES the list by design) could leave
+ * knowledge_acl empty, take this fast path, and hand the object back to
+ * everybody. The most restrictive state in the model was the one that turned
+ * the guard off.
+ *
+ * Found by a harness that drove the real modal rather than a fixture that always
+ * had rows in it — the unit-shaped test passed throughout.
+ */
 function knowledgeAclHasAnyRows(PDO $conn): bool
 {
     $any = KnowledgeAclCache::get("any");
     if ($any !== null) return $any;
     try {
-        $any = (bool)$conn->query("SELECT 1 FROM knowledge_acl LIMIT 1")->fetchColumn();
+        $any = (bool)$conn->query("SELECT 1 FROM knowledge_acl LIMIT 1")->fetchColumn()
+            || (bool)$conn->query("SELECT 1 FROM knowledge_folders WHERE is_restricted = 1 LIMIT 1")->fetchColumn()
+            || (bool)$conn->query("SELECT 1 FROM knowledge_articles WHERE is_restricted = 1 LIMIT 1")->fetchColumn();
     } catch (PDOException $e) {
         // Cannot tell — assume there ARE rules so the guard still runs, matching
         // tenancyColumnExists()'s direction. Failing the other way would drop the

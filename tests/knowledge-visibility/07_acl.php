@@ -105,6 +105,31 @@ try {
     check('not even the author can read it', !$canRead($bob, $emptyA),
           'restricted-to-nobody let somebody through');
 
+    echo "\n=== a RESTRICTED folder with NO rows ANYWHERE still restricts ===\n";
+    // ⚠️ THE REGRESSION THIS EXISTS FOR. The resolver has a fast path that skips
+    // all the work when nothing is restricted, and it originally asked "does
+    // knowledge_acl have any rows?". A Restricted object with an EMPTY list is a
+    // real restriction — "restricted to nobody" — carrying no rows at all, so
+    // emptying a list (or flipping polarity, which wipes it by design) could
+    // leave the table empty, take the fast path, and hand the folder back to
+    // everybody. The most restrictive state in the model was the one that turned
+    // the guard off.
+    //
+    // Every other case here has rows in knowledge_acl, so only a case with NONE
+    // can catch it. Hence the deletion.
+    $c->query("DELETE FROM knowledge_acl");
+    $loneF = $mkFolder(null, 1, 0);
+    $loneA = $mkArticle($loneF);
+    $reset();
+    check('nobody can read it even though the access table is completely empty',
+          !$canRead($bob, $loneA),
+          'the fast path skipped the guard because there were no rows to find');
+    // Restore a row so the rest of the file is not accidentally running through
+    // that same fast path and passing for the wrong reason.
+    $ace('folder', $loneF, 'analyst', $bob);
+    $reset();
+    check('POSITIVE CONTROL: granting somebody on it lets them in', $canRead($bob, $loneA));
+
     echo "\n=== a TEAM grant reaches its members ===\n";
     $teamF = $mkFolder(null, 1, 0);
     $teamA = $mkArticle($teamF);

@@ -20,6 +20,10 @@ let isRecycleBinView = false;
 // questions and an empty value cannot mean both.
 let kbFolders = [];
 let activeFolder = '';
+// Whether this analyst may EDIT access, which is a stricter question than
+// whether they may read a folder: anyone who could merely read one must not be
+// able to hand it to somebody else.
+let kbCanManagePerms = false;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -319,6 +323,7 @@ async function loadFolders() {
         const d = await r.json();
         if (!d.success) throw new Error(d.error || 'failed');
         kbFolders = d.folders || [];
+        kbCanManagePerms = !!d.can_manage;
         renderFolderTree(d.root_count || 0);
         renderFolderPicker();
     } catch (e) {
@@ -349,10 +354,18 @@ function renderFolderTree(rootCount) {
 
     const walk = (parent, depth) => {
         for (const f of folderChildren(parent)) {
+            // 🔒 marks a folder with its own rules. The badge is the whole point
+            // of §9's "visible and rare": an exception you cannot see from the
+            // tree is one nobody can audit.
             const restricted = f.is_restricted ? ' 🔒' : '';
+            const manage = kbCanManagePerms
+                ? `<button type="button" class="kb-folder-perm" title="${escapeHtml(window.t('knowledge.perm.manage'))}"
+                           onclick="openPermModal('folder', ${f.id}, ${JSON.stringify(f.name)})">🔑</button>`
+                : '';
             html += `<div class="kb-folder${activeFolder === String(f.id) ? ' active' : ''}" data-folder="${f.id}" style="padding-left:${8 + depth * 14}px"
                           title="${f.is_restricted ? escapeHtml(window.t('knowledge.folders.restricted')) : ''}">
                         <span class="kb-folder-name" onclick="selectFolder('${f.id}')">${escapeHtml(f.name)}${restricted}</span>
+                        ${manage}
                         <span class="kb-folder-count">${f.article_count}</span>
                      </div>`;
             walk(f.id, depth + 1);
@@ -429,6 +442,168 @@ async function folderAction(payload, okKey) {
     } catch (e) {
         showToast(window.t('knowledge.folders.load_failed'), 'error');
     }
+}
+
+// ---------------------------------------------------------------------------
+//  Who can see this — the access list for one folder or one article
+//
+//  The list means the OPPOSITE thing in each mode: on an Open object it is who
+//  is excluded, on a Restricted one it is who is admitted. So the heading, the
+//  empty state and the confirmation all change with the tickbox. A fixed
+//  heading would be wrong half the time, and wrong about a permission.
+// ---------------------------------------------------------------------------
+
+let permTarget = null;   // { type: 'folder'|'article', id, name }
+let permState  = null;   // the last server answer
+let permSearchTimer = null;
+
+/** The article being read. Its own rules, not its folder's. */
+function openArticlePermModal() {
+    if (!currentArticle) return;
+    openPermModal('article', currentArticle.id, currentArticle.title);
+}
+
+function openPermModal(type, id, name) {
+    permTarget = { type: type, id: id, name: name || '' };
+    document.getElementById('kbPermTitle').textContent = name
+        ? window.t('knowledge.perm.title_folder', { name: name })
+        : window.t('knowledge.perm.title');
+    document.getElementById('kbPermSearch').value = '';
+    document.getElementById('kbPermResults').innerHTML = '';
+    document.getElementById('kbPermModal').classList.add('active');
+    permLoad();
+}
+
+function closePermModal() {
+    document.getElementById('kbPermModal').classList.remove('active');
+    permTarget = null;
+    // Permissions may have changed what is visible, so repaint rather than
+    // leaving a tree that reflects the state before the edit.
+    loadFolders();
+    loadArticles(document.getElementById('articleSearch').value, activeTagFilters);
+}
+
+async function permLoad() {
+    if (!permTarget) return;
+    const box = document.getElementById('kbPermList');
+    box.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+        const r = await fetch(`${API_BASE}permissions.php?action=get&object_type=${permTarget.type}&object_id=${permTarget.id}`);
+        const d = await r.json();
+        if (!d.success) {
+            // Say WHY rather than showing an empty list: an empty list and "you
+            // may not look" are the same picture and opposite meanings.
+            box.innerHTML = '<div class="no-results">' + escapeHtml(d.error || window.t('knowledge.perm.failed')) + '</div>';
+            document.getElementById('kbPermOwnRules').style.display = 'none';
+            return;
+        }
+        permState = d;
+        document.getElementById('kbPermOwnRules').style.display = d.inherits ? 'none' : '';
+        document.getElementById('kbPermInherit').checked = !!d.inherits;
+        document.getElementById('kbPermRestricted').checked = !!d.is_restricted;
+        renderPermList();
+    } catch (e) {
+        box.innerHTML = '<div class="no-results">' + escapeHtml(window.t('knowledge.perm.failed')) + '</div>';
+    }
+}
+
+function renderPermList() {
+    const restricted = document.getElementById('kbPermRestricted').checked;
+    document.getElementById('kbPermExplain').textContent =
+        window.t(restricted ? 'knowledge.perm.explain_restricted' : 'knowledge.perm.explain_open');
+
+    const box = document.getElementById('kbPermList');
+    const entries = (permState && permState.entries) || [];
+    if (!entries.length) {
+        box.innerHTML = '<div class="no-results">'
+            + escapeHtml(window.t(restricted ? 'knowledge.perm.none_restricted' : 'knowledge.perm.none_open'))
+            + '</div>';
+        return;
+    }
+    box.innerHTML = entries.map(e => `
+        <div class="kb-perm-entry">
+            <span class="kb-perm-entry-name">${escapeHtml(e.name)}</span>
+            <span class="kb-perm-entry-kind">${escapeHtml(e.principal_type.replace('_', ' '))}</span>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="permRemove(${e.id})">${escapeHtml(window.t('knowledge.perm.remove'))}</button>
+        </div>`).join('');
+}
+
+/**
+ * Save the two tickboxes.
+ *
+ * $askIfWiping is true only for the polarity tickbox, because only that one
+ * destroys the list. The count comes from what is already on screen, so the
+ * question names a real number rather than warning vaguely.
+ */
+async function permSetMode(askIfWiping) {
+    if (!permTarget) return;
+    const inherits   = document.getElementById('kbPermInherit').checked;
+    const restricted = document.getElementById('kbPermRestricted').checked;
+
+    if (askIfWiping) {
+        const n = ((permState && permState.entries) || []).length;
+        if (n > 0 && !confirm(window.t('knowledge.perm.wipe_confirm', { count: n }))) {
+            // Put the tickbox back: it must show what is stored, not what was
+            // clicked and then abandoned.
+            document.getElementById('kbPermRestricted').checked = !restricted;
+            return;
+        }
+    }
+
+    await permPost({ action: 'set_mode', is_restricted: restricted ? 1 : 0, inherits: inherits ? 1 : 0 });
+    await permLoad();
+}
+
+async function permRemove(entryId) {
+    const d = await permPost({ action: 'remove', entry_id: entryId });
+    if (d && d.now_unreachable) showToast(window.t('knowledge.perm.now_unreachable'), 'warning');
+    await permLoad();
+}
+
+async function permAdd(type, id) {
+    await permPost({ action: 'add', principal_type: type, principal_id: id });
+    document.getElementById('kbPermSearch').value = '';
+    document.getElementById('kbPermResults').innerHTML = '';
+    await permLoad();
+}
+
+async function permPost(payload) {
+    if (!permTarget) return null;
+    try {
+        const r = await fetch(API_BASE + 'permissions.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({
+                object_type: permTarget.type,
+                object_id:   permTarget.id
+            }, payload))
+        });
+        const d = await r.json();
+        if (!d.success) { showToast(d.error || window.t('knowledge.perm.failed'), 'error'); return null; }
+        return d;
+    } catch (e) {
+        showToast(window.t('knowledge.perm.failed'), 'error');
+        return null;
+    }
+}
+
+function permSearch() {
+    clearTimeout(permSearchTimer);
+    permSearchTimer = setTimeout(async () => {
+        const q = document.getElementById('kbPermSearch').value.trim();
+        const box = document.getElementById('kbPermResults');
+        if (q.length < 2) { box.innerHTML = ''; return; }
+        try {
+            const r = await fetch(`${API_BASE}permissions.php?action=search_principals&q=${encodeURIComponent(q)}`);
+            const d = await r.json();
+            const rows = (d.results || []);
+            box.innerHTML = rows.length
+                ? rows.map(p => `<div class="kb-perm-result" onclick="permAdd('${escapeHtml(p.type)}', ${p.id})">
+                        <span>${escapeHtml(p.name)}</span><span class="kb-perm-entry-kind">${escapeHtml(p.kind)}</span>
+                     </div>`).join('')
+                : '';
+        } catch (e) { box.innerHTML = ''; }
+    }, 250);
 }
 
 async function loadTags() {
@@ -658,6 +833,12 @@ async function viewArticle(articleId) {
 // Render article detail
 function renderArticleDetail() {
     const container = document.getElementById('articleContent');
+
+    // The Permissions button appears only for someone who may change access.
+    // Hidden rather than disabled: a control you can see but never use is a
+    // question you have to ask somebody, every time.
+    const permBtn = document.getElementById('kbArticlePermBtn');
+    if (permBtn) permBtn.style.display = kbCanManagePerms ? '' : 'none';
 
     container.innerHTML = `
         <div class="article-content-header">

@@ -153,6 +153,24 @@ return [
         'none'          => 'No folders yet',
     ],
 
+    'perm' => [
+        'title'              => 'Who can see this',
+        'title_folder'       => 'Who can see "{name}"',
+        'inherit'            => 'Use the same permissions as the folder above',
+        'restrict'           => 'Restrict to chosen people',
+        'explain_open'       => 'Everyone who can already see it, except the people listed below.',
+        'explain_restricted' => 'Only the people listed below.',
+        'search_placeholder' => 'Search for a person, team or group...',
+        'none_open'          => 'Nobody is excluded.',
+        'none_restricted'    => 'Nobody is listed yet, so nobody but an administrator can see this.',
+        'remove'             => 'Remove',
+        'wipe_confirm'       => 'Changing this clears the {count} people already listed, because the list means the opposite thing in the other mode. Continue?',
+        'now_unreachable'    => 'Nobody is listed now, so only an administrator can see this.',
+        'no_permission'      => 'You do not have permission to manage access.',
+        'failed'             => 'Could not load permissions',
+        'manage'             => 'Permissions',
+    ],
+
     'recycle' => [
         'notice_days'     => 'Articles are automatically deleted after {days} days in the recycle bin.',
         'notice_forever'  => 'Articles are kept indefinitely until manually deleted.',

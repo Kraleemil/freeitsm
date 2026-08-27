@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=4">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=5">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -171,6 +171,9 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                                 </a>
                             </div>
                         </div>
+                        <!-- Shown only to someone who may actually change access;
+                             see kbCanManagePerms in knowledge.js. -->
+                        <button class="btn btn-secondary" id="kbArticlePermBtn" style="display:none;" onclick="openArticlePermModal()"><?php echo htmlspecialchars(t('knowledge.perm.manage')); ?></button>
                         <button class="btn btn-primary" onclick="editCurrentArticle()"><?php echo htmlspecialchars(t('knowledge.detail.edit')); ?></button>
                         <button class="btn btn-danger" onclick="deleteCurrentArticle()"><?php echo htmlspecialchars(t('knowledge.detail.archive')); ?></button>
                     </div>
@@ -287,6 +290,45 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     </div>
 
     <!-- Share Email Modal -->
+    <!-- Who can see this folder / article.
+         A modal rather than a second tab on the left panel: the panel is 280px,
+         and a principal search plus a list of people does not read at that
+         width. The panel idiom is still open as a presentation change on top of
+         exactly this. -->
+    <div class="modal" id="kbPermModal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h3 id="kbPermTitle"><?php echo htmlspecialchars(t('knowledge.perm.title')); ?></h3>
+            </div>
+            <div class="modal-body">
+                <label class="kb-perm-row" for="kbPermInherit">
+                    <input type="checkbox" id="kbPermInherit" onchange="permSetMode()">
+                    <span><?php echo htmlspecialchars(t('knowledge.perm.inherit')); ?></span>
+                </label>
+                <div id="kbPermOwnRules">
+                    <label class="kb-perm-row" for="kbPermRestricted">
+                        <input type="checkbox" id="kbPermRestricted" onchange="permSetMode(true)">
+                        <span><?php echo htmlspecialchars(t('knowledge.perm.restrict')); ?></span>
+                    </label>
+                    <!-- The list heading changes with the polarity, because the list
+                         means the opposite thing in each mode and a fixed heading
+                         would be wrong half the time. -->
+                    <p class="field-hint" id="kbPermExplain"></p>
+                    <div class="kb-perm-list" id="kbPermList"></div>
+                    <div class="form-group">
+                        <input type="text" class="form-input" id="kbPermSearch"
+                               placeholder="<?php echo htmlspecialchars(t('knowledge.perm.search_placeholder')); ?>"
+                               onkeyup="permSearch()" autocomplete="off">
+                        <div class="kb-perm-results" id="kbPermResults"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closePermModal()"><?php echo htmlspecialchars(t('knowledge.modal.close')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="shareEmailModal">
         <div class="modal-content" style="max-width: 500px;">
             <div class="modal-header">
@@ -379,7 +421,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=19"></script>
+    <script src="../assets/js/knowledge.js?v=20"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>
