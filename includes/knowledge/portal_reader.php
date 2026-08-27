@@ -35,6 +35,7 @@
 
 require_once __DIR__ . '/audience.php';
 require_once __DIR__ . '/../tenancy.php';
+require_once __DIR__ . '/visibility.php';
 
 /**
  * The company a portal user belongs to, or null for "shared articles only".
@@ -66,24 +67,20 @@ function portalUserTenantId(PDO $conn, int $userId): ?int {
  * @return array{0:string,1:array}
  */
 function portalKnowledgeScope(PDO $conn, ?int $tenantId, string $alias = 'a'): array {
-    $a = $alias === '' ? '' : $alias . '.';
+    // Delegates to the module-wide resolver so the portal cannot drift from
+    // every other reader — including when the access list lands, which this
+    // function then inherits without being touched. The three traps documented
+    // above still hold; they are simply enforced in one place now rather than
+    // re-stated per caller.
+    //
+    // The CUSTOMER rung stays hard-coded (via forPortalUser), for the reason in
+    // the header: whoever is asking does not get to declare how trusted they are.
+    $viewer = KnowledgeViewer::forPortalUser(null, $tenantId);
+    [$sql, $params] = knowledgeVisibilitySql($conn, $viewer, $alias, ['lifecycle' => 'live']);
 
-    // Live: published AND not archived (see trap 2).
-    $where  = "{$a}is_published = 1 AND ({$a}is_archived = 0 OR {$a}is_archived IS NULL)";
-    $params = [];
-
-    // Company (see trap 1).
-    [$tenantSql, $tenantParams] = knowledgeTenantFilterForCompany($conn, $tenantId, $alias);
-    $where  .= $tenantSql;                       // already starts " AND ..."
-    $params  = array_merge($params, $tenantParams);
-
-    // Audience. Skipped on an install that predates the column, where every
-    // article is shared and there is no rung to compare against.
-    if (tenancyColumnExists($conn, 'knowledge_articles', 'audience')) {
-        [$audSql, $audParams] = Audience::sqlFilter(Audience::CUSTOMER, $alias);
-        $where  .= $audSql;                      // already starts " AND ..."
-        $params  = array_merge($params, $audParams);
-    }
+    // This function's contract is a WHERE fragment with NO leading AND — three
+    // callers interpolate it straight after "WHERE". Keep that.
+    $where = preg_replace('/^\s*AND\s+/', '', $sql);
 
     return [$where, $params];
 }

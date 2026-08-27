@@ -6,6 +6,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 
 header('Content-Type: application/json');
 
@@ -43,23 +44,23 @@ try {
             LEFT JOIN analysts owner ON owner.id = a.owner_id
             WHERE a.id = ?";
 
-    if (!$includeArchived) {
-        $sql .= " AND (a.is_archived = 0 OR a.is_archived IS NULL)";
-    }
+    // An id is a guess away, so a direct fetch needs the same filter the list
+    // gets. It is carried IN the query rather than checked after the row is in
+    // hand: a fetch that loads first and adjudicates second is one early return
+    // away from serving the row it just decided you could not see. A miss is
+    // reported as "not found" either way — an analyst has no business learning
+    // that article 47 exists but belongs to someone else.
+    $viewer = KnowledgeViewer::forAnalyst($conn, (int)$_SESSION['analyst_id']);
+    [$visSql, $visParams] = knowledgeVisibilitySql($conn, $viewer, 'a', [
+        'lifecycle' => $includeArchived ? 'any' : 'unarchived',
+    ]);
+    $sql .= $visSql;
 
     $stmt = $conn->prepare($sql);
-    $stmt->execute([$articleId]);
+    $stmt->execute(array_merge([$articleId], $visParams));
     $article = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$article) {
-        echo json_encode(['success' => false, 'error' => 'Article not found']);
-        exit;
-    }
-
-    // An id is a guess away, so a direct fetch needs the check the list gets from
-    // its filter. Same "not found" wording either way — an analyst has no business
-    // learning that article 47 exists but belongs to someone else.
-    if (!analystCanAccessArticle($conn, (int)$_SESSION['analyst_id'], $articleId)) {
         echo json_encode(['success' => false, 'error' => 'Article not found']);
         exit;
     }

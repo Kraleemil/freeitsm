@@ -6,6 +6,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 
 header('Content-Type: application/json');
 
@@ -41,16 +42,14 @@ try {
                    COALESCE(an.full_name, '(deleted analyst)') as author_name
             FROM knowledge_articles a
             LEFT JOIN analysts an ON an.id = a.author_id
-            WHERE (a.is_archived = 0 OR a.is_archived IS NULL)";
+            WHERE 1=1";
 
-    $params = [];
-
-    // Scope to the company the analyst has switched to, plus shared articles.
-    // No-op on a single-company install. Analysts see every audience — the ladder
-    // only holds back customers and the public.
-    [$tenantSql, $tenantParams] = knowledgeTenantFilter($conn, (int)$_SESSION['analyst_id'], 'a');
-    $sql .= $tenantSql;
-    $params = array_merge($params, $tenantParams);
+    // Everything a reader is allowed to see, in one clause: lifecycle, company,
+    // audience and (once it lands) the access list. 'unarchived' rather than
+    // 'live' is what keeps the drafts above visible.
+    $viewer = KnowledgeViewer::forAnalyst($conn, (int)$_SESSION['analyst_id']);
+    [$visSql, $params] = knowledgeVisibilitySql($conn, $viewer, 'a', ['lifecycle' => 'unarchived']);
+    $sql .= $visSql;
 
     // Search filter
     if (!empty($search)) {
