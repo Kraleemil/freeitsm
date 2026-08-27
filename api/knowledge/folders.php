@@ -47,6 +47,7 @@ try {
         case 'rename': handleRename($conn, $analystId, $input); break;
         case 'move':   handleMove($conn, $analystId, $input); break;
         case 'delete': handleDelete($conn, $analystId, $input); break;
+        case 'move_article': handleMoveArticle($conn, $analystId, $input); break;
         default:
             echo json_encode(['success' => false, 'error' => 'Invalid action']);
     }
@@ -263,6 +264,42 @@ function handleDelete(PDO $conn, int $analystId, array $in): void
 
     knowledgeAclResetCaches();
     knowledgeAudit($conn, 'folder', $id, 'delete', $analystId, null);
+    echo json_encode(['success' => true]);
+}
+
+/**
+ * File an article into a folder — what a drag-and-drop actually does.
+ *
+ * ⚠️ BOTH ENDS ARE CHECKED, and they are different questions. The DESTINATION
+ * must be a folder this analyst can reach, or a drop would file a document
+ * somewhere they cannot see it again. The ARTICLE must be one they can read,
+ * because moving something is a way of finding out it exists — an id is a guess
+ * away, and "it moved" and "no such article" must look the same from outside.
+ *
+ * Deliberately its own action rather than a save: the editor's save carries a
+ * title and a body, and requiring those to move a row would mean the drag had to
+ * fetch and re-post the whole article — which is also how a drag ends up
+ * overwriting an edit somebody else was making.
+ */
+function handleMoveArticle(PDO $conn, int $analystId, array $in): void
+{
+    $articleId = (int)($in['article_id'] ?? 0);
+    $folder    = isset($in['folder_id']) && $in['folder_id'] !== null && $in['folder_id'] !== ''
+        ? (int)$in['folder_id'] : null;
+    if (!$articleId) { echo json_encode(['success' => false, 'error' => 'An article is required']); return; }
+
+    requireFolderAccess($conn, $analystId, $folder);
+
+    $viewer = KnowledgeViewer::forAnalyst($conn, $analystId);
+    if (!knowledgeCanRead($conn, $viewer, $articleId, ['lifecycle' => 'any'])) {
+        echo json_encode(['success' => false, 'error' => 'Article not found']);
+        return;
+    }
+
+    $conn->prepare("UPDATE knowledge_articles SET folder_id = ?, modified_datetime = UTC_TIMESTAMP() WHERE id = ?")
+         ->execute([$folder, $articleId]);
+
+    knowledgeAudit($conn, 'article', $articleId, 'move', $analystId, ['folder_id' => $folder]);
     echo json_encode(['success' => true]);
 }
 

@@ -148,6 +148,8 @@ return [
         'renamed'       => 'Folder renamed',
         'deleted'       => 'Folder deleted',
         'moved'         => 'Folder moved',
+        'moved_article' => 'Article moved',
+        'move_to_root'  => 'Move out of its folder',
         'restricted'    => 'Restricted to chosen people',
         'load_failed'   => 'Could not load folders',
         'none'          => 'No folders yet',

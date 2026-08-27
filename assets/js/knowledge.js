@@ -343,14 +343,14 @@ function renderFolderTree(rootCount) {
     const box = document.getElementById('kbFolderTree');
     if (!box) return;
 
-    const line = (label, value, count, extra) =>
-        `<div class="kb-folder${activeFolder === value ? ' active' : ''}${extra || ''}" data-folder="${escapeHtml(String(value))}">
-            <span class="kb-folder-name" onclick="selectFolder('${escapeHtml(String(value))}')">${escapeHtml(label)}</span>
-            <span class="kb-folder-count">${count}</span>
-         </div>`;
-
-    // "All articles" is the no-filter state, not a folder — hence value ''.
-    let html = line(window.t('knowledge.folders.root'), '', rootCount + kbFolders.reduce((n, f) => n + f.article_count, 0), '');
+    // "All articles" is the no-filter state, not a folder — hence value ''. It
+    // IS a drop target though: dropping here means "take it out of its folder",
+    // which is the only way back to the top level without opening the editor.
+    let html = `<div class="kb-folder${activeFolder === '' ? ' active' : ''}" data-folder=""
+                     ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, null)">
+                    <span class="kb-folder-name" onclick="selectFolder('')">${escapeHtml(window.t('knowledge.folders.root'))}</span>
+                    <span class="kb-folder-count">${rootCount + kbFolders.reduce((n, f) => n + f.article_count, 0)}</span>
+                 </div>`;
 
     const walk = (parent, depth) => {
         for (const f of folderChildren(parent)) {
@@ -363,7 +363,12 @@ function renderFolderTree(rootCount) {
                            onclick="openPermModal('folder', ${f.id}, ${JSON.stringify(f.name)})">🔑</button>`
                 : '';
             html += `<div class="kb-folder${activeFolder === String(f.id) ? ' active' : ''}" data-folder="${f.id}" style="padding-left:${8 + depth * 14}px"
-                          title="${f.is_restricted ? escapeHtml(window.t('knowledge.folders.restricted')) : ''}">
+                          title="${f.is_restricted ? escapeHtml(window.t('knowledge.folders.restricted')) : ''}"
+                          draggable="true"
+                          ondragstart="kbDragStart(event, 'folder', ${f.id})"
+                          ondragend="kbDragEnd()"
+                          ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
+                          oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${JSON.stringify(f.name)})">
                         <span class="kb-folder-name" onclick="selectFolder('${f.id}')">${escapeHtml(f.name)}${restricted}</span>
                         ${manage}
                         <span class="kb-folder-count">${f.article_count}</span>
@@ -456,6 +461,118 @@ async function folderAction(payload, okKey) {
 let permTarget = null;   // { type: 'folder'|'article', id, name }
 let permState  = null;   // the last server answer
 let permSearchTimer = null;
+
+// ---------------------------------------------------------------------------
+//  Drag and drop, and the right-click menu
+//
+//  ⚠️ DESKTOP ONLY, and that is a decision rather than an omission. A drag needs
+//  a pointer that can hover, and a right-click needs a second button; a phone
+//  has neither. Everything reachable here is ALSO reachable another way — the
+//  folder picker in the editor files an article, the key opens permissions — so
+//  a phone loses convenience, never capability.
+// ---------------------------------------------------------------------------
+
+let kbDrag = null;   // { type: 'article'|'folder', id }
+
+function kbDragStart(e, type, id) {
+    kbDrag = { type: type, id: id };
+    // Some browsers refuse to start a drag with no payload, even when the
+    // handler carries the state itself.
+    try { e.dataTransfer.setData('text/plain', type + ':' + id); } catch (_) {}
+    e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation();
+}
+
+function kbDragEnd() {
+    kbDrag = null;
+    document.querySelectorAll('.kb-folder.drop-target')
+            .forEach(el => el.classList.remove('drop-target'));
+}
+
+function kbDragOver(e) {
+    if (!kbDrag) return;
+    // A folder cannot be dropped on itself. Refusing here rather than letting
+    // the drop land and the server say no means the row never lights up as a
+    // target, so the answer is visible before the mouse is released.
+    if (kbDrag.type === 'folder' && String(kbDrag.id) === e.currentTarget.dataset.folder) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('drop-target');
+}
+
+function kbDragLeave(e) {
+    e.currentTarget.classList.remove('drop-target');
+}
+
+async function kbDrop(e, folderId) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('drop-target');
+    if (!kbDrag) return;
+    const drag = kbDrag;
+    kbDrag = null;
+
+    if (drag.type === 'article') {
+        await folderAction({ action: 'move_article', article_id: drag.id, folder_id: folderId }, 'knowledge.folders.moved_article');
+    } else {
+        if (String(drag.id) === String(folderId)) return;
+        // The server refuses a cycle; this only avoids the pointless round trip.
+        await folderAction({ action: 'move', id: drag.id, parent_id: folderId }, 'knowledge.folders.moved');
+    }
+}
+
+/**
+ * The right-click menu.
+ *
+ * One menu element, moved and refilled, rather than one per row: a tree of 200
+ * folders would otherwise carry 200 hidden menus, and only one can ever be open.
+ */
+function kbContextMenu(e, type, id, name) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeContextMenu();
+
+    const items = [];
+    if (type === 'folder') {
+        items.push([window.t('knowledge.folders.new'), `createFolderIn(${id})`]);
+        items.push([window.t('knowledge.folders.rename'), `renameFolderPrompt(${id}, ${JSON.stringify(name)})`]);
+        if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), `openPermModal('folder', ${id}, ${JSON.stringify(name)})`]);
+        items.push([window.t('knowledge.folders.delete'), `deleteFolderPrompt(${id}, ${JSON.stringify(name)})`]);
+    } else {
+        items.push([window.t('knowledge.detail.edit'), `viewArticle(${id}).then(editCurrentArticle)`]);
+        if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), `openPermModal('article', ${id}, ${JSON.stringify(name)})`]);
+        items.push([window.t('knowledge.folders.move_to_root'), `folderAction({action:'move_article',article_id:${id},folder_id:null},'knowledge.folders.moved_article')`]);
+    }
+
+    const menu = document.createElement('div');
+    menu.className = 'kb-context-menu';
+    menu.id = 'kbContextMenu';
+    menu.innerHTML = items.map(([label, call]) =>
+        `<div class="kb-context-item" onclick="closeContextMenu(); ${escapeHtml(call)}">${escapeHtml(label)}</div>`).join('');
+    document.body.appendChild(menu);
+
+    // Keep it on screen: a menu opened near the right or bottom edge would
+    // otherwise hang off the page with its last item unreachable.
+    const r = menu.getBoundingClientRect();
+    const x = Math.min(e.clientX, window.innerWidth  - r.width  - 8);
+    const y = Math.min(e.clientY, window.innerHeight - r.height - 8);
+    menu.style.left = Math.max(4, x) + 'px';
+    menu.style.top  = Math.max(4, y) + 'px';
+
+    setTimeout(() => document.addEventListener('click', closeContextMenu, { once: true }), 0);
+}
+
+function closeContextMenu() {
+    const m = document.getElementById('kbContextMenu');
+    if (m) m.remove();
+}
+
+/** "New folder" from a folder's own menu means a subfolder of THAT folder. */
+async function createFolderIn(parentId) {
+    const name = prompt(window.t('knowledge.folders.new_prompt'));
+    if (name === null || name.trim() === '') return;
+    await folderAction({ action: 'create', name: name.trim(), parent_id: parentId }, 'knowledge.folders.created');
+}
 
 /** The article being read. Its own rules, not its folder's. */
 function openArticlePermModal() {
@@ -782,7 +899,11 @@ function renderArticleList() {
     }
 
     container.innerHTML = articles.map(article => `
-        <div class="article-card" onclick="viewArticle(${article.id})">
+        <div class="article-card" onclick="viewArticle(${article.id})"
+             draggable="true"
+             ondragstart="kbDragStart(event, 'article', ${article.id})"
+             ondragend="kbDragEnd()"
+             oncontextmenu="kbContextMenu(event, 'article', ${article.id}, ${JSON.stringify(article.title)})">
             <label class="article-select" onclick="event.stopPropagation()" title="${escapeHtml(window.t('knowledge.bulk.select_title'))}">
                 <input type="checkbox" value="${article.id}"
                        ${kbSelected.has(article.id) ? 'checked' : ''}
