@@ -2618,6 +2618,135 @@ return [
         // so running Database Verify can NEVER start disclosing existing articles to
         // anonymous web chat visitors — authors opt in per article.
         'audience'              => "VARCHAR(20) NOT NULL DEFAULT 'internal'",
+        // ── Folders and per-document permissions ────────────────────────────
+        // Which folder the article lives in. NULL = the root, which is where
+        // every existing article lands on upgrade: zero migration, and the
+        // resulting state (root, inheriting, unrestricted) is indistinguishable
+        // from how the module behaved before folders existed.
+        'folder_id'             => 'INT NULL',
+        // 0 = Open: readable unless a DENY names you.
+        // 1 = Restricted: readable only if a GRANT names you.
+        // The polarity lives on the OBJECT, never on the access rows, so an
+        // allow and a deny cannot coexist and there is no precedence rule.
+        'is_restricted'         => 'TINYINT(1) NOT NULL DEFAULT 0',
+        // 1 = take permissions from the parent folder and ignore my own rows.
+        // Default 1 so an upgraded install inherits from a root that restricts
+        // nothing — i.e. nothing changes.
+        'inherit_permissions'   => 'TINYINT(1) NOT NULL DEFAULT 1',
+    ],
+
+    // ── Knowledge folders ───────────────────────────────────────────────────
+    // A document lives in EXACTLY ONE folder. That is the load-bearing decision:
+    // with several parents, "inherit from parent" has no answer — most-permissive
+    // leaks, most-restrictive loses documents people filed themselves. Appearing
+    // in two places is what knowledge_shortcuts is for.
+    'knowledge_folders' => [
+        'id'                  => 'INT NOT NULL AUTO_INCREMENT',
+        // NULL = a top-level folder. The root itself is not a row.
+        'parent_id'           => 'INT NULL',
+        'name'                => 'VARCHAR(255) NOT NULL',
+        // Same meaning as on an article — see above.
+        'is_restricted'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'inherit_permissions' => 'TINYINT(1) NOT NULL DEFAULT 1',
+        // Who to ask when a folder ends up unreachable. Not a permission by
+        // itself: recovery is the knowledge.admin floor, which always passes.
+        'owner_id'            => 'INT NULL',
+        // ⚠️ NULL = shared with every company, exactly as on knowledge_articles,
+        // and the OPPOSITE of tickets/assets. See includes/tenancy.php.
+        'tenant_id'           => 'INT NULL',
+        'created_by_id'       => 'INT NULL',
+        'created_datetime'    => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'modified_datetime'   => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // ── The access list ─────────────────────────────────────────────────────
+    // 🔑 THERE IS NO allow/deny COLUMN, AND ITS ABSENCE IS THE GUARANTEE. The
+    // polarity comes from the object (is_restricted): rows on an Open object are
+    // denies, rows on a Restricted object are grants. A contradictory pair
+    // therefore cannot be stored, so there is no precedence rule to remember and
+    // no effective-permissions dialog to explain. This is the same instinct as
+    // the audience ladder — make the contradiction inexpressible rather than
+    // adjudicating it.
+    //
+    // ⚠️ Flipping an object's polarity WIPES its rows. Keeping them dormant would
+    // mean an invisible entry that springs back to life on the next flip, which
+    // is the "an unloaded checkbox looks exactly like OFF" failure in a costume.
+    'knowledge_acl' => [
+        'id'             => 'INT NOT NULL AUTO_INCREMENT',
+        // 'folder' | 'article'
+        'object_type'    => 'VARCHAR(10) NOT NULL',
+        'object_id'      => 'INT NOT NULL',
+        // 'analyst' | 'team' | 'user' | 'user_group'
+        'principal_type' => 'VARCHAR(12) NOT NULL',
+        'principal_id'   => 'INT NOT NULL',
+        'created_by_id'  => 'INT NULL',
+        'created_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // ── Shortcuts ───────────────────────────────────────────────────────────
+    // A pointer with NO permissions of its own — it resolves to the target and
+    // the target's rules decide. That is what keeps the tree single-parent while
+    // still letting a document appear in two places. Deliberately has no
+    // polarity, no ACL, and no audience: a shortcut can never GRANT, and the
+    // reader must filter shortcuts by target readability at list time or the
+    // row leaks the target's title.
+    'knowledge_shortcuts' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'folder_id'        => 'INT NULL',
+        'article_id'       => 'INT NOT NULL',
+        'created_by_id'    => 'INT NULL',
+        'created_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // ── User groups ─────────────────────────────────────────────────────────
+    // NOT lms_learning_groups. The driving case is ad hoc and short-lived —
+    // three engineers on site for a week needing one folder — and routing that
+    // through the LMS to grant a document permission would be daft. `users` has
+    // no grouping of any kind today, so a table was needed regardless.
+    'knowledge_user_groups' => [
+        'id'                => 'INT NOT NULL AUTO_INCREMENT',
+        'name'              => 'VARCHAR(100) NOT NULL',
+        'description'       => 'VARCHAR(500) NULL',
+        'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'created_by_id'     => 'INT NULL',
+        'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    'knowledge_user_group_members' => [
+        'id'         => 'INT NOT NULL AUTO_INCREMENT',
+        'group_id'   => 'INT NOT NULL',
+        // A member is an analyst OR a portal user, never both: 'analyst' | 'user'.
+        'member_type'=> 'VARCHAR(10) NOT NULL',
+        'member_id'  => 'INT NOT NULL',
+        // ⚠️ The whole reason this table exists. "For the week" is the requirement
+        // as stated, and an access list that quietly stays open after the
+        // engineers go home is the failure worth designing out on day one.
+        // NULL = no expiry.
+        'expires_at' => 'DATETIME NULL',
+        'created_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // ── Audit ───────────────────────────────────────────────────────────────
+    // Modelled on document_access_log, which already does this job for attached
+    // documents. ⚠️ VIEWS ARE A DIFFERENT VOLUME CLASS FROM EDITS: view_count
+    // already increments on every read, and a row per view on a busy KB is
+    // millions a year. Creates, edits, permission changes, deletes and
+    // administrator-floor passes are rare and are what somebody actually comes
+    // looking for — do not let view spam bury them.
+    'knowledge_audit' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        // 'folder' | 'article'
+        'object_type'      => 'VARCHAR(10) NOT NULL',
+        'object_id'        => 'INT NOT NULL',
+        // create | edit | view | delete | restore | move | permissions | admin_override
+        'action'           => 'VARCHAR(20) NOT NULL',
+        'analyst_id'       => 'INT NULL',
+        'user_id'          => 'INT NULL',
+        // JSON. For a permission change: what the rows were and what they became.
+        'detail'           => 'LONGTEXT NULL',
+        'ip_address'       => 'VARCHAR(45) NULL',
+        'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
     'knowledge_article_versions' => [

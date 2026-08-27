@@ -50,6 +50,8 @@
 
 require_once __DIR__ . '/audience.php';
 require_once __DIR__ . '/../tenancy.php';
+require_once __DIR__ . '/../capabilities.php';   // Cap::KNOWLEDGE_MANAGE — the administrator floor
+require_once __DIR__ . '/../rbac.php';           // analystHasCapability()
 
 /**
  * WHO is asking. Not the same thing as ActorContext (service_context.php),
@@ -344,7 +346,7 @@ function knowledgeVisibilitySql(PDO $conn, KnowledgeViewer $viewer, string $alia
     }
 
     // ── 4. Access list ──────────────────────────────────────────────────────
-    [$aclSql, $aclParams] = knowledgeAclSql($conn, $viewer, $alias);
+    [$aclSql, $aclParams] = knowledgeAclSql($conn, $viewer, $alias, $opts);
     $sql .= $aclSql;
     $params = array_merge($params, $aclParams);
 
@@ -367,14 +369,77 @@ function knowledgeCanRead(PDO $conn, KnowledgeViewer $viewer, $articleId, array 
     $id = (int)$articleId;
     if ($id <= 0) return false;
 
-    [$sql, $params] = knowledgeVisibilitySql($conn, $viewer, 'a', $opts);
-    try {
+    $ask = static function (array $o) use ($conn, $viewer, $id): bool {
+        [$sql, $params] = knowledgeVisibilitySql($conn, $viewer, 'a', $o);
         $stmt = $conn->prepare("SELECT 1 FROM knowledge_articles a WHERE a.id = ?" . $sql . " LIMIT 1");
         $stmt->execute(array_merge([$id], $params));
         return (bool)$stmt->fetchColumn();
+    };
+
+    try {
+        // Ask WITHOUT the administrator floor first. Almost everybody is allowed
+        // on the merits, so this is the only query that usually runs.
+        if ($ask($opts + ['no_admin_floor' => true])) return true;
+
+        // Refused on the merits. If this analyst holds the floor, they get in —
+        // that is what makes a Restricted folder whose only grantee has left
+        // recoverable rather than lost — but the pass is RECORDED. A permission
+        // that always succeeds and leaves no trace is indistinguishable from not
+        // having a permission system at all.
+        //
+        // Only here, never in the list clause: opening something you were not
+        // granted is an override, browsing a list is not, and auditing every
+        // list would bury the rows that matter under the ones that do not.
+        if (knowledgeViewerHasAdminFloor($conn, $viewer) && $ask($opts)) {
+            knowledgeAuditAdminOverride($conn, $viewer, $id);
+            return true;
+        }
+        return false;
     } catch (PDOException $e) {
         error_log('knowledge visibility: canRead(' . $id . ') failed — ' . $e->getMessage());
         return false;   // fail closed
+    }
+}
+
+/**
+ * Does this viewer hold the administrator floor?
+ *
+ * Cap::KNOWLEDGE_MANAGE rather than a new knowledge.admin: it already exists as
+ * the module's umbrella capability and its holders already administer Knowledge,
+ * so inventing one would mean an RBAC seed and a settings row for no extra
+ * safety. Split it out later if it ever earns its own.
+ *
+ * Only an ANALYST can hold it. A portal user or a web-chat visitor never does,
+ * whatever else is true of them.
+ */
+function knowledgeViewerHasAdminFloor(PDO $conn, KnowledgeViewer $viewer): bool
+{
+    if (!$viewer->isAnalyst() || $viewer->analystId() === null) return false;
+    if (!function_exists('analystHasCapability')) return false;
+    try {
+        return analystHasCapability($conn, $viewer->analystId(), Cap::KNOWLEDGE_MANAGE);
+    } catch (Throwable $e) {
+        return false;   // cannot confirm the floor => no floor
+    }
+}
+
+/** Record that the floor let somebody past an access list they were not on. */
+function knowledgeAuditAdminOverride(PDO $conn, KnowledgeViewer $viewer, int $articleId): void
+{
+    try {
+        $conn->prepare(
+            "INSERT INTO knowledge_audit (object_type, object_id, action, analyst_id, detail, ip_address)
+             VALUES ('article', ?, 'admin_override', ?, ?, ?)"
+        )->execute([
+            $articleId,
+            $viewer->analystId(),
+            json_encode(['capability' => Cap::KNOWLEDGE_MANAGE]),
+            $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
+    } catch (PDOException $e) {
+        // Best-effort: never fail a legitimate read because the log is unwritable.
+        // Logged so a silently unwritable audit table is discoverable.
+        error_log('knowledge audit: could not record admin override on article ' . $articleId . ' — ' . $e->getMessage());
     }
 }
 
@@ -406,20 +471,316 @@ function knowledgeCanRead(PDO $conn, KnowledgeViewer $viewer, $articleId, array 
  *     first version rather than being layered on later.
  *   • the knowledge.admin floor — always passes, and writes an audit row.
  */
-function knowledgeAclSql(PDO $conn, KnowledgeViewer $viewer, string $alias = 'a'): array
+function knowledgeAclSql(PDO $conn, KnowledgeViewer $viewer, string $alias = "a", array $opts = []): array
 {
     if ($viewer->isUnrestricted()) return ['', []];
     if (!knowledgeAclTablesExist($conn)) return ['', []];
 
-    // Not yet implemented — the tables cannot exist yet, so this is unreachable
-    // until the folders migration lands. Returning "no filter" here rather than
-    // throwing would be the wrong failure: it would silently disable the access
-    // list the moment the tables appeared but the code had not caught up.
-    throw new RuntimeException(
-        'knowledgeAclSql(): the knowledge folder/ACL tables exist but the clause '
-        . 'builder has not been implemented. Refusing to serve articles with the '
-        . 'access list silently disabled.'
-    );
+    // ── The fast path, and it is the one almost every install takes ─────────
+    // No access rows anywhere means nothing is restricted, so there is nothing
+    // to narrow and the SQL stays byte-identical to what it was before folders
+    // existed. Checked FIRST because the work below (loading the folder tree and
+    // resolving the viewer's principals) is pure waste otherwise.
+    if (!knowledgeAclHasAnyRows($conn)) return ['', []];
+
+    // ── The administrator floor ─────────────────────────────────────────────
+    // Somebody will create a Restricted folder, grant one person, and that
+    // person will leave. Without a floor the folder is unrecoverable, so this
+    // capability always passes.
+    //
+    // Cap::KNOWLEDGE_MANAGE rather than a new knowledge.admin: it already exists
+    // as the module's umbrella capability, its holders already administer
+    // Knowledge, and inventing a capability means an RBAC seed plus a settings
+    // screen for no extra safety. Easy to split later if it earns its own.
+    //
+    // ⚠️ A permission that always passes must leave a trace, or it is
+    // indistinguishable from having no permission system. The audit row is
+    // written by knowledgeCanRead() — the moment somebody actually OPENS
+    // something they were not granted — rather than here, because a list query
+    // is browsing, not an override, and auditing every list would bury the rows
+    // that matter under the ones that do not.
+    if (empty($opts['no_admin_floor']) && knowledgeViewerHasAdminFloor($conn, $viewer)) {
+        return ['', []];
+    }
+
+    $q = static function (string $col) use ($alias): string {
+        return $alias === '' ? $col : $alias . '.' . $col;
+    };
+
+    $principals = knowledgeViewerPrincipals($conn, $viewer);
+    $mode       = knowledgeFolderPermissionModel($conn);
+    $acl        = knowledgeAclIndex($conn);
+    $folders    = knowledgeFolderIndex($conn);
+
+    // Which folders this viewer may NOT reach. Computed in PHP rather than as a
+    // recursive CTE in the clause: this fragment is appended to somebody else's
+    // WHERE, and a WITH cannot be introduced there — while a correlated
+    // recursive subquery would re-walk the tree once per row. Folders are an
+    // organisational structure numbering tens to hundreds, so one pass in PHP is
+    // both cheaper and legible. Same instinct as global_search's documented
+    // "two queries, merged in PHP — NOT a UNION".
+    $badFolders = [];
+    foreach ($folders as $fid => $_f) {
+        if (!knowledgeFolderReadable($fid, $folders, $acl, $principals, $mode)) {
+            $badFolders[] = $fid;
+        }
+    }
+
+    // Articles carrying their OWN rules — the only ones whose folder cannot
+    // answer for them. By design these are meant to be rare (that is what the
+    // exception badge and report exist to keep true), so this stays small.
+    $badArticles = [];
+    $st = $conn->query("SELECT id, is_restricted FROM knowledge_articles WHERE inherit_permissions = 0");
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        if (!knowledgeNodePermits('article', (int)$row['id'], (int)$row['is_restricted'], $acl, $principals)) {
+            $badArticles[] = (int)$row['id'];
+        }
+    }
+
+    $sql = '';
+    $params = [];
+    $inList = static function (array $ids): string {
+        return implode(',', array_map('intval', $ids));
+    };
+
+    if ($mode === 'filing') {
+        // Folders are filing: an article's own rules are authoritative when it
+        // has them, and the folder chain only speaks for articles that inherit.
+        $parts = [];
+        $parts[] = $badArticles
+            ? '(' . $q('inherit_permissions') . ' = 0 AND ' . $q('id') . ' NOT IN (' . $inList($badArticles) . '))'
+            : '(' . $q('inherit_permissions') . ' = 0)';
+        $parts[] = $badFolders
+            ? '(' . $q('inherit_permissions') . ' = 1 AND (' . $q('folder_id') . ' IS NULL OR ' . $q('folder_id') . ' NOT IN (' . $inList($badFolders) . ')))'
+            : '(' . $q('inherit_permissions') . ' = 1)';
+        $sql = ' AND (' . implode(' OR ', $parts) . ')';
+    } else {
+        // Folders are containers (the default): a locked cabinet is locked, so
+        // BOTH tests apply — the article's own rules AND every ancestor.
+        if ($badArticles) {
+            $sql .= ' AND ' . $q('id') . ' NOT IN (' . $inList($badArticles) . ')';
+        }
+        if ($badFolders) {
+            $sql .= ' AND (' . $q('folder_id') . ' IS NULL OR ' . $q('folder_id') . ' NOT IN (' . $inList($badFolders) . '))';
+        }
+    }
+
+    return [$sql, $params];
+}
+
+/**
+ * Does this node let this viewer through?
+ *
+ *   Open (is_restricted = 0)       yes, unless a DENY names one of their principals
+ *   Restricted (is_restricted = 1) only if a GRANT names one
+ *
+ * The polarity comes from the OBJECT, so an allow and a deny can never both be
+ * present and there is no precedence rule to apply. Note the two directions:
+ * on an Open node ANY matching row excludes them (deny is absolute), on a
+ * Restricted node ANY matching row admits them (grants are additive). Different
+ * directions, each unambiguous, both failing safe.
+ *
+ * ⚠️ A Restricted node with NO rows admits NOBODY. That is correct rather than a
+ * bug — it is "restricted to nobody" — and it is precisely the state the
+ * administrator floor exists to recover from.
+ */
+function knowledgeNodePermits(string $type, int $id, int $isRestricted, array $acl, array $principals): bool
+{
+    $rows = $acl[$type][$id] ?? [];
+    $matches = false;
+    foreach ($principals as $p) {
+        if (isset($rows[$p])) { $matches = true; break; }
+    }
+    return $isRestricted ? $matches : !$matches;
+}
+
+/**
+ * May this viewer reach $folderId?
+ *
+ * containers — EVERY node from the folder up to the root must permit. A node
+ *   that inherits has no rules of its own and therefore permits trivially, which
+ *   is what makes inheritance fall out of the walk rather than needing its own
+ *   pass: the nearest non-inheriting ancestor is the only one that can object.
+ * filing — only the NEAREST non-inheriting node speaks.
+ *
+ * A cycle (which the parent FK does not prevent) terminates the walk rather than
+ * hanging: a folder that is its own ancestor is corrupt, and the safe reading of
+ * corrupt is "not readable".
+ */
+function knowledgeFolderReadable(int $folderId, array $folders, array $acl, array $principals, string $mode): bool
+{
+    $seen = [];
+    $cursor = $folderId;
+    while ($cursor !== null && isset($folders[$cursor])) {
+        if (isset($seen[$cursor])) return false;   // cycle — fail closed
+        $seen[$cursor] = true;
+
+        $f = $folders[$cursor];
+        if (!$f['inherit']) {
+            if (!knowledgeNodePermits('folder', $cursor, $f['restricted'], $acl, $principals)) {
+                return false;
+            }
+            // In filing mode the nearest non-inheriting node is the ONLY one
+            // that speaks, so stop the moment it has spoken.
+            if ($mode === 'filing') return true;
+        }
+        $cursor = $f['parent'];
+    }
+    return true;
+}
+
+/**
+ * Everything the viewer counts as, as "type:id" strings for cheap lookup.
+ *
+ * An analyst is themselves plus their teams; a portal user is themselves. Both
+ * pick up any user group they belong to whose membership has not expired —
+ * ⚠️ the expiry is applied HERE, at read time, so the three engineers who were
+ * given a folder for a week lose it by the clock rather than by somebody
+ * remembering to take it away.
+ */
+function knowledgeViewerPrincipals(PDO $conn, KnowledgeViewer $viewer): array
+{
+    $out = [];
+    $memberType = null;
+    $memberId   = null;
+
+    if ($viewer->analystId() !== null) {
+        $out[] = 'analyst:' . $viewer->analystId();
+        $memberType = 'analyst';
+        $memberId   = $viewer->analystId();
+        try {
+            $st = $conn->prepare("SELECT team_id FROM analyst_teams WHERE analyst_id = ?");
+            $st->execute([$viewer->analystId()]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $t) $out[] = 'team:' . (int)$t;
+        } catch (PDOException $e) { /* no teams table yet — no team principals */ }
+    }
+    if ($viewer->userId() !== null) {
+        $out[] = 'user:' . $viewer->userId();
+        $memberType = 'user';
+        $memberId   = $viewer->userId();
+    }
+
+    if ($memberType !== null) {
+        try {
+            $st = $conn->prepare(
+                "SELECT m.group_id FROM knowledge_user_group_members m
+                   JOIN knowledge_user_groups g ON g.id = m.group_id AND g.is_active = 1
+                  WHERE m.member_type = ? AND m.member_id = ?
+                    AND (m.expires_at IS NULL OR m.expires_at > UTC_TIMESTAMP())"
+            );
+            $st->execute([$memberType, $memberId]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $g) $out[] = 'user_group:' . (int)$g;
+        } catch (PDOException $e) { /* groups not created yet */ }
+    }
+    return $out;
+}
+
+/**
+ * Per-request memo for the four things the access list needs to look up: the
+ * permission model, whether any rules exist at all, the rules themselves, and
+ * the folder tree. Read once per request rather than once per query — a page
+ * that lists articles and then fetches one would otherwise ask four times over.
+ *
+ * A holder class rather than `static` inside each function for one reason: a
+ * `static` cannot be cleared from outside, and two callers genuinely need it
+ * cleared — the test harness, which changes permissions and asks again in the
+ * same process, and any long-running worker. A cache nobody can invalidate is
+ * a cache that will eventually answer with yesterday's permissions.
+ */
+final class KnowledgeAclCache
+{
+    private static array $store = [];
+
+    /** @return mixed|null null = not cached (distinct from a cached null) */
+    public static function get(string $key)
+    {
+        return array_key_exists($key, self::$store) ? self::$store[$key] : null;
+    }
+
+    /** Stores and returns the value, so callers can `return set(...)`. */
+    public static function set(string $key, $value)
+    {
+        self::$store[$key] = $value;
+        return $value;
+    }
+
+    public static function clear(): void { self::$store = []; }
+}
+
+/**
+ * Forget everything memoised about folders and the access list.
+ *
+ * Call after CHANGING permissions inside a single process — the tests do this
+ * constantly, and any future admin screen that edits an access list and then
+ * re-renders in the same request must too, or it will show the state it just
+ * replaced.
+ */
+function knowledgeAclResetCaches(): void
+{
+    KnowledgeAclCache::clear();
+}
+
+/** Which permission model this install runs. Default 'containers' — the safe end. */
+function knowledgeFolderPermissionModel(PDO $conn): string
+{
+    $mode = KnowledgeAclCache::get("mode");
+    if ($mode !== null) return $mode;
+    try {
+        $st = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'knowledge_folder_permission_model'");
+        $st->execute();
+        $v = (string)($st->fetchColumn() ?: '');
+    } catch (PDOException $e) { $v = ''; }
+    return KnowledgeAclCache::set("mode", ($v === "filing") ? "filing" : "containers");
+}
+
+/** Are there ANY access rows at all? The cheap test that skips all the work. */
+function knowledgeAclHasAnyRows(PDO $conn): bool
+{
+    $any = KnowledgeAclCache::get("any");
+    if ($any !== null) return $any;
+    try {
+        $any = (bool)$conn->query("SELECT 1 FROM knowledge_acl LIMIT 1")->fetchColumn();
+    } catch (PDOException $e) {
+        // Cannot tell — assume there ARE rules so the guard still runs, matching
+        // tenancyColumnExists()'s direction. Failing the other way would drop the
+        // access list on exactly the hiccup where you least want it dropped.
+        $any = true;
+    }
+    return KnowledgeAclCache::set("any", $any);
+}
+
+/** All access rows as [type][object_id]['principal:id' => true]. One query. */
+function knowledgeAclIndex(PDO $conn): array
+{
+    $idx = KnowledgeAclCache::get("acl");
+    if ($idx !== null) return $idx;
+    $idx = [];
+    try {
+        $st = $conn->query("SELECT object_type, object_id, principal_type, principal_id FROM knowledge_acl");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $idx[$r['object_type']][(int)$r['object_id']][$r['principal_type'] . ':' . (int)$r['principal_id']] = true;
+        }
+    } catch (PDOException $e) { $idx = []; }
+    return KnowledgeAclCache::set("acl", $idx);
+}
+
+/** The folder tree as [id => ['parent'=>?int,'restricted'=>int,'inherit'=>int]]. */
+function knowledgeFolderIndex(PDO $conn): array
+{
+    $idx = KnowledgeAclCache::get("folders");
+    if ($idx !== null) return $idx;
+    $idx = [];
+    try {
+        $st = $conn->query("SELECT id, parent_id, is_restricted, inherit_permissions FROM knowledge_folders");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $idx[(int)$r['id']] = [
+                'parent'     => $r['parent_id'] === null ? null : (int)$r['parent_id'],
+                'restricted' => (int)$r['is_restricted'],
+                'inherit'    => (int)$r['inherit_permissions'],
+            ];
+        }
+    } catch (PDOException $e) { $idx = []; }
+    return KnowledgeAclCache::set("folders", $idx);
 }
 
 /**

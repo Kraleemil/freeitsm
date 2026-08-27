@@ -3463,8 +3463,12 @@ CREATE TABLE IF NOT EXISTS `knowledge_articles` (
     `version`               INT NOT NULL DEFAULT 1,
     `tenant_id`             INT NULL,
     `audience`              VARCHAR(20) NOT NULL DEFAULT 'internal',
+    `folder_id`             INT NULL,
+    `is_restricted`         TINYINT(1) NOT NULL DEFAULT 0,
+    `inherit_permissions`   TINYINT(1) NOT NULL DEFAULT 1,
     PRIMARY KEY (`id`),
     KEY `idx_knowledge_articles_tenant` (`tenant_id`),
+    KEY `idx_knowledge_articles_folder` (`folder_id`),
     CONSTRAINT `fk_knowledge_articles_author` FOREIGN KEY (`author_id`) REFERENCES `analysts` (`id`),
     CONSTRAINT `fk_knowledge_articles_owner` FOREIGN KEY (`owner_id`) REFERENCES `analysts` (`id`),
     CONSTRAINT `fk_knowledge_articles_archived_by` FOREIGN KEY (`archived_by_id`) REFERENCES `analysts` (`id`),
@@ -3488,7 +3492,173 @@ CREATE TABLE IF NOT EXISTS `knowledge_articles` (
 --   | 'public' (+ anonymous web chat visitors). Defaults to 'internal' so an
 --   upgrade can never start disclosing existing articles to the public — an
 --   author opts in. See includes/knowledge/audience.php.
+-- knowledge_articles.folder_id => which folder it lives in. NULL = the root,
+--   which is where every existing article lands on upgrade: zero migration, and
+--   the resulting state (root, inheriting, unrestricted) behaves exactly as the
+--   module did before folders existed.
+-- knowledge_articles.is_restricted       0 = Open (access rows are DENIES)
+--                                        1 = Restricted (access rows are GRANTS)
+-- knowledge_articles.inherit_permissions 1 = use the folder's rules, not my own.
+--   Defaults to 1 so an upgraded article inherits from a root that restricts
+--   nothing. See knowledge_folders below and includes/knowledge/visibility.php.
 
+
+-- ----------------------------------------------------------
+-- Knowledge folders and per-document permissions
+--
+-- Design: https://github.com/edmozley/freeitsm/wiki/Knowledge-Folders-and-Permissions
+--
+-- THE RULE: every axis NARROWS, nothing widens. An article is readable only if
+-- the company owns it (or it is shared), the reader's trust level reaches its
+-- audience, AND the access list does not exclude them. The axes are ANDed, never
+-- weighed against each other -- so an access-list grant can never reach past the
+-- "Who can see this" setting, and there is no precedence puzzle to solve.
+-- ----------------------------------------------------------
+
+-- A document lives in EXACTLY ONE folder. That is the load-bearing decision:
+-- with several parents "inherit from parent" has no answer -- most-permissive
+-- leaks, most-restrictive loses documents people filed themselves, and every
+-- system that tried it ended up with an effective-permissions dialog nobody
+-- could read. Appearing in two places is what knowledge_shortcuts is for.
+CREATE TABLE IF NOT EXISTS `knowledge_folders` (
+    `id`                  INT NOT NULL AUTO_INCREMENT,
+    `parent_id`           INT NULL,
+    `name`                VARCHAR(255) NOT NULL,
+    `is_restricted`       TINYINT(1) NOT NULL DEFAULT 0,
+    `inherit_permissions` TINYINT(1) NOT NULL DEFAULT 1,
+    `owner_id`            INT NULL,
+    `tenant_id`           INT NULL,
+    `created_by_id`       INT NULL,
+    `created_datetime`    DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `modified_datetime`   DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_knowledge_folders_parent` (`parent_id`),
+    KEY `idx_knowledge_folders_tenant` (`tenant_id`),
+    -- A folder whose parent is deleted would be unreachable but still hold
+    -- documents, so deleting a parent must be a deliberate act that moves or
+    -- removes its children first.
+    CONSTRAINT `fk_knowledge_folders_parent` FOREIGN KEY (`parent_id`) REFERENCES `knowledge_folders` (`id`),
+    -- Same reasoning as fk_knowledge_articles_tenant: NO "ON DELETE SET NULL",
+    -- because NULL here means SHARED WITH EVERY COMPANY, so SET NULL would
+    -- silently promote a deleted company's private folder into everyone's tree.
+    CONSTRAINT `fk_knowledge_folders_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- knowledge_folders.is_restricted       0 = Open (rows below are DENIES)
+--                                       1 = Restricted (rows below are GRANTS)
+-- knowledge_folders.inherit_permissions 1 = take the parent's rules, ignore my own
+-- knowledge_folders.tenant_id           NULL = shared with EVERY company
+
+-- THERE IS NO allow/deny COLUMN HERE, AND ITS ABSENCE IS THE GUARANTEE.
+-- The polarity comes from the OBJECT: rows against an Open object are denies,
+-- rows against a Restricted object are grants. A contradictory pair therefore
+-- cannot be stored -- no precedence rule to remember, no effective-permissions
+-- dialog to explain. Same instinct as the audience ladder: make the
+-- contradiction inexpressible rather than adjudicating it.
+--
+-- Flipping an object's polarity WIPES its rows. A dormant wrong-polarity row
+-- that springs back on the next flip is the "unloaded checkbox looks exactly
+-- like OFF" failure wearing a different hat.
+CREATE TABLE IF NOT EXISTS `knowledge_acl` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `object_type`      VARCHAR(10) NOT NULL,
+    `object_id`        INT NOT NULL,
+    `principal_type`   VARCHAR(12) NOT NULL,
+    `principal_id`     INT NOT NULL,
+    `created_by_id`    INT NULL,
+    `created_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    -- The lookup every permission check makes.
+    KEY `idx_knowledge_acl_object` (`object_type`, `object_id`),
+    KEY `idx_knowledge_acl_principal` (`principal_type`, `principal_id`),
+    -- One principal cannot be listed twice on the same object.
+    UNIQUE KEY `uq_knowledge_acl` (`object_type`, `object_id`, `principal_type`, `principal_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- knowledge_acl.object_type    'folder' | 'article'
+-- knowledge_acl.principal_type 'analyst' | 'team' | 'user' | 'user_group'
+-- No FOREIGN KEYs on object_id/principal_id: both are polymorphic, so there is
+-- no single table to point at. Rows are cleaned up where the object is deleted.
+
+-- A pointer with NO permissions of its own: it resolves to the target and the
+-- TARGET's rules decide. This is what preserves the single-parent tree while
+-- letting a document appear in two places.
+--   * a shortcut can never GRANT -- if you cannot read the target it is not a way in
+--   * shortcuts must be filtered by TARGET readability at list time, or the row
+--     leaks the target's title, which is the search-snippet leak in a new hat
+CREATE TABLE IF NOT EXISTS `knowledge_shortcuts` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `folder_id`        INT NULL,
+    `article_id`       INT NOT NULL,
+    `created_by_id`    INT NULL,
+    `created_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_knowledge_shortcut` (`folder_id`, `article_id`),
+    CONSTRAINT `fk_knowledge_shortcuts_folder` FOREIGN KEY (`folder_id`) REFERENCES `knowledge_folders` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_knowledge_shortcuts_article` FOREIGN KEY (`article_id`) REFERENCES `knowledge_articles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- NOT lms_learning_groups. The driving case is ad hoc and short-lived -- three
+-- engineers on site for a week needing one folder -- and routing that through the
+-- LMS to grant a document permission would be daft. `users` has no grouping of
+-- any kind today, so a table was needed regardless.
+CREATE TABLE IF NOT EXISTS `knowledge_user_groups` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `name`             VARCHAR(100) NOT NULL,
+    `description`      VARCHAR(500) NULL,
+    `is_active`        TINYINT(1) NOT NULL DEFAULT 1,
+    `created_by_id`    INT NULL,
+    `created_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_knowledge_user_groups_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `knowledge_user_group_members` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `group_id`         INT NOT NULL,
+    `member_type`      VARCHAR(10) NOT NULL,
+    `member_id`        INT NOT NULL,
+    `expires_at`       DATETIME NULL,
+    `created_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_knowledge_group_member` (`group_id`, `member_type`, `member_id`),
+    KEY `idx_knowledge_group_member` (`member_type`, `member_id`),
+    CONSTRAINT `fk_knowledge_group_members_group` FOREIGN KEY (`group_id`) REFERENCES `knowledge_user_groups` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- knowledge_user_group_members.member_type 'analyst' | 'user'
+-- knowledge_user_group_members.expires_at  THE REASON THIS TABLE EXISTS.
+--   "For the week" is the requirement as stated, and an access list that quietly
+--   stays open after the engineers go home is the failure worth designing out on
+--   day one. NULL = no expiry.
+
+-- Modelled on document_access_log, which already does this for attached files.
+--
+-- VIEWS ARE A DIFFERENT VOLUME CLASS FROM EDITS. knowledge_articles.view_count
+-- already increments on every read, and a row per view on a busy KB is millions a
+-- year. Creates, edits, permission changes, deletes and administrator-floor
+-- passes are RARE, and are what somebody actually comes looking for -- so views
+-- get sampled, deduped per person per day, or held to a retention window rather
+-- than being allowed to bury them.
+CREATE TABLE IF NOT EXISTS `knowledge_audit` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `object_type`      VARCHAR(10) NOT NULL,
+    `object_id`        INT NOT NULL,
+    `action`           VARCHAR(20) NOT NULL,
+    `analyst_id`       INT NULL,
+    `user_id`          INT NULL,
+    `detail`           LONGTEXT NULL,
+    `ip_address`       VARCHAR(45) NULL,
+    `created_datetime` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_knowledge_audit_object` (`object_type`, `object_id`),
+    KEY `idx_knowledge_audit_action` (`action`, `created_datetime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- knowledge_audit.action 'create' | 'edit' | 'view' | 'delete' | 'restore'
+--                        | 'move' | 'permissions' | 'admin_override'
+--   'admin_override' is written EVERY time the knowledge.admin floor lets
+--   somebody past an access list they were not on. That floor exists so a
+--   Restricted folder whose only grantee has left is recoverable rather than
+--   lost -- but a permission that always passes must leave a trace, or it is
+--   indistinguishable from not having a permission system.
 CREATE TABLE IF NOT EXISTS `knowledge_article_versions` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `article_id`        INT NOT NULL,
