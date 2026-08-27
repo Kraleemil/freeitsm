@@ -611,6 +611,19 @@ async function createFolderIn(parentId) {
 //  what the module did before folders existed.
 // ---------------------------------------------------------------------------
 
+/**
+ * Is the folder tree actually on screen?
+ *
+ * ⚠️ offsetWidth, NOT `display`. On a phone the panel is not display:none — it
+ * is laid out and collapsed to ZERO WIDTH, so a display check returns "block"
+ * and reads as visible. That exact mistake made the measuring harness report
+ * "folder tree reachable on a phone: YES" about a tree nobody could see.
+ */
+function kbTreeIsVisible() {
+    const el = document.querySelector('.knowledge-sidebar');
+    return !!el && el.offsetWidth > 0;
+}
+
 /** The chain from the root down to the folder being viewed. */
 function folderPath(id) {
     const out = [];
@@ -644,8 +657,24 @@ function renderBreadcrumb() {
  * can be inside, so neither has children to show.
  */
 function renderFolderRows() {
-    if (activeFolder === '' || activeFolder === 'root') return '';
-    const kids = kbFolders.filter(f => String(f.parent_id) === String(activeFolder));
+    if (activeFolder === 'root') return '';
+
+    let kids;
+    if (activeFolder === '') {
+        // ⚠️ ON A PHONE THE TREE IS NOT ON SCREEN. mobile.css collapses the left
+        // panel to nothing, so without this there is no way into a folder at all
+        // — the breadcrumb and the folder rows only appear once you are already
+        // inside one, and nothing could get you there.
+        //
+        // The test is whether the tree is ACTUALLY VISIBLE, not what the viewport
+        // width is. A width guess duplicates the breakpoint in a second place and
+        // then drifts from it; measuring the panel asks the real question, and
+        // answers it correctly for a narrow window on a desktop too.
+        if (kbTreeIsVisible()) return '';
+        kids = kbFolders.filter(f => f.parent_id === null);
+    } else {
+        kids = kbFolders.filter(f => String(f.parent_id) === String(activeFolder));
+    }
     if (!kids.length) return '';
 
     return kids.map(f => `

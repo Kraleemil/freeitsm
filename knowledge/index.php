@@ -57,7 +57,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <script src="../assets/js/i18n.js?v=2"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
     <!-- Mobile-friendly overrides (LAYER 17). Linked LAST so its @media rules win ties against knowledge.css. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=67">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=68">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -446,7 +446,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=23"></script>
+    <script src="../assets/js/knowledge.js?v=24"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>

@@ -1925,6 +1925,65 @@
     body[data-kb-view="detail"] .mobile-subbar,
     body[data-kb-view="editor"] .mobile-subbar { display: none !important; }
 
+
+    /* --------------------------------------------------------------------
+       17n — Folders on a phone (#1222).
+
+       ⚠️ THE LEFT PANEL IS COLLAPSED TO ZERO WIDTH HERE (17a), so the folder
+       TREE does not exist on a phone. Without something else, there is no way
+       into a folder at all: the breadcrumb and the folder rows only appear once
+       you are already inside one, and nothing could get you there.
+
+       The answer is not a second navigation. knowledge.js already draws folders
+       as rows in the list when you are inside one, so at "All articles" it draws
+       the TOP-LEVEL folders instead whenever the tree is not on screen — same
+       renderer, same rows, same drill-down. A phone gets the ordinary
+       folder-into-folder walk with no new interface at all, and the breadcrumb
+       above the list is how you come back out.
+
+       ⚠️ That decision is made by MEASURING the panel (offsetWidth), not by a
+       width guess in JavaScript. A guess would restate this breakpoint in a
+       second place and then drift from it.
+       -------------------------------------------------------------------- */
+
+    /* A folder row is a tap target, not a card to read: no hover lift, and tall
+       enough to hit. */
+    .kb-folder-card { min-height: 56px; }
+    .kb-folder-card:hover { transform: none; }
+    .kb-folder-card .article-card-title { padding-right: 12px; }
+
+    /* The trail wraps rather than scrolling sideways: three or four levels deep
+       at 360px will not fit on one line, and a horizontal scrollbar inside a
+       list that also scrolls vertically is the fault reported as "a scrollbar
+       that does nothing". */
+    .kb-breadcrumb { flex-wrap: wrap; row-gap: 2px; font-size: 12px; padding-bottom: 8px; }
+    .kb-breadcrumb a { min-height: 24px; display: inline-flex; align-items: center; }
+
+    /* --------------------------------------------------------------------
+       17o — The permissions and exceptions screens on a phone.
+       -------------------------------------------------------------------- */
+
+    /* 16px or iOS zooms the page on focus and does not zoom back out. The tick
+       boxes beside it are not text fields and do not trigger it, so they keep
+       their size. */
+    #kbPermSearch { font-size: 16px; min-height: 44px; }
+    .kb-perm-list { max-height: 45vh; }
+    .kb-perm-results { max-height: 35vh; }
+    /* Name, kind and Remove will not sit on one 360px line: give the button its
+       own row rather than crushing the name it belongs to. */
+    .kb-perm-entry { flex-wrap: wrap; row-gap: 6px; }
+    .kb-perm-entry-name { flex: 1 1 100%; }
+    .kb-perm-entry .btn { min-height: 40px; }
+
+    /* Pre-existing, and in this module: a 14px textarea that iOS zooms into on
+       focus. Found while measuring the folders work at 360px.
+
+       ⚠️ SPECIFICITY, exactly as #998 hit two hundred lines above. knowledge.css
+       styles it as `#shareEmailModal .form-textarea` — (1,1,0) — so a plain
+       `#shareEmailMessage` (1,0,0) LOSES however the files are ordered. Matching
+       the selector shape is what makes load order decide it, and mobile.css is
+       linked last. */
+    #shareEmailModal .form-textarea { font-size: 16px; }
     /* --------------------------------------------------------------------
        17b — The article list.
        -------------------------------------------------------------------- */

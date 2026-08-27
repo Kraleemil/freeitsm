@@ -31,7 +31,7 @@ $translationNamespaces = ['common', 'tasks'];
     <script src="../assets/js/tz.js?v=4"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=67">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=68">
 </head>
 <body data-analyst-id="<?php echo $_SESSION['analyst_id'] ?? ''; ?>">
     <?php include 'includes/header.php'; ?>
