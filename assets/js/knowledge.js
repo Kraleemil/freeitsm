@@ -596,6 +596,73 @@ async function createFolderIn(parentId) {
     await folderAction({ action: 'create', name: name.trim(), parent_id: parentId }, 'knowledge.folders.created');
 }
 
+// ---------------------------------------------------------------------------
+//  Going INTO a folder from the main pane
+//
+//  Deliberately NOT a view-mode switcher. Of the three modes such a thing
+//  usually offers, two already exist — "details" is this list, "tree" is the
+//  left panel — so a switcher would mostly let you choose between what you have
+//  and the same thing again. The only genuinely missing piece was seeing folders
+//  where you are actually working, so the main pane simply shows where you are:
+//  a breadcrumb, then the subfolders, then the articles. Nothing to choose,
+//  nothing to remember, and one renderer rather than three.
+//
+//  At "All articles" there are no folder rows and the list is flat — exactly
+//  what the module did before folders existed.
+// ---------------------------------------------------------------------------
+
+/** The chain from the root down to the folder being viewed. */
+function folderPath(id) {
+    const out = [];
+    let cursor = kbFolders.find(f => String(f.id) === String(id));
+    const seen = {};
+    while (cursor && !seen[cursor.id]) {   // a cycle would otherwise hang the page
+        seen[cursor.id] = true;
+        out.unshift(cursor);
+        cursor = kbFolders.find(f => f.id === cursor.parent_id);
+    }
+    return out;
+}
+
+function renderBreadcrumb() {
+    const bar = document.getElementById('kbBreadcrumb');
+    if (!bar) return;
+    if (activeFolder === '' || activeFolder === 'root') { bar.innerHTML = ''; bar.style.display = 'none'; return; }
+
+    const parts = [`<a onclick="selectFolder('')">${escapeHtml(window.t('knowledge.folders.root'))}</a>`];
+    for (const f of folderPath(activeFolder)) {
+        parts.push(`<a onclick="selectFolder('${f.id}')">${escapeHtml(f.name)}</a>`);
+    }
+    bar.style.display = '';
+    bar.innerHTML = parts.join('<span class="kb-crumb-sep">›</span>');
+}
+
+/**
+ * Subfolders of wherever we are, as rows above the articles.
+ *
+ * Returns '' at "All articles" and at the unfiled view — neither is a place you
+ * can be inside, so neither has children to show.
+ */
+function renderFolderRows() {
+    if (activeFolder === '' || activeFolder === 'root') return '';
+    const kids = kbFolders.filter(f => String(f.parent_id) === String(activeFolder));
+    if (!kids.length) return '';
+
+    return kids.map(f => `
+        <div class="article-card kb-folder-card" onclick="selectFolder('${f.id}')"
+             ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
+             data-folder="${f.id}"
+             oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${JSON.stringify(f.name)})">
+            <div class="article-card-title">📁 ${escapeHtml(f.name)}${f.is_restricted ? ' 🔒' : ''}</div>
+            <div class="article-card-meta">
+                <div class="article-card-info">
+                    <span>${f.article_count} ${escapeHtml(window.t(
+                        f.article_count === 1 ? 'knowledge.folders.item_one' : 'knowledge.folders.items'))}</span>
+                </div>
+            </div>
+        </div>`).join('');
+}
+
 /**
  * Is this row appearing here because of a shortcut rather than because it lives
  * here? No extra column needed: a row whose real folder_id differs from the
@@ -958,19 +1025,26 @@ function renderArticleList() {
     const countEl = document.getElementById('articleCount');
 
     countEl.textContent = window.t(articles.length === 1 ? 'knowledge.list.count_one' : 'knowledge.list.count', { count: articles.length });
+    renderBreadcrumb();
 
-    if (articles.length === 0) {
+    // ⚠️ An empty FOLDER is not an empty knowledge base. Showing "create your
+    // first article" inside a folder that merely holds subfolders would be
+    // alarming and wrong — and it would hide the subfolders, which are the only
+    // way further in.
+    const folderRows = renderFolderRows();
+    if (articles.length === 0 && !folderRows) {
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">📚</div>
-                <div class="empty-state-text">${escapeHtml(window.t('knowledge.list.no_articles'))}</div>
+                <div class="empty-state-text">${escapeHtml(window.t(
+                    activeFolder === '' ? 'knowledge.list.no_articles' : 'knowledge.folders.empty'))}</div>
                 <button class="btn btn-primary" onclick="openCreateArticle()">${escapeHtml(window.t('knowledge.list.create_first'))}</button>
             </div>
         `;
         return;
     }
 
-    container.innerHTML = articles.map(article => `
+    container.innerHTML = folderRows + articles.map(article => `
         <div class="article-card" onclick="viewArticle(${article.id})"
              draggable="true"
              ondragstart="kbDragStart(event, 'article', ${article.id})"

@@ -157,6 +157,9 @@ return [
         'restricted'    => 'Restricted to chosen people',
         'load_failed'   => 'Could not load folders',
         'none'          => 'No folders yet',
+        'empty'         => 'This folder is empty.',
+        'items'         => 'articles',
+        'item_one'      => 'article',
     ],
 
     'exceptions' => [

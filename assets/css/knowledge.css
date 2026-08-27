@@ -1401,3 +1401,31 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     opacity: 0.75;
     cursor: help;
 }
+
+/* ---------------------------------------------------------------------------
+   Going into a folder from the main pane: a breadcrumb, then folder rows above
+   the articles. NOT a view mode — see the note in knowledge.js.
+   --------------------------------------------------------------------------- */
+.kb-breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 0 0 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+.kb-breadcrumb a { color: var(--accent); cursor: pointer; }
+.kb-breadcrumb a:hover { text-decoration: underline; }
+/* The last crumb is where you already are, so it is not a link anywhere. */
+.kb-breadcrumb a:last-child {
+    color: var(--text);
+    cursor: default;
+    pointer-events: none;
+}
+.kb-crumb-sep { color: var(--text-muted); }
+
+/* A folder in the list reads as a folder rather than as an article: no preview,
+   no tags, and it opens rather than being read. */
+.kb-folder-card .article-card-title { font-weight: 600; }
+.kb-folder-card:hover { background: var(--surface-hover); }

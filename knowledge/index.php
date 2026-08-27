@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=7">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=8">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -108,6 +108,9 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
         <div class="knowledge-main">
             <!-- Article list view -->
             <div class="article-list-view" id="articleListView">
+                <!-- Where you are, when you are inside a folder. Hidden at "All
+                     articles", which is not a place you can be inside. -->
+                <nav class="kb-breadcrumb" id="kbBreadcrumb" style="display:none;"></nav>
                 <div class="article-list-header">
                     <h2 id="articleListHeader"><?php echo htmlspecialchars(t('knowledge.list.heading')); ?></h2>
                     <div class="article-count" id="articleCount"></div>
@@ -443,7 +446,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=22"></script>
+    <script src="../assets/js/knowledge.js?v=23"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>
