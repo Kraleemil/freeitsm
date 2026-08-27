@@ -74,6 +74,18 @@ return [
             'setting_keys' => ['knowledge_recycle_bin_days'],
         ],
         [
+            // The only setting in the module that changes who can READ things, so
+            // it sits under the umbrella capability rather than getting a
+            // narrower one of its own: whoever may change it may already change
+            // every access list.
+            'id'           => 'permissions',
+            'cap'          => Cap::KNOWLEDGE_MANAGE,
+            'label_key'    => 'knowledge.settings.tab_permissions',
+            'grant'        => 'Choose whether folder permissions apply to everything inside them',
+            'sensitive'    => true,
+            'setting_keys' => ['knowledge_folder_permission_model'],
+        ],
+        [
             'id'        => 'left-panel',
             'cap'       => null,
             'label_key' => 'knowledge.settings.tab_left_panel',

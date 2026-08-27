@@ -238,6 +238,29 @@ $translationNamespaces = ['common', 'knowledge'];
             border: 1px solid var(--danger-bg, #f5c6cb);
             color: var(--danger-text, #721c24);
         }
+
+        /* The blast-radius note on the folder-permission setting. Lives here
+           rather than in knowledge.css because this page does not link that
+           file — a rule written there would simply never have applied, which is
+           invisible rather than broken. Neutral by default; coloured only when
+           the change would WIDEN access, since that is the direction that
+           discloses rather than merely inconveniences. */
+        .kb-perm-preview {
+            margin: 14px 0;
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border, #ddd);
+            background: var(--surface, #fff);
+            font-size: 13px;
+            color: var(--text, #333);
+        }
+        .kb-perm-preview.is-widening {
+            /* --danger-* , never a bare --danger: that token does not exist, and
+               a phantom just inherits and looks plausible in one theme. */
+            border-color: var(--danger-border, #f5c6cb);
+            background: var(--danger-bg, #f8d7da);
+            color: var(--danger-text, #721c24);
+        }
     </style>
     <!-- Mobile: LAYER 15e handles a settings page built on .container + renderSettingsTabBar, which is this one - hence the marker on <body>. -->
     <link rel="stylesheet" href="../../assets/css/mobile.css?v=68">
@@ -488,6 +511,46 @@ $translationNamespaces = ['common', 'knowledge'];
         <!-- Left panel tab — per-analyst preference -->
         <?php endif; ?>
 
+        <?php if (settingsTabVisible($visibleTabs, 'permissions')): ?>
+        <div class="tab-content<?php echo $activeTabId === 'permissions' ? ' active' : ''; ?>" id="permissions-tab" data-capability="<?php echo Cap::KNOWLEDGE_MANAGE; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('knowledge.settings.perm_model_heading')); ?></h2>
+            </div>
+            <p style="color: var(--text-muted, #666); margin-bottom: 20px;"><?php echo htmlspecialchars(t('knowledge.settings.perm_model_intro')); ?></p>
+
+            <form id="permModelForm" autocomplete="off" onsubmit="event.preventDefault();">
+                <div class="form-group">
+                    <label style="display: block; padding: 10px 14px; border: 1px solid var(--border, #ddd); border-radius: 6px; margin-bottom: 8px; cursor: pointer;">
+                        <input type="radio" name="kbPermModel" value="containers" onchange="previewPermModel(this.value)">
+                        <strong><?php echo htmlspecialchars(t('knowledge.settings.perm_containers_title')); ?></strong>
+                        <span style="display: block; font-size: 12px; color: var(--text-dim, #777); margin-top: 4px; margin-left: 22px;">
+                            <?php echo htmlspecialchars(t('knowledge.settings.perm_containers_desc')); ?>
+                        </span>
+                    </label>
+                    <label style="display: block; padding: 10px 14px; border: 1px solid var(--border, #ddd); border-radius: 6px; cursor: pointer;">
+                        <input type="radio" name="kbPermModel" value="filing" onchange="previewPermModel(this.value)">
+                        <strong><?php echo htmlspecialchars(t('knowledge.settings.perm_filing_title')); ?></strong>
+                        <span style="display: block; font-size: 12px; color: var(--text-dim, #777); margin-top: 4px; margin-left: 22px;">
+                            <?php echo htmlspecialchars(t('knowledge.settings.perm_filing_desc')); ?>
+                        </span>
+                    </label>
+                </div>
+
+                <!-- What the change would actually do, counted, BEFORE anything
+                     is written. This setting changes who can read live documents
+                     with no per-document change to point at, so a bare "are you
+                     sure?" would be asking about something nobody can see. -->
+                <div id="permModelPreview" class="kb-perm-preview" style="display:none;"></div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" id="permModelApply" style="display:none;" onclick="applyPermModel()">
+                        <?php echo htmlspecialchars(t('knowledge.settings.save')); ?>
+                    </button>
+                </div>
+            </form>
+        </div>
+        <?php endif; ?>
+
         <!-- Left panel — per-analyst display preference; no capability. -->
         <div class="tab-content<?php echo $activeTabId === 'left-panel' ? ' active' : ''; ?>" id="left-panel-tab" data-capability="none">
             <div class="section-header">
@@ -551,6 +614,78 @@ $translationNamespaces = ['common', 'knowledge'];
                 if (first) first.checked = true;
             }
         }
+
+        // ── The folder permission model ────────────────────────────────────
+        // Nothing is saved by picking a radio. Choosing shows what the change
+        // would DO — counted, per person — and only then offers to apply it.
+        // This is the one setting in the module that changes who can read live
+        // documents, with no per-document change to point at afterwards, so a
+        // bare "are you sure?" would be asking about something invisible.
+        let permModelCurrent = 'containers';
+
+        async function loadPermModel() {
+            try {
+                const r = await fetch('../../api/knowledge/permission_model.php?action=get');
+                const d = await r.json();
+                if (!d.success) return;
+                permModelCurrent = d.model;
+                const el = document.querySelector(`input[name="kbPermModel"][value="${d.model}"]`);
+                if (el) el.checked = true;
+            } catch (e) { /* leave both unticked rather than showing a guess as fact */ }
+        }
+
+        async function previewPermModel(model) {
+            const box = document.getElementById('permModelPreview');
+            const btn = document.getElementById('permModelApply');
+            if (model === permModelCurrent) { box.style.display = 'none'; btn.style.display = 'none'; return; }
+
+            box.style.display = '';
+            box.className = 'kb-perm-preview';
+            box.textContent = '…';
+            btn.style.display = 'none';
+            try {
+                const r = await fetch('../../api/knowledge/permission_model.php?action=preview&model=' + encodeURIComponent(model));
+                const d = await r.json();
+                if (!d.success) { box.textContent = d.error || 'Could not work out what this would change.'; return; }
+
+                if (!d.gain && !d.lose) {
+                    box.textContent = '<?php echo addslashes(t('knowledge.settings.perm_preview_none')); ?>';
+                } else {
+                    const parts = [];
+                    if (d.gain) parts.push('<?php echo addslashes(t('knowledge.settings.perm_preview_gain')); ?>'.replace('{count}', d.gain));
+                    if (d.lose) parts.push('<?php echo addslashes(t('knowledge.settings.perm_preview_lose')); ?>'.replace('{count}', d.lose));
+                    box.textContent = parts.join(' ');
+                    // Gaining access is the direction worth colouring: it is the
+                    // one that discloses rather than merely inconveniences.
+                    box.className = 'kb-perm-preview' + (d.gain ? ' is-widening' : '');
+                }
+                if (d.capped) {
+                    box.textContent += ' <?php echo addslashes(t('knowledge.settings.perm_preview_capped')); ?>'.replace('{count}', d.sampled);
+                }
+                btn.style.display = '';
+            } catch (e) {
+                box.textContent = 'Could not work out what this would change.';
+            }
+        }
+
+        async function applyPermModel() {
+            const chosen = document.querySelector('input[name="kbPermModel"]:checked');
+            if (!chosen) return;
+            try {
+                const r = await fetch('../../api/knowledge/permission_model.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'set', model: chosen.value })
+                });
+                const d = await r.json();
+                if (!d.success) { showToast(d.error || 'Could not save', 'error'); return; }
+                permModelCurrent = d.model;
+                document.getElementById('permModelPreview').style.display = 'none';
+                document.getElementById('permModelApply').style.display = 'none';
+                showToast('<?php echo addslashes(t('knowledge.settings.perm_saved')); ?>', 'success');
+            } catch (e) { showToast('Could not save', 'error'); }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadPermModel);
 
         async function saveSidebarMode(value) {
             if (value !== 'always' && value !== 'hover') return;
