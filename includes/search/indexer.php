@@ -330,6 +330,12 @@ function searchIndexArticle(PDO $conn, int $articleId, int $maxBody = SEARCH_IND
 {
     if ($articleId <= 0) return false;
 
+    // ⚠️ DELIBERATELY UNFILTERED, and it must stay that way. The indexer builds
+    // rows the corpus filters at QUERY time (tenant_scope + is_internal below,
+    // and the access list when it lands, via a clause built where the reader is
+    // known — the same shape as documentSearchVisibilityClause). Filtering here
+    // instead would bake one reader's permissions into a shared index and make
+    // the article unfindable by everyone else.
     $stmt = $conn->prepare(
         "SELECT id, title, body, tenant_id, audience, is_archived, modified_datetime
            FROM knowledge_articles WHERE id = ?"

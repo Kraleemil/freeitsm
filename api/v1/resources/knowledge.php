@@ -119,7 +119,12 @@ function apiLoadArticle(PDO $conn, int $articleId, ?array $apiKey = null): array
     if (!$row) {
         apiError(404, 'not_found', 'Article not found.');
     }
-    if ($apiKey !== null && !apiKeyCanAccessArticle($conn, $apiKey, $articleId)) {
+    // lifecycle 'any' because this loader serves archived articles too (the
+    // recycle-bin endpoints call it); the caller decides what state it wants.
+    // Reported as 404, not 403, so an id cannot be used to probe which articles
+    // exist elsewhere.
+    if ($apiKey !== null
+        && !knowledgeCanRead($conn, KnowledgeViewer::forApiKey($conn, $apiKey), $articleId, ['lifecycle' => 'any'])) {
         apiError(404, 'not_found', 'Article not found.');
     }
     return $row;

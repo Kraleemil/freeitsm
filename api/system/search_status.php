@@ -68,6 +68,9 @@ try {
     $ticketsTotal  = (int)$conn->query("SELECT COUNT(*) FROM tickets WHERE deleted_datetime IS NULL")->fetchColumn();
     $articlesTotal = 0;
     try {
+        // Install-wide on purpose: this is corpus HEALTH ("is everything indexed?"),
+        // an administrator diagnostic about the index rather than a reading surface.
+        // Scoping it to one company would make a complete index look incomplete.
         $articlesTotal = (int)$conn->query(
             "SELECT COUNT(*) FROM knowledge_articles WHERE is_archived = 0 OR is_archived IS NULL"
         )->fetchColumn();

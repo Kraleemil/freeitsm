@@ -7,6 +7,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 require_once '../../includes/rbac.php';
 
 header('Content-Type: application/json');
@@ -26,13 +27,11 @@ try {
 
     // Scoped like every other list: you can only backfill embeddings for articles
     // you can see. An all-access analyst still covers the whole install.
-    [$tenantSql, $tenantParams] = knowledgeTenantFilter($conn, (int)$_SESSION['analyst_id'], '');
+    [$tenantSql, $tenantParams] = knowledgeVisibilitySql($conn, KnowledgeViewer::forAnalyst($conn, (int)$_SESSION["analyst_id"]), "", ["lifecycle" => "live"]);
 
     // Get articles without embeddings
     $sql = "SELECT id, title FROM knowledge_articles
-            WHERE is_published = 1
-            AND (is_archived = 0 OR is_archived IS NULL)
-            AND (embedding IS NULL OR LENGTH(embedding) = 0)"
+            WHERE (embedding IS NULL OR LENGTH(embedding) = 0)"
             . $tenantSql . "
             ORDER BY id";
     $stmt = $conn->prepare($sql);

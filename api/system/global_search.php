@@ -30,6 +30,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/rbac.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 require_once '../../includes/documents.php';
 require_once '../../includes/entity_links.php';   // entityLink() — the one record→URL map
 
@@ -266,11 +267,15 @@ try {
     // should still find their own work-in-progress).
     if ($can('knowledge')) {
         try {
-            [$tSql, $tArgs] = knowledgeTenantFilter($conn, $analystId, 'a');
+            // 'unarchived' keeps the documented behaviour above: archived
+            // articles out, unpublished drafts IN, so an analyst can still find
+            // their own work in progress.
+            [$tSql, $tArgs] = knowledgeVisibilitySql(
+                $conn, KnowledgeViewer::forAnalyst($conn, $analystId), 'a', ['lifecycle' => 'unarchived']
+            );
             $sql = "SELECT a.id, a.title
                       FROM knowledge_articles a
-                     WHERE a.title LIKE ?
-                       AND (a.is_archived = 0 OR a.is_archived IS NULL)" . $tSql . "
+                     WHERE a.title LIKE ?" . $tSql . "
                      ORDER BY a.modified_datetime DESC
                      LIMIT " . $perType;
             $stmt = $conn->prepare($sql);

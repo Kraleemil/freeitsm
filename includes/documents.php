@@ -38,6 +38,7 @@
  */
 
 require_once __DIR__ . '/tenancy.php';
+require_once __DIR__ . '/knowledge/visibility.php';
 
 /** Where uploaded documents live, relative to the uploads root. */
 const DOCUMENT_STORAGE_DIR = 'documents';
@@ -171,8 +172,23 @@ function documentEntityRegistry(): array {
             'url'    => 'knowledge/?article=%d',
             'title'  => 'title',
             'alive'  => null,
-            'can'    => function (PDO $c, int $a, int $id) { return analystCanAccessArticle($c, $a, $id); },
-            'filter' => function (PDO $c, int $a, string $alias) { return knowledgeTenantFilter($c, $a, $alias); },
+            // Both go through includes/knowledge/visibility.php, so a document
+            // attached to an article inherits EVERY rule that article is subject
+            // to — company, audience, and the access list when it lands — without
+            // this file learning any of them. That is the same principle stated
+            // at the top of this module: a document has no permissions of its
+            // own, it is visible if you can see what it hangs off.
+            //
+            // lifecycle 'any' preserves exactly what was here: the previous pair
+            // (analystCanAccessArticle + knowledgeTenantFilter) tested neither
+            // is_published nor is_archived, so an attachment on a draft or on a
+            // recycled article stayed reachable to an analyst.
+            'can'    => function (PDO $c, int $a, int $id) {
+                return knowledgeCanRead($c, KnowledgeViewer::forAnalyst($c, $a), $id, ['lifecycle' => 'any']);
+            },
+            'filter' => function (PDO $c, int $a, string $alias) {
+                return knowledgeVisibilitySql($c, KnowledgeViewer::forAnalyst($c, $a), $alias, ['lifecycle' => 'any']);
+            },
         ],
         'change' => [
             'module' => 'changes',

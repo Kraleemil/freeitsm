@@ -7,6 +7,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
+require_once '../../includes/knowledge/visibility.php';
 require_once '../../includes/rbac.php';
 require_once '../../includes/encryption.php';
 
@@ -45,7 +46,11 @@ try {
 
     // Reads a body by id, so it needs the same ownership check as any other
     // by-id read — an id is a guess away.
-    if (!analystCanAccessArticle($conn, (int)$_SESSION['analyst_id'], $articleId)) {
+    // lifecycle 'any': the published test lives in the query below and stays
+    // there, so this guard keeps meaning exactly what it meant before — "may you
+    // reach this article at all", now including the audience rung and the access
+    // list rather than the company alone.
+    if (!knowledgeCanRead($conn, KnowledgeViewer::forAnalyst($conn, (int)$_SESSION["analyst_id"]), $articleId, ["lifecycle" => "any"])) {
         echo json_encode(['success' => false, 'error' => 'Article not found']);
         exit;
     }

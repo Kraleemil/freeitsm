@@ -115,6 +115,9 @@ function searchBackfillRun(PDO $conn, array $opts = [], ?callable $progress = nu
     // are: the command palette has always excluded them, so indexing them would
     // put results in one search that the rest of the product hides.
     try {
+        // ⚠️ Every article, on purpose — see searchIndexArticle(). A backfill that
+        // indexed only what the person running it can read would silently build a
+        // partial index for the whole install.
         $aSel = $conn->query(
             "SELECT id FROM knowledge_articles
               WHERE is_archived = 0 OR is_archived IS NULL
