@@ -364,7 +364,7 @@ $translationNamespaces = ['common', 'watchtower'];
            inline, which reads on both grounds (the tint is the same hue as the
            text), so there is nothing left here to flip for dark mode. */
     </style>
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=81">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=82">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>

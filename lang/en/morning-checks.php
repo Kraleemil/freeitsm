@@ -62,6 +62,7 @@ return [
         'raise'            => '+ Raise',
         'raise_title'      => 'Raise a ticket or task about this check',
         'clear_title'      => 'Clear this result — put the check back to not checked',
+        'clear_title_none' => 'Nothing to clear — this check has not been set yet',
         'clear_confirm'    => 'Put "{name}" back to not checked? Any note recorded against it today is discarded.',
         // clear_title is the button tooltip and too long for a dialog heading.
         'clear_heading'    => 'Clear',

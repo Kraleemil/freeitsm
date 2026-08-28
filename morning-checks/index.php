@@ -98,7 +98,7 @@ $translationNamespaces = ['common', 'morning-checks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('morning-checks.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -264,7 +264,7 @@ $translationNamespaces = ['common', 'morning-checks'];
     <!-- Mobile layer. Linked AFTER this page's inline <style> on purpose: the
          mobile rules must win on equal specificity, and a link placed above it
          would silently lose to the desktop block below (the load-order trap). -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=81">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=82">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -675,12 +675,19 @@ $translationNamespaces = ['common', 'morning-checks'];
                 // "unset" on a check nobody has touched is a button that cannot
                 // do anything — and clicking green by mistake is common enough
                 // that the way back should not be "set it to something else".
-                const clearBtn = (check.ResultID !== null)
-                    ? `<button class="mc-icon-btn mc-icon-clear" title="${escapeHtmlAttr(window.t('morning-checks.checklist.clear_title'))}"
+                // ⚠️ ALWAYS RENDERED, and DISABLED when there is nothing to
+                // undo. It used to be omitted entirely until a check had been
+                // set, which is truthful but made the row change width the
+                // instant you pressed a status — so the buttons you were aiming
+                // at moved under your finger, worst of all on a phone. A
+                // control that is present and visibly unavailable says the same
+                // thing without the row jumping.
+                const canClear = (check.ResultID !== null);
+                const clearBtn = `<button class="mc-icon-btn mc-icon-clear"${canClear ? '' : ' disabled'}
+                            title="${escapeHtmlAttr(window.t(canClear ? 'morning-checks.checklist.clear_title' : 'morning-checks.checklist.clear_title_none'))}"
                             onclick="clearCheckResult(${check.CheckID}, '${escapeJsString(check.CheckName)}')">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M3.51 13a9 9 0 1 0 2.13-9.36L3 7"></path></svg>
-                        </button>`
-                    : '';
+                        </button>`;
 
                 // Buttons — one per active status. The active button is
                 // the one whose StatusID matches the saved StatusID.

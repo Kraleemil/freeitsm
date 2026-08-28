@@ -53,6 +53,7 @@ return [
         'raise'              => '+ Erstellen',
         'raise_title'        => 'Ticket oder Aufgabe zu dieser Prüfung erstellen',
         'clear_title'        => 'Dieses Ergebnis zurücksetzen — Prüfung wieder auf „nicht geprüft“ setzen',
+        'clear_title_none'   => 'Nichts zurückzusetzen — diese Prüfung wurde noch nicht gesetzt',
         'clear_confirm'      => '„{name}“ wirklich auf „nicht geprüft“ zurücksetzen? Eine heute dazu erfasste Notiz geht dabei verloren.',
         'clear_heading'      => 'Zurücksetzen',
         'clear_ok'           => 'Zurücksetzen',

@@ -610,6 +610,18 @@ tr.status-red {
 /* Undo is a step backwards, so it reads as a caution rather than an action. */
 .mc-icon-clear:hover { color: var(--danger-accent, #c62828); }
 
+/* The undo button is now always present and DISABLED until there is something
+   to undo (it used to be omitted, which made the row change width the moment
+   you set a status). A disabled control has to LOOK disabled, or it is just a
+   button that ignores you — so it fades, loses the pointer, and keeps its hover
+   affordance to itself. */
+.mc-icon-btn:disabled { opacity: 0.35; cursor: default; }
+.mc-icon-btn:disabled:hover {
+    background: none;
+    color: var(--text-muted, #666);
+}
+.mc-icon-btn:disabled:active { transform: none; }
+
 .mc-checked-by, .mc-checked-at { font-size: 13px; color: var(--text-muted, #555); white-space: nowrap; }
 .mc-dash { color: var(--text-faint, #bbb); }
 

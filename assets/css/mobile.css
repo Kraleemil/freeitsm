@@ -4622,13 +4622,27 @@
         gap: 6px;
         margin-left: 8px;
     }
+    /* Bordered, so they read as buttons rather than as loose glyphs, and the
+       SAME 44px box as the status buttons beside them — matching the 2px border
+       and 5px radius those use, so the row is one set of controls rather than
+       three buttons and two icons. */
     #checksTable td.mc-actions > * {
         flex: 0 0 auto;
-        min-width: 40px;
+        min-width: 44px;
         min-height: 44px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        border: 2px solid var(--border, #ddd);
+        border-radius: 5px;
+        background: var(--surface, #fff);
+    }
+    /* Present but unavailable: there is nothing to undo until a status is set.
+       Faded rather than hidden — hiding it is what made the row resize under
+       your finger, which is the whole reason it is always rendered now. */
+    #checksTable td.mc-actions > *:disabled {
+        opacity: 0.35;
+        cursor: default;
     }
 
     /* The group heading spans the whole card feed. */

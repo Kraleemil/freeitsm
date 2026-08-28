@@ -49,6 +49,8 @@ return [
         'error'            => 'Error: {message}',
         'error_loading'    => 'Error al cargar las comprobaciones: {message}',
         'no_notes'         => '-',
+        'clear_title'      => 'Borrar este resultado: devuelve la comprobación a sin marcar',
+        'clear_title_none' => 'No hay nada que borrar: esta comprobación aún no se ha marcado',
     ],
 
     'notes_modal' => [
