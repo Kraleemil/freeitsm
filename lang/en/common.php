@@ -225,6 +225,7 @@ return [
                 'breached' => 'SLA target breached',
             ],
             'task' => [
+                'assigned'  => 'Assigned to you by {actor}',
                 'created'   => '{actor} created a task for you',
                 'completed' => '{actor} completed a task',
             ],
@@ -245,6 +246,7 @@ return [
                 'breached' => 'My ticket breaches its SLA target',
             ],
             'task' => [
+                'assigned'  => 'A task is assigned to me',
                 'created'   => 'A task is created for me',
                 'completed' => 'A task of mine is completed',
             ],

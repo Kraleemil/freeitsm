@@ -318,6 +318,7 @@ return [
                 'breached' => 'Objetivo de SLA incumplido',
             ],
             'task' => [
+                'assigned'  => '{actor} se la ha asignado a usted',
                 'created'   => '{actor} le ha creado una tarea',
                 'completed' => '{actor} ha completado una tarea',
             ],
@@ -336,6 +337,7 @@ return [
                 'breached' => 'Mi ticket incumple su objetivo de SLA',
             ],
             'task' => [
+                'assigned'  => 'Se me asigna una tarea',
                 'created'   => 'Se me crea una tarea',
                 'completed' => 'Se completa una tarea mía',
             ],

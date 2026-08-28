@@ -135,6 +135,10 @@ class TasksService
         } catch (Exception $wfEx) {
             error_log('Workflow dispatch error in task service (created): ' . $wfEx->getMessage());
         }
+        // Handing work to somebody as you create it is still assigning it to them.
+        if ($analystId !== null) {
+            self::assignedDispatch($conn, $taskId, $analystId);
+        }
         return $taskId;
     }
 
@@ -181,6 +185,7 @@ class TasksService
             $args[]    = $priority[0];
         }
 
+        $assignedTo = null;                 // set only when it actually CHANGES
         if (array_key_exists('assigned_analyst_id', $in)) {
             $newAnalyst = ($in['assigned_analyst_id'] === '' || $in['assigned_analyst_id'] === null) ? null : (int)$in['assigned_analyst_id'];
             if ($newAnalyst !== null) {
@@ -188,6 +193,13 @@ class TasksService
             }
             $updates[] = 'assigned_analyst_id = ?';
             $args[]    = $newAnalyst;
+            // Saving the same task twice must not tell the assignee twice, and
+            // clearing the assignee is not an assignment — there is nobody to
+            // tell. Both cases leave $assignedTo null.
+            $oldAnalyst = $current['assigned_analyst_id'] !== null ? (int)$current['assigned_analyst_id'] : null;
+            if ($newAnalyst !== null && $newAnalyst !== $oldAnalyst) {
+                $assignedTo = $newAnalyst;
+            }
         }
         if (array_key_exists('assigned_team_id', $in)) {
             $newTeam = self::validateTeam($conn, $in['assigned_team_id']);
@@ -235,6 +247,9 @@ class TasksService
 
         if ($firesCompleted) {
             self::completedDispatch($conn, $taskId);
+        }
+        if ($assignedTo !== null) {
+            self::assignedDispatch($conn, $taskId, $assignedTo);
         }
         return $taskId;
     }
@@ -597,6 +612,46 @@ class TasksService
         $ins = $conn->prepare("INSERT IGNORE INTO task_tag_map (task_id, tag_id) VALUES (?, ?)");
         foreach ($tagIds as $tid) {
             $ins->execute([$taskId, $tid]);
+        }
+    }
+
+    /**
+     * task.assigned — fired whenever a task comes to rest with a NEW assignee,
+     * from creation and from reassignment alike (GH #110).
+     *
+     * ⚠️ Both paths matter, and only one of them looks like "assigning". A task
+     * created with an assignee is the ordinary way work is handed out here, so
+     * firing only on reassignment would leave the commonest case silent — which
+     * is the half a fix like this is most likely to miss.
+     *
+     * The row is read back AFTER the write so the payload carries what was
+     * actually stored, rather than a mixture of new input and stale columns when
+     * the title changed in the same request.
+     *
+     * Deliberately NOT filtered for self-assignment. Whether to suppress "you
+     * assigned it to yourself" is the notification layer's rule, enforced in
+     * includes/notifications_router.php; a workflow may legitimately want the
+     * event either way, and duplicating the rule here would let the two drift.
+     */
+    private static function assignedDispatch(PDO $conn, int $taskId, int $assigneeId): void
+    {
+        try {
+            $rb = $conn->prepare("SELECT title, status_id, priority_id FROM tasks WHERE id = ?");
+            $rb->execute([$taskId]);
+            $taskRow = $rb->fetch(PDO::FETCH_ASSOC) ?: [];
+            WorkflowEngine::dispatch('task.assigned', [
+                'task' => [
+                    'id'          => $taskId,
+                    'title'       => $taskRow['title'] ?? null,
+                    'status_id'   => isset($taskRow['status_id']) ? (int)$taskRow['status_id'] : null,
+                    'priority_id' => isset($taskRow['priority_id']) ? (int)$taskRow['priority_id'] : null,
+                    // The NEW assignee. The notification router reads the
+                    // recipient from exactly this field.
+                    'assignee_id' => $assigneeId,
+                ],
+            ]);
+        } catch (Exception $wfEx) {
+            error_log('Workflow dispatch error in task service (assigned): ' . $wfEx->getMessage());
         }
     }
 

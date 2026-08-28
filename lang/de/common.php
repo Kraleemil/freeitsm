@@ -318,6 +318,7 @@ return [
                 'breached' => 'SLA-Ziel überschritten',
             ],
             'task' => [
+                'assigned'  => 'Von {actor} Ihnen zugewiesen',
                 'created'   => '{actor} hat eine Aufgabe für Sie erstellt',
                 'completed' => '{actor} hat eine Aufgabe abgeschlossen',
             ],
@@ -336,6 +337,7 @@ return [
                 'breached' => 'Mein Ticket überschreitet sein SLA-Ziel',
             ],
             'task' => [
+                'assigned'  => 'Mir wird eine Aufgabe zugewiesen',
                 'created'   => 'Für mich wird eine Aufgabe erstellt',
                 'completed' => 'Eine Aufgabe von mir wird abgeschlossen',
             ],

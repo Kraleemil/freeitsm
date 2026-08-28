@@ -104,6 +104,7 @@ class WorkflowEngine
             'ticket.restored'          => 'A ticket is restored from the trash',
             'form.submitted'           => 'A form submission is received',
             'task.created'             => 'A task is created',
+            'task.assigned'            => 'A task is assigned to somebody',
             'task.completed'           => 'A task is marked complete',
             'task.deleted'             => 'A task is deleted',
             'change.created'           => 'A change request is created',
@@ -249,6 +250,9 @@ class WorkflowEngine
                 'form.id', 'form.name', 'submission.id', 'submission.email',
             ],
             'task.created' => [
+                'task.id', 'task.title', 'task.status_id', 'task.priority_id', 'task.assignee_id',
+            ],
+            'task.assigned' => [
                 'task.id', 'task.title', 'task.status_id', 'task.priority_id', 'task.assignee_id',
             ],
             'task.completed' => [

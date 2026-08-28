@@ -96,6 +96,10 @@ class NotificationsService
             'ticket.priority_changed' => ['default' => true,  'entity' => 'ticket'],
             'sla.warning'             => ['default' => true,  'entity' => 'ticket'],
             'sla.breached'            => ['default' => true,  'entity' => 'ticket'],
+            // On by default for the same reason ticket.assigned is: being handed
+            // work is the one event you cannot afford to miss, and it is caused by
+            // somebody else, so it cannot be self-inflicted noise (GH #110).
+            'task.assigned'           => ['default' => true,  'entity' => 'task'],
             // Off by default: the inbox already shows you these, and a bell for
             // every ticket created on a busy desk is the definition of noise.
             'ticket.created'          => ['default' => false, 'entity' => 'ticket'],
