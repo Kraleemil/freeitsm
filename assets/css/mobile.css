@@ -4705,6 +4705,23 @@
        on a phone — a chart is the one honest exception, because squeezing it
        destroys the information rather than merely making it narrow. */
     .chart-footer { max-height: 42vh; overflow-x: auto; }
+    /* Show/hide moves to the LEFT on a phone (Ed's ask).
+       ⚠️ And it has to stop scrolling away with the chart. It is `position:
+       absolute` against `.chart-footer` — which is now the horizontal SCROLLER,
+       so the button travelled with the 720px canvas: scroll to see the later
+       days and it left the screen entirely (measured at x=-348, untappable).
+       Anchoring it to `.container` instead, which does not scroll sideways,
+       pins it to the visible bottom-left however far the chart is scrolled. */
+    .container { position: relative; }
+    .chart-footer { position: static; }
+    .chart-toggle-btn {
+        left: 12px;
+        right: auto;
+        bottom: 8px;
+        /* A 26x22 target is a desktop-mouse size; give it a finger. */
+        width: 34px;
+        height: 30px;
+    }
     .chart-container-inner { height: 250px; padding: 15px; min-width: 720px; }
     .chart-footer-header { padding: 12px 15px; }
     .chart-footer-header h2 { font-size: 16px; }
