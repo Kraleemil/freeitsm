@@ -1824,3 +1824,55 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
 #kbPermInherited .field-hint { margin: 0 0 4px; line-height: 1.5; }
 #kbPermInherited .kb-perm-list { margin-top: 12px; margin-bottom: 12px; }
 #kbPermInherited .no-results { padding: 18px 14px; }
+
+/* ---------------------------------------------------------------------------
+   The history window.
+
+   Fixed height for the same reason the permissions window is: it is opened,
+   read, closed and reopened in one sitting, and a box sized by its contents
+   moves the Close button under the cursor between one click and the next.
+   The LIST scrolls; the heading and the note stay put.
+   --------------------------------------------------------------------------- */
+.kb-audit-content {
+    max-width: 620px;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+.kb-audit-content .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.kb-audit-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.kb-audit-entry {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+.kb-audit-entry:last-child { border-bottom: none; }
+.kb-audit-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+}
+.kb-audit-action { font-weight: 600; color: var(--text); }
+.kb-audit-when   { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.kb-audit-who    { color: var(--text-muted); margin-top: 2px; }
+.kb-audit-detail { color: var(--text-muted); margin-top: 4px; font-size: 12px; }
+
+/* ⚠️ The row somebody opened this window to find. An override that reads like
+   every other line is one nobody spots in a list of forty. */
+.kb-audit-override {
+    background: var(--warning-bg);
+    border-left: 3px solid var(--warning-border);
+}
+.kb-audit-override .kb-audit-action { color: var(--warning-text); }

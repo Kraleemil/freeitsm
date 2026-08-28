@@ -938,11 +938,13 @@ function kbContextMenu(e, type, id, name) {
         items.push([window.t('knowledge.folders.new'),    () => createFolderIn(id)]);
         items.push([window.t('knowledge.folders.rename'), () => renameFolderPrompt(id, name)]);
         if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), () => openPermModal('folder', id, name)]);
+        if (kbCanManagePerms) items.push([window.t('knowledge.audit.button'),  () => openAuditModal('folder', id, name)]);
         items.push([window.t('knowledge.folders.delete'), () => deleteFolderPrompt(id, name)]);
     } else {
         items.push([window.t('knowledge.folders.rename'), () => renameArticlePrompt(id, name)]);
         items.push([window.t('knowledge.detail.edit'),    () => Promise.resolve(viewArticle(id)).then(editCurrentArticle)]);
         if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), () => openPermModal('article', id, name)]);
+        if (kbCanManagePerms) items.push([window.t('knowledge.audit.button'),  () => openAuditModal('article', id, name)]);
         // A row showing in a folder it does not LIVE in is being shown by a
         // shortcut, which is computable from what we already have — the article
         // carries its real folder_id. Removing the shortcut must never be
@@ -2089,6 +2091,11 @@ function renderArticleDetail() {
     // question you have to ask somebody, every time.
     const permBtn = document.getElementById('kbArticlePermBtn');
     if (permBtn) permBtn.style.display = kbCanManagePerms ? '' : 'none';
+    // The history names people and says when they read something, so it sits
+    // behind the same capability as the access list rather than being open to
+    // anyone who can open the article.
+    const auditBtn = document.getElementById('kbArticleAuditBtn');
+    if (auditBtn) auditBtn.style.display = kbCanManagePerms ? '' : 'none';
 
     container.innerHTML = `
         <div class="article-content-header">
@@ -3386,4 +3393,152 @@ function mountEditorDocuments() {
         canEdit:    true,
         showHeading: true
     });
+}
+
+// ---------------------------------------------------------------------------
+//  The history — who did what to this, and when.
+//
+//  ⚠️ Every event has been recorded since folders shipped and shown NOWHERE,
+//  which made the audit a claim rather than a feature: the design said "every
+//  use of the administrator floor is recorded" and nothing in the product could
+//  demonstrate it. An override nobody can look at is not a safety net.
+// ---------------------------------------------------------------------------
+
+let kbAuditFor = null;   // { type, id, name }
+
+function openAuditModal(type, id, name) {
+    kbAuditFor = { type: type, id: id, name: name };
+    const modal = document.getElementById('kbAuditModal');
+    if (!modal) return;
+    document.getElementById('kbAuditTitle').textContent =
+        window.t('knowledge.audit.title_named', { name: name || '' });
+    // A spinner, never an empty list. An empty list and "not asked yet" look
+    // identical, and only one of them deserves "nothing has happened".
+    document.getElementById('kbAuditList').innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    modal.classList.add('active');
+    auditLoad();
+}
+
+function closeAuditModal() {
+    const modal = document.getElementById('kbAuditModal');
+    if (modal) modal.classList.remove('active');
+    kbAuditFor = null;
+}
+
+/** The current article's history, from the article itself. */
+function openArticleAuditModal() {
+    if (!currentArticle) return;
+    openAuditModal('article', currentArticle.id, currentArticle.title);
+}
+
+async function auditLoad() {
+    if (!kbAuditFor) return;
+    const box = document.getElementById('kbAuditList');
+    try {
+        const r = await fetch(API_BASE + 'audit.php?type=' + encodeURIComponent(kbAuditFor.type)
+                            + '&id=' + encodeURIComponent(kbAuditFor.id));
+        const d = await r.json();
+        if (!d.success) {
+            box.innerHTML = `<div class="no-results">${escapeHtml(d.error || window.t('knowledge.audit.failed'))}</div>`;
+            return;
+        }
+        if (!d.entries.length) {
+            box.innerHTML = `<div class="no-results">${escapeHtml(window.t('knowledge.audit.none'))}</div>`;
+            return;
+        }
+        box.innerHTML = d.entries.map(renderAuditEntry).join('');
+    } catch (e) {
+        box.innerHTML = `<div class="no-results">${escapeHtml(window.t('knowledge.audit.failed'))}</div>`;
+    }
+}
+
+/**
+ * One line of history.
+ *
+ * ⚠️ The ACTION is translated from a fixed list, never printed raw. `action` is
+ * a machine value written by the engine; showing it directly would put
+ * `admin_override` in front of somebody as though that were English, and would
+ * also mean a new action type silently reaching the screen untranslated.
+ */
+function renderAuditEntry(e) {
+    const known = ['create', 'edit', 'view', 'move', 'rename', 'delete',
+                   'permissions', 'admin_override', 'restore', 'archive'];
+    const label = known.includes(e.action)
+        ? window.t('knowledge.audit.action_' + e.action)
+        : e.action;
+
+    // The override is the row somebody is looking for when they open this at
+    // all, so it is marked rather than left to be spotted in a list of forty.
+    const isOverride = e.action === 'admin_override';
+
+    return `
+        <div class="kb-audit-entry${isOverride ? ' kb-audit-override' : ''}">
+            <div class="kb-audit-line">
+                <span class="kb-audit-action">${escapeHtml(label)}</span>
+                <span class="kb-audit-when">${escapeHtml(formatDateTime(e.when))}</span>
+            </div>
+            <div class="kb-audit-who">
+                ${escapeHtml(e.who)}${e.is_portal ? ' <span class="kb-badge">' + escapeHtml(window.t('knowledge.audit.portal_user')) + '</span>' : ''}
+            </div>
+            ${renderAuditDetail(e)}
+        </div>`;
+}
+
+/**
+ * The detail blob, in words where we understand it.
+ *
+ * The engine stores JSON so it can record anything; this turns the handful of
+ * shapes that actually occur into a sentence, and falls back to showing the raw
+ * value rather than hiding something it does not recognise. A detail that is
+ * silently dropped is worse than an ugly one.
+ */
+function renderAuditDetail(e) {
+    const d = e.detail;
+    if (!d || typeof d !== 'object') return '';
+
+    if (e.action === 'admin_override') {
+        return `<div class="kb-audit-detail">${escapeHtml(window.t('knowledge.audit.detail_override'))}</div>`;
+    }
+    const bits = [];
+    if (d.added)   bits.push(window.t('knowledge.audit.detail_added',   { who: principalLabel(d.added) }));
+    if (d.removed_entry) bits.push(window.t('knowledge.audit.detail_removed'));
+    if (typeof d.is_restricted !== 'undefined') {
+        bits.push(window.t(d.is_restricted
+            ? 'knowledge.audit.detail_restricted'
+            : 'knowledge.audit.detail_opened'));
+    }
+    if (d.entries_dropped_by_polarity_change) {
+        bits.push(window.t('knowledge.audit.detail_wiped', { count: d.entries_dropped_by_polarity_change }));
+    }
+    if (typeof d.folder_id !== 'undefined') {
+        const f = kbFolders.find(x => String(x.id) === String(d.folder_id));
+        bits.push(window.t('knowledge.audit.detail_moved', {
+            folder: f ? f.name : window.t('knowledge.folders.root')
+        }));
+    }
+    if (d.name) bits.push(escapeHtml(d.name));
+
+    if (!bits.length) return `<div class="kb-audit-detail">${escapeHtml(JSON.stringify(d))}</div>`;
+    return `<div class="kb-audit-detail">${bits.join(' · ')}</div>`;
+}
+
+/** "team:21" -> "Team 21" is useless; resolve what we can from what is loaded. */
+function principalLabel(raw) {
+    const parts = String(raw).split(':');
+    if (parts.length !== 2) return escapeHtml(String(raw));
+    const kind = window.t('knowledge.audit.principal_' + parts[0]);
+    return escapeHtml(kind + ' #' + parts[1]);
+}
+
+/**
+ * A stored timestamp as a date AND a time in the reader's zone.
+ *
+ * A history where every row says only the date is unreadable the moment more
+ * than one thing happened in a day, which on a busy article is most days.
+ * Same UTC-parse path as formatDate(), so the two cannot disagree about what
+ * the stored value means; fmtDateTime comes from tz.js.
+ */
+function formatDateTime(dateStr) {
+    if (!dateStr) return '';
+    return fmtDateTime(parseUTCDate(dateStr));
 }

@@ -196,6 +196,42 @@ return [
         'button' => 'Move',
     ],
 
+    'audit' => [
+        'title'        => 'History',
+        'title_named'  => 'History of "{name}"',
+        'button'       => 'History',
+        'hint'         => 'Who did what, and when. Views are recorded once per person per day.',
+        'none'         => 'Nothing has happened to this yet.',
+        'failed'       => 'Could not load the history',
+        'portal_user'  => 'portal user',
+
+        // The stored action values, turned into English. Never printed raw:
+        // `admin_override` is a machine value, not a sentence.
+        'action_create'         => 'Created',
+        'action_edit'           => 'Edited',
+        'action_view'           => 'Read',
+        'action_move'           => 'Moved',
+        'action_rename'         => 'Renamed',
+        'action_delete'         => 'Deleted',
+        'action_archive'        => 'Archived',
+        'action_restore'        => 'Restored',
+        'action_permissions'    => 'Permissions changed',
+        'action_admin_override' => 'Opened using administrator access',
+
+        'detail_override'   => 'The access list did not admit this person; their administrator access let them in.',
+        'detail_added'      => 'Added {who}',
+        'detail_removed'    => 'Removed someone from the list',
+        'detail_restricted' => 'Restricted to chosen people',
+        'detail_opened'     => 'Opened to everyone',
+        'detail_wiped'      => 'Cleared {count} entries, because the list means the opposite thing in the other mode',
+        'detail_moved'      => 'Into {folder}',
+
+        'principal_analyst'   => 'analyst',
+        'principal_team'      => 'team',
+        'principal_user'      => 'user',
+        'principal_user_group'=> 'group',
+    ],
+
     'exceptions' => [
         'title'      => 'Documents and folders with their own permissions',
         'button'     => 'Permission exceptions',
