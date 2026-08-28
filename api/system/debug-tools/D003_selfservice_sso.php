@@ -391,7 +391,17 @@ if (!$relevantIds) {
             $doc = $d['doc'];
             $issMatch = isset($doc['issuer']) && rtrim((string)$doc['issuer'], '/') === rtrim((string)$p['issuer_url'], '/');
             $block[] = "  Discovery               : OK (" . maskGuids($d['url']) . ")";
-            $block[] = "    issuer match          : " . yn($issMatch) . ($issMatch ? '' : "  <-- token 'iss' must equal configured issuer; mismatch breaks login");
+            // Deliberately NOT phrased as a blocker. Token validation compares
+            // the ID token's `iss` against the DISCOVERY DOCUMENT's issuer, not
+            // against the value typed in here (includes/oidc.php), so this
+            // difference does not by itself stop anyone signing in. It is a
+            // configuration smell worth showing — most often the www / apex
+            // form of the same domain — and claiming it breaks login would send
+            // an administrator hunting the wrong thing.
+            $block[] = "    issuer match          : " . yn($issMatch)
+                . ($issMatch ? '' : "  <-- the provider calls itself \"" . maskGuids((string)($doc['issuer'] ?? '?'))
+                                  . "\". Sign-in still works (the ID token is checked against the provider's own"
+                                  . "\n                            value, not this one), but the two are usually meant to match.");
             // Print the VALUES, not just present/absent. "authorization_endpoint:
             // present" tells you nothing about the one fact that decides where the
             // browser actually goes, and a wrong address here looks exactly like a
