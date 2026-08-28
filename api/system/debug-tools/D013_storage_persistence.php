@@ -190,11 +190,19 @@ if ($report['at_risk'] === 0) {
             $verdict[] = "       docker compose cp app:" . $d['path'] . " ./backup/" . basename($d['rel']);
         }
         $verdict[] = "";
-        $verdict[] = "  2. Add these lines to the app service in docker-compose.yml:";
+        $verdict[] = "  2. Create a NEW file next to docker-compose.yml called";
+        $verdict[] = "     docker-compose.override.yml, containing exactly this:";
         $verdict[] = "";
-        foreach ($vols as $v) $verdict[] = "   " . $v;
+        foreach (explode("\n", rtrim(storagePersistenceOverrideFile($report), "\n")) as $l) {
+            $verdict[] = "       " . $l;
+        }
         $verdict[] = "";
-        $verdict[] = "     and declare the same names under the top-level `volumes:` key.";
+        $verdict[] = "     ⚠ DO NOT edit docker-compose.yml itself. It is tracked in git, so";
+        $verdict[] = "       once you have changed it a future `git pull` refuses to run at";
+        $verdict[] = "       all — and the usual way out of that, `git checkout --";
+        $verdict[] = "       docker-compose.yml`, silently throws your volumes away and puts";
+        $verdict[] = "       you back here. Compose reads the override file automatically and";
+        $verdict[] = "       merges the two, and nothing in an update touches it.";
         $verdict[] = "";
         $verdict[] = "  3. Update as usual, then copy the files back in and fix ownership:";
         $verdict[] = "";

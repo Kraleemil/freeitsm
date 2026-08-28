@@ -601,11 +601,6 @@ $translationNamespaces = ['common', 'setup'];
                  The absolute paths shown here come from the same report either way,
                  so nothing about the operator's own machine is revealed. */ ?>
         <?php if (!empty($storageReport['applicable']) && $storageReport['at_risk'] > 0):
-                  $volLines = storagePersistenceSuggestedVolumes($storageReport);
-                  $volNames = [];
-                  foreach ($volLines as $vl) {
-                      $volNames[] = trim(explode(':', trim($vl), 2)[0], " -\t");
-                  }
                   // Which advice: nothing stored yet = just add them. Anything stored
                   // = copy it out first, or adding the volume destroys it.
                   $storageInUse = storagePersistenceAnythingToLose($storageReport); ?>
@@ -627,19 +622,16 @@ $translationNamespaces = ['common', 'setup'];
                 <p class="storage-danger__critical"><?= htmlspecialchars(t('setup.storage.existing_install')) ?></p>
             <?php endif; ?>
 
+            <?php /* A NEW file rather than an edit to docker-compose.yml. That file is
+                     tracked in git, so an edit to it makes a future `git pull` abort,
+                     and the usual way out of a blocked pull silently reverts the
+                     volumes — putting the operator straight back here having done
+                     everything right. Compose reads the override automatically and
+                     merges it, and it is gitignored. */ ?>
             <p class="storage-danger__step"><?= htmlspecialchars(t('setup.storage.step1')) ?></p>
-            <pre class="storage-danger__code"><?php
-                echo htmlspecialchars("services:\n  app:\n    volumes:\n");
-                foreach ($volLines as $vl) echo htmlspecialchars($vl . "\n");
-            ?></pre>
+            <pre class="storage-danger__code"><?= htmlspecialchars(storagePersistenceOverrideFile($storageReport)) ?></pre>
 
             <p class="storage-danger__step"><?= htmlspecialchars(t('setup.storage.step2')) ?></p>
-            <pre class="storage-danger__code"><?php
-                echo htmlspecialchars("volumes:\n");
-                foreach ($volNames as $vn) echo htmlspecialchars('  ' . $vn . ":\n");
-            ?></pre>
-
-            <p class="storage-danger__step"><?= htmlspecialchars(t('setup.storage.step3')) ?></p>
             <pre class="storage-danger__code"><?= htmlspecialchars('docker compose up -d') ?></pre>
 
             <p class="storage-danger__foot"><?= htmlspecialchars(t($storageInUse ? 'setup.storage.foot_in_use' : 'setup.storage.foot')) ?></p>

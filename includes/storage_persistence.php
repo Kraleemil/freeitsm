@@ -258,10 +258,57 @@ function storagePersistenceSuggestedVolumes(array $report): array
     $lines = [];
     foreach ($report['directories'] as $d) {
         if ($d['status'] !== 'at_risk') continue;
-        $name = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim($d['rel'], '/')));
-        $name = trim($name, '-');
+        $name = storagePersistenceVolumeName($d['rel']);
         if ($name === '') continue;
         $lines[] = '      - ' . $name . ':' . $d['path'];
     }
     return $lines;
+}
+
+/** A volume name derived from the directory, stable and readable. */
+function storagePersistenceVolumeName(string $rel): string
+{
+    $name = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim($rel, '/')));
+    return trim($name, '-');
+}
+
+/**
+ * A COMPLETE docker-compose.override.yml, ready to save as a new file.
+ *
+ * 🔑 WHY AN OVERRIDE FILE AND NOT "EDIT docker-compose.yml".
+ *
+ * docker-compose.yml is tracked in git, and the operator updates by pulling. If
+ * they have edited it and we later change it too, `git pull` REFUSES — "your
+ * local changes would be overwritten by merge" — and the entire upgrade stops,
+ * not just that file. The advice everybody then finds is `git checkout --
+ * docker-compose.yml`, which makes the pull work again by silently throwing away
+ * the volumes they added. The next rebuild then destroys their files exactly as
+ * before, and nothing anywhere says why. Tested; that is precisely what happens.
+ *
+ * Compose reads docker-compose.override.yml automatically, with no extra flags,
+ * and MERGES it — verified with `docker compose config`, base and override
+ * volumes all present. The file is gitignored, so it is never in a pull's way
+ * and an upgrade can never revert it.
+ *
+ * It is also a better instruction to give: "create this file with this content"
+ * needs no judgement about where to paste or how far to indent, and it can be
+ * checked by eye against what we printed.
+ */
+function storagePersistenceOverrideFile(array $report): string
+{
+    $mounts = [];
+    $names   = [];
+    foreach ($report['directories'] as $d) {
+        if ($d['status'] !== 'at_risk') continue;
+        $name = storagePersistenceVolumeName($d['rel']);
+        if ($name === '') continue;
+        $mounts[] = '      - ' . $name . ':' . $d['path'];
+        $names[]  = '  ' . $name . ':';
+    }
+    if (!$mounts) return '';
+
+    return "services:\n  app:\n    volumes:\n"
+         . implode("\n", $mounts) . "\n\n"
+         . "volumes:\n"
+         . implode("\n", $names) . "\n";
 }
