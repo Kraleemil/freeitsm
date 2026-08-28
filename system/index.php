@@ -10,8 +10,23 @@ require_once '../includes/theme.php';
 require_once '../includes/tenancy.php';
 require_once 'includes/areas.php';
 require_once '../includes/timezone.php';
+require_once '../includes/storage_persistence.php';
 I18n::initFromSession();
 Tz::init();
+
+// Issue #109. Under Docker, updating rebuilds the container and destroys anything
+// inside it that is not on a volume — and the loss is unrecoverable once it has
+// happened, because the old container is removed with the files still in it. So
+// the only useful place to say anything is here, on a screen an administrator is
+// already looking at, BEFORE they run the update. A wiki page reaches nobody who
+// has not already lost the data.
+//
+// ⚠️ Not dismissible. FreeITSM's convention is that warnings can be dismissed and
+// errors cannot (#1112), and this is the second kind: dismissing it would not make
+// the files any safer, and the next update would still take them.
+$storageReport = ['applicable' => false, 'at_risk' => 0];
+try { $storageReport = storagePersistenceReport(); } catch (Throwable $e) { /* never break the page over a diagnostic */ }
+$storageAtRisk = !empty($storageReport['applicable']) && $storageReport['at_risk'] > 0;
 
 // Some areas are gated on a runtime condition the registry can't evaluate.
 // 'multitenant' (e.g. the email routing test) stays invisible at N=1.
@@ -199,6 +214,55 @@ $translationNamespaces = ['common', 'system'];
         }
         [data-theme-mode="dark"] .system-card--help svg { color: #a5b4fc; }
         [data-theme-mode="dark"] .system-card--help:hover { border-color: #a5b4fc; }
+
+        /* Issue #109 — files that an update will destroy. Literal colours with an
+           explicit dark override, matching the rest of this page: the theme has no
+           bare --danger token and a phantom var() renders as nothing at all. */
+        .storage-alert {
+            text-align: left;
+            margin: 0 0 28px;
+            padding: 16px 18px;
+            background: #fdecea;
+            border: 1px solid #f5c2c0;
+            border-left: 4px solid #c0392b;
+            border-radius: 6px;
+            color: #7d1f16;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        .storage-alert__title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+        .storage-alert p { margin: 0 0 8px; }
+        .storage-alert__list { margin: 0 0 10px; padding-left: 18px; }
+        .storage-alert__list li { margin-bottom: 3px; }
+        .storage-alert__list code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            background: rgba(192, 57, 43, 0.10);
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-right: 6px;
+        }
+        .storage-alert__critical { font-weight: 600; }
+        .storage-alert__act { font-weight: 600; margin-bottom: 10px; }
+        .storage-alert__link {
+            display: inline-block;
+            padding: 7px 14px;
+            background: #c0392b;
+            color: #fff;
+            border-radius: 5px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .storage-alert__link:hover { background: #a93226; }
+
+        [data-theme-mode="dark"] .storage-alert {
+            background: #3b1512;
+            border-color: #7d2e26;
+            border-left-color: #e74c3c;
+            color: #f3c7c2;
+        }
+        [data-theme-mode="dark"] .storage-alert__list code { background: rgba(231, 76, 60, 0.18); }
+        [data-theme-mode="dark"] .storage-alert__link { background: #c0392b; color: #fff; }
     </style>
     <?php echo Tz::scriptTag(); ?>
     <!-- $translationNamespaces was being prepared above and then never shipped, so
@@ -213,6 +277,32 @@ $translationNamespaces = ['common', 'system'];
 
     <div class="main-container system-landing">
         <div class="landing-content">
+
+            <?php if ($storageAtRisk): ?>
+            <?php /* The count and the folder names are the whole message: "some files"
+                     is ignorable, "6 folders, including your screen recordings" is not. */ ?>
+            <div class="storage-alert" role="alert">
+                <div class="storage-alert__title">
+                    <?php echo htmlspecialchars(t('system.storage_alert.title', ['n' => $storageReport['at_risk']])); ?>
+                </div>
+                <p><?php echo htmlspecialchars(t('system.storage_alert.body')); ?></p>
+                <ul class="storage-alert__list">
+                    <?php foreach ($storageReport['directories'] as $d): ?>
+                        <?php if ($d['status'] !== 'at_risk') continue; ?>
+                        <li>
+                            <code><?php echo htmlspecialchars($d['rel']); ?></code>
+                            <span><?php echo htmlspecialchars($d['label']); ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php if (!empty($storageReport['critical_at_risk'])): ?>
+                    <p class="storage-alert__critical"><?php echo htmlspecialchars(t('system.storage_alert.encryption_key')); ?></p>
+                <?php endif; ?>
+                <p class="storage-alert__act"><?php echo htmlspecialchars(t('system.storage_alert.act_first')); ?></p>
+                <a class="storage-alert__link" href="debug-tools/d013/"><?php echo htmlspecialchars(t('system.storage_alert.run_d013')); ?></a>
+            </div>
+            <?php endif; ?>
+
             <h2><?php echo htmlspecialchars(t('system.landing.heading')); ?></h2>
             <p class="subtitle"><?php echo htmlspecialchars(t('system.landing.subtitle')); ?></p>
 

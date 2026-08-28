@@ -59,6 +59,7 @@ docker compose up -d
 Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify the installation and create your admin account. The first sign-in uses **admin** / **freeitsm** and FreeITSM will make you choose a new password before it lets you do anything else.
 
 - **Manual install** (WAMP / XAMPP / LAMP): follow the **[Installation guide](https://github.com/edmozley/freeitsm/wiki/Installation)** — prerequisites, database setup, encryption key, and configuration files.
+- **Running in Docker?** FreeITSM checks whether the folders holding your uploaded files are on Docker volumes, and warns you on the System screen if an update would discard them. **System → Debug Tools → D013** shows the detail and what to do about it. Native installs are unaffected and see nothing.
 - **First login**: `admin` / `freeitsm` — change it immediately via the account menu.
 - **Demo data**: System → Demo Data populates every module with realistic sample data, so you can evaluate with the system feeling alive.
 

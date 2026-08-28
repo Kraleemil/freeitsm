@@ -194,6 +194,49 @@ if (file_exists($configPath)) {
     $checks[] = ['name' => t('setup.checks.config'), 'status' => 'fail', 'detail' => t('setup.detail.config_not_found')];
 }
 
+// 5b. Storage persistence (issue #109).
+//
+// 🔑 THIS IS THE MOST VALUABLE PLACE THIS CHECK APPEARS, precisely because there is
+// nothing to lose yet. Everywhere else it warns somebody who already has files at
+// stake; here it reaches them before the first attachment exists, when correcting
+// docker-compose.yml costs nothing at all and no copying-out is needed. A problem
+// prevented at install time never becomes a problem.
+//
+// ⚠️ Silent unless it is BOTH a container AND something is genuinely exposed. Adding
+// a green "storage is fine" line for the WAMP majority, to whom the question does
+// not apply, would be noise on a screen whose whole job is to be scannable.
+require_once __DIR__ . '/../includes/storage_persistence.php';
+try {
+    $storageReport = storagePersistenceReport();
+    if ($storageReport['applicable']) {
+        if ($storageReport['at_risk'] > 0) {
+            $names = [];
+            foreach ($storageReport['directories'] as $d) {
+                if ($d['status'] === 'at_risk') $names[] = $d['rel'];
+            }
+            // 'fail', not 'warn'. A warning invites "I will look at that later", and
+            // later is after the first update, which is exactly too late.
+            $checks[] = [
+                'name'        => t('setup.checks.storage_persistence'),
+                'status'      => 'fail',
+                'detail'      => t('setup.detail.storage_at_risk', [
+                    'n'    => $storageReport['at_risk'],
+                    'dirs' => implode(', ', $names),
+                ]),
+                'safe_detail' => t('setup.detail.storage_at_risk_masked', ['n' => $storageReport['at_risk']]),
+            ];
+        } else {
+            $checks[] = [
+                'name'   => t('setup.checks.storage_persistence'),
+                'status' => 'pass',
+                'detail' => t('setup.detail.storage_persisted'),
+            ];
+        }
+    }
+} catch (Throwable $e) {
+    // A diagnostic must never be the reason the setup screen fails to render.
+}
+
 // 6. PHP version
 // PHP_VERSION_ID, not (float)phpversion(): the float cast reads "8.10.0" as 8.1,
 // so it silently mis-orders the moment PHP ships an x.10.

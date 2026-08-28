@@ -30,6 +30,19 @@ return [
     ],
 
     // System landing page (system/index.php)
+    // Issue #109. Shown only when this install is a container AND something is
+    // genuinely exposed — never on WAMP, XAMPP or a native Linux install.
+    // The wording states the consequence rather than the configuration: "not on a
+    // volume" means nothing to most people, "will be destroyed by the next update"
+    // means something to everybody.
+    'storage_alert' => [
+        'title'          => '{n} folders of uploaded files will be destroyed by your next update',
+        'body'           => 'This installation runs in Docker. Updating rebuilds the container, and anything not held on a Docker volume is discarded when it does. Your database is on a volume and will survive, so afterwards the records will still be listed while the files themselves are gone.',
+        'encryption_key' => 'This includes your encryption key. If it is lost, stored mailbox passwords and integration credentials are not damaged but can never be read again, and each one has to be entered by hand.',
+        'act_first'      => 'Copy these folders out of the container before you update. Adding a volume does not rescue what is already inside it, and once a rebuild has happened the files cannot be recovered.',
+        'run_d013'       => 'Show me exactly what to do',
+    ],
+
     'landing' => [
         'heading'  => 'System Administration',
         'subtitle' => 'Configure system-level settings and access controls',

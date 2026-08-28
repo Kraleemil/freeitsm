@@ -31,10 +31,15 @@ return [
         'php_version'    => 'PHP version',
         'php_extension'  => 'PHP extension: {ext}',
         'php_extension_optional' => 'PHP extension: {ext} (optional)',
+        'storage_persistence'    => 'Storage persistence (Docker)',
     ],
 
     'detail' => [
         'found'                    => 'Found',
+        // Issue #109. Shown only inside a container — see includes/storage_persistence.php.
+        'storage_persisted'        => 'Every folder that holds uploaded files is on storage that survives a rebuild',
+        'storage_at_risk'          => 'NOT on a Docker volume and emptied by every rebuild: {dirs} — add a volume for each of these now, before anything is stored in them',
+        'storage_at_risk_masked'   => '{n} folders holding uploaded files would not survive an update',
         'config_not_found'         => 'Not found — copy config.php to the application root',
         'db_config_not_found'      => 'Not found at: {path}',
         'db_config_path_unset'     => '$db_config_path variable not set in config.php',

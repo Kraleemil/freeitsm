@@ -311,6 +311,28 @@ function getDebugTools() {
             'duration' => '~1 second, plus a moment per megabyte attached',
             'persists' => 'None that survive the run. Read-only against the database and the application\'s files; the only write is one temp-folder copy per file, made outside the application, verified, then deleted — and the report says whether each deletion succeeded.',
         ],
+        [
+            'id'       => 'D013',
+            'slug'     => 'd013',
+            'file'     => 'D013_storage_persistence.php',
+            'title'    => 'Storage persistence — what survives an update',
+            'category' => 'Database',
+            'icon'     => 'shield',
+            'desc'     => 'Under Docker, check which folders holding your files are on storage that outlives a rebuild — and which are destroyed by the next update.',
+            'keywords' => 'docker volume volumes container rebuild update upgrade storage persistence persist attachment attachments documents recordings lms branding uploads lost missing recorded but missing from storage encryption key data loss compose docker-compose d013',
+            'when'     => 'Run this BEFORE you update, not after — and run it even when nothing is wrong. It is the only tool here that answers a question while it can still be acted on. Under Docker, updating rebuilds the container, and a rebuild discards everything inside it that is not on a volume. The database is on a volume and survives, so what is left afterwards is a complete set of correct records pointing at files that no longer exist, and attachments report "That file is recorded but missing from storage" — which reads as corruption rather than as a missing mount. Once that has happened it cannot be undone: the rebuild removes the old container and the files go with it, so there is nothing to copy back out. This tool names every folder that is exposed, tells you what you would lose from each, and gives you the volume lines to add and the order to do it in. On anything that is not a container it says so and stops, apart from one warning that still applies: a deploy that REPLACES the application folder, rather than pulling into it, removes the same directories.',
+            'checks'   => [
+                'Whether this server is a container at all (/.dockerenv), so a native WAMP, XAMPP or LAMP install gets a plain "not applicable" rather than an invented verdict',
+                'Each of the directories the application writes user files into, checked against the same list .gitignore protects — email attachments, change attachments, documents and asset imports, screen recordings, LMS content, RFP uploads, branding images, war room files',
+                'The encryption key directory, resolved from ENCRYPTION_KEY_PATH rather than assumed, and flagged separately because losing it does not corrupt mailbox passwords and credentials, it makes them permanently unreadable',
+                'For each: whether it is on storage that outlives the container, decided by comparing its device against the ROOT filesystem rather than against its parent — a directory inside a bind-mounted parent is safe and the more obvious mount-point test would wrongly condemn it',
+                'A directory that does not exist yet is reported as a future exposure rather than as an absence, because it will be created on the writable layer unless something is mounted over it',
+                'Anything that cannot be determined is reported as unknown and excluded from the verdict rather than counted as a fault, so a failed stat() never raises a false alarm',
+                'If anything is exposed: the exact commands to copy the files out FIRST — because adding a volume does not rescue what is already in the container, since Docker fills a new volume from the image rather than from the container it replaces — then the volume lines to add, then how to copy back and fix ownership',
+            ],
+            'duration' => 'Instant',
+            'persists' => 'Nothing. It stats directories and reads no file contents, touches no database row, and writes nothing at all.',
+        ],
     ];
 }
 
