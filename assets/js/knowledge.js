@@ -360,6 +360,15 @@ async function loadLayoutPreference() {
     } catch (e) {
         kbLayout = 'list';
     }
+    // ⚠️ The first fetch may already have gone out while this was still in
+    // flight, and it would have asked for the top level only — which the tree
+    // cannot draw from. Re-fetch once, and only for the tree, where the whole
+    // shape is the point.
+    if (kbLayout === 'tree') {
+        const box = document.getElementById('articleSearch');
+        loadArticles(box ? box.value : '', activeTagFilters).then(() => applyLayout(false));
+        return;
+    }
     applyLayout(false);
 }
 
@@ -477,10 +486,22 @@ function renderDetailsLayout() {
  * would be a second place for the permission rules to be got wrong.
  */
 function renderTreeLayout() {
+    // ⚠️ ALPHABETICAL, and by NAME rather than by whatever order the list
+    // happened to arrive in. The articles come back newest-first, which is right
+    // for a list you are scanning for recent work and wrong for a tree, where
+    // you are looking for a particular thing by its name.
+    //
+    // localeCompare with numeric:true so "Step 2" sorts before "Step 10" rather
+    // than after it — the ordering people actually expect of names with numbers.
+    const byName = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+
     const byFolder = {};
     for (const a of articles) {
         const k = a.folder_id === null ? 'root' : String(a.folder_id);
         (byFolder[k] = byFolder[k] || []).push(a);
+    }
+    for (const k of Object.keys(byFolder)) {
+        byFolder[k].sort((x, y) => byName(x.title, y.title));
     }
 
     const article = (a, depth) => `
@@ -493,9 +514,9 @@ function renderTreeLayout() {
 
     let html = '';
     const walk = (parent, depth) => {
-        for (const f of kbFolders.filter(x => x.parent_id === parent)) {
+        for (const f of kbFolders.filter(x => x.parent_id === parent).sort((a, b) => byName(a.name, b.name))) {
             html += `
-                <div class="kb-tree-folder" style="padding-left:${10 + depth * 18}px"
+                <div class="kb-tree-folder${String(activeFolder) === String(f.id) ? ' active' : ''}" style="padding-left:${10 + depth * 18}px"
                      ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
                      data-folder="${f.id}" onclick="selectFolder('${f.id}')"
                      oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">
@@ -503,8 +524,12 @@ function renderTreeLayout() {
                     <span class="kb-tree-label">${escapeHtml(f.name)}${f.is_restricted ? ' 🔒' : ''}</span>
                     <span class="kb-folder-count">${f.article_count}</span>
                 </div>`;
-            for (const a of (byFolder[String(f.id)] || [])) html += article(a, depth + 1);
+            // ⚠️ SUBFOLDERS BEFORE DOCUMENTS. This was the other way round, so a
+            // folder's articles came first and its subfolders appeared below
+            // them — which puts the way FURTHER IN underneath the contents of
+            // where you already are, and is not what any file browser does.
             walk(f.id, depth + 1);
+            for (const a of (byFolder[String(f.id)] || [])) html += article(a, depth + 1);
         }
     };
     walk(null, 0);
@@ -1177,6 +1202,35 @@ function closeTagsModal() {
  * here? No extra column needed: a row whose real folder_id differs from the
  * folder being viewed is, by definition, being shown by a pointer.
  */
+/**
+ * Which folder an article is in, shown on the card at "All articles".
+ *
+ * ⚠️ THIS IS WHY A MOVE LOOKED LIKE A COPY. "All articles" shows every article
+ * whatever folder it is in — correctly — so after dragging one into a folder the
+ * card is still sitting there, and the folder now shows it too. Two copies, as
+ * far as anyone can see. The data was always right; nothing on screen said
+ * where the article had gone.
+ *
+ * Naming the folder on the card fixes it at the source: drag it and the label
+ * changes from "Unfiled" to "Service Desk", which is a move, visibly.
+ *
+ * Only at "All articles". Inside a folder every article is in that folder, so
+ * the label would be the same on every row and would say nothing.
+ */
+function kbFolderLabel(article) {
+    // Only worth saying when the list can hold articles from several places —
+    // which, now that the top level shows only the top level, means while
+    // SEARCHING or filtering by tag. Browsing a folder, every row is in that
+    // folder and the label would say the same thing on every one.
+    const searchBox = document.getElementById('articleSearch');
+    const mixed = activeFolder === ''
+        && (((searchBox && searchBox.value) || '') !== '' || activeTagFilters.length > 0);
+    if (!mixed) return '';
+    const f = kbFolders.find(x => String(x.id) === String(article.folder_id));
+    const name = f ? f.name : window.t('knowledge.list.unfiled');
+    return `<span class="kb-card-folder" title="${escapeHtml(window.t('knowledge.editor.field_folder'))}">📁 ${escapeHtml(name)}</span>`;
+}
+
 function kbRowIsShortcut(articleId) {
     if (activeFolder === '' || activeFolder === 'root') return false;
     const a = articles.find(x => x.id === articleId);
@@ -1473,7 +1527,45 @@ async function loadArticles(search = '', tagIds = []) {
         let url = API_BASE + 'knowledge_articles.php?';
         if (search) url += `search=${encodeURIComponent(search)}&`;
         if (tagIds.length > 0) url += `tags=${tagIds.join(',')}&`;
-        if (activeFolder !== '') url += `folder=${encodeURIComponent(activeFolder)}&`;
+        // ⚠️ THE TOP LEVEL SHOWS THE TOP LEVEL, not everything.
+        //
+        // It used to list every article whatever folder it was in, which is what
+        // made a drag look like a copy: move an article into a folder and the
+        // card stayed exactly where it was, while the folder now showed it too.
+        // Explorer's root shows what is AT the root, not every file on the disk,
+        // and Ed's instinct was the same.
+        //
+        // ⚠️ EXCEPT WHEN SEARCHING OR FILTERING BY TAG. Those are questions about
+        // the whole knowledge base, not about a place in it — a search that
+        // silently ignored everything inside folders would be worse than useless,
+        // because it would answer "no results" about articles that exist.
+        // ⚠️ NOT IN TREE VIEW. The tree draws the WHOLE SHAPE from this one
+        // fetch — every folder with its articles nested inside — so restricting
+        // it to the top level gives a tree of folders with nothing in any of
+        // them. That is exactly what happened the moment the root-only change
+        // landed, and only a test that looked for the DOCUMENTS caught it.
+        //
+        // ⚠️ AND A FOLDER NEVER NARROWS THE TREE EITHER, for the same reason.
+        // Clicking JML used to refetch "articles in JML" - so every document
+        // elsewhere vanished from the tree while every FOLDER stayed, because
+        // the folder list is not filtered by this call. The result was a
+        // skeleton of folders with nothing in any of them, which reads as a
+        // broken screen rather than as a selection. A tree earns its keep by
+        // showing the whole shape at once; selecting a place inside it must not
+        // destroy the view of everywhere else. In the tree, clicking a folder
+        // SELECTS it - breadcrumb, highlight, and where a new folder or article
+        // will go - and nothing more.
+        //
+        // Search and tags still filter the tree: those are questions about the
+        // whole knowledge base, and a pruned tree is the answer.
+        const treeShowsEverything = kbLayout === 'tree';
+        const browsingTop = activeFolder === '' && !search && tagIds.length === 0
+                         && !treeShowsEverything;
+        if (browsingTop) {
+            url += 'folder=root&';
+        } else if (activeFolder !== '' && !treeShowsEverything) {
+            url += `folder=${encodeURIComponent(activeFolder)}&`;
+        }
 
         const response = await fetch(url);
         const data = await response.json();
@@ -1688,6 +1780,7 @@ function renderArticleList() {
                 <div class="article-card-info">
                     <span>${escapeHtml(window.t('knowledge.list.by', { name: article.author_name }))}</span>
                     <span>${formatDate(article.modified_datetime)}</span>
+                    ${kbFolderLabel(article)}
                 </div>
             </div>
         </div>

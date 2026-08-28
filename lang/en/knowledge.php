@@ -54,6 +54,7 @@ return [
         'tags_more'    => '+{count} more...',
         'archived'     => '{count} archived',
         'no_articles'  => 'No articles found',
+        'unfiled'      => 'Not in a folder',
         'create_first' => 'Create your first article',
         'by'           => 'By {name}',
         'error_loading'=> 'Error loading articles',
@@ -152,7 +153,10 @@ return [
     ],
 
     'folders' => [
-        'root'          => 'All articles',
+        // Renamed from "All articles": since the top level now shows only what is
+        // AT the top level, that label was a promise the view no longer keeps.
+        // Searching still covers everything, which is where "all" belongs.
+        'root'          => 'Home',
         'new'           => 'New folder',
         'new_prompt'    => 'Name for the new folder',
         'rename_prompt' => 'New name for this folder',

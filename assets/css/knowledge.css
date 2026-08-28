@@ -1532,6 +1532,10 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
 .kb-tree-folder { font-weight: 600; }
 .kb-tree-folder:hover,
 .kb-tree-article:hover { background: var(--surface-hover); }
+.kb-tree-folder.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
 .kb-tree-folder.drop-target {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
