@@ -699,13 +699,25 @@ async function endDrag(e) {
     const movedTaskId = dragState.taskId;
     dragState = null;
 
+    // Same reasoning as postTaskChange above: a refused reorder used to leave the
+    // card springing back to where it started with nothing said, which reads as
+    // the drag not having worked rather than as the server declining it.
     try {
-        await fetch(API_BASE + 'reorder.php', {
+        const res = await fetch(API_BASE + 'reorder.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ task_id: movedTaskId, new_status: newStatus, positions })
         });
-    } catch (e) { console.error(e); }
+        const data = await res.json();
+        if (!data || !data.success) {
+            showToast(data && data.error === 'Not authenticated'
+                ? window.t('tasks.toast.session_expired')
+                : window.t('tasks.toast.order_failed'), 'error');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast(window.t('tasks.toast.order_failed'), 'error');
+    }
 
     loadTasks();
 }
@@ -1010,15 +1022,47 @@ function renderDetailPanel(task) {
 
 // ── Field Save ─────────────────────────────────────────────────────
 
-async function saveField(field, value) {
-    if (!selectedTaskId) return;
+// Post a change and SAY SO IF IT DID NOT HAPPEN. Returns true on success.
+//
+// ⚠️ These calls used to be fired and forgotten — `await fetch(...)` with the
+// answer never read — so a refused save was indistinguishable from a successful
+// one and the analyst's typing was discarded in silence. That is what GH #107
+// felt like from this screen: the session had been collected, every save was
+// being refused, and the board simply stopped responding without ever saying
+// why. #1260 fixed the sessions; this is so that the next thing to refuse a save
+// cannot do it quietly.
+//
+// An expired session is named explicitly, because "failed to save" is no help
+// when the real answer is "sign in again" — without that, an analyst retypes the
+// same change and watches it vanish repeatedly.
+async function postTaskChange(payload, failedKey) {
+    let data;
     try {
-        await fetch(API_BASE + 'save.php', {
+        const res = await fetch(API_BASE + 'save.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: selectedTaskId, [field]: value })
+            body: JSON.stringify(payload)
         });
-    } catch (e) { console.error(e); }
+        data = await res.json();
+    } catch (e) {
+        console.error(e);
+        showToast(window.t(failedKey), 'error');
+        return false;
+    }
+    if (data && data.success) return true;
+    if (data && data.error === 'Not authenticated') {
+        showToast(window.t('tasks.toast.session_expired'), 'error');
+        return false;
+    }
+    showToast(window.t('tasks.toast.error_prefix', {
+        message: (data && data.error) || window.t(failedKey)
+    }), 'error');
+    return false;
+}
+
+async function saveField(field, value) {
+    if (!selectedTaskId) return;
+    await postTaskChange({ id: selectedTaskId, [field]: value }, 'tasks.toast.save_failed');
 }
 
 // ── Detail-panel tag picker ────────────────────────────────────────

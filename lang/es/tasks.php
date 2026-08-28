@@ -153,6 +153,7 @@ return [
         'saved'             => 'Guardado',
         'deleted'           => 'Eliminado',
         'save_failed'       => 'Error al guardar',
+        'session_expired'   => 'Su sesión ha caducado, por lo que ese cambio no se guardó. Vuelva a iniciar sesión y realícelo de nuevo.',
         'delete_failed'     => 'Error al eliminar',
     ],
 

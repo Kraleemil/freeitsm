@@ -168,6 +168,7 @@ return [
         'saved'          => 'Saved',
         'deleted'        => 'Deleted',
         'save_failed'    => 'Failed to save',
+        'session_expired' => 'Your session has expired, so that change was not saved. Sign in again and make it once more.',
         'delete_failed'  => 'Failed to delete',
     ],
 

@@ -155,6 +155,7 @@ return [
         'saved'             => 'Gespeichert',
         'deleted'           => 'Gelöscht',
         'save_failed'       => 'Speichern fehlgeschlagen',
+        'session_expired'   => 'Ihre Sitzung ist abgelaufen, daher wurde diese Änderung nicht gespeichert. Melden Sie sich erneut an und nehmen Sie sie noch einmal vor.',
         'delete_failed'     => 'Löschen fehlgeschlagen',
     ],
     'settings' => [
