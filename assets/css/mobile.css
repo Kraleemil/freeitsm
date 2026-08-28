@@ -2531,15 +2531,13 @@
     body[data-kb-view="detail"] .article-actions .btn-share svg { width: 20px; height: 20px; }
     body[data-kb-view="detail"] .article-actions .share-dropdown { flex: 1 1 0; min-width: 0; display: flex; }
 
-    /* The share menu has to open UPWARDS now: anchored below a bar that is
-       itself at the bottom of the screen, it would open off the edge. */
-    body[data-kb-view="detail"] .article-actions .share-dropdown-menu {
-        top: auto;
-        bottom: 100%;
-        margin-bottom: 6px;
-        right: 0;
-        left: auto;
-    }
+    /* ⚠️ NO SHARE-MENU OVERRIDE HERE, deliberately. I added one to make the
+       menu "open upwards" from the bar - and broke it completely. Layer 17c
+       above had ALREADY turned that menu into a viewport-fixed bottom sheet,
+       so my `bottom: 100%` was measured against the VIEWPORT, not the button,
+       and pushed the whole sheet off the top of the screen. Tapping Share did
+       nothing at all. The sheet is already the right answer for a bar at the
+       bottom, and its z-index (1600) clears this bar's (1200). */
 
     /* ⚠️ The bar covers the end of the article, and the end of an article is
        exactly the part somebody scrolls to. Give the content that height back
