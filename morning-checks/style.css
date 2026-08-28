@@ -517,104 +517,17 @@ tr.status-red {
 
 
 /* Responsive Design */
-@media (max-width: 768px) {
-    body {
-        padding-bottom: 320px;
-    }
+/* ─── Mobile ──────────────────────────────────────────────────────────────────
+   This module's phone rules live in assets/css/mobile.css, LAYER 26 — the
+   same place every other module's do.
 
-    .container {
-        padding: 10px;
-    }
-
-    header {
-        padding: 15px;
-    }
-
-    .header-left {
-        gap: 10px;
-    }
-
-    .logo {
-        max-height: 40px;
-    }
-
-    nav {
-        flex-wrap: wrap;
-    }
-
-    nav a {
-        font-size: 13px;
-        padding: 6px 12px;
-    }
-
-    .date-display {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 15px;
-        padding: 15px;
-    }
-
-    .date-display h2 {
-        font-size: 16px;
-    }
-
-    .date-selector-container {
-        width: 100%;
-        flex-wrap: wrap;
-    }
-
-    .date-selector-container input[type="date"] {
-        flex: 1;
-        min-width: 150px;
-    }
-
-    .btn-today,
-    .btn-pdf {
-        flex-shrink: 0;
-    }
-
-    table {
-        font-size: 13px;
-    }
-
-    th, td {
-        padding: 8px;
-    }
-
-    .status-buttons {
-        flex-direction: column;
-        gap: 5px;
-    }
-
-    .status-btn {
-        width: 100%;
-        padding: 6px 12px;
-        font-size: 13px;
-    }
-
-    .chart-container-inner {
-        height: 250px;
-        padding: 15px;
-    }
-
-    .chart-footer-header {
-        padding: 12px 15px;
-    }
-
-    .chart-footer-header h2 {
-        font-size: 16px;
-    }
-
-    .modal-content {
-        width: 95%;
-        padding: 20px;
-    }
-
-    .notes-display {
-        font-size: 13px;
-        max-width: 200px;
-    }
-}
+   ⚠️ There used to be a `@media (max-width: 768px)` block HERE, written
+   before the mobile rollout existed. It carried its own `header`, `nav` and
+   `.logo` rules, which the shared mobile layer now owns, and it forced
+   `.status-buttons` into a column — so the three status buttons stacked and
+   ate 144px of every card. Two files describing the same screen is how that
+   happens. Everything worth keeping was folded into LAYER 26; do not start a
+   second one here. */
 
 /* ─── Grouping, routing and attribution (discussion #64) ──────────────────────
    ⚠️ Everything here is presentation. Assignment on a morning check is routing,

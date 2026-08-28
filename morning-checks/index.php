@@ -261,6 +261,10 @@ $translationNamespaces = ['common', 'morning-checks'];
         .mc-divider.dragging { background: rgba(0, 123, 255, 0.35); }
 
     </style>
+    <!-- Mobile layer. Linked AFTER this page's inline <style> on purpose: the
+         mobile rules must win on equal specificity, and a link placed above it
+         would silently lose to the desktop block below (the load-order trap). -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=71">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>

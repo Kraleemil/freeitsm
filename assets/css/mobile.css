@@ -4376,4 +4376,215 @@
         margin: 0;
         text-align: left;
     }
+
+    /* ====================================================================
+       LAYER 26 — MORNING CHECKS  (#1269)
+       ====================================================================
+       Twelfth module, and the shortest opening number yet: 566px on a 360px
+       screen for the dashboard and the settings page, 842px for help — the
+       shared header row again, exactly as it was for Watchtower, Problem
+       Management, Change Management, Software and Tasks. Opting the three
+       pages in took all of them to docScrollW === 360 with no module CSS at
+       all.
+
+       What was left was the one thing that matters here: the checks table is
+       SEVEN columns, and measured **524px** inside a 360px viewport. The
+       document did not spill, because the section scrolls — which is the
+       trap. A working surface you have to drag sideways to reach the buttons
+       on is not a mobile page, it is a desktop page in a small box.
+
+       So the table becomes a card feed, like Assets' (15a) and Software's
+       (24b). The rule those two established holds here too: **no
+       CSS-generated column labels**, because they would have to be hardcoded
+       English and this module is translated into 24 languages. The reading
+       order carries the meaning instead — the check's name first and
+       prominent, then what it is, then the buttons you came to press.
+       -------------------------------------------------------------------- */
+
+    /* ---- 26a: the header strip ----
+       Date, Today, Save to PDF and the All/Mine filter sit on one row at 30px
+       side padding. Stack them, and match the 14px side padding the rest of
+       the mobile layer uses. */
+    /* ⚠️ THE MODULE HAD ITS OWN `@media (max-width: 768px)` BLOCK, in
+       morning-checks/style.css, written before the mobile rollout existed. It
+       has been removed and the parts worth keeping folded in here, because two
+       files describing the same screen is how a screen ends up contradicting
+       itself. Two things it was doing actively hurt:
+
+         · its own `header`, `nav`, `.logo` and `.header-left` rules — the
+           shared mobile layer owns those now, and a second opinion on the app
+           header is the last thing this page needed;
+         · `.status-buttons { flex-direction: column }`, which stacked the three
+           status buttons and spent 144px of every card on one control.
+
+       The lesson is the one #1251 taught in Knowledge, one file further along:
+       before styling anything for mobile, find out what is ALREADY styling it.
+       Here that was neither the desktop rule nor mobile.css, but a third file
+       nobody had looked in. */
+
+    /* .date-display and .checks-section exist only in this module (checked), so
+       they need no scoping. */
+    .date-display {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px 6px;
+    }
+    .date-display h2 { font-size: 16px; }
+    .checks-section { padding: 10px 0 12px; }
+    .container { padding: 0; }
+
+    .date-selector-container {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .date-selector-container input[type="date"] {
+        /* 16px or iOS zooms on focus and leaves the page zoomed; -webkit-
+           appearance because a native date input ignores width otherwise and
+           spills (the #767 lesson). */
+        font-size: 16px;
+        min-height: 44px;
+        -webkit-appearance: none;
+        max-width: 100%;
+        flex: 1 1 100%;
+    }
+    .date-selector-container .btn-today,
+    .date-selector-container .btn-pdf {
+        flex: 1 1 auto;
+        min-height: 44px;
+    }
+    .mc-filter { width: 100%; }
+    .mc-filter-btn { flex: 1 1 0; min-height: 40px; }
+
+    /* ---- 26b: the checks table becomes a feed of cards ---- */
+    #checksTable,
+    #checksTable tbody { display: block; width: 100%; }
+    #checksTable thead { display: none; }
+
+    #checksTable tbody tr {
+        display: block;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    #checksTable tbody td {
+        display: block;
+        padding: 0 !important;
+        border: none;
+        font-size: 13px;
+        color: var(--text-muted, #666);
+    }
+
+    /* The check's name is the card's heading. */
+    #checksTable tbody td:first-child {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+        word-break: break-word;
+        margin-bottom: 2px;
+    }
+
+    /* The status buttons are why anybody opens this page on a phone, so they
+       get the full width and a real tap target rather than being squeezed
+       into a column. */
+    #checksTable .status-buttons {
+        display: flex;
+        /* EXPLICITLY row. The block this replaced set `column`, and a rule that
+           only sets `display:flex` inherits whatever direction is already in
+           force — which is how the buttons stayed stacked after the first fix
+           and looked like the fix had done nothing. */
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 8px 0 2px;
+    }
+    /* The old block gave every status button `width: 100%`, which is what made
+       them full-bleed rows. Flex sizes them now. */
+    #checksTable .status-btn { width: auto; font-size: 13px; }
+    #checksTable .status-buttons > * {
+        /* flex-basis 0, not auto. With auto each button is sized by its own
+           text, and the three of them wrapped onto three rows — 144px of card
+           spent on one control. Sharing the row equally makes them ~105px
+           each: a comfortable tap target, and one row instead of three. */
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Who did it and when read as one line, not two rows — two short values
+       do not each need their own line. */
+    #checksTable td.mc-checked-by,
+    #checksTable td.mc-checked-at { display: inline; font-size: 12px; }
+    #checksTable td.mc-checked-at::before { content: " \00b7 "; }
+    /* ⚠️ When a check has not been done yet the renderer emits an em dash in
+       BOTH cells, which as a card line reads "— · —" and means nothing. Hide
+       each one that is only a dash, so an unchecked card simply has no
+       by-line at all. */
+    #checksTable td.mc-checked-by:has(.mc-dash),
+    #checksTable td.mc-checked-at:has(.mc-dash) { display: none; }
+
+    #checksTable td.notes-display {
+        margin-top: 4px;
+        word-break: break-word;
+    }
+
+    /* Raise / clear get their own row and a tap target. */
+    #checksTable td.mc-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    #checksTable td.mc-actions > * { flex: 1 1 auto; min-height: 44px; }
+
+    /* The group heading spans the whole card feed. */
+    #checksTable tbody tr.mc-group-row { padding: 0; border-bottom: none; }
+    #checksTable tbody tr.mc-group-row td {
+        display: block;
+        padding: 12px 14px 4px !important;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: var(--text-muted, #666);
+    }
+
+    /* A "no checks" / loading row is a message, not a card. */
+    #checksTable tbody td[colspan] {
+        display: block;
+        text-align: center;
+        padding: 18px 14px !important;
+    }
+
+    /* ---- 26c: the chart ----
+       The divider exists to be DRAGGED, and drag surfaces are out of scope on
+       a phone — it would only be a dead 6px stripe. The chart itself stays:
+       it is the one glanceable summary on the page. */
+    .mc-divider { display: none; }
+    .chart-footer { max-height: 42vh; }
+    .chart-container-inner { height: 250px; padding: 15px; }
+    .chart-footer-header { padding: 12px 15px; }
+    .chart-footer-header h2 { font-size: 16px; }
+
+    /* ⚠️ The removed block ended with `body { padding-bottom: 320px }`. That is
+       NOT carried over: it existed to clear a chart footer that the desktop
+       layout pins, and on a phone it left a third of a screen of dead space
+       under the last check. The footer is in the flex column and capped above,
+       so nothing needs reserving for it. Measured after removing it — the page
+       still ends where the content does. */
+
+    /* LAYER 3 already promotes .modal-content to a full-screen sheet; the old
+       block's `width: 95%` fought that. Only the field sizing is kept, because
+       a sub-16px field makes iOS zoom and never zoom back. */
+    .morning-checks-modal .form-input,
+    .modal-content .form-input,
+    .modal-content .form-textarea,
+    .modal-content .form-select { font-size: 16px; }
+
+    /* The desktop rule caps notes at 200px so a table column stays narrow.
+       In a card there is no column to protect and it just truncates the width
+       of the text. */
+    .notes-display { max-width: none; font-size: 13px; }
 }
