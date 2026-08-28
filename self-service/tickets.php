@@ -210,9 +210,30 @@ $pageStyles = <<<'CSS'
 .tk-chip button:hover { color: var(--danger-text, #c33); }
 
 @media (max-width: 900px) {
+    /* ⚠️ RELEASE THE APP-SHELL LOCK. `body.portal-app` in self-service.css is
+       `height: 100vh; overflow: hidden` so that, on a desktop, the window stays
+       put and each pane scrolls itself. The rules below stack those panes into
+       ONE column taller than the window (42vh + 60vh + the header), and nothing
+       was undoing the lock — so the column was clipped at the bottom of the
+       viewport with no scroller anywhere on the page. Opening a ticket looked
+       broken and could not be scrolled.
+       This sits here rather than in self-service.css because it is the rule
+       above that creates the need, and the two must change together. Page CSS
+       is emitted after the stylesheet, so it wins without !important. */
+    body.portal-app { height: auto; overflow: visible; }
+
     .tk-shell { flex-direction: column; height: auto; }
     .tk-list  { width: 100%; max-height: 42vh; }
     .tk-read  { min-height: 60vh; }
+}
+
+@media (max-width: 768px) {
+    /* On a phone, ONE scroller: the page. A list that scrolls inside a page
+       that also scrolls is the thing people complain about when a thumb swipe
+       moves the wrong layer, and there is no second pane to keep visible here
+       anyway — the panes are stacked. */
+    .tk-list      { max-height: none; }
+    .tk-list-body { overflow-y: visible; }
 }
 CSS;
 
