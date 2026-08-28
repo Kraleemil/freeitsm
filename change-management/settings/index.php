@@ -270,7 +270,7 @@ $translationNamespaces = ['common', 'change-management'];
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=70">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=4"></script>
+    <script src="../../assets/js/tz.js?v=5"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
 </head>
 <body data-mobile-page="settings">

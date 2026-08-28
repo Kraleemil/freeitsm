@@ -130,7 +130,7 @@ $choices = [0, 7, 30, 90, 180, 365];
 
     <script src="../../assets/js/ai-settings.js"></script>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=4"></script>
+    <script src="../../assets/js/tz.js?v=5"></script>
     <script src="../../assets/js/mobile.js?v=28"></script>
     <script>
         // ⚠️ The tab bar is rendered by the shared helper but SWITCHING is each

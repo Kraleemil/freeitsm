@@ -68,7 +68,7 @@ $today = DateFmt::render(new DateTime('now', new DateTimeZone(Tz::current())), '
     <meta charset="UTF-8">
     <title><?= htmlspecialchars(t('contracts.rfp.preview.title_prefix') . ' · ' . $rfp['name'], ENT_QUOTES) ?></title>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=4"></script>
+    <script src="../../assets/js/tz.js?v=5"></script>
     <style>
         * { box-sizing: border-box; }
         body {

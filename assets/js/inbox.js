@@ -8833,11 +8833,12 @@ function openContextRecordTime() {
     document.getElementById('ctxTimeTicketRef').textContent = ctxTargetTicketRef;
     document.getElementById('ctxTimeMinutes').value = '';
     document.getElementById('ctxTimeNotes').value = '';
-    // Default the datetime-local field to "now" (local time, no seconds)
-    const now = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const localNow = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    document.getElementById('ctxTimeWhen').value = localNow;
+    // Default the datetime-local field to "now" in the analyst's DISPLAY zone,
+    // not the browser's (GH #116). The list of entries right below this modal
+    // renders in USER_TIMEZONE, so an analyst in London set to Europe/Vienna
+    // must be offered 19:03, not their laptop's 18:03 — otherwise the row they
+    // are about to create disagrees with the time they were shown when typing.
+    document.getElementById('ctxTimeWhen').value = nowForInput();
     document.getElementById('ctxTimeModal').classList.add('active');
     setTimeout(() => document.getElementById('ctxTimeMinutes').focus(), 50);
 }
@@ -8865,7 +8866,12 @@ async function saveContextTimeEntry() {
                 ticket_id: ctxTargetTicketId,
                 time_spent_minutes: minutes,
                 notes: notes,
-                entry_datetime: when || null
+                // Convert the picked wall clock to a UTC instant before sending
+                // (GH #116). `entry_datetime` is stored UTC and read back
+                // through parseUTCDate; posting the raw input value hands the
+                // server a zone-less string it can only read as UTC, landing
+                // the entry a whole UTC offset out.
+                entry_datetime: inputToUTC(when)
             })
         });
         const data = await res.json();

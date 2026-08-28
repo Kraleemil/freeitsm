@@ -112,7 +112,7 @@ $query   = trim($_GET['q'] ?? '');   // lets you link someone straight to a sear
         [data-theme-mode="dark"] .syshelp-hit:hover { background: #363b5e; }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=4"></script>
+    <script src="../../assets/js/tz.js?v=5"></script>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>

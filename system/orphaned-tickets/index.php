@@ -91,7 +91,7 @@ if (!isset($_SESSION['analyst_id'])) {
         [data-theme-mode="dark"] .orph-error { color: var(--danger-text, #fca5a5); }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="<?php echo $path_prefix; ?>assets/js/tz.js?v=4"></script>
+    <script src="<?php echo $path_prefix; ?>assets/js/tz.js?v=5"></script>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>

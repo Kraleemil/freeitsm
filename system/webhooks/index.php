@@ -344,7 +344,7 @@ function whAgo($s) {
         [data-theme-mode="dark"] .rate .track { background: #2c333d; }
     </style>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../../assets/js/tz.js?v=4"></script>
+    <script src="../../assets/js/tz.js?v=5"></script>
 </head>
 <body>
     <?php include '../includes/header.php'; ?>

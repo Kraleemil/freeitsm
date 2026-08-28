@@ -91,7 +91,7 @@ $pageTitle  = isset($pageTitleKey) ? t($pageTitleKey) : t('self-service.portal')
     <style><?php echo $pageStyles; ?></style>
     <?php endif; ?>
     <?php echo Tz::scriptTag(); ?>
-    <script src="../assets/js/tz.js?v=4"></script>
+    <script src="../assets/js/tz.js?v=5"></script>
     <?php echo $pageHead; ?>
 </head>
 <body class="<?php echo htmlspecialchars($bodyClass); ?>">

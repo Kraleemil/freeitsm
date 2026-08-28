@@ -59,6 +59,86 @@
         if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
         return new Date(str);
     };
+
+    // --- A picked wall clock that is stored as a UTC INSTANT (GH #116) --------
+    // The THIRD date kind, and the one that had no helper. `parseNaiveDate`
+    // above covers values stored without a zone; `parseUTCDate` covers instants
+    // the SERVER stamped. These two cover the case in between: a datetime-local
+    // input the analyst fills in, whose value must be stored as UTC and will be
+    // read back through parseUTCDate.
+    //
+    // The zone that matters is USER_TIMEZONE, NOT the browser's. An analyst in
+    // London with their display zone set to Europe/Vienna sees every other date
+    // in Vienna time; a picker prefilled from `new Date().getHours()` would
+    // disagree with the list directly beneath it. When USER_TIMEZONE is unset
+    // both helpers fall back to the browser zone, which is then the same thing.
+
+    // Milliseconds to ADD to a UTC instant to get the wall clock in `tz`.
+    // Derived by formatting the instant in that zone and reading the parts back
+    // as if they were UTC — the only way to get a named zone's offset, DST and
+    // all, without shipping a timezone library.
+    function zoneOffsetMs(date, tz) {
+        var dtf = new Intl.DateTimeFormat('en-CA', {
+            timeZone: tz, hour12: false,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        var p = {};
+        dtf.formatToParts(date).forEach(function (part) { p[part.type] = part.value; });
+        // Some engines render midnight as hour '24'.
+        var hour = p.hour === '24' ? 0 : +p.hour;
+        return Date.UTC(+p.year, +p.month - 1, +p.day, hour, +p.minute, +p.second) - date.getTime();
+    }
+
+    // 'YYYY-MM-DDTHH:MM' for NOW in the analyst's display zone — the value to
+    // prefill a datetime-local input with.
+    window.nowForInput = function () {
+        var now = new Date();
+        if (!window.USER_TIMEZONE) {
+            var pad = function (n) { return String(n).padStart(2, '0'); };
+            return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+                 + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+        }
+        return new Date(now.getTime() + zoneOffsetMs(now, window.USER_TIMEZONE))
+            .toISOString().substring(0, 16);
+    };
+
+    // A datetime-local value ('YYYY-MM-DDTHH:MM'), read as a wall clock in the
+    // analyst's display zone, converted to an ISO-8601 UTC string ending in Z —
+    // which is what the server expects. Sending the raw input value instead
+    // hands the server a zone-less string it can only read as UTC, so the entry
+    // lands offset by the analyst's whole UTC offset (GH #116).
+    //
+    // Two passes: the first guesses the offset using the wall clock read as if
+    // it were UTC, the second re-reads it at the instant that guess produced.
+    // That second pass is what makes the hour either side of a DST change land
+    // on the right instant.
+    window.inputToUTC = function (value) {
+        if (!value) return null;
+        var m = String(value).match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/);
+        if (!m) return null;
+        if (!window.USER_TIMEZONE) {
+            return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).toISOString();
+        }
+        var asUTC = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+        var ts = asUTC - zoneOffsetMs(new Date(asUTC), window.USER_TIMEZONE);
+        ts = asUTC - zoneOffsetMs(new Date(ts), window.USER_TIMEZONE);
+        return new Date(ts).toISOString();
+    };
+
+    // The inverse: a stored UTC datetime -> 'YYYY-MM-DDTHH:MM' in the analyst's
+    // display zone, for prefilling a picker when EDITING an existing value.
+    window.utcToInput = function (dbStr) {
+        var d = window.parseUTCDate(dbStr);
+        if (!d || isNaN(d.getTime())) return '';
+        if (!window.USER_TIMEZONE) {
+            var pad = function (n) { return String(n).padStart(2, '0'); };
+            return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+                 + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+        return new Date(d.getTime() + zoneOffsetMs(d, window.USER_TIMEZONE))
+            .toISOString().substring(0, 16);
+    };
 })();
 
 /**
