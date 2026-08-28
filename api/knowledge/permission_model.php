@@ -35,6 +35,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/knowledge/visibility.php';
+require_once '../../includes/knowledge/audit.php';
 
 header('Content-Type: application/json');
 
@@ -169,14 +170,7 @@ function handleSet(PDO $conn, int $analystId, array $in): void
     // The highest-privilege change in the module leaves a row. It alters who can
     // read live documents with no per-document change to point at, so without
     // this there would be nothing at all to find afterwards.
-    try {
-        $conn->prepare(
-            "INSERT INTO knowledge_audit (object_type, object_id, action, analyst_id, detail, ip_address)
-             VALUES ('folder', 0, 'permissions', ?, ?, ?)"
-        )->execute([$analystId, json_encode(['permission_model_from' => $was, 'to' => $model]), $_SERVER['REMOTE_ADDR'] ?? null]);
-    } catch (PDOException $e) {
-        error_log('knowledge audit: could not record the permission-model change — ' . $e->getMessage());
-    }
+    knowledgeAuditLog($conn, 'folder', 0, 'permissions', $analystId, ['permission_model_from' => $was, 'to' => $model]);
 
     echo json_encode(['success' => true, 'model' => $model]);
 }

@@ -52,6 +52,7 @@ require_once __DIR__ . '/audience.php';
 require_once __DIR__ . '/../tenancy.php';
 require_once __DIR__ . '/../capabilities.php';   // Cap::KNOWLEDGE_MANAGE — the administrator floor
 require_once __DIR__ . '/../rbac.php';           // analystHasCapability()
+require_once __DIR__ . '/audit.php';             // the ONE writer of knowledge_audit
 
 /**
  * WHO is asking. Not the same thing as ActorContext (service_context.php),
@@ -426,21 +427,8 @@ function knowledgeViewerHasAdminFloor(PDO $conn, KnowledgeViewer $viewer): bool
 /** Record that the floor let somebody past an access list they were not on. */
 function knowledgeAuditAdminOverride(PDO $conn, KnowledgeViewer $viewer, int $articleId): void
 {
-    try {
-        $conn->prepare(
-            "INSERT INTO knowledge_audit (object_type, object_id, action, analyst_id, detail, ip_address)
-             VALUES ('article', ?, 'admin_override', ?, ?, ?)"
-        )->execute([
-            $articleId,
-            $viewer->analystId(),
-            json_encode(['capability' => Cap::KNOWLEDGE_MANAGE]),
-            $_SERVER['REMOTE_ADDR'] ?? null,
-        ]);
-    } catch (PDOException $e) {
-        // Best-effort: never fail a legitimate read because the log is unwritable.
-        // Logged so a silently unwritable audit table is discoverable.
-        error_log('knowledge audit: could not record admin override on article ' . $articleId . ' — ' . $e->getMessage());
-    }
+    knowledgeAuditLog($conn, 'article', $articleId, 'admin_override',
+                      $viewer->analystId(), ['capability' => Cap::KNOWLEDGE_MANAGE]);
 }
 
 /**

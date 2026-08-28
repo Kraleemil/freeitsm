@@ -36,6 +36,7 @@
 require_once __DIR__ . '/../service_context.php';
 require_once __DIR__ . '/../encryption.php';   // decryptValue() for the embedding step (safe: only reads the key file when actually called)
 require_once __DIR__ . '/../knowledge/audience.php';
+require_once __DIR__ . '/../knowledge/audit.php';   // every write leaves a history row
 require_once __DIR__ . '/../tenancy.php';
 require_once dirname(__DIR__, 2) . '/workflow/includes/engine.php';
 
@@ -233,6 +234,15 @@ class KnowledgeService
             $embGen = self::updateEmbedding($conn, $articleId, $newTitle, $newBody);
             self::reindexForSearch($conn, $articleId);
             WorkflowEngine::dispatch('knowledge.updated', ['article' => ['id' => $articleId, 'title' => $newTitle]]);
+            // Every write leaves a history row. Which FIELDS changed, not their
+            // values: an audit trail holding old article bodies is a second
+            // uncontrolled copy of the content, and knowledge_article_versions
+            // already keeps the versions people actually want to restore.
+            knowledgeAuditLog($conn, 'article', $articleId, 'edit', $ctx->actorId, [
+                'fields' => array_values(array_intersect(array_keys($in),
+                    ['title','body_html','tags','owner_id','next_review_date','tenant_id','audience','folder_id'])),
+                'save_as_version' => !empty($in['save_as_version']),
+            ]);
             return ['id' => $articleId, 'created' => false, 'embedding_generated' => $embGen];
         }
 
@@ -303,6 +313,7 @@ class KnowledgeService
                 error_log('Workflow dispatch error in knowledge service (published): ' . $wfEx->getMessage());
             }
         }
+        knowledgeAuditLog($conn, 'article', $articleId, 'create', $ctx->actorId, ['title' => $title]);
 
         return ['id' => $articleId, 'created' => true, 'embedding_generated' => $embGen];
     }
@@ -348,6 +359,7 @@ class KnowledgeService
         // matching the command palette, which has always excluded them.
         self::reindexForSearch($conn, $id);
         WorkflowEngine::dispatch('knowledge.archived', ['article' => ['id' => $id, 'title' => $row['title'] ?? null]]);
+        knowledgeAuditLog($conn, 'article', $id, 'delete', $ctx->actorId, ['title' => $row['title'] ?? null]);
         return $id;
     }
 
@@ -366,6 +378,7 @@ class KnowledgeService
             throw new ServiceError('conflict', 'conflict', 'Article is not in the recycle bin.');
         }
         self::reindexForSearch($conn, $id);   // back out of the bin, back into search
+        knowledgeAuditLog($conn, 'article', $id, 'restore', $ctx->actorId, null);
         return $id;
     }
 
@@ -386,6 +399,10 @@ class KnowledgeService
         // rewriting it. There is no foreign key from search_documents to
         // knowledge_articles to do it for us — the FK is on ticket_id only.
         self::reindexForSearch($conn, $id);
+        // Written AFTER the row is gone, deliberately: the history outlives the
+        // article, and "who permanently deleted this" is the single most likely
+        // question anybody will ever ask of this table.
+        knowledgeAuditLog($conn, 'article', $id, 'purge', $ctx->actorId, ['title' => $row['title'] ?? null]);
         return $id;
     }
 

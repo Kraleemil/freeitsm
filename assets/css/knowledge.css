@@ -33,7 +33,14 @@
     bottom: 0;
     width: 16px;
     min-width: 16px;
-    z-index: 10;
+    /* ⚠️ MUST BEAT .article-content-header, which is `position: sticky` with a
+       z-index of its own. Both sat at 10, and at EQUAL z-index the later
+       element in the document wins — so the article's sticky header painted
+       straight over the panel as it slid out, and the panel appeared to go
+       underneath the article. In this mode the panel is deliberately an OVERLAY
+       (position: absolute over the content), so it has to be above everything it
+       slides across, not level with it. */
+    z-index: 30;
     overflow: hidden;
     transition: width 0.18s ease;
     box-shadow: 2px 0 8px var(--shadow, rgba(0, 0, 0, 0.12));
@@ -148,8 +155,14 @@
 /* Article list */
 .article-list-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    /* ⚠️ NOT space-between. This row had exactly two children — heading, count —
+       so space-between put one at each end. The layout toggle made it three, and
+       space-between then pushed the count into the middle, hard up against the
+       heading with no gap at all ("Knowledge Articles20 articles"). The heading
+       and the count belong TOGETHER as one label; only the toggle goes right,
+       which it does with its own margin-left: auto. */
+    align-items: baseline;
+    gap: 10px;
     margin-bottom: 20px;
 }
 
@@ -158,9 +171,13 @@
     color: var(--text, #333);
 }
 
+/* Same size and weight as the heading it sits beside: the two read as one line
+   ("Knowledge Articles  20 articles") rather than as a title with a footnote
+   stuck to it. The colour still separates them, so which is which stays obvious. */
 .article-count {
     color: var(--text-muted, #666);
-    font-size: 14px;
+    font-size: 24px;
+    font-weight: 600;
 }
 
 .article-list {
@@ -1499,3 +1516,33 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* ---------------------------------------------------------------------------
+   Card heights.
+
+   A grid is a grid because the cells line up. Cards were sized by their content,
+   so an article with four tags stood taller than its neighbour with none and the
+   rows went ragged — which is the one thing a grid exists to avoid. Two fixes,
+   both needed: a fixed height so every card matches, and a cap on the tags so
+   the content actually fits inside it (a fixed height alone would just clip).
+   --------------------------------------------------------------------------- */
+.kb-layout-cards .article-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 168px;
+}
+/* The meta block sinks to the bottom, so the dates line up across the row
+   however long the titles are. */
+.kb-layout-cards .article-card-meta { margin-top: auto; }
+/* Two tags is one line at this width; wrapping is what made the cards uneven in
+   the first place, so it is allowed but bounded by the "+N more" pill. */
+.kb-layout-cards .article-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* The pill that stands in for the tags not shown. Looks like a tag because it
+   occupies a tag's place, but reads as an action. */
+.article-tag--more {
+    cursor: pointer;
+    opacity: 0.75;
+    font-style: italic;
+}
+.article-tag--more:hover { opacity: 1; }

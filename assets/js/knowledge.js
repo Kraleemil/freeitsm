@@ -406,7 +406,7 @@ function renderTreeLayout() {
     const article = (a, depth) => `
         <div class="kb-tree-article" style="padding-left:${10 + depth * 18}px" onclick="viewArticle(${a.id})"
              draggable="true" ondragstart="kbDragStart(event, 'article', ${a.id})" ondragend="kbDragEnd()"
-             oncontextmenu="kbContextMenu(event, 'article', ${a.id}, ${JSON.stringify(a.title)})">
+             oncontextmenu="kbContextMenu(event, 'article', ${a.id}, ${jsAttr(a.title)})">
             <span class="kb-tree-icon">📄</span>
             <span class="kb-tree-label">${Number(a.inherit_permissions) === 0 ? '🔒 ' : ''}${escapeHtml(a.title)}</span>
         </div>`;
@@ -418,7 +418,7 @@ function renderTreeLayout() {
                 <div class="kb-tree-folder" style="padding-left:${10 + depth * 18}px"
                      ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
                      data-folder="${f.id}" onclick="selectFolder('${f.id}')"
-                     oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${JSON.stringify(f.name)})">
+                     oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">
                     <span class="kb-tree-icon">📁</span>
                     <span class="kb-tree-label">${escapeHtml(f.name)}${f.is_restricted ? ' 🔒' : ''}</span>
                     <span class="kb-folder-count">${f.article_count}</span>
@@ -462,6 +462,59 @@ function applySidebarMode(mode) {
 }
 
 // ---------------------------------------------------------------------------
+//  Asking for a name
+//
+//  The browser's prompt() is unstyled, says "freeitsm.internal says", cannot be
+//  translated, and blocks the whole tab. Returning a Promise keeps every call
+//  site reading exactly as it did with prompt() — `const name = await kbPrompt(…)`
+//  — so replacing it changed the dialog and nothing else.
+// ---------------------------------------------------------------------------
+
+let kbPromptResolve = null;
+
+function kbPrompt(title, value) {
+    const modal = document.getElementById('kbPromptModal');
+    // No dialog on the page (an older cached template): fall back rather than
+    // silently doing nothing, because "nothing happens when I click New folder"
+    // is a much worse failure than an ugly box.
+    if (!modal) return Promise.resolve(prompt(title, value || ''));
+
+    document.getElementById('kbPromptTitle').textContent = title;
+    const input = document.getElementById('kbPromptInput');
+    input.value = value || '';
+    modal.classList.add('active');
+    // Focus and select, so typing replaces a suggested name the way it does in
+    // every rename box people already use.
+    setTimeout(() => { input.focus(); input.select(); }, 30);
+
+    return new Promise(resolve => {
+        kbPromptResolve = resolve;
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); kbPromptAccept(); }
+            if (e.key === 'Escape') { e.preventDefault(); kbPromptCancel(); }
+        };
+    });
+}
+
+function kbPromptAccept() {
+    const v = document.getElementById('kbPromptInput').value;
+    kbPromptClose();
+    if (kbPromptResolve) { const r = kbPromptResolve; kbPromptResolve = null; r(v); }
+}
+
+/** Cancel resolves with null — the same thing prompt() returns, so callers
+    that check for null keep working unchanged. */
+function kbPromptCancel() {
+    kbPromptClose();
+    if (kbPromptResolve) { const r = kbPromptResolve; kbPromptResolve = null; r(null); }
+}
+
+function kbPromptClose() {
+    const modal = document.getElementById('kbPromptModal');
+    if (modal) modal.classList.remove('active');
+}
+
+// ---------------------------------------------------------------------------
 //  Folders
 //
 //  The tree arrives ALREADY FILTERED — a folder you may not read is not sent at
@@ -479,6 +532,13 @@ async function loadFolders() {
         if (!d.success) throw new Error(d.error || 'failed');
         kbFolders = d.folders || [];
         kbCanManagePerms = !!d.can_manage;
+        // ⚠️ REPAINT THE MAIN PANE TOO. The folders and the articles are fetched
+        // in parallel, and both the tree layout and the folder rows are drawn
+        // from kbFolders — so whichever request finishes second has to redraw,
+        // or the pane keeps whatever it rendered while the folders were still in
+        // flight. On a fast local install the articles usually lose that race
+        // and it looks fine; on a slow one you get a tree with no folders in it.
+        if (typeof articles !== 'undefined' && articles.length >= 0) renderArticleList();
         // The exceptions report is an administrator's tool, so it appears only for
         // someone who can act on what it shows.
         const exSec = document.getElementById('kbExceptionsSection');
@@ -519,7 +579,7 @@ function renderFolderTree(rootCount) {
             const restricted = f.is_restricted ? ' 🔒' : '';
             const manage = kbCanManagePerms
                 ? `<button type="button" class="kb-folder-perm" title="${escapeHtml(window.t('knowledge.perm.manage'))}"
-                           onclick="openPermModal('folder', ${f.id}, ${JSON.stringify(f.name)})">🔑</button>`
+                           onclick="openPermModal('folder', ${f.id}, ${jsAttr(f.name)})">🔑</button>`
                 : '';
             html += `<div class="kb-folder${activeFolder === String(f.id) ? ' active' : ''}" data-folder="${f.id}" style="padding-left:${8 + depth * 14}px"
                           title="${f.is_restricted ? escapeHtml(window.t('knowledge.folders.restricted')) : ''}"
@@ -527,7 +587,7 @@ function renderFolderTree(rootCount) {
                           ondragstart="kbDragStart(event, 'folder', ${f.id})"
                           ondragend="kbDragEnd()"
                           ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
-                          oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${JSON.stringify(f.name)})">
+                          oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">
                         <span class="kb-folder-name" onclick="selectFolder('${f.id}')">${escapeHtml(f.name)}${restricted}</span>
                         ${manage}
                         <span class="kb-folder-count">${f.article_count}</span>
@@ -572,7 +632,7 @@ function selectFolder(value) {
 }
 
 async function createFolderPrompt() {
-    const name = prompt(window.t('knowledge.folders.new_prompt'));
+    const name = await kbPrompt(window.t('knowledge.folders.new_prompt'));
     if (name === null || name.trim() === '') return;
     // Create inside whatever is selected, which is what "new folder" means when
     // you are looking at one. '' (All articles) means the top level.
@@ -581,7 +641,7 @@ async function createFolderPrompt() {
 }
 
 async function renameFolderPrompt(id, current) {
-    const name = prompt(window.t('knowledge.folders.rename_prompt'), current);
+    const name = await kbPrompt(window.t('knowledge.folders.rename_prompt'), current);
     if (name === null || name.trim() === '') return;
     await folderAction({ action: 'rename', id: id, name: name.trim() }, 'knowledge.folders.renamed');
 }
@@ -709,6 +769,7 @@ function kbContextMenu(e, type, id, name) {
         if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), `openPermModal('folder', ${id}, ${JSON.stringify(name)})`]);
         items.push([window.t('knowledge.folders.delete'), `deleteFolderPrompt(${id}, ${JSON.stringify(name)})`]);
     } else {
+        items.push([window.t('knowledge.folders.rename'), `renameArticlePrompt(${id}, ${JSON.stringify(name)})`]);
         items.push([window.t('knowledge.detail.edit'), `viewArticle(${id}).then(editCurrentArticle)`]);
         if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), `openPermModal('article', ${id}, ${JSON.stringify(name)})`]);
         // A row showing in a folder it does not LIVE in is being shown by a
@@ -747,9 +808,36 @@ function closeContextMenu() {
     if (m) m.remove();
 }
 
+/**
+ * Rename an article without opening the editor.
+ *
+ * Sends ONLY the id and the title. KnowledgeService updates the fields it is
+ * given and leaves the rest alone, so this cannot touch the body — which
+ * matters, because loading a body just to send it straight back is how a rename
+ * quietly overwrites an edit somebody else has open. Same reasoning as
+ * move_article being its own action rather than a save.
+ */
+async function renameArticlePrompt(id, current) {
+    const title = await kbPrompt(window.t('knowledge.folders.rename_article_prompt'), current);
+    if (title === null || title.trim() === '') return;
+    try {
+        const r = await fetch(API_BASE + 'knowledge_save.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id, title: title.trim() })
+        });
+        const d = await r.json();
+        if (!d.success) { showToast(d.error || window.t('knowledge.toast.save_failed'), 'error'); return; }
+        showToast(window.t('knowledge.folders.renamed_article'), 'success');
+        loadFolders();
+        loadArticles(document.getElementById('articleSearch').value, activeTagFilters);
+    } catch (e) {
+        showToast(window.t('knowledge.toast.save_failed'), 'error');
+    }
+}
+
 /** "New folder" from a folder's own menu means a subfolder of THAT folder. */
 async function createFolderIn(parentId) {
-    const name = prompt(window.t('knowledge.folders.new_prompt'));
+    const name = await kbPrompt(window.t('knowledge.folders.new_prompt'));
     if (name === null || name.trim() === '') return;
     await folderAction({ action: 'create', name: name.trim(), parent_id: parentId }, 'knowledge.folders.created');
 }
@@ -828,11 +916,16 @@ function renderFolderRows() {
         // width is. A width guess duplicates the breakpoint in a second place and
         // then drifts from it; measuring the panel asks the real question, and
         // answers it correctly for a narrow window on a desktop too.
-        // Two reasons to put the top-level folders here: the tree is not on
-        // screen at all (a phone), or the analyst has asked for the main pane to
-        // do the browsing. Both are "the tree is not doing this job", which is
-        // the only question that matters.
-        if (kbBrowseMode !== 'explorer' && kbTreeIsVisible()) return '';
+        // ⚠️ ALWAYS, in every layout — Ed's call, and it overrides an earlier
+        // decision of mine that folders should only appear here when the tree
+        // was absent. That was defensible as "do not change the view people
+        // already have", but it made the main pane a dead end at the top level:
+        // you could see folders once you were inside one, and had no way to get
+        // inside one without the panel.
+        //
+        // Explorer shows folders in the tree AND in the list, and that is the
+        // thing being imitated. The browse preference now decides only whether
+        // the panel KEEPS its copy, not whether the main pane gets one.
         kids = kbFolders.filter(f => f.parent_id === null);
     } else {
         kids = kbFolders.filter(f => String(f.parent_id) === String(activeFolder));
@@ -843,7 +936,7 @@ function renderFolderRows() {
         <div class="article-card kb-folder-card" onclick="selectFolder('${f.id}')"
              ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
              data-folder="${f.id}"
-             oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${JSON.stringify(f.name)})">
+             oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">
             <div class="article-card-title">📁 ${escapeHtml(f.name)}${f.is_restricted ? ' 🔒' : ''}</div>
             <div class="article-card-meta">
                 <div class="article-card-info">
@@ -852,6 +945,59 @@ function renderFolderRows() {
                 </div>
             </div>
         </div>`).join('');
+}
+
+/**
+ * Tags on a card, capped so every card is the same height.
+ *
+ * ⚠️ ONLY IN THE CARD LAYOUT. A grid is a grid because the cells line up; one
+ * article with four tags and its neighbour with none makes a ragged wall with
+ * gaps under the short ones, which is what a grid is FOR avoiding. The list and
+ * the tree have a whole row each and no such problem, so they are left alone —
+ * capping tags there would hide information for no gain.
+ *
+ * Two shown, then "+N more". Clicking it reveals the rest IN PLACE rather than
+ * opening anything: you wanted to see the tags, not to be taken somewhere.
+ */
+const KB_CARD_TAG_LIMIT = 2;
+
+function renderCardTags(article) {
+    const tags = article.tags || [];
+    const pill = t => `<span class="article-tag">${escapeHtml(t.name)}</span>`;
+    // MORE THAN TWO gets a pill — including exactly three, which becomes
+    // "two tags + 1 more". I first exempted three on the grounds that swapping
+    // one tag for a "+1 more" saves no width and costs a click. That was the
+    // wrong measure: the goal is uniform HEIGHT, and a third tag is exactly what
+    // wraps to a second line and makes one card taller than its neighbours. Two
+    // is the number that always fits on one line, so two is the cap.
+    if (kbLayout !== 'cards' || tags.length <= KB_CARD_TAG_LIMIT) {
+        return tags.map(pill).join('');
+    }
+    const shown  = tags.slice(0, KB_CARD_TAG_LIMIT).map(pill).join('');
+    const hidden = tags.slice(KB_CARD_TAG_LIMIT).map(t => t.name);
+    // ⚠️ A JSON ARRAY, not a joined string. Joining names and splitting them back
+    // apart needs a separator no tag can contain, and there is no such character
+    // — the first attempt joined on '' and split on '', which does not round-trip
+    // at all: it would have exploded "Firewall" into eight single-letter tags.
+    // An array survives any name, including one with a comma in it.
+    return shown
+        + `<span class="article-tag article-tag--more" onclick="event.stopPropagation(); kbRevealTags(this)"
+                 data-tags="${jsAttr(JSON.stringify(hidden))}"
+                 title="${escapeHtml(hidden.join(', '))}">`
+        + escapeHtml(window.t('knowledge.list.tags_more', { count: hidden.length }))
+        + '</span>';
+}
+
+/** Swap the "+N more" pill for the tags it was standing in for. */
+function kbRevealTags(el) {
+    let names = [];
+    try {
+        // jsAttr JSON-encodes once for the attribute, and what it encoded was
+        // itself JSON — so this comes back as a JSON string containing JSON.
+        names = JSON.parse(JSON.parse(el.dataset.tags || '"[]"'));
+    } catch (e) { return; }
+    if (!Array.isArray(names)) return;
+    el.outerHTML = names.map(n => `<span class="article-tag">${escapeHtml(n)}</span>`).join('');
 }
 
 /**
@@ -892,7 +1038,7 @@ async function openExceptionsModal() {
                 <span class="kb-perm-entry-kind">${escapeHtml(window.t('knowledge.exceptions.' + x.type))}
                     · ${x.entries} ${escapeHtml(window.t('knowledge.exceptions.listed'))}</span>
                 <button type="button" class="btn btn-secondary btn-sm"
-                        onclick="closeExceptionsModal(); openPermModal('${escapeHtml(x.type)}', ${x.id}, ${JSON.stringify(x.name)})">
+                        onclick="closeExceptionsModal(); openPermModal('${escapeHtml(x.type)}', ${x.id}, ${jsAttr(x.name)})">
                     ${escapeHtml(window.t('knowledge.perm.manage'))}</button>
             </div>`).join('');
     } catch (e) {
@@ -1248,7 +1394,7 @@ function renderArticleList() {
              draggable="true"
              ondragstart="kbDragStart(event, 'article', ${article.id})"
              ondragend="kbDragEnd()"
-             oncontextmenu="kbContextMenu(event, 'article', ${article.id}, ${JSON.stringify(article.title)})">
+             oncontextmenu="kbContextMenu(event, 'article', ${article.id}, ${jsAttr(article.title)})">
             <label class="article-select" onclick="event.stopPropagation()" title="${escapeHtml(window.t('knowledge.bulk.select_title'))}">
                 <input type="checkbox" value="${article.id}"
                        ${kbSelected.has(article.id) ? 'checked' : ''}
@@ -1264,7 +1410,7 @@ function renderArticleList() {
             <div class="article-card-preview">${escapeHtml(article.preview || '')}</div>
             <div class="article-card-meta">
                 <div class="article-card-tags">
-                    ${(article.tags || []).map(tag => `<span class="article-tag">${escapeHtml(tag.name)}</span>`).join('')}
+                    ${renderCardTags(article)}
                 </div>
                 <div class="article-card-info">
                     <span>${escapeHtml(window.t('knowledge.list.by', { name: article.author_name }))}</span>
@@ -1884,6 +2030,41 @@ function hideSuggestions() {
 }
 
 // Utility functions
+/**
+ * A JS string literal that is safe INSIDE a double-quoted HTML attribute.
+ *
+ * ⚠️ JSON.stringify() ALONE IS NOT ENOUGH, and this is the bug it caused:
+ * it returns "Policies", WITH double quotes, and dropping that into
+ * `oncontextmenu="fn(event, 1, "Policies")"` ends the attribute at the first
+ * quote. The handler is then malformed and the browser silently does nothing —
+ * so right-clicking any row appeared to be unimplemented rather than broken.
+ *
+ * It survived a Chrome harness because that harness called kbContextMenu()
+ * DIRECTLY. Calling the function proves the function works; only dispatching a
+ * real contextmenu event at a real row proves the WIRING does.
+ */
+function jsAttr(value) {
+    // ⚠️ NOT escapeHtml(). That one is `div.textContent = x; return div.innerHTML`,
+    // which escapes < > and & but deliberately NOT quotes — a quote is harmless
+    // in TEXT, which is the only thing that idiom is for. In an ATTRIBUTE the
+    // surviving quote closes it, which is precisely how the right-click handler
+    // came out as
+    //     oncontextmenu="kbContextMenu(event, 'folder', 116, "
+    // with the rest of the folder's name reinterpreted as stray attributes. The
+    // browser reports nothing: the element simply has no usable handler.
+    //
+    // So escape the quotes explicitly here. The whole file uses escapeHtml() in
+    // attribute positions elsewhere; those are safe only because their values
+    // cannot contain a quote, which is a property of today's data rather than a
+    // guarantee — worth revisiting.
+    return String(value === null || value === undefined ? '' : JSON.stringify(String(value)))
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');

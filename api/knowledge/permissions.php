@@ -31,6 +31,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/knowledge/visibility.php';
+require_once '../../includes/knowledge/audit.php';
 
 header('Content-Type: application/json');
 
@@ -282,12 +283,5 @@ function handleSearch(PDO $conn, array $src): void
 /** Permission changes are the rows people actually come looking for. Never silent. */
 function permAudit(PDO $conn, string $type, int $id, int $analystId, array $detail): void
 {
-    try {
-        $conn->prepare(
-            "INSERT INTO knowledge_audit (object_type, object_id, action, analyst_id, detail, ip_address)
-             VALUES (?, ?, 'permissions', ?, ?, ?)"
-        )->execute([$type, $id, $analystId, json_encode($detail), $_SERVER['REMOTE_ADDR'] ?? null]);
-    } catch (PDOException $e) {
-        error_log('knowledge audit: could not record a permission change on ' . $type . ' ' . $id . ' — ' . $e->getMessage());
-    }
+    knowledgeAuditLog($conn, $type, $id, 'permissions', $analystId, $detail);
 }

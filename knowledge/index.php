@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=10">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=12">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -305,6 +305,25 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     </div>
 
     <!-- Share Email Modal -->
+    <!-- Asking for a name. A real dialog rather than the browser's prompt():
+         the native one is unstyled, unbranded, says "freeitsm.internal says",
+         cannot be translated, and looks like a phishing box in the middle of an
+         otherwise finished product. -->
+    <div class="modal" id="kbPromptModal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3 id="kbPromptTitle"></h3>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-input" id="kbPromptInput" autocomplete="off">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="kbPromptCancel()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+                <button type="button" class="btn btn-primary" id="kbPromptOk" onclick="kbPromptAccept()"><?php echo htmlspecialchars(t('knowledge.editor.save')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Everything carrying its own permissions rather than its parent's.
          An exception is invisible from the tree, so without a list of them the
          count only goes up and nobody can audit it. -->
@@ -454,7 +473,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=26"></script>
+    <script src="../assets/js/knowledge.js?v=33"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>

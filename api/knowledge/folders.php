@@ -18,6 +18,7 @@ require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/tenancy.php';
 require_once '../../includes/knowledge/visibility.php';
+require_once '../../includes/knowledge/audit.php';
 
 header('Content-Type: application/json');
 
@@ -431,15 +432,8 @@ function handleExceptions(PDO $conn, int $analystId): void
     echo json_encode(['success' => true, 'exceptions' => $out]);
 }
 
-/** One audit row. Best-effort: never fail the action because the log is unwritable. */
+/** Thin alias onto includes/knowledge/audit.php, the one writer. */
 function knowledgeAudit(PDO $conn, string $type, int $id, string $action, int $analystId, ?array $detail): void
 {
-    try {
-        $conn->prepare(
-            "INSERT INTO knowledge_audit (object_type, object_id, action, analyst_id, detail, ip_address)
-             VALUES (?, ?, ?, ?, ?, ?)"
-        )->execute([$type, $id, $action, $analystId, $detail === null ? null : json_encode($detail), $_SERVER['REMOTE_ADDR'] ?? null]);
-    } catch (PDOException $e) {
-        error_log('knowledge audit: could not record ' . $action . ' on ' . $type . ' ' . $id . ' — ' . $e->getMessage());
-    }
+    knowledgeAuditLog($conn, $type, $id, $action, $analystId, $detail);
 }
