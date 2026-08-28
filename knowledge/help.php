@@ -376,6 +376,19 @@ $translationNamespaces = ['common', 'knowledge'];
                         </div>
                     </div>
 
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.folders_select_heading')); ?></h4>
+                        <p><?php echo htmlspecialchars(t('knowledge.help.folders_select_intro')); ?></p>
+                        <div class="help-list">
+                            <div><?php echo t('knowledge.help.folders_select1'); ?></div>
+                            <div><?php echo t('knowledge.help.folders_select2'); ?></div>
+                            <div><?php echo t('knowledge.help.folders_select3'); ?></div>
+                            <div><?php echo t('knowledge.help.folders_select4'); ?></div>
+                            <div><?php echo t('knowledge.help.folders_select5'); ?></div>
+                            <div><?php echo t('knowledge.help.folders_select6'); ?></div>
+                        </div>
+                    </div>
+
                     <p class="help-note"><?php echo t('knowledge.help.folders_tip'); ?></p>
                 </div>
 

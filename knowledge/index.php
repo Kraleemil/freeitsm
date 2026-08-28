@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=23">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=24">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -136,6 +136,9 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                         <option value="public"><?php echo htmlspecialchars(t('knowledge.editor.audience_public')); ?></option>
                     </select>
                     <button type="button" class="btn btn-primary" id="kbBulkApply" onclick="applyBulkAudience()"><?php echo htmlspecialchars(t('knowledge.bulk.apply')); ?></button>
+                    <label for="kbBulkFolder"><?php echo htmlspecialchars(t('knowledge.bulk.move_to')); ?></label>
+                    <select id="kbBulkFolder"></select>
+                    <button type="button" class="btn btn-primary" id="kbBulkMove" onclick="applyBulkMove()"><?php echo htmlspecialchars(t('knowledge.bulk.move')); ?></button>
                     <button type="button" class="btn btn-secondary" onclick="selectAllVisibleArticles()"><?php echo htmlspecialchars(t('knowledge.bulk.select_all')); ?></button>
                     <button type="button" class="btn btn-secondary" onclick="clearArticleSelection()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
                 </div>
@@ -496,7 +499,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=48"></script>
+    <script src="../assets/js/knowledge.js?v=49"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>

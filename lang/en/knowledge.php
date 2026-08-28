@@ -88,7 +88,13 @@ return [
         'select_all'   => 'Select all',
         'done'         => 'Updated {count} articles',
         'partial'      => 'Updated {updated}; {failed} could not be changed (they may belong to a company you cannot access)',
-        'failed'       => 'Could not update the selected articles',
+        'move_to'      => 'Move them to:',
+        'move'         => 'Move',
+        'move_choose'  => 'Choose a folder...',
+        'moved'        => 'Moved {count} articles',
+        'moved_partial'=> 'Moved {moved}; {failed} could not be moved',
+        'move_failed'  => 'Could not move the selected articles',
+        'hint'         => 'Tick to select. Shift-click a tick for a range; Ctrl or Shift and click a card to select it rather than open it. Arrow keys move, Space ticks, Escape clears.',
     ],
 
     'editor' => [
@@ -497,6 +503,14 @@ return [
         'folders_home' => '<strong>Home shows the top level only</strong> &mdash; what is filed at the top, plus the folders themselves. It does not list everything you own, any more than opening a disk lists every file on it. That is why filing a document makes it leave Home: it has gone somewhere.',
         'folders_breadcrumb' => '<strong>The trail across the top</strong> names where you are and every step back to Home; click any part of it to jump there, or use the <strong>&uarr;</strong> button to go up one level. The address bar names the folder too, so a folder can be bookmarked or sent to a colleague.',
         'folders_search' => '<strong>Searching and tag filters look everywhere</strong>, folders included, and each result says which folder it came from. This is deliberate: a search that quietly ignored anything filed away would answer <em>"no results"</em> about articles that certainly exist.',
+        'folders_select_heading' => 'Selecting several at once',
+        'folders_select_intro'   => 'Filing one document at a time is fine for one document. To move six, tick them.',
+        'folders_select1' => '<strong>The tick is the mechanism</strong> &mdash; a plain click on a document always opens it, so selecting is done with the tick box on each row rather than by clicking the row itself.',
+        'folders_select2' => '<strong>Shift and click a tick</strong> to take everything between it and the last one you ticked. The block follows the order shown on screen, so it is whatever you can see between the two &mdash; which is why sorting the details view by a different column changes what a range means.',
+        'folders_select3' => '<strong>Ctrl or Shift and click the document itself</strong> selects it instead of opening it, for when your hand is already on the row.',
+        'folders_select4' => '<strong>Arrow keys</strong> move down the list, <strong>Shift and an arrow</strong> extends the block, <strong>Ctrl and an arrow</strong> moves without changing what is selected, <strong>Space</strong> ticks, <strong>Ctrl+A</strong> takes everything on screen and <strong>Escape</strong> clears.',
+        'folders_select5' => 'A selection <strong>survives searching, filtering and changing view</strong>. Tick six results for <em>VPN</em>, search for <em>printer</em>, tick four more, then move all ten &mdash; that is the point of keeping it.',
+        'folders_select6' => 'With anything ticked, a bar appears above the list: <strong>Move them to</strong> files the lot into one folder, and <strong>Set who can see them</strong> changes the audience on all of them at once.',
         'folders_tip' => '<strong>Right-click is the fast route.</strong> Everything on this page &mdash; new folder, rename, permissions, move, remove shortcut &mdash; is on the right-click menu of a folder or a document, in every view.',
 
         // ── Section 5: permissions ───────────────────────────────────────────

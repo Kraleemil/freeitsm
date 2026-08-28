@@ -442,6 +442,7 @@ function renderDetailsLayout() {
     const arrow = c => kbDetailsSort.col === c ? (dir === 1 ? ' ▲' : ' ▼') : '';
     const head = `
         <div class="kb-details-row kb-details-head">
+            <span></span>
             <span class="kb-details-name" onclick="kbSortDetails('title')">${escapeHtml(window.t('knowledge.details.name'))}${arrow('title')}</span>
             <span class="kb-details-author" onclick="kbSortDetails('author')">${escapeHtml(window.t('knowledge.details.author'))}${arrow('author')}</span>
             <span class="kb-details-date" onclick="kbSortDetails('modified')">${escapeHtml(window.t('knowledge.details.modified'))}${arrow('modified')}</span>
@@ -454,6 +455,7 @@ function renderDetailsLayout() {
              ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
              data-folder="${f.id}"
              oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">
+            <span></span>
             <span class="kb-details-name">📁 ${escapeHtml(f.name)}${f.is_restricted ? ' 🔒' : ''}</span>
             <span class="kb-details-author">—</span>
             <span class="kb-details-date">—</span>
@@ -461,9 +463,11 @@ function renderDetailsLayout() {
         </div>`).join('');
 
     const articleRows = rows.map(a => `
-        <div class="kb-details-row" onclick="viewArticle(${a.id})"
+        <div class="kb-details-row" onclick="kbRowClick(event, ${a.id})"
+             data-article="${a.id}"
              draggable="true" ondragstart="kbDragStart(event, 'article', ${a.id})" ondragend="kbDragEnd()"
              oncontextmenu="kbContextMenu(event, 'article', ${a.id}, ${jsAttr(a.title)})">
+            ${kbSelectBox(a.id)}
             <span class="kb-details-name">📄 ${kbRowIsShortcut(a.id) ? '↗ ' : ''}${Number(a.inherit_permissions) === 0 ? '🔒 ' : ''}${escapeHtml(a.title)}</span>
             <span class="kb-details-author">${escapeHtml(a.author_name || '')}</span>
             <span class="kb-details-date">${formatDate(a.modified_datetime)}</span>
@@ -505,9 +509,11 @@ function renderTreeLayout() {
     }
 
     const article = (a, depth) => `
-        <div class="kb-tree-article" style="padding-left:${10 + depth * 18}px" onclick="viewArticle(${a.id})"
+        <div class="kb-tree-article" style="padding-left:${10 + depth * 18}px" onclick="kbRowClick(event, ${a.id})"
+             data-article="${a.id}"
              draggable="true" ondragstart="kbDragStart(event, 'article', ${a.id})" ondragend="kbDragEnd()"
              oncontextmenu="kbContextMenu(event, 'article', ${a.id}, ${jsAttr(a.title)})">
+            ${kbSelectBox(a.id)}
             <span class="kb-tree-icon">📄</span>
             <span class="kb-tree-label">${Number(a.inherit_permissions) === 0 ? '🔒 ' : ''}${escapeHtml(a.title)}</span>
         </div>`;
@@ -1621,35 +1627,208 @@ function toggleTagFilter(tagId) {
 }
 
 /*
- * Bulk "who can see this".
+ * Selecting more than one article.
  *
- * Every article defaults to `internal` (deliberately — see audience.php), so
- * publishing a knowledge base to the self-service Help Centre otherwise means
- * opening articles one at a time. Selection survives re-renders (search, tag
- * filter) because it lives here rather than in the DOM: filtering to "VPN",
- * ticking six, then filtering to "printer" and ticking four more is the whole
- * point.
+ * ⚠️ THE CONSTRAINT THAT SHAPES ALL OF THIS: a plain click on a card must open
+ * the article. That is what a card is for, and Ed ruled it out of scope for
+ * selection early — so the tickets inbox model, where a plain click on a row
+ * selects it and a modifier extends, cannot simply be copied across. The
+ * TICKBOX is the selection mechanism here; the card body stays a link.
  *
- * The checkbox sits inside the card, whose entire surface is a click target that
- * opens the article — hence stopPropagation on the label.
+ * What that leaves, and what is implemented:
+ *
+ *   tickbox click          toggle that one, and become the anchor
+ *   Shift + tickbox        take the block from the anchor to here
+ *   Ctrl/Shift + card      select rather than open — the modifier is a clear
+ *                          statement of intent, so the card can serve both
+ *   Arrow up/down          move the focused row (and select just it)
+ *   Shift + arrow          extend the block from the anchor
+ *   Ctrl + arrow           move the focus WITHOUT changing the selection
+ *   Space                  toggle the focused row
+ *   Ctrl + A               select everything on screen
+ *   Escape                 clear
+ *
+ * Selection survives a re-render — it lives in a Set here, not in the DOM —
+ * because filtering to "VPN", ticking six, then filtering to "printer" and
+ * ticking four more is the whole point.
  */
 const kbSelected = new Set();
 
-function toggleArticleSelected(id, checked) {
-    if (checked) kbSelected.add(id); else kbSelected.delete(id);
+// Where a Shift-range measures FROM. It deliberately does NOT move when a range
+// is taken, so a second Shift-click re-measures from the same origin and can
+// shrink the block as well as grow it.
+let kbAnchorId = null;
+// The row the keyboard is on. Separate from the anchor: Ctrl+arrow moves this
+// without disturbing the origin of a range.
+let kbFocusId = null;
+
+/**
+ * The article ids in the order they are ON SCREEN.
+ *
+ * ⚠️ NOT the order of `articles`. The details view sorts by whichever column
+ * was clicked, and the tree groups by folder — so a Shift-range built from the
+ * data order would select rows the user never saw between the two they clicked.
+ * A range means "everything BETWEEN these two, as displayed", which makes the
+ * DOM the only honest source.
+ */
+function kbVisibleArticleIds() {
+    return Array.from(document.querySelectorAll('#articleList [data-article]'))
+                .map(el => Number(el.dataset.article))
+                .filter(id => !Number.isNaN(id));
+}
+
+function kbRowEl(id) {
+    return document.querySelector('#articleList [data-article="' + id + '"]');
+}
+
+/** Repaint ticks, row highlighting and the bar from the Set. */
+function kbRenderSelection() {
+    document.querySelectorAll('#articleList [data-article]').forEach(el => {
+        const id = Number(el.dataset.article);
+        const on = kbSelected.has(id);
+        el.classList.toggle('kb-row-selected', on);
+        el.classList.toggle('kb-row-focus', id === kbFocusId);
+        const cb = el.querySelector('.article-select input[type="checkbox"]');
+        if (cb) cb.checked = on;
+    });
     renderBulkBar();
+}
+
+function kbSetSelection(ids, { anchor = null, focus = null } = {}) {
+    kbSelected.clear();
+    ids.forEach(id => kbSelected.add(id));
+    if (anchor !== null) kbAnchorId = anchor;
+    if (focus !== null) kbFocusId = focus;
+    kbRenderSelection();
+}
+
+/** Everything between the anchor and `id`, as displayed. */
+function kbSelectRangeTo(id, { add = false } = {}) {
+    const ids = kbVisibleArticleIds();
+    const from = ids.indexOf(kbAnchorId === null ? id : kbAnchorId);
+    const to = ids.indexOf(id);
+    if (from === -1 || to === -1) { kbToggleOne(id); return; }
+    const block = ids.slice(Math.min(from, to), Math.max(from, to) + 1);
+    if (!add) kbSelected.clear();
+    block.forEach(x => kbSelected.add(x));
+    kbFocusId = id;                 // the anchor stays put, on purpose
+    kbRenderSelection();
+}
+
+function kbToggleOne(id) {
+    if (kbSelected.has(id)) kbSelected.delete(id); else kbSelected.add(id);
+    kbAnchorId = id;
+    kbFocusId = id;
+    kbRenderSelection();
+}
+
+/**
+ * A click on the tick itself. Returns nothing — the tick is the mechanism, so
+ * this never opens anything.
+ */
+function kbCheckboxClick(e, id) {
+    e.stopPropagation();            // the card underneath opens the article
+    e.preventDefault();             // we set `checked` ourselves, from the Set
+    if (e.shiftKey) kbSelectRangeTo(id, { add: true });
+    else kbToggleOne(id);
+}
+
+/**
+ * A click on the row itself. Returns true if it was handled as a SELECTION, in
+ * which case the caller must not open the article.
+ *
+ * ⚠️ Only a modifier can do this. A bare click opens the article, always — that
+ * is the rule the rest of this file is built around.
+ */
+function kbRowSelectClick(e, id) {
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (e.shiftKey) { e.preventDefault(); kbSelectRangeTo(id, { add: ctrl }); return true; }
+    if (ctrl) { e.preventDefault(); kbToggleOne(id); return true; }
+    return false;
+}
+
+/** Every article row's onclick. */
+function kbRowClick(e, id) {
+    if (kbRowSelectClick(e, id)) return;
+    viewArticle(id);
 }
 
 function clearArticleSelection() {
     kbSelected.clear();
-    renderBulkBar();
-    document.querySelectorAll('.article-select input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+    kbAnchorId = null;
+    kbFocusId = null;
+    kbRenderSelection();
 }
 
 function selectAllVisibleArticles() {
-    articles.forEach(a => kbSelected.add(a.id));
-    renderBulkBar();
-    document.querySelectorAll('.article-select input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+    // ⚠️ What is ON SCREEN, not every article loaded. In the tree that is the
+    // whole knowledge base; in a folder it is that folder. Either way it is
+    // what the person can see, which is what "all" has to mean or the count in
+    // the bar describes a selection nobody can inspect.
+    kbSetSelection(kbVisibleArticleIds());
+}
+
+function kbMoveFocus(delta, { extend = false, keepSelection = false } = {}) {
+    const ids = kbVisibleArticleIds();
+    if (!ids.length) return;
+    let i = ids.indexOf(kbFocusId);
+    if (i === -1) i = delta > 0 ? -1 : 0;
+    const next = Math.max(0, Math.min(ids.length - 1, i + delta));
+    const id = ids[next];
+
+    if (extend) {
+        if (kbAnchorId === null) kbAnchorId = kbFocusId === null ? id : kbFocusId;
+        kbSelectRangeTo(id);
+    } else if (keepSelection) {
+        kbFocusId = id;
+        kbRenderSelection();
+    } else {
+        kbSetSelection([id], { anchor: id, focus: id });
+    }
+    const el = kbRowEl(id);
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * ⚠️ A DOCUMENT-LEVEL KEY HANDLER IN A MODULE THAT CONTAINS A RICH TEXT EDITOR
+ * has to be paranoid about when it is allowed to act. Swallowing Space or
+ * Ctrl+A while somebody is writing an article would be a far worse bug than
+ * the one this fixes, so the guards come first and refuse by default.
+ */
+function kbSelectionKeydown(e) {
+    const listView = document.getElementById('articleListView');
+    if (!listView || listView.style.display === 'none') return;   // not on the list
+    if (document.querySelector('.kb-modal-backdrop, .kb-perm-modal')) return;
+
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+
+    if (e.key === 'Escape') { if (kbSelected.size) { clearArticleSelection(); e.preventDefault(); } return; }
+
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        selectAllVisibleArticles(); e.preventDefault(); return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        kbMoveFocus(e.key === 'ArrowDown' ? 1 : -1, {
+            extend: e.shiftKey,
+            keepSelection: (e.ctrlKey || e.metaKey) && !e.shiftKey,
+        });
+        e.preventDefault(); return;
+    }
+    if (e.key === ' ' || e.key === 'Spacebar') {
+        if (kbFocusId !== null) { kbToggleOne(kbFocusId); e.preventDefault(); }
+        return;
+    }
+    if (e.key === 'Enter' && kbFocusId !== null) { viewArticle(kbFocusId); e.preventDefault(); }
+}
+document.addEventListener('keydown', kbSelectionKeydown);
+
+/** The tick, rendered the same way in every view that has rows. */
+function kbSelectBox(id) {
+    return `<label class="article-select" onclick="kbCheckboxClick(event, ${id})"
+                   title="${escapeHtml(window.t('knowledge.bulk.select_title'))}">
+                <input type="checkbox" ${kbSelected.has(id) ? 'checked' : ''} tabindex="-1">
+            </label>`;
 }
 
 function renderBulkBar() {
@@ -1662,6 +1841,72 @@ function renderBulkBar() {
     if (countEl) {
         countEl.textContent = window.t(n === 1 ? 'knowledge.bulk.selected_one' : 'knowledge.bulk.selected', { count: n });
     }
+    kbRenderBulkFolders();
+}
+
+/**
+ * "Move them to…" — the folder list, rebuilt whenever the bar appears because
+ * folders can be created while a selection is held.
+ */
+function kbRenderBulkFolders() {
+    const sel = document.getElementById('kbBulkFolder');
+    if (!sel) return;
+    const keep = sel.value;
+    const opts = ['<option value="">' + escapeHtml(window.t('knowledge.bulk.move_choose')) + '</option>',
+                  '<option value="root">' + escapeHtml(window.t('knowledge.folders.root')) + '</option>'];
+    const walk = (parent, depth) => {
+        kbFolders.filter(f => String(f.parent_id) === String(parent) || (parent === null && f.parent_id === null))
+                 .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: 'base' }))
+                 .forEach(f => {
+                     opts.push('<option value="' + f.id + '">' + '&nbsp;'.repeat(depth * 3) + escapeHtml(f.name) + '</option>');
+                     walk(f.id, depth + 1);
+                 });
+    };
+    walk(null, 0);
+    sel.innerHTML = opts.join('');
+    if (keep) sel.value = keep;
+}
+
+/**
+ * Move everything selected into one folder.
+ *
+ * ⚠️ ONE AT A TIME THROUGH THE ORDINARY ENDPOINT, not a new bulk one. Every
+ * move then goes through the same permission checks, the same audit entry and
+ * the same cycle refusal as a drag does — a bulk path that reimplemented any of
+ * that would be a second place for the rules to drift.
+ */
+async function applyBulkMove() {
+    const sel = document.getElementById('kbBulkFolder');
+    const value = sel ? sel.value : '';
+    if (!value || kbSelected.size === 0) return;
+    const folderId = value === 'root' ? null : Number(value);
+    const btn = document.getElementById('kbBulkMove');
+    if (btn) { btn.disabled = true; btn.textContent = window.t('knowledge.bulk.applying'); }
+
+    let moved = 0, failed = 0;
+    for (const id of Array.from(kbSelected)) {
+        try {
+            // ⚠️ API_BASE, never a hardcoded relative path. This page is
+            // reachable at more than one URL depth, and a relative path is
+            // correct at exactly one of them - the fault behind GH #74.
+            const r = await fetch(API_BASE + 'folders.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'move_article', article_id: id, folder_id: folderId }),
+            });
+            const data = await r.json();
+            if (data.success) moved++; else failed++;
+        } catch (_) { failed++; }
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = window.t('knowledge.bulk.move'); }
+    if (failed && moved) showToast(window.t('knowledge.bulk.moved_partial', { moved: moved, failed: failed }), 'warning');
+    else if (failed) showToast(window.t('knowledge.bulk.move_failed'), 'error');
+    else showToast(window.t('knowledge.bulk.moved', { count: moved }), 'success');
+
+    clearArticleSelection();
+    loadFolders();
+    loadArticles(document.getElementById('articleSearch').value, activeTagFilters);
 }
 
 async function applyBulkAudience() {
@@ -1735,12 +1980,19 @@ function renderArticleList() {
     // The tree and the details table both draw folders and articles together, so
     // each replaces the whole pane rather than sitting above the usual rows.
     container.className = 'article-list kb-layout-' + kbLayout;
+    // ⚠️ EVERY PATH OUT OF THIS FUNCTION HAS TO REPAINT THE SELECTION. The ticks
+    // come out right because each row asks the Set as it is built, but the row
+    // HIGHLIGHT is a class applied afterwards - so without this, changing view
+    // or searching left the ticks on and the highlighting off, which reads as a
+    // half-selected list.
     if (kbLayout === 'tree') {
         container.innerHTML = renderTreeLayout();
+        kbRenderSelection();
         return;
     }
     if (kbLayout === 'details') {
         container.innerHTML = renderDetailsLayout();
+        kbRenderSelection();
         return;
     }
 
@@ -1761,17 +2013,23 @@ function renderArticleList() {
         return;
     }
 
-    container.innerHTML = folderRows + articles.map(article => `
-        <div class="article-card" onclick="viewArticle(${article.id})"
+    // ⚠️ BY NAME, not newest-first. The API returns articles in modified order,
+    // which suits a feed of recent work and not a folder you are looking
+    // something up in - and it left the folders sorted alphabetically above a
+    // list of documents that were not, which reads as no order at all. The tree
+    // was fixed first; Ed spotted that cards had the same fault. Sorted on a
+    // COPY so nothing else that reads `articles` is disturbed.
+    const ordered = articles.slice().sort((a, b) =>
+        String(a.title).localeCompare(String(b.title), undefined, { numeric: true, sensitivity: 'base' }));
+
+    container.innerHTML = folderRows + ordered.map(article => `
+        <div class="article-card" onclick="kbRowClick(event, ${article.id})"
+             data-article="${article.id}"
              draggable="true"
              ondragstart="kbDragStart(event, 'article', ${article.id})"
              ondragend="kbDragEnd()"
              oncontextmenu="kbContextMenu(event, 'article', ${article.id}, ${jsAttr(article.title)})">
-            <label class="article-select" onclick="event.stopPropagation()" title="${escapeHtml(window.t('knowledge.bulk.select_title'))}">
-                <input type="checkbox" value="${article.id}"
-                       ${kbSelected.has(article.id) ? 'checked' : ''}
-                       onchange="toggleArticleSelected(${article.id}, this.checked)">
-            </label>
+            ${kbSelectBox(article.id)}
             <div class="article-card-title">${
                 // ↗ it is here via a shortcut; 🔒 it carries its OWN permissions.
                 // The second is the §9 badge: an exception you cannot see from
@@ -1792,6 +2050,7 @@ function renderArticleList() {
             </div>
         </div>
     `).join('');
+    kbRenderSelection();
 }
 
 // Debounced search

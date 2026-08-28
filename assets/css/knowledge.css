@@ -213,6 +213,26 @@
 /* Room for the tick so a long title never runs underneath it. */
 .article-card-title { padding-right: 28px; }
 
+/* ⚠️ The tick is absolutely positioned because a CARD has a corner to put it
+   in. A tree row and a details row do not - they are single lines - so there
+   the same element has to sit in the flow like any other cell, or it lands on
+   top of the text. Same markup everywhere, positioned per view. */
+.kb-tree-article .article-select,
+.kb-details-row .article-select {
+    position: static;
+    padding: 0 6px 0 0;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Selected, and the row the keyboard is on. These are different things: you can
+   move the focus with Ctrl+arrow without selecting anything, and a selection of
+   twelve rows has exactly one focus. */
+.kb-row-selected { background: var(--accent-soft) !important; }
+.article-card.kb-row-selected { outline: 1px solid var(--accent); outline-offset: -1px; }
+.kb-row-focus { box-shadow: inset 2px 0 0 var(--accent); }
+
 .kb-bulk-bar {
     display: flex;
     align-items: center;
@@ -1639,7 +1659,10 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
 
 .kb-details-row {
     display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 1.2fr) 110px minmax(0, 1.5fr);
+    /* ⚠️ FIVE columns, the first for the tick. Every row type must supply that
+       first cell - the header and the folder rows pass an empty one - or the
+       columns below it shift by one and the table stops lining up. */
+    grid-template-columns: 22px minmax(0, 3fr) minmax(0, 1.2fr) 110px minmax(0, 1.5fr);
     align-items: center;
     gap: 12px;
     padding: 0 10px;
