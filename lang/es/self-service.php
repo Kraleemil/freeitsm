@@ -138,6 +138,8 @@ return [
         'priority_normal'         => 'Normal',
         'priority_high'           => 'Alta',
         'description'             => 'Descripción',
+        'full_screen'        => 'Pantalla completa',
+        'full_screen_done'   => 'Hecho',
         'description_placeholder' => 'Describa su incidencia con todo el detalle posible...',
         'equipment'               => '¿Sobre qué equipo trata?',
         'equipment_none'          => 'No trata de un dispositivo concreto',

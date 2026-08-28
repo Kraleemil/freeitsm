@@ -152,6 +152,8 @@ return [
         'priority_normal'         => 'Normal',
         'priority_high'           => 'Hoch',
         'description'             => 'Beschreibung',
+        'full_screen'        => 'Vollbild',
+        'full_screen_done'   => 'Fertig',
         'description_placeholder' => 'Beschreiben Sie Ihr Problem so ausführlich wie möglich...',
         'attachments'             => 'Anhänge',
         'dropzone'                => 'Dateien hierher ziehen und ablegen oder {browse}',

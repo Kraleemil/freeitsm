@@ -165,6 +165,8 @@ return [
         'priority_normal'    => 'Normal',
         'priority_high'      => 'High',
         'description'        => 'Description',
+        'full_screen'        => 'Full screen',
+        'full_screen_done'   => 'Done',
         'description_placeholder' => 'Provide as much detail as possible about your issue...',
         'equipment'          => 'Which equipment is this about?',
         'equipment_none'     => 'Not about a specific device',

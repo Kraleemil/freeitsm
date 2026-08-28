@@ -96,6 +96,22 @@ $pageStyles = <<<'CSS'
             align-items: stretch;
             min-height: 0;
         }
+        /* The message body's own label row. Named like every other field, with
+           the full-screen control sitting on the same line rather than floating
+           over the editor's toolbar. */
+        .compose-label-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+        .compose-label-row label { font-weight: 600; font-size: 13px; color: var(--text, #333); }
+
+        /* Desktop has the room already, so the control is a phone affordance —
+           revealed in the @media block below. */
+        .compose-fs-btn { display: none; }
+
         .compose-editor { min-width: 0; display: flex; flex-direction: column; min-height: 0; }
         .compose-editor .tox-tinymce { flex: 1 !important; height: auto !important; }
         /* The panel scrolls on its own when the recording controls open. */
@@ -125,6 +141,64 @@ $pageStyles = <<<'CSS'
                 padding-top: 16px;
                 max-height: none;
             }
+        }
+
+        @media (max-width: 768px) {
+            /* ── Write it full screen ─────────────────────────────────────
+               Same idea as the Change Management and Knowledge editors on a
+               phone: the message is the longest thing anybody types here, and
+               a box a few lines tall under a toolbar is a poor place to write
+               a paragraph. Modelled on those, including the Close bar — this
+               TinyMCE has no fullscreen toolbar button, so without our own way
+               out somebody could be stranded. */
+            .compose-fs-btn {
+                display: inline-block;
+                border: 1px solid var(--border, #e5e7eb);
+                border-radius: 6px;
+                background: var(--surface, #fff);
+                color: var(--ss-accent, #0078d4);
+                font-family: inherit;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 6px 12px;
+                min-height: 36px;
+                cursor: pointer;
+            }
+
+            body.ss-compose-full .compose-editor {
+                position: fixed;
+                inset: 0;
+                z-index: 2000;
+                margin: 0;
+                background: var(--surface, #fff);
+                display: flex;
+                flex-direction: column;
+                /* Clear of the home indicator on a phone with no bezel. */
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+            /* The label row rides along at the top so the control that got you
+               in is the control that gets you out, in the same place. */
+            body.ss-compose-full .compose-label-row {
+                position: fixed;
+                inset: 0 0 auto 0;
+                z-index: 2001;
+                margin: 0;
+                padding: 10px 14px;
+                background: var(--surface, #fff);
+                border-bottom: 1px solid var(--border, #e5e7eb);
+            }
+            body.ss-compose-full .compose-editor { padding-top: 57px; }
+
+            /* ⚠️ AND the inline editor needs a size of its own. Measured on a
+               phone it was 266x50 — the flex column has no height to share out,
+               so `flex: 1` on the editor resolves to almost nothing and the
+               message box collapsed to a toolbar with a sliver under it. That
+               is the real reason it was not clear where to type; the missing
+               label was only half of it. Tall enough to read as a place to
+               write, with the full-screen control there when it is not enough. */
+            body:not(.ss-compose-full) .compose-editor { min-height: 240px; }
+            /* Nothing behind it should scroll while the panel is up. */
+            body.ss-compose-full { overflow: hidden; }
         }
 
         .form-group {
@@ -373,6 +447,55 @@ let attachments = [];
         if (!ScreenRecorder.isSupported()) {
             document.getElementById('recordToggle').style.display = 'none';
         }
+    });
+
+    /* ── Write the message full screen (phone) ───────────────────────────
+     * The panel is a class on <body>; the CSS does the rest. Modelled on the
+     * Change Management and Knowledge editors, including answering the device
+     * back button — this TinyMCE is initialised without the fullscreen plugin,
+     * so its toolbar has no way out and ours has to be reliable.
+     */
+    const ssComposePhone = window.matchMedia('(max-width: 768px)');
+
+    function ssSetComposeFull(on) {
+        const want = !!on && ssComposePhone.matches;
+        document.body.classList.toggle('ss-compose-full', want);
+        const btn = document.getElementById('composeFsBtn');
+        if (btn) {
+            btn.textContent = want ? window.t('self-service.new_ticket.full_screen_done')
+                                   : window.t('self-service.new_ticket.full_screen');
+        }
+        // TinyMCE measures its container once; the container just changed size,
+        // so tell it to look again or it keeps the old height inside the panel.
+        try {
+            if (window.tinymce && tinymce.activeEditor) {
+                setTimeout(function () { tinymce.activeEditor.execCommand('mceAutoResize'); }, 60);
+            }
+        } catch (e) { /* the plain textarea fallback needs nothing */ }
+    }
+
+    function ssToggleComposeFull() {
+        const goingIn = !document.body.classList.contains('ss-compose-full');
+        if (goingIn) {
+            // Pushed, so the phone's back gesture closes the panel instead of
+            // leaving the page with a half-written ticket in it.
+            try { history.pushState({ ssComposeFull: true }, ''); } catch (e) { /* not fatal */ }
+            ssSetComposeFull(true);
+        } else if (history.state && history.state.ssComposeFull) {
+            history.back();          // one action, whichever way you close it
+        } else {
+            ssSetComposeFull(false);
+        }
+    }
+
+    window.addEventListener('popstate', function (e) {
+        ssSetComposeFull(!!(e.state && e.state.ssComposeFull));
+    });
+
+    // Rotating to a wide screen must not strand the panel open.
+    (ssComposePhone.addEventListener ? ssComposePhone.addEventListener.bind(ssComposePhone, 'change')
+                                     : ssComposePhone.addListener.bind(ssComposePhone))(function () {
+        if (!ssComposePhone.matches) document.body.classList.remove('ss-compose-full');
     });
 
     /*
@@ -768,7 +891,18 @@ require __DIR__ . '/includes/header.php';
                 </div>
 
                 <div class="compose-body">
-                    <div class="compose-editor">
+                    <!-- ⚠️ This field had NO label. Every other field on the form
+                         has one, so the message body — the whole point of the
+                         page — was the one box with nothing naming it, and the
+                         editor's own chrome makes it read as part of the page
+                         furniture rather than as something to type in. -->
+                    <div class="compose-label-row">
+                        <label for="description"><?php echo htmlspecialchars(t('self-service.new_ticket.description')); ?></label>
+                        <button type="button" class="compose-fs-btn" id="composeFsBtn" onclick="ssToggleComposeFull()">
+                            <?php echo htmlspecialchars(t('self-service.new_ticket.full_screen')); ?>
+                        </button>
+                    </div>
+                    <div class="compose-editor" id="composeEditor">
                         <textarea id="description" placeholder="<?php echo htmlspecialchars(t('self-service.new_ticket.description_placeholder')); ?>"></textarea>
                     </div>
 
