@@ -4538,8 +4538,27 @@
     }
     #checksTable tbody td:first-child    { order: 1; }
     #checksTable tbody td:nth-child(2)   { order: 2; }
-    #checksTable tbody td:nth-child(3)   { order: 3; flex: 1 1 auto; }  /* status */
-    #checksTable tbody td.mc-actions     { order: 4; flex: 0 0 auto; }  /* + and undo */
+    /* ⚠️ THE STATUS CELL'S WIDTH IS STATED, not negotiated, and this took three
+       goes to get right.
+       In a WRAPPING flex row an item that does not fit WRAPS — it does not
+       shrink. So once the icons became two 44px bordered buttons (98px with
+       their gap), the status cell's content width of 274px no longer fitted
+       beside them and dropped to a line of its own; what that looks like is not
+       "wrapped", it is "the two sets of buttons are misaligned".
+       `flex: 1 1 0` was the obvious fix and was worse: the cell collapsed to
+       ZERO width and its three buttons wrapped into a 144px stack.
+       So the pair is sized explicitly: the icons take what they need and the
+       status cell takes the rest of the line. 102px = 2 x 44 + 6px gap + 8px
+       margin. Change one and change the other. */
+    #checksTable tbody td:nth-child(3) {                        /* status */
+        order: 3;
+        /* 108, not 102 (the icons' true outer width): at exactly 102 the two
+           add up to the line width to the pixel, and sub-pixel rounding tipped
+           it over into wrapping anyway. The slack is the point. */
+        flex: 0 0 calc(100% - 108px);
+        min-width: 0;
+    }
+    #checksTable tbody td.mc-actions     { order: 4; flex: 0 0 auto; }             /* + and undo */
     #checksTable tbody td.notes-display  { order: 5; }
     /* ⚠️ `flex: 0 0 auto`, so these two share ONE line. They used to be
        `display: inline`, which worked while the card was a stack of blocks —
@@ -4571,7 +4590,10 @@
         flex-direction: row;
         flex-wrap: wrap;
         gap: 6px;
-        margin: 8px 0 2px;
+        /* Equal top and bottom, so this block and the icon block beside it have
+           the SAME centre. The old 8px/2px was why the two sets of buttons sat
+           a few pixels apart even when they were on the same line. */
+        margin: 6px 0;
     }
     /* The old block gave every status button `width: 100%`, which is what made
        them full-bleed rows. Flex sizes them now. */
@@ -4620,7 +4642,9 @@
     #checksTable td.mc-actions {
         display: flex;
         gap: 6px;
-        margin-left: 8px;
+        /* Same vertical margin as .status-buttons above — that is what makes
+           the two blocks share a centre line. */
+        margin: 6px 0 6px 8px;
     }
     /* Bordered, so they read as buttons rather than as loose glyphs, and the
        SAME 44px box as the status buttons beside them — matching the 2px border
