@@ -194,6 +194,59 @@ function storagePersistenceReport(): array
 }
 
 /**
+ * Does this directory hold anything an operator would mind losing?
+ *
+ * 🔑 THIS IS WHAT DECIDES WHICH ADVICE TO GIVE, and it must not be inferred from
+ * anything else. An install with nothing stored yet can simply add the volumes;
+ * an install with files in these folders has to copy them out FIRST, because a
+ * new volume is filled from the image rather than from the container it replaces.
+ * Give the first instruction to somebody in the second situation and they lose
+ * their files while following the documentation.
+ *
+ * ⚠️ The obvious proxy — "has an analyst been created yet" — is WRONG HERE. The
+ * shipped schema seeds an `admin` account, so every installation looks provisioned
+ * from the moment the database exists, including one that is thirty seconds old.
+ *
+ * The execution guards are shipped in these folders, so they are not evidence of
+ * use and are excluded.
+ */
+function storagePersistenceHasFiles(string $dir): bool
+{
+    if (!is_dir($dir)) return false;
+
+    $ignore = ['.', '..', '.htaccess', 'web.config', '.gitkeep', 'index.html'];
+    $items  = @scandir($dir);
+    if ($items === false) return false;
+
+    foreach ($items as $item) {
+        if (in_array($item, $ignore, true)) continue;
+        $p = $dir . '/' . $item;
+        // A sub-directory counts — email attachments live in per-message folders,
+        // so the useful question is "is anything under here", not "are there loose
+        // files at the top". A top-level count once reported "0 files" beside six
+        // working attachments.
+        if (is_dir($p)) {
+            if (storagePersistenceHasFiles($p)) return true;
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Is anything actually stored in the directories that are at risk?
+ */
+function storagePersistenceAnythingToLose(array $report): bool
+{
+    foreach ($report['directories'] as $d) {
+        if ($d['status'] !== 'at_risk') continue;
+        if (storagePersistenceHasFiles($d['path'])) return true;
+    }
+    return false;
+}
+
+/**
  * The volume lines an operator would need to add, ready to paste.
  *
  * Only the directories actually at risk are offered. A block that lists

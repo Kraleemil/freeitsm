@@ -13,6 +13,22 @@ return [
     'title'   => 'FreeITSM Setup',
     'heading' => 'Setup Verification',
 
+    // Issue #109. Shown above the check list, only inside a container and only when
+    // something is genuinely exposed. Written for somebody who has run one command
+    // and may never have heard of a Docker volume, so it states the consequence
+    // first, then hands over the exact lines rather than describing them.
+    'storage' => [
+        'heading'          => 'Stop — files you upload will be deleted every time you update',
+        'explain'          => 'FreeITSM is running in Docker, and some of the folders it stores uploaded files in are inside the container rather than on a Docker volume. Updating FreeITSM rebuilds the container, and everything inside it is thrown away when that happens. Your database is on a volume and will survive, so afterwards your attachments would still be listed while the files themselves were gone. Two minutes now prevents this permanently.',
+        'encryption_key'   => 'This includes your encryption key. If it is lost, saved mailbox passwords and integration credentials are not damaged but can never be read again, and every one has to be entered by hand.',
+        'existing_install' => 'This installation is already in use, so do not simply add these and rebuild. Copy the folders out of the running container first — adding a volume does not rescue files that are already inside it. System → Debug Tools → D013 gives you the commands in the right order.',
+        'step1'            => '1. Open docker-compose.yml and add these lines under the app service:',
+        'step2'            => '2. Add the same names to the volumes section at the bottom of the file:',
+        'step3'            => '3. Apply it:',
+        'foot'             => 'Then reload this page — this message will be gone. Nothing else needs to change, and doing it now costs you nothing, because there is nothing stored in these folders yet.',
+        'foot_in_use'      => 'Then reload this page — this message will be gone. Do not skip the copying-out step above: there are already files in these folders, and rebuilding without copying them out first will delete them for good.',
+    ],
+
     'summary' => [
         'passed'   => '{n} passed',
         'warning'  => '{n} warning',

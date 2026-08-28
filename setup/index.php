@@ -206,6 +206,7 @@ if (file_exists($configPath)) {
 // a green "storage is fine" line for the WAMP majority, to whom the question does
 // not apply, would be noise on a screen whose whole job is to be scannable.
 require_once __DIR__ . '/../includes/storage_persistence.php';
+$storageReport = ['applicable' => false, 'at_risk' => 0, 'directories' => [], 'critical_at_risk' => false];
 try {
     $storageReport = storagePersistenceReport();
     if ($storageReport['applicable']) {
@@ -512,6 +513,38 @@ $translationNamespaces = ['common', 'setup'];
         }
 
         .check-help:hover { text-decoration: underline; }
+
+        /* Issue #109 — the one item on this page that costs you data if ignored. */
+        .storage-danger {
+            text-align: left;
+            margin-bottom: 22px;
+            padding: 18px 20px;
+            background: #fdecea;
+            border: 1px solid #f5c2c0;
+            border-left: 4px solid #c0392b;
+            border-radius: 6px;
+            color: #7d1f16;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+        .storage-danger__title { font-weight: 700; font-size: 15px; margin-bottom: 8px; }
+        .storage-danger p { margin: 0 0 10px; }
+        .storage-danger__critical { font-weight: 600; }
+        .storage-danger__step { font-weight: 600; margin-top: 14px; margin-bottom: 6px; }
+        .storage-danger__code {
+            margin: 0;
+            padding: 10px 12px;
+            background: #fff;
+            border: 1px solid #f0cdcb;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .storage-danger__foot { margin-top: 14px; margin-bottom: 0; font-style: italic; }
     </style>
 </head>
 <body>
@@ -534,6 +567,84 @@ $translationNamespaces = ['common', 'setup'];
                 <span class="summary-badge summary-fail"><?= htmlspecialchars(t('setup.summary.failed', ['n' => $failCount])) ?></span>
             <?php endif; ?>
         </div>
+
+        <?php /* Issue #109. The check above contributes a red row to the list, which is
+                 enough to be noticed and nowhere near enough to be acted on: a new
+                 operator has just run one command and is not expected to know what a
+                 volume is, let alone where to declare one. So the fix itself is put on
+                 screen, ready to paste, at the moment it costs nothing to apply.
+
+                 Above the check list rather than below it. This is the only item on
+                 this page that destroys data if ignored, and the list is long enough
+                 that a red row two thirds of the way down is genuinely missable.
+
+                 ⚠️ DELIBERATELY NOT GATED ON $setupUnlocked, which every other detail
+                 on this page is. Two reasons, and the first is decisive:
+
+                 1. $setupUnlocked is FALSE for the very person this exists for. It is
+                    true only for a fresh install or a signed-in administrator, and
+                    "fresh" means installIsUnprovisioned() — no analyst rows. But the
+                    shipped schema SEEDS an `admin` account, so an installation is
+                    never unprovisioned once its database exists. A brand-new Docker
+                    operator, who has not signed in yet, is therefore shown the
+                    redacted view — and the redacted view cannot tell them what to do.
+                    Gating this block would switch the feature off for its whole
+                    audience while appearing to work.
+
+                 2. The disclosure rule exists to keep the HOST's filesystem layout
+                    private. These paths are not that. They are the container's own
+                    paths, fixed by the Dockerfile in the public repository, and this
+                    block is only ever rendered inside a container. Publishing
+                    /var/www/html/uploads to somebody who can read the Dockerfile on
+                    GitHub tells them nothing they did not already have.
+
+                 The absolute paths shown here come from the same report either way,
+                 so nothing about the operator's own machine is revealed. */ ?>
+        <?php if (!empty($storageReport['applicable']) && $storageReport['at_risk'] > 0):
+                  $volLines = storagePersistenceSuggestedVolumes($storageReport);
+                  $volNames = [];
+                  foreach ($volLines as $vl) {
+                      $volNames[] = trim(explode(':', trim($vl), 2)[0], " -\t");
+                  }
+                  // Which advice: nothing stored yet = just add them. Anything stored
+                  // = copy it out first, or adding the volume destroys it.
+                  $storageInUse = storagePersistenceAnythingToLose($storageReport); ?>
+        <div class="storage-danger" role="alert">
+            <div class="storage-danger__title"><?= htmlspecialchars(t('setup.storage.heading')) ?></div>
+            <p><?= htmlspecialchars(t('setup.storage.explain')) ?></p>
+
+            <?php if (!empty($storageReport['critical_at_risk'])): ?>
+                <p class="storage-danger__critical"><?= htmlspecialchars(t('setup.storage.encryption_key')) ?></p>
+            <?php endif; ?>
+
+            <?php /* Nothing stored yet means the advice is simply "add these". Files
+                     already in those folders means they must be copied out FIRST,
+                     because a new volume is filled from the image and not from the
+                     container it replaces. Two different situations, and giving
+                     somebody the wrong one is how they lose files while carefully
+                     following the instructions. */ ?>
+            <?php if ($storageInUse): ?>
+                <p class="storage-danger__critical"><?= htmlspecialchars(t('setup.storage.existing_install')) ?></p>
+            <?php endif; ?>
+
+            <p class="storage-danger__step"><?= htmlspecialchars(t('setup.storage.step1')) ?></p>
+            <pre class="storage-danger__code"><?php
+                echo htmlspecialchars("services:\n  app:\n    volumes:\n");
+                foreach ($volLines as $vl) echo htmlspecialchars($vl . "\n");
+            ?></pre>
+
+            <p class="storage-danger__step"><?= htmlspecialchars(t('setup.storage.step2')) ?></p>
+            <pre class="storage-danger__code"><?php
+                echo htmlspecialchars("volumes:\n");
+                foreach ($volNames as $vn) echo htmlspecialchars('  ' . $vn . ":\n");
+            ?></pre>
+
+            <p class="storage-danger__step"><?= htmlspecialchars(t('setup.storage.step3')) ?></p>
+            <pre class="storage-danger__code"><?= htmlspecialchars('docker compose up -d') ?></pre>
+
+            <p class="storage-danger__foot"><?= htmlspecialchars(t($storageInUse ? 'setup.storage.foot_in_use' : 'setup.storage.foot')) ?></p>
+        </div>
+        <?php endif; ?>
 
         <ul class="check-list">
             <?php foreach ($checks as $check): ?>
