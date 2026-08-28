@@ -4446,9 +4446,16 @@
         align-items: flex-start;
         gap: 10px;
         padding: 12px 14px 6px;
+        /* ⚠️ The desktop rule adds `margin: 0 0 20px`, which was the real gap
+           between the pinned heading and the list — 20px of it, against the 6px
+           of padding it looked like. Measured: heading text ended at y=88 and
+           the first check started at y=124. */
+        margin-bottom: 0;
     }
     .date-display h2 { font-size: 16px; }
-    .checks-section { padding: 10px 0 12px; }
+    /* Each check already carries 12px of its own top padding, so the section
+       needs almost none — anything here is added to that, not instead of it. */
+    .checks-section { padding: 2px 0 12px; }
     .container { padding: 0; }
 
     .date-selector-container {
