@@ -19,32 +19,8 @@ services:
       # by default.
       # - TRUST_PROXY_HTTPS=1
     volumes:
-      # ⚠️ EVERY directory the running app writes user files into must appear here.
-      # A directory that is not on a volume lives inside the container, and
-      # `docker compose up -d --build` REPLACES the container — so those files are
-      # destroyed on update while the database rows survive on db-data. The app then
-      # correctly reports that a file is "recorded but missing from storage", which
-      # reads as data corruption rather than as a missing mount. That is exactly what
-      # happened in issue #109: only the first two lines below existed, so documents,
-      # recordings, LMS content, branding logos and the rest were lost on every update.
-      #
-      # The authoritative list of these directories is the "Upload directories" and
-      # "Module-specific runtime content" blocks of .gitignore. If you add a directory
-      # there, add it here in the same commit.
-      #
-      # Adding a volume is non-destructive: Docker seeds a newly created named volume
-      # from the image, so the .htaccess and web.config execution guards that ship in
-      # each of these folders are copied in on first boot. Should a folder ever be
-      # missing them, uploadPrepareDir()/uploadPrepareWebServableDir() in
-      # includes/uploads.php rewrites both at runtime.
       - attachments:/var/www/html/tickets/attachments
       - cm-attachments:/var/www/html/change-management/attachments
-      - uploads:/var/www/html/uploads
-      - recordings:/var/www/html/recordings
-      - lms-content:/var/www/html/lms/content
-      - rfp-uploads:/var/www/html/contracts/rfp-builder/uploads
-      - branding:/var/www/html/system/uploads/branding
-      - war-room-attachments:/var/www/html/war-room/attachments
       - encryption-keys:/var/www/encryption_keys
 
   db:
@@ -69,14 +45,4 @@ volumes:
   db-data:
   attachments:
   cm-attachments:
-  # uploads/ is mounted whole rather than as its two sub-folders (documents and
-  # asset-imports), so that a future upload folder added underneath it is persisted
-  # without a compose change. Everything under it is user data by design — .gitignore
-  # ignores uploads/* and re-includes only the execution guards.
-  uploads:
-  recordings:
-  lms-content:
-  rfp-uploads:
-  branding:
-  war-room-attachments:
   encryption-keys:

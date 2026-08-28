@@ -59,7 +59,6 @@ docker compose up -d
 Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify the installation and create your admin account. The first sign-in uses **admin** / **freeitsm** and FreeITSM will make you choose a new password before it lets you do anything else.
 
 - **Manual install** (WAMP / XAMPP / LAMP): follow the **[Installation guide](https://github.com/edmozley/freeitsm/wiki/Installation)** — prerequisites, database setup, encryption key, and configuration files.
-- **Updating an existing install**: follow the **[Upgrading guide](https://github.com/edmozley/freeitsm/wiki/Upgrading)**. On Docker in particular, read it *before* you rebuild — `docker compose up --build` replaces the container, so anything not on a volume is discarded.
 - **First login**: `admin` / `freeitsm` — change it immediately via the account menu.
 - **Demo data**: System → Demo Data populates every module with realistic sample data, so you can evaluate with the system feeling alive.
 
@@ -127,7 +126,6 @@ Everything lives in the **[Documentation Wiki](https://github.com/edmozley/freei
 | Guide | Covers |
 |-------|--------|
 | [Installation](https://github.com/edmozley/freeitsm/wiki/Installation) | Docker and manual setup, prerequisites, configuration files |
-| [Upgrading](https://github.com/edmozley/freeitsm/wiki/Upgrading) | Moving an existing install to a newer version, what survives an update, verifying the database afterwards |
 | [Architecture](https://github.com/edmozley/freeitsm/wiki/Architecture) | Technology stack, directory layout, shared components, database conventions |
 | [Security](https://github.com/edmozley/freeitsm/wiki/Security) | Authentication, authorisation layers, encryption, going-live checklist |
 | [REST API](https://github.com/edmozley/freeitsm/wiki/REST-API) | How the public API works, plus per-module endpoint guides |
