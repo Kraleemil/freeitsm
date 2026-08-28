@@ -1844,6 +1844,23 @@
         padding-left: 16px;
         padding-right: 16px;
     }
+    /* ⚠️ …and the same for a dialog whose heading is a bare <h2> rather than a
+       `.modal-header`. Morning Checks has one of each: "Edit group" uses the
+       class and came out 352x58 with an inset and a divider, while "Edit check",
+       "Edit status" and "Add check" are plain h2s and came out 360x29, flush to
+       both edges with no divider and a stray 10px bottom margin.
+
+       Matched here rather than by editing four templates, because the markup
+       difference is app-wide — most modules have dialogs built each way — so a
+       rule catches the ones nobody has looked at yet. It is the same reasoning
+       as the note above: normalising means covering both spellings of the same
+       thing, not just the one you happened to open. */
+    body[data-mobile-page="settings"] .modal-content > h2 {
+        margin: 0;
+        padding: 14px 16px;
+        font-size: 18px;
+        border-bottom: 1px solid var(--border, #e0e0e0);
+    }
 
     /* A colour swatch is a tap target on this page (it opens the picker in the
        modal) and a 22px square is easier to hit than an 18px one. */
