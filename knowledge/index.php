@@ -47,7 +47,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <title><?php echo htmlspecialchars(t('knowledge.browser_title.main')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/knowledge.css?v=24">
+    <link rel="stylesheet" href="../assets/css/knowledge.css?v=25">
     <!-- Prism.js for code syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css">
@@ -57,7 +57,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <script src="../assets/js/i18n.js?v=2"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
     <!-- Mobile-friendly overrides (LAYER 17). Linked LAST so its @media rules win ties against knowledge.css. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=68">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=69">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -161,7 +161,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                                     <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
                                     <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
                                 </svg>
-                                <?php echo htmlspecialchars(t('knowledge.detail.share')); ?>
+                                <span class="kb-act-label"><?php echo htmlspecialchars(t('knowledge.detail.share')); ?></span>
                             </button>
                             <div class="share-dropdown-menu" id="shareDropdownMenu">
                                 <a href="#" onclick="shareArticleLink(); return false;">
@@ -192,9 +192,10 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                         </div>
                         <!-- Shown only to someone who may actually change access;
                              see kbCanManagePerms in knowledge.js. -->
-                        <button class="btn btn-secondary" id="kbArticlePermBtn" style="display:none;" onclick="openArticlePermModal()"><?php echo htmlspecialchars(t('knowledge.perm.manage')); ?></button>
-                        <button class="btn btn-primary" onclick="editCurrentArticle()"><?php echo htmlspecialchars(t('knowledge.detail.edit')); ?></button>
-                        <button class="btn btn-danger" onclick="deleteCurrentArticle()"><?php echo htmlspecialchars(t('knowledge.detail.archive')); ?></button>
+                        <button class="btn btn-secondary" onclick="kbMoveCurrentArticle()" title="<?php echo htmlspecialchars(t('knowledge.move.title')); ?>"><span class="kb-act-icon" aria-hidden="true">📁</span><span class="kb-act-label"><?php echo htmlspecialchars(t('knowledge.move.button')); ?></span></button>
+                        <button class="btn btn-secondary" id="kbArticlePermBtn" style="display:none;" onclick="openArticlePermModal()"><span class="kb-act-icon" aria-hidden="true">🔒</span><span class="kb-act-label"><?php echo htmlspecialchars(t('knowledge.perm.manage')); ?></span></button>
+                        <button class="btn btn-primary" onclick="editCurrentArticle()"><span class="kb-act-icon" aria-hidden="true">✏️</span><span class="kb-act-label"><?php echo htmlspecialchars(t('knowledge.detail.edit')); ?></span></button>
+                        <button class="btn btn-danger" onclick="deleteCurrentArticle()"><span class="kb-act-icon" aria-hidden="true">🗑️</span><span class="kb-act-label"><?php echo htmlspecialchars(t('knowledge.detail.archive')); ?></span></button>
                     </div>
                 </div>
                 <div class="article-content" id="articleContent"></div>
@@ -331,6 +332,25 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
          the native one is unstyled, unbranded, says "freeitsm.internal says",
          cannot be translated, and looks like a phishing box in the middle of an
          otherwise finished product. -->
+    <!-- Move one article. Until now an article could only be filed by dragging
+         it or right-clicking it in the LIST - so from the article's own page,
+         which is where you are when you notice it is in the wrong place, there
+         was no way to move it at all. -->
+    <div class="modal" id="kbMoveModal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3><?php echo htmlspecialchars(t('knowledge.move.title')); ?></h3>
+            </div>
+            <div class="modal-body">
+                <select class="form-input" id="kbMoveFolder"></select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="kbCloseMoveModal()"><?php echo htmlspecialchars(t('common.cancel')); ?></button>
+                <button type="button" class="btn btn-primary" onclick="kbConfirmMoveArticle()"><?php echo htmlspecialchars(t('knowledge.bulk.move')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal" id="kbPromptModal">
         <div class="modal-content" style="max-width: 420px;">
             <div class="modal-header">
@@ -499,7 +519,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <!-- jsPDF for searchable PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>window.API_BASE = '../api/knowledge/';</script>
-    <script src="../assets/js/knowledge.js?v=49"></script>
+    <script src="../assets/js/knowledge.js?v=50"></script>
     <!-- Prism.js for code syntax highlighting when viewing articles -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>

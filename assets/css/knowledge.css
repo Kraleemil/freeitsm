@@ -321,6 +321,12 @@
     gap: 8px;
 }
 
+/* The action buttons carry both an icon and a word. On a desktop the word is
+   the button and the icon would just be decoration; the phone bar hides the
+   word and keeps the icon (mobile.css, layer 17k). Neither is ever shown
+   without the other. */
+.kb-act-icon { display: none; }
+
 .article-content {
     background: var(--surface, white);
     border-radius: 8px;

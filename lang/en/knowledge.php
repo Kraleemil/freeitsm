@@ -94,7 +94,6 @@ return [
         'moved'        => 'Moved {count} articles',
         'moved_partial'=> 'Moved {moved}; {failed} could not be moved',
         'move_failed'  => 'Could not move the selected articles',
-        'hint'         => 'Tick to select. Shift-click a tick for a range; Ctrl or Shift and click a card to select it rather than open it. Arrow keys move, Space ticks, Escape clears.',
     ],
 
     'editor' => [
@@ -188,6 +187,11 @@ return [
         'up'            => 'Up one level',
         'items'         => 'articles',
         'item_one'      => 'article',
+    ],
+
+    'move' => [
+        'title'  => 'Move this article',
+        'button' => 'Move',
     ],
 
     'exceptions' => [

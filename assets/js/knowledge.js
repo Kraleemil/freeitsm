@@ -3281,3 +3281,58 @@ document.addEventListener('click', function(e) {
         viewArticle(link.dataset.articleId);
     }
 });
+
+// ---------------------------------------------------------------------------
+//  Moving ONE article, from the article itself.
+//
+//  ⚠️ There was no way to do this. An article could be filed by dragging it or
+//  right-clicking it IN THE LIST — but the moment you are reading an article is
+//  exactly when you notice it is filed in the wrong place, and from there the
+//  only route was to go back, find it again, and right-click it.
+// ---------------------------------------------------------------------------
+
+function kbFolderOptions(selectedId) {
+    const opts = ['<option value="root">' + escapeHtml(window.t('knowledge.folders.root')) + '</option>'];
+    const walk = (parent, depth) => {
+        kbFolders.filter(f => (parent === null ? f.parent_id === null : String(f.parent_id) === String(parent)))
+                 .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { numeric: true, sensitivity: 'base' }))
+                 .forEach(f => {
+                     const on = String(f.id) === String(selectedId) ? ' selected' : '';
+                     opts.push('<option value="' + f.id + '"' + on + '>'
+                             + '&nbsp;'.repeat(depth * 3) + escapeHtml(f.name) + '</option>');
+                     walk(f.id, depth + 1);
+                 });
+    };
+    walk(null, 0);
+    return opts.join('');
+}
+
+function kbMoveCurrentArticle() {
+    const modal = document.getElementById('kbMoveModal');
+    if (!modal || !currentArticle) return;
+    const sel = document.getElementById('kbMoveFolder');
+    // Pre-selected to where it lives now, so the box always opens telling you
+    // the truth about where the article is rather than proposing a move.
+    sel.innerHTML = kbFolderOptions(currentArticle.folder_id);
+    if (currentArticle.folder_id === null) sel.value = 'root';
+    modal.classList.add('active');
+}
+
+function kbCloseMoveModal() {
+    const modal = document.getElementById('kbMoveModal');
+    if (modal) modal.classList.remove('active');
+}
+
+async function kbConfirmMoveArticle() {
+    if (!currentArticle) return;
+    const sel = document.getElementById('kbMoveFolder');
+    const value = sel ? sel.value : '';
+    const folderId = value === 'root' ? null : Number(value);
+    kbCloseMoveModal();
+    // Same endpoint as the drag, so the permission check, the audit entry and
+    // the refusals are the ones that already exist.
+    await folderAction({ action: 'move_article', article_id: currentArticle.id, folder_id: folderId },
+                       'knowledge.folders.moved_article');
+    // The article is still on screen and its folder has changed underneath it.
+    currentArticle.folder_id = folderId;
+}
