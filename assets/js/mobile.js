@@ -64,11 +64,46 @@
     // ------------------------------------------------------------------
     injectViewsHamburger();
     moveTenantIntoWaffle();
+    syncMorningChecksControls();
+
+    /**
+     * MORNING CHECKS (#1270) — the date picker, Today and Save to PDF move into
+     * the views drawer on a phone.
+     *
+     * Measured on a 640px screen before this: the controls took **231px** and
+     * the checks themselves got **177px**. The page is a checklist; the list is
+     * the point, and it was the smallest thing on screen.
+     *
+     * The date HEADING stays put — you have to know which morning you are
+     * looking at — and so does the All/Mine filter, which is 40px and changes
+     * what the list contains. Only the 178px block of controls moves.
+     *
+     * ⚠️ Moved BACK on the way to desktop, not merely re-hidden: the drawer is
+     * display:none above 768px, so a control left inside it would vanish
+     * entirely for anyone who rotates a tablet or resizes a window.
+     */
+    function syncMorningChecksControls() {
+        var sel = document.querySelector('.date-selector-container');
+        var nav = document.querySelector('.header-nav');
+        var home = document.querySelector('.date-display');
+        if (!sel || !nav || !home) return;              // not this module
+
+        if (mq.matches) {
+            if (sel.parentElement !== nav) {
+                sel.classList.add('mc-in-drawer');
+                nav.appendChild(sel);
+            }
+        } else if (sel.parentElement === nav) {
+            sel.classList.remove('mc-in-drawer');
+            home.appendChild(sel);
+        }
+    }
 
     function syncShell() {
         var vb = document.querySelector('.mobile-views-btn');
         if (vb) vb.style.display = mq.matches ? '' : 'none';
         if (!mq.matches) document.body.classList.remove('mobile-views-open');
+        syncMorningChecksControls();
     }
     syncShell();
     if (mq.addEventListener) { mq.addEventListener('change', syncShell); }

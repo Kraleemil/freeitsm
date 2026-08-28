@@ -4439,6 +4439,37 @@
         flex-wrap: wrap;
         gap: 8px;
     }
+
+    /* Once mobile.js has moved the controls into the views drawer (#1270) they
+       are a block of form controls sitting among nav links, so they get a rule
+       of their own rather than inheriting the link styling around them. */
+    .header-nav .date-selector-container.mc-in-drawer {
+        /* The drawer is itself a column, so the block would otherwise stretch
+           and leave ~109px of empty bordered box under the last button. */
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px 14px;
+        margin: 0;
+        border-top: 1px solid var(--border-soft, #eee);
+    }
+    /* ⚠️ `flex: 0 0 auto`, and this is the whole reason the rule exists. The
+       container is a COLUMN here, so a `flex-grow` inherited from the row
+       layout grows children along their HEIGHT — which gave a 238px-tall date
+       field and 89px buttons filling the drawer. Natural height, explicitly.
+
+       ⚠️ And the selector needs all three classes. `.header-nav .mc-in-drawer > *`
+       is (0,2,0) and LOSES to `.date-selector-container input[type="date"]`,
+       which is (0,2,1) — so the flex-basis:100% stayed in force and the field
+       stayed 260px tall while the rule "looked" applied. Same specificity trap
+       as the #999 anti-zoom bug. */
+    .header-nav .date-selector-container.mc-in-drawer > * {
+        flex: 0 0 auto;
+        width: 100%;
+        min-height: 44px;
+        height: auto;
+    }
     .date-selector-container input[type="date"] {
         /* 16px or iOS zooms on focus and leaves the page zoomed; -webkit-
            appearance because a native date input ignores width otherwise and
@@ -4462,18 +4493,32 @@
     #checksTable tbody { display: block; width: 100%; }
     #checksTable thead { display: none; }
 
+    /* The card is a wrapping flex row, not a stack of blocks, so that the two
+       things you actually press — the status buttons and the raise/undo icons —
+       can share ONE line instead of the icons getting a row of their own. The
+       cells arrive in table order, so `order` puts the actions next to the
+       status rather than after the notes. */
     #checksTable tbody tr {
-        display: block;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
         padding: 12px 14px;
         border-bottom: 1px solid var(--border-soft, #f0f0f0);
     }
     #checksTable tbody td {
-        display: block;
+        flex: 1 1 100%;             /* a full-width line unless told otherwise */
         padding: 0 !important;
         border: none;
         font-size: 13px;
         color: var(--text-muted, #666);
     }
+    #checksTable tbody td:first-child    { order: 1; }
+    #checksTable tbody td:nth-child(2)   { order: 2; }
+    #checksTable tbody td:nth-child(3)   { order: 3; flex: 1 1 auto; }  /* status */
+    #checksTable tbody td.mc-actions     { order: 4; flex: 0 0 auto; }  /* + and undo */
+    #checksTable tbody td.notes-display  { order: 5; }
+    #checksTable tbody td.mc-checked-by  { order: 6; }
+    #checksTable tbody td.mc-checked-at  { order: 7; }
 
     /* The check's name is the card's heading. */
     #checksTable tbody td:first-child {
@@ -4531,13 +4576,22 @@
         word-break: break-word;
     }
 
-    /* Raise / clear get their own row and a tap target. */
+    /* Raise / undo sit beside the status buttons (Ed's ask), so they are sized
+       to their icons rather than stretched — they must not take room the three
+       status buttons need. */
     #checksTable td.mc-actions {
         display: flex;
-        gap: 8px;
-        margin-top: 8px;
+        gap: 6px;
+        margin-left: 8px;
     }
-    #checksTable td.mc-actions > * { flex: 1 1 auto; min-height: 44px; }
+    #checksTable td.mc-actions > * {
+        flex: 0 0 auto;
+        min-width: 40px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
 
     /* The group heading spans the whole card feed. */
     #checksTable tbody tr.mc-group-row { padding: 0; border-bottom: none; }
@@ -4563,8 +4617,19 @@
        a phone — it would only be a dead 6px stripe. The chart itself stays:
        it is the one glanceable summary on the page. */
     .mc-divider { display: none; }
-    .chart-footer { max-height: 42vh; }
-    .chart-container-inner { height: 250px; padding: 15px; }
+
+    /* 28 days squeezed into 360px is an unreadable picket fence, so the chart
+       gets the width it needs and the footer scrolls sideways to it.
+       ⚠️ The SCROLLER has to be the footer and the WIDTH has to be on the
+       chart's own container: Chart.js runs with `responsive: true`, which sizes
+       the canvas to its PARENT. Putting the min-width on the canvas instead
+       would be overwritten on the next resize, and putting the scroll on the
+       parent would just clip it. This way Chart.js measures 720px, draws 720px,
+       and the footer scrolls. Sideways scrolling is normally the thing to avoid
+       on a phone — a chart is the one honest exception, because squeezing it
+       destroys the information rather than merely making it narrow. */
+    .chart-footer { max-height: 42vh; overflow-x: auto; }
+    .chart-container-inner { height: 250px; padding: 15px; min-width: 720px; }
     .chart-footer-header { padding: 12px 15px; }
     .chart-footer-header h2 { font-size: 16px; }
 
