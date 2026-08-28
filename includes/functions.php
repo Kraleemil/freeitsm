@@ -13,6 +13,13 @@
 // sessionPromoteToAuthenticated() available without anyone having to remember.
 require_once __DIR__ . '/session_security.php';
 
+// Keeps an ACTIVE session from being deleted by PHP's garbage collector. The 717
+// endpoints that open the session with read_and_close never reach the close that
+// would refresh the session file's timestamp, so the collector reads a busy user
+// as idle and signs them out mid-task. Included here for the same reason as the
+// others: every one of those endpoints already includes this file. See GH #107.
+require_once __DIR__ . '/session_keepalive.php';
+
 // Refuses a state-changing request declaring text/plain — the CORS-simple trick that
 // smuggles a JSON body past the preflight that would otherwise stop it. Runs on
 // include, for the same reason: 369 endpoints read php://input and none of them
