@@ -1613,3 +1613,29 @@ body {
 [data-theme-mode="dark"] .cal-day.cal-weekend { background: #191d24; }
 [data-theme-mode="dark"] .cal-day.cal-weekend.cal-out { background: #161a20; }
 [data-theme-mode="dark"] .tl-day.tl-weekend { background: #191d24; }
+
+/* ── Time on tasks (GH #112) ───────────────────────────────────────────────
+   The entry rows themselves reuse the ticket panel's .time-entry-* rules from
+   inbox.css, which this page already loads — one look for the same idea in both
+   modules. Only the two things that file has no rule for are declared here. */
+.detail-field .detail-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text, #333);
+    cursor: pointer;
+}
+.detail-field .detail-checkbox input {
+    accent-color: var(--tsk-accent, #7c3aed);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+/* inbox.css styles the rows but not their container. */
+.time-entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}

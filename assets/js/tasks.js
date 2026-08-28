@@ -25,6 +25,10 @@ let cardFields = {
     due_date: 1, description: 0, subtasks: 1, links: 1
 };
 
+// Where scheduled work and time entries appear — overridden by Settings → Time.
+// Defaults to everywhere, matching the server (GH #112).
+let timeScope = 'both';
+
 // Tags — full list, display settings, the active sidebar filter, and the
 // working set while a task is open in the detail panel
 let tagList = [];
@@ -87,7 +91,32 @@ async function loadCardSettings() {
         if (data.success && data.settings.tag_settings) {
             tagSettings = data.settings.tag_settings;
         }
+        if (data.success && data.settings.time_scope) {
+            timeScope = data.settings.time_scope;
+        }
     } catch (e) { console.error('Failed to load card settings:', e); }
+}
+
+// Where the time features are offered: 'both', 'tasks', 'subtasks' or 'off'
+// (Settings → Time). A top-level task and a subtask are the same record told
+// apart by parent_task_id, so this is the only thing that distinguishes them.
+//
+// ⚠️ This is the DISPLAY half only. The server enforces the same rule on write,
+// so a stale tab cannot log time the setting has since disallowed.
+function timeAllowedFor(task) {
+    if (timeScope === 'off')  return false;
+    if (timeScope === 'both') return true;
+    const isSubtask = !!task.parent_task_id;
+    return timeScope === 'subtasks' ? isSubtask : !isSubtask;
+}
+
+// Minutes as people say them: 90 -> "1h 30m". Matches the ticket time panel.
+function formatMinutes(mins) {
+    mins = Math.max(0, parseInt(mins, 10) || 0);
+    if (mins < 60) return mins + 'm';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 // ── Data Loading ───────────────────────────────────────────────────
@@ -870,6 +899,36 @@ function renderDetailPanel(task) {
             </div>
         </div>
 
+        ${timeAllowedFor(task) ? `
+        <!-- WHEN THE WORK IS PLANNED FOR. Naive wall-clock values, shown exactly
+             as typed for every reader, like a ticket's scheduled work. Never run
+             these through the timezone helpers. -->
+        <div class="detail-row">
+            <div class="detail-field">
+                <label>${esc(window.t('tasks.detail.work_start'))}</label>
+                <input type="${task.work_all_day == 1 ? 'date' : 'datetime-local'}" class="detail-input" id="detailWorkStart"
+                       value="${workValue(task.work_start_datetime, task.work_all_day)}"
+                       onchange="saveWorkStart(this.value)">
+            </div>
+            <div class="detail-field">
+                <label>${esc(window.t('tasks.detail.work_end'))}</label>
+                <input type="${task.work_all_day == 1 ? 'date' : 'datetime-local'}" class="detail-input" id="detailWorkEnd"
+                       value="${workValue(task.work_end_datetime, task.work_all_day)}"
+                       onchange="saveWorkEnd(this.value)">
+            </div>
+        </div>
+        <div class="detail-field">
+            <label class="detail-checkbox">
+                <input type="checkbox" id="detailWorkAllDay" ${task.work_all_day == 1 ? 'checked' : ''}
+                       onchange="saveField('work_all_day', this.checked ? 1 : 0); openDetailPanel(${task.id});">
+                ${esc(window.t('tasks.detail.work_all_day'))}
+            </label>
+        </div>
+
+        <!-- TIME ACTUALLY SPENT, as many sittings as it took. -->
+        <div class="detail-field" id="taskTimeSection"></div>
+        ` : ''}
+
         <div class="detail-field">
             <label>${esc(window.t('tasks.detail.tags'))}</label>
             <div id="detailTagSection"></div>
@@ -979,6 +1038,14 @@ function renderDetailPanel(task) {
 
     renderTagSection();
 
+    // Time actually spent (GH #112). Fetched rather than rendered from the task
+    // payload, because the totals include the subtasks' entries and are worked
+    // out by the server — the panel must not be a second place that knows how to
+    // add up somebody's hours.
+    if (timeAllowedFor(task)) {
+        loadTaskTime(task.id);
+    }
+
     // Attached documents (discussion #76). Mounted, not re-pointed — this panel
     // is rebuilt for every task, so the previous element is already gone.
     if (window.FreeITSMDocuments) {
@@ -1063,6 +1130,160 @@ async function postTaskChange(payload, failedKey) {
 async function saveField(field, value) {
     if (!selectedTaskId) return;
     await postTaskChange({ id: selectedTaskId, [field]: value }, 'tasks.toast.save_failed');
+}
+
+// ── Scheduled work (GH #112) ───────────────────────────────────────
+//
+// ⚠️ NAIVE WALL CLOCK. What the input holds is what gets stored and what every
+// reader sees: a 2pm slot means 2pm in Vienna and in London alike, exactly as a
+// ticket's scheduled work behaves. So these values are sent AS TYPED and must
+// never go through inputToUTC() — that helper is for the time entries below,
+// which are instants. Sending one through the other is the GH #116 bug in
+// reverse, and it would be silent.
+function workValue(stored, allDay) {
+    if (!stored) return '';
+    const s = String(stored).replace(' ', 'T');
+    return allDay == 1 ? s.substring(0, 10) : s.substring(0, 16);
+}
+
+// An all-day slot is a whole day, so a date-only box sends midnight to midnight
+// rather than a time nobody chose.
+function workPayload(value) {
+    if (!value) return null;
+    return value.length === 10 ? value + ' 00:00' : value.replace('T', ' ');
+}
+
+async function saveWorkStart(value) {
+    if (!selectedTaskId) return;
+    // Clearing the start clears the whole slot, server-side. Reopen so the end
+    // box does not sit there showing a time that no longer exists.
+    const ok = await postTaskChange({ id: selectedTaskId, work_start_at: workPayload(value) }, 'tasks.toast.save_failed');
+    if (ok && !value) openDetailPanel(selectedTaskId);
+}
+
+async function saveWorkEnd(value) {
+    if (!selectedTaskId) return;
+    // The server refuses an end before the start, or an end with no start. When
+    // it does, put the field back to what is actually stored rather than leaving
+    // the rejected value on screen looking saved.
+    const ok = await postTaskChange({ id: selectedTaskId, work_end_at: workPayload(value) }, 'tasks.toast.save_failed');
+    if (!ok) openDetailPanel(selectedTaskId);
+}
+
+// ── Time spent (GH #112) ───────────────────────────────────────────
+
+async function loadTaskTime(taskId) {
+    const el = document.getElementById('taskTimeSection');
+    if (!el) return;
+    let d;
+    try {
+        d = await fetch(API_BASE + 'get_time_entries.php?task_id=' + taskId).then(r => r.json());
+    } catch (e) { console.error(e); return; }
+    if (!d || !d.success) return;
+    renderTaskTime(taskId, d);
+}
+
+function renderTaskTime(taskId, d) {
+    const el = document.getElementById('taskTimeSection');
+    if (!el) return;
+
+    // Two totals, and only when they differ. "3h 30m · 6h 10m including
+    // subtasks" on a task with no subtasks would just be the same number twice.
+    //
+    // ⚠️ The separator is built HERE, not inside the translated string. A
+    // '&middot;' in the lang file goes through esc() with everything else and
+    // renders as the literal text "&middot;" — which is exactly what it did
+    // until the page was driven in a browser and read.
+    const parts = [esc(window.t('tasks.time.total', { amount: formatMinutes(d.total_minutes) }))];
+    if (d.subtask_minutes > 0) {
+        parts.push(esc(window.t('tasks.time.total_with_subtasks', {
+            amount: formatMinutes(d.total_with_subtasks_minutes)
+        })));
+    }
+    const total = parts.join(' &middot; ');
+
+    const rows = (d.entries || []).length
+        ? d.entries.map(e => {
+            // ⚠️ Bare ANALYST_ID, not window.ANALYST_ID: it is declared `const` at
+            // the top of this file, and a const is NOT a property of window. The
+            // window form reads undefined, so every row would lose its delete
+            // button while looking perfectly fine.
+            const mine = parseInt(e.analyst_id, 10) === parseInt(ANALYST_ID, 10);
+            // entry_datetime IS an instant, so it goes through the timezone
+            // helpers -- the opposite of the scheduled fields above.
+            const when = formatDateTime(e.entry_datetime);
+            return `
+            <div class="time-entry-item">
+                <div class="time-entry-row">
+                    <span class="time-entry-spent">${esc(formatMinutes(e.time_spent_minutes))}</span>
+                    <span class="time-entry-analyst">${esc(e.analyst_name || '')}</span>
+                    <span class="time-entry-date">${esc(when)}</span>
+                    ${mine ? `<button class="time-entry-delete" title="${escAttr(window.t('tasks.time.delete'))}"
+                                onclick="deleteTaskTime(${e.id})">&times;</button>` : ''}
+                </div>
+                ${e.notes ? `<div class="time-entry-notes">${esc(e.notes)}</div>` : ''}
+            </div>`;
+        }).join('')
+        : `<div class="time-entry-empty">${esc(window.t('tasks.time.empty'))}</div>`;
+
+    el.innerHTML = `
+        <label>${esc(window.t('tasks.time.heading'))} ${total}</label>
+        <form class="time-entry-form" onsubmit="event.preventDefault(); addTaskTime(${taskId});">
+            <input type="number" min="1" step="1" id="taskTimeMinutes" class="time-entry-input-minutes"
+                   placeholder="${escAttr(window.t('tasks.time.minutes_placeholder'))}" required>
+            <input type="text" id="taskTimeNotes" class="time-entry-input-notes"
+                   placeholder="${escAttr(window.t('tasks.time.notes_placeholder'))}">
+            <button type="submit" class="time-entry-add-btn">${esc(window.t('tasks.time.add'))}</button>
+        </form>
+        <div class="time-entry-list">${rows}</div>`;
+}
+
+async function addTaskTime(taskId) {
+    const minutes = parseInt(document.getElementById('taskTimeMinutes').value, 10);
+    const notes   = document.getElementById('taskTimeNotes').value.trim();
+    if (!minutes || minutes <= 0) {
+        showToast(window.t('tasks.time.minutes_required'), 'error');
+        return;
+    }
+    try {
+        const d = await fetch(API_BASE + 'save_time_entry.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, time_spent_minutes: minutes, notes: notes })
+        }).then(r => r.json());
+        if (!d || !d.success) {
+            showToast((d && d.error) || window.t('tasks.toast.save_failed'), 'error');
+            return;
+        }
+        loadTaskTime(taskId);
+    } catch (e) {
+        console.error(e);
+        showToast(window.t('tasks.toast.save_failed'), 'error');
+    }
+}
+
+async function deleteTaskTime(entryId) {
+    if (!(await showConfirm({
+        title: window.t('tasks.time.delete'),
+        message: window.t('tasks.time.delete_confirm'),
+        okLabel: window.t('common.delete') || 'Delete',
+        okClass: 'danger'
+    }))) return;
+    try {
+        const d = await fetch(API_BASE + 'delete_time_entry.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: entryId })
+        }).then(r => r.json());
+        if (!d || !d.success) {
+            showToast((d && d.error) || window.t('tasks.toast.delete_failed'), 'error');
+            return;
+        }
+        if (selectedTaskId) loadTaskTime(selectedTaskId);
+    } catch (e) {
+        console.error(e);
+        showToast(window.t('tasks.toast.delete_failed'), 'error');
+    }
 }
 
 // ── Detail-panel tag picker ────────────────────────────────────────

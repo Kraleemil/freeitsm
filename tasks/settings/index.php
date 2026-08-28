@@ -39,7 +39,7 @@ $translationNamespaces = ['common', 'tasks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('tasks.title') . ' ' . t('tasks.nav.settings')); ?></title>
     <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../../assets/css/tasks.css?v=16">
+    <link rel="stylesheet" href="../../assets/css/tasks.css?v=17">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../../assets/js/tz.js?v=5"></script>
@@ -197,9 +197,37 @@ $translationNamespaces = ['common', 'tasks'];
             </div>
         </div>
 
-        <!-- Card Tab -->
         <?php endif; ?>
 
+        <!-- Time Tab (GH #112) -->
+        <?php if (settingsTabVisible($visibleTabs, 'time')): ?>
+        <div class="tab-content<?php echo $activeTabId === 'time' ? ' active' : ''; ?>" id="time-tab" data-capability="<?php echo Cap::TASKS_TIME; ?>">
+            <div class="section-header">
+                <h2><?php echo htmlspecialchars(t('tasks.settings.time_heading')); ?></h2>
+            </div>
+            <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo htmlspecialchars(t('tasks.settings.time_desc')); ?></p>
+            <div class="span-mode-options">
+                <?php foreach ([
+                    'both'     => 'tasks.settings.time_both',
+                    'tasks'    => 'tasks.settings.time_tasks',
+                    'subtasks' => 'tasks.settings.time_subtasks',
+                    'off'      => 'tasks.settings.time_off',
+                ] as $value => $labelKey): ?>
+                <label class="span-mode-card">
+                    <input type="radio" name="timeScope" value="<?php echo $value; ?>" onchange="saveTimeScope(this.value)">
+                    <div class="span-mode-body">
+                        <div class="span-mode-name"><?php echo htmlspecialchars(t($labelKey)); ?></div>
+                    </div>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <!-- Said plainly, because "will this delete the hours my team logged?"
+                 is the first thing anybody narrowing this will want to know. -->
+            <p style="color: var(--text-muted, #666); margin-top: 16px;"><?php echo htmlspecialchars(t('tasks.settings.time_note')); ?></p>
+        </div>
+        <?php endif; ?>
+
+        <!-- Card Tab -->
         <?php if (settingsTabVisible($visibleTabs, 'card')): ?>
         <div class="tab-content<?php echo $activeTabId === 'card' ? ' active' : ''; ?>" id="card-tab" data-capability="<?php echo Cap::TASKS_CARD; ?>">
             <div class="section-header">
@@ -474,10 +502,11 @@ $translationNamespaces = ['common', 'tasks'];
         document.addEventListener('DOMContentLoaded', () => {
             for (const kind of Object.keys(LOOKUP_KINDS)) loadLookup(kind);
             loadSpanMode();
+            loadTimeScope();
             loadCardFields();
             loadTagSettings();
             const tabFromHash = location.hash.replace('#', '');
-            if (['calendar', 'card', 'tags'].includes(tabFromHash)) switchTab(tabFromHash);
+            if (['calendar', 'time', 'card', 'tags'].includes(tabFromHash)) switchTab(tabFromHash);
         });
 
         // ── Tag display settings ──
@@ -540,6 +569,30 @@ $translationNamespaces = ['common', 'tasks'];
             document.querySelectorAll('.span-mode-card').forEach(card => {
                 card.classList.toggle('selected', card.querySelector('input').checked);
             });
+        }
+
+        // ── Where time is recorded (GH #112) ──
+        async function loadTimeScope() {
+            try {
+                const data = await fetch(API_BASE + 'get_settings.php').then(r => r.json());
+                const scope = (data.success && data.settings.time_scope) || 'both';
+                const radio = document.querySelector(`input[name="timeScope"][value="${scope}"]`);
+                if (radio) radio.checked = true;
+            } catch (e) { console.error(e); }
+            markSelectedCard();
+        }
+
+        async function saveTimeScope(value) {
+            markSelectedCard();
+            try {
+                const res = await fetch(API_BASE + 'save_settings.php', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ settings: { time_scope: value } })
+                });
+                const data = await res.json();
+                if (data.success) showToast(t('tasks.toast.saved'), 'success');
+                else showToast(data.error || t('tasks.toast.save_failed'), 'error');
+            } catch (e) { showToast(t('tasks.toast.save_failed'), 'error'); }
         }
 
         // ── Card field toggles ──
