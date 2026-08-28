@@ -78,8 +78,44 @@ function oidcDiscover(string $issuer): array {
     if (!is_array($doc) || empty($doc['authorization_endpoint']) || empty($doc['token_endpoint']) || empty($doc['jwks_uri'])) {
         throw new Exception('Invalid OIDC discovery document from ' . $url);
     }
+    // Every endpoint must be an ABSOLUTE https:// (or http://) URL.
+    //
+    // The spec requires this, but a misconfigured provider can advertise a bare
+    // path like "/oidc/authorize", and passing that straight through is silently
+    // dangerous rather than merely broken: oidcBuildAuthUrl() would emit it as a
+    // relative `Location:` header, and the BROWSER then resolves it against the
+    // current origin — this application. The user lands on OUR host, gets a 404,
+    // and every visible symptom points at us instead of at the IdP. Refusing it
+    // here names the real culprit while we still know who it is. Same shape as
+    // the relative-fetch bug in issue #74.
+    foreach (['authorization_endpoint', 'token_endpoint', 'jwks_uri'] as $key) {
+        if (!oidcIsAbsoluteHttpUrl((string)$doc[$key])) {
+            throw new Exception(
+                "The identity provider's discovery document at {$url} gives {$key} as \"{$doc[$key]}\", "
+                . "which is not an absolute http(s) URL. The provider must publish the full address "
+                . "(for example https://idp.example.com/oidc/authorize). This is a configuration problem "
+                . "at the identity provider, not in FreeITSM — a relative address here would send people "
+                . "to this server instead of to the provider."
+            );
+        }
+    }
     $cache[$issuer] = $doc;
     return $doc;
+}
+
+/**
+ * True only for an absolute http:// or https:// URL with a host part.
+ *
+ * Deliberately stricter than filter_var(..., FILTER_VALIDATE_URL), which
+ * happily accepts schemes we must never redirect a browser to (javascript:,
+ * data:, mailto:) and which some PHP builds accept without a host.
+ */
+function oidcIsAbsoluteHttpUrl(string $url): bool {
+    $parts = parse_url(trim($url));
+    if (!is_array($parts)) return false;
+    $scheme = strtolower($parts['scheme'] ?? '');
+    if ($scheme !== 'http' && $scheme !== 'https') return false;
+    return !empty($parts['host']);
 }
 
 /**

@@ -83,7 +83,7 @@ function getDebugTools() {
                 'How the email maps to a company — exact sender-address override, domain mapping, and whether it\'s a freemail/personal domain',
                 'The user account — exists / passwordless / TOTP state / which provider it\'s pinned to / linked SSO identities (subject shown masked)',
                 'The predicted login outcome (local / sso / choose), mirroring the real resolve_login routing',
-                'Provider health + a live, secret-free OIDC discovery test (issuer match, authorization/token/jwks/end-session endpoints reachable)',
+                'Provider health + a live, secret-free OIDC discovery test — issuer match, protocol, and the ACTUAL published address of each endpoint (not merely present/absent), flagging any that is not an absolute URL or sits on a different host from the issuer',
                 'The exact redirect URI to register in the IdP',
                 'A plain-English verdict listing any blockers',
             ],

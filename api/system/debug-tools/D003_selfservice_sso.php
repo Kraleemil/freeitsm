@@ -33,6 +33,42 @@ function addSection(&$sections, $title, $body) {
 }
 function yn($v) { return $v ? 'YES' : 'NO'; }
 function okbad($v, $ok = 'OK', $bad = 'MISSING') { return $v ? $ok : $bad; }
+
+/**
+ * One discovery-endpoint line, printing the ADDRESS the provider published.
+ *
+ * Three things are worth saying about each, and only the first was ever said:
+ *   - present or missing;
+ *   - RELATIVE, which is the failure that masquerades as a bug in this app —
+ *     a bare "/oidc/authorize" is resolved by the browser against THIS host, so
+ *     the user lands here, gets a 404, and nothing on screen implicates the IdP;
+ *   - a host that differs from the issuer's. Perfectly legal (Entra and Okta
+ *     both do it), so it is a note and never a failure — but when somebody is
+ *     staring at an unexpected domain it is the line that explains it.
+ */
+function endpointLine(string $key, array $doc, string $issuerUrl, string $what): string {
+    $pad   = str_pad($key, 22);
+    $value = isset($doc[$key]) ? trim((string)$doc[$key]) : '';
+    if ($value === '') return "    {$pad}: MISSING  <-- required; sign-in cannot start without it";
+
+    $parts   = parse_url($value);
+    $scheme  = is_array($parts) ? strtolower($parts['scheme'] ?? '') : '';
+    $host    = is_array($parts) ? ($parts['host'] ?? '') : '';
+    $isAbs   = ($scheme === 'http' || $scheme === 'https') && $host !== '';
+    $line    = "    {$pad}: " . maskGuids($value);
+
+    if (!$isAbs) {
+        return $line . "\n      ^^ NOT AN ABSOLUTE URL — this is the problem. The provider must publish"
+                     . "\n         the full address (https://idp.example.com/...). A relative one sends"
+                     . "\n         people to THIS server instead of to the provider. Fix it at the IdP.";
+    }
+    $issuerHost = parse_url(rtrim($issuerUrl, '/'), PHP_URL_HOST) ?: '';
+    if ($issuerHost !== '' && strcasecmp($host, $issuerHost) !== 0) {
+        $line .= "\n      note: different host from the issuer (" . maskGuids($issuerHost) . ") — normal for"
+               . "\n            some providers, but worth confirming it is the one you expect.";
+    }
+    return $line . "\n      ({$what})";
+}
 function maskMiddle($s) {
     $s = (string)$s;
     if ($s === '') return '(empty)';
@@ -153,7 +189,10 @@ $rows = function ($sql, $params = []) use ($conn) {
 $schema = [
     'users'                => ['id','email','display_name','preferred_name','password_hash','totp_secret','totp_enabled','auth_provider_id'],
     'user_sso_identities'  => ['id','user_id','provider_id','subject','email','linked_datetime','last_login_datetime'],
-    'auth_providers'       => ['id','display_name','issuer_url','client_id','client_secret','scopes','enabled','auto_create_users','require_verified_email','tenant_id'],
+    // `protocol` matters here even though this tool is about OIDC: oidc_login.php
+    // refuses anything that is not 'oidc', so a build missing the column would
+    // fail in a way this report could not explain.
+    'auth_providers'       => ['id','display_name','protocol','issuer_url','client_id','client_secret','scopes','enabled','auto_create_users','require_verified_email','tenant_id'],
     'system_settings'      => ['setting_key','setting_value'],
 ];
 $schemaLines = [];
@@ -333,6 +372,8 @@ if (!$relevantIds) {
         $block = [
             "Provider #{$p['id']} — {$p['display_name']}",
             "  Enabled                 : " . yn($p['enabled']),
+            "  Protocol                : " . ($p['protocol'] ?? 'oidc')
+                . ((($p['protocol'] ?? 'oidc') !== 'oidc') ? "  <-- not OIDC; the SSO login flow refuses this and offers a password instead" : ''),
             "  Owner                   : {$owner}",
             "  Issuer URL              : " . maskGuids($p['issuer_url']),
             "  Client ID               : " . maskId($p['client_id']),
@@ -351,9 +392,13 @@ if (!$relevantIds) {
             $issMatch = isset($doc['issuer']) && rtrim((string)$doc['issuer'], '/') === rtrim((string)$p['issuer_url'], '/');
             $block[] = "  Discovery               : OK (" . maskGuids($d['url']) . ")";
             $block[] = "    issuer match          : " . yn($issMatch) . ($issMatch ? '' : "  <-- token 'iss' must equal configured issuer; mismatch breaks login");
-            $block[] = "    authorization_endpoint: " . okbad(!empty($doc['authorization_endpoint']), 'present', 'MISSING');
-            $block[] = "    token_endpoint        : " . okbad(!empty($doc['token_endpoint']), 'present', 'MISSING');
-            $block[] = "    jwks_uri              : " . okbad(!empty($doc['jwks_uri']), 'present', 'MISSING');
+            // Print the VALUES, not just present/absent. "authorization_endpoint:
+            // present" tells you nothing about the one fact that decides where the
+            // browser actually goes, and a wrong address here looks exactly like a
+            // bug in this application (issue #117).
+            $block[] = endpointLine('authorization_endpoint', $doc, $p['issuer_url'], 'this is the address the browser is sent to');
+            $block[] = endpointLine('token_endpoint',         $doc, $p['issuer_url'], 'this server calls it directly, back-channel');
+            $block[] = endpointLine('jwks_uri',               $doc, $p['issuer_url'], 'signing keys for the ID token');
             $block[] = "    end_session_endpoint  : " . okbad(!empty($doc['end_session_endpoint']), 'present', 'absent (single logout will be skipped)');
         }
         $provBlocks[] = implode("\n", $block);
@@ -390,6 +435,20 @@ if ($predMode === 'sso' || $predMode === 'choose') {
         if ($iss && !empty($d['ok'])) {
             $secOk = (bool)$scalar("SELECT (client_secret IS NOT NULL AND client_secret<>'') FROM auth_providers WHERE id=?", [$pp['id']]);
             if (!$secOk) $blockers[] = "Provider #{$pp['id']} ({$pp['name']}) has no client secret set.";
+            // A relative endpoint is a blocker that points AWAY from us, so say so
+            // in the verdict rather than leaving it to be spotted in the detail.
+            foreach (['authorization_endpoint', 'token_endpoint', 'jwks_uri'] as $key) {
+                $val   = trim((string)($d['doc'][$key] ?? ''));
+                $bits  = $val !== '' ? parse_url($val) : null;
+                $absOk = is_array($bits)
+                    && in_array(strtolower($bits['scheme'] ?? ''), ['http', 'https'], true)
+                    && !empty($bits['host']);
+                if ($val !== '' && !$absOk) {
+                    $blockers[] = "Provider #{$pp['id']} ({$pp['name']}) publishes {$key} as \"{$val}\", which is not an "
+                                . "absolute URL. Sign-in will fail, and it will look like a fault in FreeITSM because the "
+                                . "browser resolves that address against this server. Fix it at the identity provider.";
+                }
+            }
         }
     }
 }
