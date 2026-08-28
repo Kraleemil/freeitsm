@@ -4517,8 +4517,14 @@
     #checksTable tbody td:nth-child(3)   { order: 3; flex: 1 1 auto; }  /* status */
     #checksTable tbody td.mc-actions     { order: 4; flex: 0 0 auto; }  /* + and undo */
     #checksTable tbody td.notes-display  { order: 5; }
-    #checksTable tbody td.mc-checked-by  { order: 6; }
-    #checksTable tbody td.mc-checked-at  { order: 7; }
+    /* ⚠️ `flex: 0 0 auto`, so these two share ONE line. They used to be
+       `display: inline`, which worked while the card was a stack of blocks —
+       but a flex item's display is BLOCKIFIED, so the moment the card became a
+       flex row (to get the + button up beside the status buttons) the inline
+       collapsed to block and the name and the time each took a line of their
+       own. The fix is flex sizing, not a display value. */
+    #checksTable tbody td.mc-checked-by  { order: 6; flex: 0 0 auto; }
+    #checksTable tbody td.mc-checked-at  { order: 7; flex: 0 0 auto; }
 
     /* The check's name is the card's heading. */
     #checksTable tbody td:first-child {
@@ -4561,9 +4567,11 @@
 
     /* Who did it and when read as one line, not two rows — two short values
        do not each need their own line. */
+    /* Sizing is above with the other order/flex rules; only the look is here.
+       (No `display: inline` — see the note there for why it did nothing.) */
     #checksTable td.mc-checked-by,
-    #checksTable td.mc-checked-at { display: inline; font-size: 12px; }
-    #checksTable td.mc-checked-at::before { content: " \00b7 "; }
+    #checksTable td.mc-checked-at { font-size: 12px; margin-top: 4px; }
+    #checksTable td.mc-checked-at::before { content: "\00a0\00b7\00a0"; }
     /* ⚠️ When a check has not been done yet the renderer emits an em dash in
        BOTH cells, which as a card line reads "— · —" and means nothing. Hide
        each one that is only a dash, so an unchecked card simply has no
