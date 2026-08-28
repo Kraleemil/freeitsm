@@ -29,13 +29,26 @@
  * you on the login screen having lost nothing but your place.
  *
  * ── Why it looked like a Docker bug ──────────────────────────────────────────
- * It is not, but it presents as one. Debian and Ubuntu's PHP packages set
- * `session.gc_probability = 0` and sweep old sessions from a cron job instead, so
- * the in-process collector never runs and the stale timestamp never costs
- * anything. The official `php:*-apache` image ships PHP's compiled defaults,
- * where the probability is 1 in 100 — so the same code logs people out in a
- * container and behaves perfectly on a distro package. Any install that has not
- * turned the collector off is affected.
+ * It is not one. NOBODY IS IMMUNE — the odds simply differ by orders of
+ * magnitude, which is exactly what makes it look environmental:
+ *
+ *   official php:*-apache      gc_probability 1, gc_divisor 100   → 1 in 100
+ *                              requests runs the collector, so it fires during
+ *                              an ordinary afternoon's work.
+ *   WAMP (php.ini-development) probability 1, divisor 1000        → 1 in 1000.
+ *                              Ten times rarer, and a developer reloading pages
+ *                              constantly restarts the clock before it matters.
+ *   Debian / Ubuntu packages   probability 0 — the in-process collector never
+ *                              runs. But /usr/lib/php/sessionclean sweeps from
+ *                              cron every 30 minutes using `find -cmin`, and
+ *                              ctime is no more refreshed by a read than mtime
+ *                              is. So the SAME blind spot exists; it can only
+ *                              bite on a cron tick, which is rare enough to look
+ *                              like immunity in any short test.
+ *
+ * The trigger needs both halves: 24 minutes of work with no page load, AND the
+ * collector happening to run. Change either and the bug disappears, which is why
+ * two people testing the same version in good faith could not reproduce it.
  *
  * ── What this does ───────────────────────────────────────────────────────────
  * Restores the timestamp update that `read_and_close` skips, and nothing else.
