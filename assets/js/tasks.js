@@ -862,6 +862,51 @@ function applyModalLayout(body) {
     body.appendChild(layout);
 }
 
+// The header button that swaps between the side panel and the large window.
+// Drawn per state: an expand icon while you are in the drawer, a shrink icon
+// while you are in the window, so the icon shows what pressing it will DO.
+function paintViewToggle() {
+    const btn  = document.getElementById('detailViewToggle');
+    const icon = document.getElementById('detailViewToggleIcon');
+    if (!btn || !icon) return;
+    const modal = taskViewIsModal();
+    icon.innerHTML = modal
+        // Shrink back to the side panel
+        ? '<polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line>'
+        // Grow into the large window
+        : '<polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line>';
+    btn.title = window.t(modal ? 'tasks.detail.view_to_panel' : 'tasks.detail.view_to_modal');
+}
+
+// Swap the view, remember it, and redraw the task that is already open.
+//
+// The preference is saved rather than held for the session: somebody who moves
+// a task into the big window means "this is how I want tasks", not "just this
+// once". It is the same key System → Preferences writes, so the two agree.
+async function toggleTaskView() {
+    window.TASK_DETAIL_VIEW = taskViewIsModal() ? 'panel' : 'modal';
+    const id = selectedTaskId;
+    // Redraw first so the change is instant; the preference is a background
+    // detail and must not make the button feel slow.
+    if (id) await openDetailPanel(id);
+    try {
+        const r = await fetch(APP_BASE + 'api/system/set_user_preference.php', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: 'tasks_detail_view', value: window.TASK_DETAIL_VIEW })
+        }).then(r => r.json());
+        if (!r || !r.success) {
+            // The view still changed for this session; be honest that it will
+            // not be remembered rather than silently forgetting it.
+            showToast(window.t('tasks.detail.view_not_saved'), 'error');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast(window.t('tasks.detail.view_not_saved'), 'error');
+    }
+}
+
 async function openDetailPanel(taskId) {
     // Prevent opening from drag
     if (dragState) return;
@@ -875,6 +920,7 @@ async function openDetailPanel(taskId) {
         // the modal is the same element with a class on it, so there is no
         // second panel to keep in step.
         panel.classList.toggle('as-modal', taskViewIsModal());
+        paintViewToggle();
         renderDetailPanel(data.task);
         panel.classList.add('open');
         document.getElementById('detailOverlay').classList.add('open');

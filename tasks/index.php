@@ -145,6 +145,15 @@ $translationNamespaces = ['common', 'tasks'];
         <div class="detail-panel-header">
             <h3><?php echo htmlspecialchars(t('tasks.detail.heading')); ?></h3>
             <div class="detail-panel-actions">
+                <!-- Switches between the side panel and the large window, and
+                     remembers the choice. The setting also lives in System →
+                     Preferences, but nobody finds a setting they do not know
+                     exists — this is the same choice, offered at the moment you
+                     are wishing for it. Icon and tooltip are set per state by
+                     paintViewToggle(). -->
+                <button class="btn-icon" id="detailViewToggle" onclick="toggleTaskView()" title="">
+                    <svg id="detailViewToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"></svg>
+                </button>
                 <button class="btn-icon" onclick="deleteCurrentTask()" title="<?php echo htmlspecialchars(t('tasks.detail.delete')); ?>">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
@@ -220,7 +229,7 @@ $translationNamespaces = ['common', 'tasks'];
     window.APP_BASE = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>';
     window.TASK_DETAIL_VIEW = <?php echo json_encode($taskDetailView); ?>;</script>
     <script src="../assets/js/tasks-ctx-menu.js?v=2"></script>
-    <script src="../assets/js/tasks.js?v=24"></script>
+    <script src="../assets/js/tasks.js?v=25"></script>
     <script src="../assets/js/mobile.js?v=28"></script>
 </body>
 </html>
