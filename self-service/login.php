@@ -98,6 +98,12 @@ $localAllowed = $localOn || $forceLocal;
         }
         .login-header img {
             width: 250px;
+            /* The card is 400px wide but only ~296px of that is usable on a
+               360px screen once its padding is taken off, so a fixed 250px is
+               already close to the edge — and this logo is REPLACEABLE. A
+               customer's own logo at 600px would push the card wider than the
+               phone. Cap it rather than trust the file. */
+            max-width: 100%;
             height: auto;
             margin-bottom: 25px;
         }
@@ -124,7 +130,17 @@ $localAllowed = $localOn || $forceLocal;
             padding: 12px;
             border: 1px solid #ddd;
             border-radius: 5px;
-            font-size: 14px;
+            /* ⚠️ 16px, and NOT behind a `max-width` media query.
+               iOS zooms the page in on any field it renders below 16px, and
+               then leaves it zoomed. This is the first page a requester ever
+               sees, so it is the worst place for that.
+               The gate is deliberately absent: the zoom depends on the DEVICE,
+               not on the viewport width, and an iPhone held sideways reports
+               844px — wider than any phone breakpoint we use — so a width-gated
+               rule would miss exactly the case where the field is hardest to
+               read. Both fields on this page (email and password) come through
+               this one rule. */
+            font-size: 16px;
             transition: border-color 0.3s;
         }
         .form-group input:focus {

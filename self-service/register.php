@@ -60,6 +60,10 @@ $translationNamespaces = ['common', 'self-service'];
         }
         .login-header img {
             width: 250px;
+            /* Capped for the same reason as login.php: this logo is replaceable,
+               and a customer's own file at 600px would push the card wider than
+               the phone. */
+            max-width: 100%;
             height: auto;
             margin-bottom: 25px;
         }
@@ -86,7 +90,11 @@ $translationNamespaces = ['common', 'self-service'];
             padding: 12px;
             border: 1px solid #ddd;
             border-radius: 5px;
-            font-size: 14px;
+            /* 16px, ungated — see login.php for the reasoning. iOS zooms on any
+               field under 16px and stays zoomed, and it depends on the DEVICE,
+               not the viewport width, so a phone breakpoint would miss a handset
+               held sideways. All four fields here come through this one rule. */
+            font-size: 16px;
             transition: border-color 0.3s;
         }
         .form-group input:focus {
