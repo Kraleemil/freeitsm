@@ -472,12 +472,23 @@ $apiBaseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_UR
         document.getElementById('companyChecks').style.display =
             document.querySelector('input[name=scope][value=specific]').checked ? '' : 'none';
     }));
-    document.getElementById('copyBaseBtn').addEventListener('click', () => {
-        navigator.clipboard.writeText(document.getElementById('apiBaseUrl').textContent);
-    });
-    document.getElementById('copyKeyBtn').addEventListener('click', () => {
-        navigator.clipboard.writeText(document.getElementById('newKeyValue').textContent);
-    });
+    // ⚠️ These two copied in silence and reported nothing either way - and one
+    // of them is an API KEY shown exactly once. copyToClipboard says whether it
+    // worked; see clipboard.js.
+    function copyInto(btnId, sourceId, failMsg) {
+        document.getElementById(btnId).addEventListener('click', () => {
+            const b = document.getElementById(btnId);
+            copyToClipboard(document.getElementById(sourceId).textContent).then(ok => {
+                const old = b.textContent;
+                b.textContent = ok ? 'Copied' : 'Copy failed';
+                setTimeout(() => { b.textContent = old; }, 1600);
+                if (!ok && failMsg) alert(failMsg);
+            });
+        });
+    }
+    copyInto('copyBaseBtn', 'apiBaseUrl', null);
+    copyInto('copyKeyBtn', 'newKeyValue',
+             'Could not copy the key automatically. Select it and copy it by hand - it cannot be shown again.');
     document.getElementById('revealCloseBtn').addEventListener('click', () => {
         if (confirm('Have you copied the key? It cannot be shown again.')) {
             document.getElementById('revealModal').classList.remove('open');

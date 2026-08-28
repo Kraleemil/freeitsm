@@ -76,6 +76,7 @@ return [
         'link'       => 'Share Link',
         'pdf'        => 'Export as PDF',
         'email'      => 'Email (Link + PDF)',
+        'copy_manually' => 'Your browser would not copy this automatically. Here is the link:',
     ],
 
     'bulk' => [
@@ -136,6 +137,7 @@ return [
         'audience_hint_public'   => 'The website chat can answer visitors from this article. Only mark things public that you would happily show a stranger.',
         'field_company'    => 'Company',
         'company_shared'   => 'Shared with all companies',
+        'documents_after_save' => 'Save the article first, then reopen it to attach documents.',
         'company_hint'     => 'Leave shared for anything generic. Pick a company and only that company sees it.',
         'cancel'           => 'Cancel',
         'save'             => 'Save',

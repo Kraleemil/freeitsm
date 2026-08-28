@@ -2122,11 +2122,22 @@ function renderArticleDetail() {
     // Attached documents (discussion #76) — the manuals, procedures and PDFs the
     // feature request asked for. Mounted rather than re-pointed because this
     // container is rebuilt for every article; see the note in documents.js.
+    //
+    // ⚠️ canEdit: false — READING an article is not EDITING it. The panel used
+    // to bring its drop zone, its "add a link" row and its "find an existing
+    // document" box onto the page you land on just to read something, which put
+    // three pieces of editing furniture under every article for everybody. It is
+    // most obvious on a phone, where they take most of a screen, but the
+    // reasoning is not about screen size: everything else that changes an
+    // article is behind Edit, and this was the one exception. The list itself
+    // stays - the attachments are part of the article and you are here to read
+    // it. Adding and removing moved to the editor.
     if (window.FreeITSMDocuments) {
         FreeITSMDocuments.mount(document.getElementById('kbDocuments'), {
             parentType: 'knowledge_article',
             parentId:   currentArticle.id,
             apiBase:    '../api/documents/',
+            canEdit:    false,
             showHeading: true      // nothing else on this page names the section
         });
     }
@@ -2153,6 +2164,7 @@ function openCreateArticle() {
         articleEditor.setContent('');
     }
 
+    mountEditorDocuments();      // new article: says "save it first"
     document.getElementById('btnSaveAsVersion').style.display = 'none';
     showView('editor');
     applyEditorPopoutFromPref();
@@ -2202,6 +2214,7 @@ function editCurrentArticle() {
     }
 
     document.getElementById('btnSaveAsVersion').style.display = '';
+    mountEditorDocuments();      // existing article: the full panel
     showView('editor');
     // Restore the user's last popout preference on every entry to the editor.
     applyEditorPopoutFromPref();
@@ -2748,17 +2761,19 @@ function shareArticleLink() {
 
     const url = `${window.location.origin}${window.location.pathname}?article=${currentArticle.id}`;
 
-    navigator.clipboard.writeText(url).then(() => {
-        showToast(window.t('knowledge.toast.link_copied'), 'success');
-    }).catch(() => {
-        // Fallback for older browsers
-        const input = document.createElement('input');
-        input.value = url;
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand('copy');
-        document.body.removeChild(input);
-        showToast(window.t('knowledge.toast.link_copied'), 'success');
+    // ⚠️ copyToClipboard(), not navigator.clipboard directly — see clipboard.js.
+    // The old code read `.writeText` off an object that does not exist outside a
+    // secure context, which throws before the promise is created, so the
+    // `.catch()` fallback never ran. On a phone this was silent: no message, and
+    // nothing copied.
+    copyToClipboard(url).then(ok => {
+        if (ok) {
+            showToast(window.t('knowledge.toast.link_copied'), 'success');
+            return;
+        }
+        // Do not claim it worked. Hand over the link instead, selected and ready
+        // to copy by hand — the browser refused, the person has not.
+        kbPrompt(window.t('knowledge.share.copy_manually'), url);
     });
 }
 
@@ -3335,4 +3350,40 @@ async function kbConfirmMoveArticle() {
                        'knowledge.folders.moved_article');
     // The article is still on screen and its folder has changed underneath it.
     currentArticle.folder_id = folderId;
+}
+
+/**
+ * The documents panel inside the EDITOR — where attaching actually happens.
+ *
+ * ⚠️ Only for an article that EXISTS. A document is attached to a parent id, and
+ * a new article has none until it is saved, so the panel would be posting
+ * attachments against nothing. Rather than hold files in the browser and flush
+ * them after save — which is what ticket notes had to do, because a note has no
+ * id either — an article gets saved in one step and reopened, so the honest
+ * answer is to say "save it first" and mean it.
+ */
+function mountEditorDocuments() {
+    const box  = document.getElementById('kbEditorDocuments');
+    const hint = document.getElementById('kbEditorDocumentsHint');
+    if (!box) return;
+
+    const id = currentArticle && currentArticle.id ? currentArticle.id : null;
+    if (!id || !window.FreeITSMDocuments) {
+        // ⚠️ Drop the class as well as the contents. The widget puts `fd-panel`
+        // on the container ITSELF, so emptying the container alone leaves its
+        // border and padding behind — an empty bordered box under the editor
+        // that reads as a panel which failed to load.
+        box.innerHTML = '';
+        box.classList.remove('fd-panel');
+        if (hint) hint.style.display = id ? 'none' : '';
+        return;
+    }
+    if (hint) hint.style.display = 'none';
+    FreeITSMDocuments.mount(box, {
+        parentType: 'knowledge_article',
+        parentId:   id,
+        apiBase:    '../api/documents/',
+        canEdit:    true,
+        showHeading: true
+    });
 }

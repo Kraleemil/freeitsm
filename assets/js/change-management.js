@@ -1992,19 +1992,13 @@ function getChangeUrl() {
 function shareChangeLink() {
     closeShareDropdown();
     if (!currentChange) return;
-
     const url = getChangeUrl();
-    navigator.clipboard.writeText(url).then(() => {
-        showToast(window.t('change-management.toast.link_copied'), 'success');
-    }).catch(() => {
-        // Fallback for older browsers
-        const input = document.createElement('input');
-        input.value = url;
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand('copy');
-        document.body.removeChild(input);
-        showToast(window.t('change-management.toast.link_copied'), 'success');
+    // copyToClipboard(), not navigator.clipboard directly — see clipboard.js.
+    copyToClipboard(url).then(ok => {
+        showToast(
+            ok ? window.t('change-management.toast.link_copied')
+               : window.t('change-management.toast.link_copy_failed'),
+            ok ? 'success' : 'error');
     });
 }
 

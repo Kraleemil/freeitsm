@@ -748,7 +748,8 @@ function whAgo($s) {
 
     document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
         const t = document.getElementById(b.dataset.copy).textContent;
-        navigator.clipboard.writeText(t).then(() => { const o = b.textContent; b.textContent = 'Copied'; setTimeout(() => b.textContent = o, 1200); });
+        // copyToClipboard(), not navigator.clipboard directly - see clipboard.js.
+        copyToClipboard(t).then(ok => { const o = b.textContent; b.textContent = ok ? 'Copied' : 'Copy failed'; setTimeout(() => b.textContent = o, 1600); });
     });
     document.getElementById('refreshBtn').onclick = load;
     document.getElementById('pmClose').onclick = () => document.getElementById('payloadModal').style.display = 'none';

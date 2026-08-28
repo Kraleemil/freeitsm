@@ -447,6 +447,7 @@ return [
         'vote_recorded'   => 'Vote recorded: {vote}',
         'vote_error'      => 'Error submitting vote',
         'link_copied'     => 'Link copied to clipboard!',
+        'link_copy_failed' => 'Could not copy the link - your browser blocked it.',
         'email_sent'      => 'Email sent successfully!',
         'email_recipient_required' => 'Please enter a recipient email address',
         'email_select_one' => 'Please select at least one option to include',

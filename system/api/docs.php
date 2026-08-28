@@ -591,11 +591,12 @@ $__extrasJson = $__spec ? json_encode($__spec['extras']) : '{}';
     }
 
     function copyText(text, btnId) {
-        navigator.clipboard.writeText(text).then(() => {
+        // copyToClipboard(), not navigator.clipboard directly - see clipboard.js.
+        copyToClipboard(text).then(ok => {
             const b = document.getElementById(btnId);
             const old = b.textContent;
-            b.textContent = 'Copied';
-            setTimeout(() => { b.textContent = old; }, 1200);
+            b.textContent = ok ? 'Copied' : 'Copy failed';
+            setTimeout(() => { b.textContent = old; }, 1600);
         });
     }
 

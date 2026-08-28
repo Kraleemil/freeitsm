@@ -614,16 +614,11 @@ $translationNamespaces = ['common', 'software'];
         }
 
         function copyKey(key) {
-            navigator.clipboard.writeText(key).then(() => {
-                // Brief visual feedback - could enhance later
-            }).catch(() => {
-                // Fallback for older browsers
-                const ta = document.createElement('textarea');
-                ta.value = key;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
+            // ⚠️ An API KEY. Failing to copy this silently is the worst case of
+            // the lot: it is shown once, and somebody who believes they have it
+            // closes the box. copyToClipboard reports honestly - see clipboard.js.
+            copyToClipboard(key).then(ok => {
+                if (!ok) alert('Could not copy the key automatically. Select it and copy it by hand before closing this box.');
             });
         }
 

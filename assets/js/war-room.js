@@ -901,8 +901,10 @@
                     var copy = el('button', 'wr-tool', t('war-room.sitrep.copy'));
                     copy.type = 'button';
                     copy.addEventListener('click', function () {
-                        if (navigator.clipboard) navigator.clipboard.writeText(d.report);
-                        copy.textContent = t('war-room.sitrep.copied');
+                        // One helper - and only say "Copied" if it was.
+                        copyToClipboard(d.report).then(function (ok) {
+                            if (ok) copy.textContent = t('war-room.sitrep.copied');
+                        });
                     });
                     foot.appendChild(copy);
                     out.appendChild(foot);

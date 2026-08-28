@@ -132,8 +132,8 @@
                     showToast(t('common.subscribe.copied', 'Link copied'), 'success');
                 }
             };
-            if (navigator.clipboard) navigator.clipboard.writeText(el.value).then(done).catch(function () {});
-            else { try { document.execCommand('copy'); done(); } catch (e) {} }
+            // One helper, and it reports honestly whether the copy happened.
+            copyToClipboard(el.value).then(function (ok) { if (ok) done(); });
         },
 
         /**

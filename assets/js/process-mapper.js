@@ -3121,7 +3121,8 @@ const PM = (() => {
         const text = document.getElementById('exportText').value;
         const btn = document.getElementById('exportCopyBtn');
         try {
-            await navigator.clipboard.writeText(text);
+            // copyToClipboard(), not navigator.clipboard directly - see clipboard.js.
+            if (!(await copyToClipboard(text))) throw new Error('copy refused');
             btn.textContent = t('process-mapper.export_modal.copied');
             btn.classList.add('pm-modal-btn-copied');
             setTimeout(() => {

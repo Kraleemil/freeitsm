@@ -512,7 +512,10 @@ $redirectUri = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_U
     // ---------- Redirect URI copy ----------
     document.getElementById('copyRedirectBtn').addEventListener('click', function () {
         const txt = document.getElementById('redirectUri').textContent;
-        navigator.clipboard.writeText(txt).then(() => showToast(window.t('system.sso.redirect_copied'), 'success'));
+        // copyToClipboard(), not navigator.clipboard directly - see clipboard.js.
+        copyToClipboard(txt).then(ok => showToast(
+            ok ? window.t('system.sso.redirect_copied') : 'Could not copy - your browser blocked it.',
+            ok ? 'success' : 'error'));
     });
 
     // ---------- Providers list ----------

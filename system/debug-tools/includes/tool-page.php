@@ -245,7 +245,8 @@ $toolMethod = strtoupper($tool['method'] ?? 'GET');
 
         copyBtn.addEventListener('click', async function () {
             try {
-                await navigator.clipboard.writeText(panel.textContent);
+                // copyToClipboard(), not navigator.clipboard directly - see clipboard.js.
+                if (!(await copyToClipboard(panel.textContent))) throw new Error('copy refused');
                 copyBtn.classList.add('copied');
                 copyBtn.textContent = window.t('system.debug.copied');
                 setTimeout(function () { copyBtn.classList.remove('copied'); copyBtn.textContent = window.t('system.debug.copy'); }, 1800);
