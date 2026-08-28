@@ -53,7 +53,7 @@ try {
         }
     }
 
-    $allowed = ['calendar_span_mode', 'card_fields', 'tag_settings'];
+    $allowed = ['calendar_span_mode', 'card_fields', 'tag_settings', 'time_scope'];
     $cardFieldKeys = ['priority', 'assignee', 'team', 'start_date',
                       'due_date', 'description', 'subtasks', 'links'];
     $tagSettingKeys = ['allow_create', 'surface_card', 'surface_filter',
@@ -65,6 +65,9 @@ try {
         if ($key === 'calendar_span_mode') {
             // Whitelist guards against junk
             if (!in_array($value, ['deadline', 'span', 'repeat'], true)) continue;
+        } elseif ($key === 'time_scope') {
+            // Where scheduled work and time entries are offered (GH #112).
+            if (!in_array($value, ['both', 'tasks', 'subtasks', 'off'], true)) continue;
         } elseif ($key === 'card_fields') {
             // Rebuild from known keys only, coercing each to 0/1
             $clean = [];

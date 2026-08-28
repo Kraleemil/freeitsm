@@ -68,6 +68,8 @@ return [
     ['ticket_merges', 'ix_ticket_merges_target', 'key', '(`target_ticket_id`)'],
     ['ticket_time_entries', 'ix_time_entries_ticket_id', 'key', '(`ticket_id`)'],
     ['ticket_time_entries', 'ix_time_entries_analyst_date', 'key', '(`analyst_id`,`entry_datetime`)'],
+    ['task_time_entries', 'ix_task_time_entries_task_id', 'key', '(`task_id`)'],
+    ['task_time_entries', 'ix_task_time_entries_analyst_date', 'key', '(`analyst_id`,`entry_datetime`)'],
     ['tenant_domains', 'uq_tenant_domains_domain', 'unique', '(`domain`)'],
     ['freemail_domains', 'uq_freemail_domains_domain', 'unique', '(`domain`)'],
     ['tenant_sender_addresses', 'uq_tenant_sender_email', 'unique', '(`email`)'],

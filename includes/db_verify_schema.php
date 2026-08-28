@@ -2963,6 +2963,36 @@ return [
         'created_datetime'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'completed_datetime'  => 'DATETIME NULL',
+        // WHEN THE WORK IS PLANNED FOR (GH #112). Deliberately the same three
+        // columns, with the same names, that a ticket's scheduled work uses —
+        // one convention for "this is booked in", not two.
+        //
+        // These are NAIVE wall-clock values, like every other scheduling field:
+        // a 2pm slot means 2pm to whoever reads it. Never run them through
+        // parseUTCDate/tzOpts. See the "Timezones and Time Handling" note.
+        //
+        // Separate from start_date/due_date, which are a plan and a deadline and
+        // stay date-only. "Due by Friday" and "being done 09:00-11:00 on Tuesday"
+        // are different statements and a task can carry both.
+        'work_start_datetime' => 'DATETIME NULL',
+        'work_end_datetime'   => 'DATETIME NULL',
+        'work_all_day'        => 'TINYINT(1) NOT NULL DEFAULT 0',
+    ],
+
+    // Time actually SPENT on a task, as many sessions as it took (GH #112).
+    // Mirrors ticket_time_entries column for column, because it is the same idea
+    // about a different record — a second, subtly different shape would be the
+    // thing that later drifts.
+    'task_time_entries' => [
+        'id'                  => 'INT NOT NULL AUTO_INCREMENT',
+        'task_id'             => 'INT NOT NULL',
+        'analyst_id'          => 'INT NOT NULL',
+        'notes'               => 'LONGTEXT NULL',
+        'time_spent_minutes'  => 'INT NOT NULL',
+        'entry_datetime'      => 'DATETIME NOT NULL',
+        'is_active'           => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'created_datetime'    => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'    => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
     ],
 
     'task_tags' => [

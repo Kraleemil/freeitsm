@@ -59,6 +59,17 @@ return [
             'setting_keys' => ['tasks_card_fields'],
         ],
         [
+            // Where time is recorded (GH #112). A top-level task and a subtask are the
+            // same record told apart by parent_task_id, so this setting is the only
+            // thing that distinguishes them — which is why it is a setting rather than
+            // two separate features.
+            'id'           => 'time',
+            'cap'          => Cap::TASKS_TIME,
+            'label_key'    => 'tasks.settings.tab_time',
+            'grant'        => 'Configure where time is recorded on tasks',
+            'setting_keys' => ['tasks_time_scope'],
+        ],
+        [
             // Deleting tags and configuring them. Creating one inline from the board is
             // everyday work and deliberately stays on plain module access.
             'id'           => 'tags',

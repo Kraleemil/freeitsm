@@ -3948,6 +3948,9 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     `created_datetime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `completed_datetime`  DATETIME NULL,
+    `work_start_datetime` DATETIME NULL,             -- naive wall clock, like a ticket's scheduled work
+    `work_end_datetime`   DATETIME NULL,
+    `work_all_day`        TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`),
     KEY `ix_tasks_status_id` (`status_id`),
     KEY `ix_tasks_priority_id` (`priority_id`),
@@ -3962,6 +3965,29 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     CONSTRAINT `fk_tasks_created_by` FOREIGN KEY (`created_by_id`) REFERENCES `analysts` (`id`),
     CONSTRAINT `fk_tasks_status` FOREIGN KEY (`status_id`) REFERENCES `task_statuses` (`id`),
     CONSTRAINT `fk_tasks_priority` FOREIGN KEY (`priority_id`) REFERENCES `task_priorities` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Time actually spent on a task, as many sessions as it took (GH #112).
+-- Mirrors ticket_time_entries column for column: it is the same idea about a
+-- different record, and a second, subtly different shape is what later drifts.
+CREATE TABLE IF NOT EXISTS `task_time_entries` (
+    `id`                  INT NOT NULL AUTO_INCREMENT,
+    `task_id`             INT NOT NULL,
+    `analyst_id`          INT NOT NULL,
+    `notes`               LONGTEXT NULL,
+    `time_spent_minutes`  INT NOT NULL,
+    `entry_datetime`      DATETIME NOT NULL,
+    `is_active`           TINYINT(1) NOT NULL DEFAULT 1,
+    `created_datetime`    DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`    DATETIME NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_task_time_entries_task_id` (`task_id`),
+    KEY `ix_task_time_entries_analyst_date` (`analyst_id`, `entry_datetime`),
+    -- CASCADE, unlike the ticket equivalent: deleting a task deletes it outright
+    -- (there is no trash for tasks), so leaving its time behind would orphan rows
+    -- that nothing can ever reach or tidy.
+    CONSTRAINT `fk_task_time_entries_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_task_time_entries_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `task_comments` (

@@ -31,6 +31,13 @@ try {
     if (!isset($settings['calendar_span_mode'])) {
         $settings['calendar_span_mode'] = 'deadline';
     }
+    // Where time is offered (GH #112). Defaults to everywhere: the feature is
+    // additive, and an empty Time section on a task nobody logs time against
+    // costs nothing, whereas defaulting to off would hide a requested feature
+    // behind a setting nobody knew to look for.
+    if (!isset($settings['time_scope'])) {
+        $settings['time_scope'] = 'both';
+    }
 
     // card_fields — which extras show on board cards. Stored as JSON;
     // always returned as a complete object so callers needn't merge defaults.

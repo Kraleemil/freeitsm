@@ -122,6 +122,15 @@ class TasksService
             self::syncTags($conn, $taskId, $tagIds);
         }
 
+        // A task can be created already scheduled (the REST API does this; the UI
+        // sets it afterwards from the detail panel). Routed through updateTask so
+        // there is ONE copy of the "an end needs a start, and cannot precede it"
+        // rules rather than a second, subtly different one on the create path.
+        $work = array_intersect_key($in, array_flip(['work_start_at', 'work_end_at', 'work_all_day']));
+        if ($work) {
+            self::updateTask($conn, $ctx, $taskId, $work);
+        }
+
         try {
             WorkflowEngine::dispatch('task.created', [
                 'task' => [
@@ -212,6 +221,47 @@ class TasksService
                 $updates[] = "$field = ?";
                 $args[]    = self::parseDateOnly($in[$field], $field);
             }
+        }
+
+        // When the work is planned for (GH #112). The same three fields, the same
+        // input names and the same rules a ticket's scheduled work uses, so the
+        // two cannot drift into describing the same idea differently.
+        $newWork = null;
+        if (array_key_exists('work_start_at', $in)) {
+            $newWork = ($in['work_start_at'] === null || $in['work_start_at'] === '')
+                ? null : self::parseNaiveDateTime((string)$in['work_start_at'], 'work_start_at');
+            $updates[] = 'work_start_datetime = ?';
+            $args[]    = $newWork;
+            // Clearing the start clears the whole slot. An end time with no start
+            // describes a block of work that no longer exists, and the calendar
+            // reads the end relative to the start, so a stale one is not merely
+            // untidy.
+            if ($newWork === null) {
+                $updates[] = 'work_end_datetime = ?';
+                $args[]    = null;
+                $updates[] = 'work_all_day = ?';
+                $args[]    = 0;
+            }
+        }
+        if (array_key_exists('work_end_at', $in) && !in_array('work_end_datetime = ?', $updates, true)) {
+            $newEnd = ($in['work_end_at'] === null || $in['work_end_at'] === '')
+                ? null : self::parseNaiveDateTime((string)$in['work_end_at'], 'work_end_at');
+            $effectiveStart = array_key_exists('work_start_at', $in)
+                ? $newWork : ($current['work_start_datetime'] ?? null);
+            if ($newEnd !== null && $effectiveStart === null) {
+                throw new ServiceError('validation', 'invalid_field',
+                    "'work_end_at' needs a 'work_start_at' — a task cannot finish work it is not scheduled for.");
+            }
+            if ($newEnd !== null && $newEnd < $effectiveStart) {
+                throw new ServiceError('validation', 'invalid_field',
+                    "'work_end_at' cannot be before 'work_start_at'.");
+            }
+            $updates[] = 'work_end_datetime = ?';
+            $args[]    = $newEnd;
+        }
+        if (array_key_exists('work_all_day', $in) && !in_array('work_all_day = ?', $updates, true)) {
+            $updates[] = 'work_all_day = ?';
+            $args[]    = (int)(bool)$in['work_all_day'];
         }
 
         foreach (['parent_task_id', 'ticket_id', 'change_id', 'contract_id'] as $field) {
@@ -615,6 +665,150 @@ class TasksService
         }
     }
 
+    // ======================================================================
+    //  Time on tasks (GH #112)
+    // ======================================================================
+
+    /** Where the time features are offered: 'both', 'tasks', 'subtasks' or 'off'. */
+    public const TIME_SCOPE_DEFAULT = 'both';
+
+    /**
+     * The administrator's choice of where time appears, from Tasks → Settings.
+     *
+     * A top-level task and a subtask are the SAME record, told apart only by
+     * parent_task_id, so this setting is the only thing that distinguishes them
+     * here — which is why the rule lives in one function rather than being
+     * re-derived at each call site.
+     */
+    public static function timeScope(PDO $conn): string
+    {
+        try {
+            $stmt = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'tasks_time_scope'");
+            $stmt->execute();
+            $v = $stmt->fetchColumn();
+        } catch (Exception $e) {
+            return self::TIME_SCOPE_DEFAULT;      // pre-upgrade DB: behave as shipped
+        }
+        $v = is_string($v) ? strtolower(trim($v)) : '';
+        return in_array($v, ['both', 'tasks', 'subtasks', 'off'], true) ? $v : self::TIME_SCOPE_DEFAULT;
+    }
+
+    /**
+     * May THIS task carry scheduled work and time entries?
+     *
+     * ⚠️ Existing entries are never deleted when the setting narrows, only
+     * hidden — an administrator changing a display rule must not destroy hours
+     * somebody recorded. The same applies when a task changes level: drag a
+     * top-level task under a parent and its time is still there, shown again the
+     * moment the setting allows it.
+     */
+    public static function timeAllowedFor(PDO $conn, ?int $parentTaskId): bool
+    {
+        $scope = self::timeScope($conn);
+        if ($scope === 'off')      return false;
+        if ($scope === 'both')     return true;
+        $isSubtask = $parentTaskId !== null;
+        return $scope === 'subtasks' ? $isSubtask : !$isSubtask;
+    }
+
+    /** Log time against a task. Returns the entry id. */
+    public static function createTimeEntry(PDO $conn, ActorContext $ctx, int $taskId, array $in): int
+    {
+        $task = self::loadTaskRow($conn, $ctx, $taskId);          // 404 + company scope
+        self::assertTimeAllowed($conn, $task);
+        $minutes = isset($in['minutes']) ? (int)$in['minutes'] : 0;
+        if ($minutes <= 0) {
+            throw new ServiceError('validation', 'missing_field', "'minutes' is required and must be a positive integer.");
+        }
+        $notes = trim((string)($in['notes'] ?? ''));
+        // Server-stamped UTC when not given, exactly like a ticket's time entry —
+        // this is an INSTANT, not a naive wall clock, and the browser sends it as
+        // ISO-8601 UTC. See GH #116 for what happens when that is got wrong.
+        $entryAt = isset($in['entry_at']) && $in['entry_at'] !== ''
+            ? self::parseInstant((string)$in['entry_at'], 'entry_at')
+            : gmdate('Y-m-d H:i:s');
+        $conn->prepare(
+            "INSERT INTO task_time_entries (task_id, analyst_id, notes, time_spent_minutes, entry_datetime)
+             VALUES (?, ?, ?, ?, ?)"
+        )->execute([$taskId, $ctx->actorId, $notes !== '' ? $notes : null, $minutes, $entryAt]);
+        return (int)$conn->lastInsertId();
+    }
+
+    /** Soft-delete a time entry. Only the analyst who logged it may remove it. */
+    public static function deleteTimeEntry(PDO $conn, ActorContext $ctx, int $entryId): void
+    {
+        $stmt = $conn->prepare("SELECT task_id, analyst_id FROM task_time_entries WHERE id = ? AND is_active = 1");
+        $stmt->execute([$entryId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new ServiceError('not_found', 'not_found', 'Time entry not found.');
+        }
+        self::loadTaskRow($conn, $ctx, (int)$row['task_id']);      // company scope
+        if ((int)$row['analyst_id'] !== $ctx->actorId) {
+            throw new ServiceError('forbidden', 'forbidden', 'You can only delete your own time entries.');
+        }
+        $conn->prepare("UPDATE task_time_entries SET is_active = 0 WHERE id = ?")->execute([$entryId]);
+    }
+
+    /**
+     * The entries on a task, plus two totals.
+     *
+     * `total_minutes` is this task alone. `total_with_subtasks_minutes` adds every
+     * subtask's time — which is the number mbsouth asked for, and the one that
+     * answers "how long did this piece of work take" once it has been broken up.
+     *
+     * One level deep, deliberately: FreeITSM only lets a task have subtasks, not
+     * sub-subtasks, so a recursive walk would be answering a question the data
+     * model cannot ask.
+     */
+    public static function timeEntriesFor(PDO $conn, ActorContext $ctx, int $taskId): array
+    {
+        self::loadTaskRow($conn, $ctx, $taskId);                   // 404 + company scope
+
+        $stmt = $conn->prepare(
+            "SELECT e.id, e.task_id, e.analyst_id, e.notes, e.time_spent_minutes, e.entry_datetime,
+                    a.full_name AS analyst_name
+             FROM task_time_entries e
+             JOIN analysts a ON a.id = e.analyst_id
+             WHERE e.task_id = ? AND e.is_active = 1
+             ORDER BY e.entry_datetime DESC, e.id DESC"
+        );
+        $stmt->execute([$taskId]);
+        $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $own = 0;
+        foreach ($entries as $e) {
+            $own += (int)$e['time_spent_minutes'];
+        }
+
+        $sub = $conn->prepare(
+            "SELECT COALESCE(SUM(e.time_spent_minutes), 0)
+             FROM task_time_entries e
+             JOIN tasks t ON t.id = e.task_id
+             WHERE t.parent_task_id = ? AND e.is_active = 1"
+        );
+        $sub->execute([$taskId]);
+        $subtotal = (int)$sub->fetchColumn();
+
+        return [
+            'entries'                     => $entries,
+            'total_minutes'               => $own,
+            'subtask_minutes'             => $subtotal,
+            'total_with_subtasks_minutes' => $own + $subtotal,
+        ];
+    }
+
+    /** Refuse the WRITE too, not only the display — a stale tab must not slip past a setting. */
+    private static function assertTimeAllowed(PDO $conn, array $taskRow): void
+    {
+        $parent = isset($taskRow['parent_task_id']) && $taskRow['parent_task_id'] !== null
+            ? (int)$taskRow['parent_task_id'] : null;
+        if (!self::timeAllowedFor($conn, $parent)) {
+            throw new ServiceError('validation', 'not_allowed',
+                'Time is not being recorded against this kind of task. See Tasks → Settings.');
+        }
+    }
+
     /**
      * task.assigned — fired whenever a task comes to rest with a NEW assignee,
      * from creation and from reassignment alike (GH #110).
@@ -694,5 +888,52 @@ class TasksService
             throw new ServiceError('validation', 'invalid_field', "'{$field}' must be a date in YYYY-MM-DD format.");
         }
         return (string)$value;
+    }
+
+    /**
+     * A NAIVE wall clock — scheduled work, stored and shown exactly as typed.
+     *
+     * ⚠️ Deliberately NOT parseInstant() below. A 2pm slot means 2pm to everybody
+     * who reads it, so this value is never zone-converted in either direction; a
+     * zone offset in the input is therefore refused rather than quietly dropped,
+     * because accepting it would imply a conversion that will not happen.
+     */
+    private static function parseNaiveDateTime($value, string $field): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $v = trim(str_replace('T', ' ', (string)$value));
+        if (preg_match('/(Z|[+\-]\d{2}:?\d{2})$/i', $v)) {
+            throw new ServiceError('validation', 'invalid_field',
+                "'{$field}' is a wall-clock time and must not carry a timezone offset — send it as YYYY-MM-DD HH:MM.");
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $v)) {
+            $v .= ':00';
+        }
+        $d = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $v);
+        if (!$d || $d->format('Y-m-d H:i:s') !== $v) {
+            throw new ServiceError('validation', 'invalid_field',
+                "'{$field}' must be a date and time in YYYY-MM-DD HH:MM format.");
+        }
+        return $v;
+    }
+
+    /**
+     * An absolute INSTANT — when a piece of work actually happened.
+     *
+     * The opposite kind of value to the one above, and the distinction that GH
+     * #116 turned on: this one IS zone-converted for each reader, so a zone-less
+     * string can only be read as UTC. The browser sends ISO-8601 with a Z.
+     */
+    private static function parseInstant(string $value, string $field): string
+    {
+        try {
+            $dt = new DateTimeImmutable(trim($value), new DateTimeZone('UTC'));
+            return $dt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        } catch (Exception $e) {
+            throw new ServiceError('bad_request', 'invalid_parameter',
+                "'{$field}' is not a valid date/time. Use ISO 8601, e.g. 2026-07-02T09:00:00Z.");
+        }
     }
 }

@@ -105,6 +105,7 @@ final class Cap
     const TASKS_CALENDAR   = 'tasks.calendar';
     const TASKS_CARD       = 'tasks.card';
     const TASKS_TAGS       = 'tasks.tags';
+    const TASKS_TIME       = 'tasks.time';
 
     // ---- Knowledge ---------------------------------------------------------
     const KNOWLEDGE_MANAGE      = 'knowledge.manage';       // umbrella
