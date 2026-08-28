@@ -413,6 +413,10 @@ return [
         'panel_field_links'    => '<strong>Links</strong> &mdash; search and attach related tickets or changes.',
         'panel_field_subtasks' => '<strong>Subtasks</strong> &mdash; break the task into a checklist; progress shows on the parent card.',
         'panel_field_comments' => '<strong>Comments</strong> &mdash; a running discussion thread on the task.',
+        'panel_field_work'   => '<strong>Work starts &amp; ends</strong> &mdash; when the task is <em>planned</em> to be worked on, with an <strong>All day</strong> option. These read the same for everybody: a 2pm slot is 2pm whoever is looking, like a maintenance window.',
+        'panel_field_time'   => '<strong>Time</strong> &mdash; how long the work actually took, recorded as separate sittings with a note on each, and totalled. A parent task also shows the total <em>including its subtasks</em>. Recorded time is a real moment, so it appears in your own timezone.',
+        'panel_view_note'    => 'The task opens in a panel at the side of the board. Use the <strong>expand</strong> button in its corner for a large window that lays the same content out in two columns &mdash; description and comments on the left, the short fields down the right. FreeITSM remembers which you prefer, and you can also set it under <em>Preferences &rarr; Opening a task</em>.',
+        'panel_context_note' => '<strong>Right-click any card</strong> to reach most of this without opening the task: open it, assign it to yourself or anyone else, change status or priority, set a due date, mark it complete, log time, add a subtask, copy a link to it, or delete it.',
         'panel_delete_note'    => 'The delete button (top-right of the panel) removes the task and all of its subtasks &mdash; it asks for confirmation first.',
 
         // 8. Tags

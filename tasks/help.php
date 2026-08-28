@@ -305,8 +305,12 @@ $translationNamespaces = ['common', 'tasks'];
                         <div><?php echo t('tasks.help.panel_field_links'); ?></div>
                         <div><?php echo t('tasks.help.panel_field_subtasks'); ?></div>
                         <div><?php echo t('tasks.help.panel_field_comments'); ?></div>
+                        <div><?php echo t('tasks.help.panel_field_work'); ?></div>
+                        <div><?php echo t('tasks.help.panel_field_time'); ?></div>
                     </div>
-                    <p style="margin-top:14px;"><?php echo t('tasks.help.panel_delete_note'); ?></p>
+                    <p style="margin-top:14px;"><?php echo t('tasks.help.panel_view_note'); ?></p>
+                    <p style="margin-top:10px;"><?php echo t('tasks.help.panel_context_note'); ?></p>
+                    <p style="margin-top:10px;"><?php echo t('tasks.help.panel_delete_note'); ?></p>
                 </div>
 
                 <!-- 8. Tags -->
