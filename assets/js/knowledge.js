@@ -352,7 +352,7 @@ async function loadLayoutPreference() {
     try {
         const r = await fetch('../api/system/get_user_preference.php?key=' + encodeURIComponent(KB_LAYOUT_KEY), { credentials: 'same-origin' });
         const d = await r.json();
-        kbLayout = (d.success && ['list', 'cards', 'tree'].includes(d.value)) ? d.value : 'list';
+        kbLayout = (d.success && ['list', 'cards', 'tree', 'details'].includes(d.value)) ? d.value : 'list';
     } catch (e) {
         kbLayout = 'list';
     }
@@ -374,18 +374,94 @@ function applyLayout(save) {
 }
 
 function setLayout(mode) {
-    if (!['list', 'cards', 'tree'].includes(mode)) return;
+    if (!['list', 'cards', 'tree', 'details'].includes(mode)) return;
     kbLayout = mode;
     // The tree draws the WHOLE shape, so it needs every folder's articles rather
     // than the one folder currently selected. Reload unfiltered when switching
     // into it, or it would show a tree containing one branch.
-    if (mode === 'tree') {
+    if (mode === 'tree' || mode === 'details') {
         activeFolder = '';
         renderBreadcrumb();
         loadArticles(document.getElementById('articleSearch').value, activeTagFilters).then(() => applyLayout(true));
         return;
     }
     applyLayout(true);
+}
+
+/**
+ * The Details table — Explorer's, with columns you can sort.
+ *
+ * Folders come FIRST and stay first whatever the sort, exactly as Explorer does:
+ * they are containers rather than a kind of file, and mixing them into a sort by
+ * date would scatter the way into the tree through the middle of the list.
+ *
+ * Sorting is done here rather than by re-querying: the rows are already loaded
+ * and already permission-filtered, so a round trip would add latency and a
+ * second place for the rules to be got wrong.
+ */
+let kbDetailsSort = { col: 'title', dir: 1 };
+
+function kbSortDetails(col) {
+    kbDetailsSort = (kbDetailsSort.col === col)
+        ? { col: col, dir: -kbDetailsSort.dir }
+        : { col: col, dir: 1 };
+    renderArticleList();
+}
+
+function renderDetailsLayout() {
+    const folders = (activeFolder === 'root') ? []
+        : kbFolders.filter(f => activeFolder === ''
+            ? f.parent_id === null
+            : String(f.parent_id) === String(activeFolder));
+
+    const dir = kbDetailsSort.dir;
+    const val = (a, col) => {
+        if (col === 'modified') return a.modified_datetime || '';
+        if (col === 'author')   return (a.author_name || '').toLowerCase();
+        if (col === 'tags')     return (a.tags || []).length;
+        return (a.title || '').toLowerCase();
+    };
+    const rows = articles.slice().sort((x, y) => {
+        const a = val(x, kbDetailsSort.col), b = val(y, kbDetailsSort.col);
+        return (a < b ? -1 : a > b ? 1 : 0) * dir;
+    });
+
+    const arrow = c => kbDetailsSort.col === c ? (dir === 1 ? ' ▲' : ' ▼') : '';
+    const head = `
+        <div class="kb-details-row kb-details-head">
+            <span class="kb-details-name" onclick="kbSortDetails('title')">${escapeHtml(window.t('knowledge.details.name'))}${arrow('title')}</span>
+            <span class="kb-details-author" onclick="kbSortDetails('author')">${escapeHtml(window.t('knowledge.details.author'))}${arrow('author')}</span>
+            <span class="kb-details-date" onclick="kbSortDetails('modified')">${escapeHtml(window.t('knowledge.details.modified'))}${arrow('modified')}</span>
+            <span class="kb-details-tags" onclick="kbSortDetails('tags')">${escapeHtml(window.t('knowledge.details.tags'))}${arrow('tags')}</span>
+        </div>`;
+
+    const folderRows = folders.map(f => `
+        <div class="kb-details-row kb-details-folder" onclick="selectFolder('${f.id}')"
+             draggable="true" ondragstart="kbDragStart(event, 'folder', ${f.id})" ondragend="kbDragEnd()"
+             ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
+             data-folder="${f.id}"
+             oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">
+            <span class="kb-details-name">📁 ${escapeHtml(f.name)}${f.is_restricted ? ' 🔒' : ''}</span>
+            <span class="kb-details-author">—</span>
+            <span class="kb-details-date">—</span>
+            <span class="kb-details-tags">${f.article_count}</span>
+        </div>`).join('');
+
+    const articleRows = rows.map(a => `
+        <div class="kb-details-row" onclick="viewArticle(${a.id})"
+             draggable="true" ondragstart="kbDragStart(event, 'article', ${a.id})" ondragend="kbDragEnd()"
+             oncontextmenu="kbContextMenu(event, 'article', ${a.id}, ${jsAttr(a.title)})">
+            <span class="kb-details-name">📄 ${kbRowIsShortcut(a.id) ? '↗ ' : ''}${Number(a.inherit_permissions) === 0 ? '🔒 ' : ''}${escapeHtml(a.title)}</span>
+            <span class="kb-details-author">${escapeHtml(a.author_name || '')}</span>
+            <span class="kb-details-date">${formatDate(a.modified_datetime)}</span>
+            <span class="kb-details-tags">${(a.tags || []).map(t => `<span class="article-tag">${escapeHtml(t.name)}</span>`).join('')}</span>
+        </div>`).join('');
+
+    if (!folderRows && !articleRows) {
+        return `<div class="no-results">${escapeHtml(window.t(
+            activeFolder === '' ? 'knowledge.list.no_articles' : 'knowledge.folders.empty'))}</div>`;
+    }
+    return head + folderRows + articleRows;
 }
 
 /**
@@ -762,34 +838,57 @@ function kbContextMenu(e, type, id, name) {
     e.stopPropagation();
     closeContextMenu();
 
+    // ⚠️ EACH ITEM IS A LABEL AND A FUNCTION, never a string of code.
+    //
+    // These used to be JavaScript source built by interpolation and dropped into
+    // an onclick attribute. That is the same defect that stopped the menu
+    // OPENING (a name containing a quote closed the attribute), and I fixed the
+    // opening while leaving the items alone — reasoning that wrapping the whole
+    // call in escapeHtml made it safe. It does not: escapeHtml here is
+    // `textContent -> innerHTML`, which escapes < > and & but deliberately NOT
+    // quotes. So the menu opened and every item on it did nothing.
+    //
+    // Escaping harder would have worked and been wrong. A closure carries the
+    // name as a VALUE; there is no text for a quote to escape from, and no
+    // amount of punctuation in a folder name can ever break it again.
     const items = [];
     if (type === 'folder') {
-        items.push([window.t('knowledge.folders.new'), `createFolderIn(${id})`]);
-        items.push([window.t('knowledge.folders.rename'), `renameFolderPrompt(${id}, ${JSON.stringify(name)})`]);
-        if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), `openPermModal('folder', ${id}, ${JSON.stringify(name)})`]);
-        items.push([window.t('knowledge.folders.delete'), `deleteFolderPrompt(${id}, ${JSON.stringify(name)})`]);
+        items.push([window.t('knowledge.folders.new'),    () => createFolderIn(id)]);
+        items.push([window.t('knowledge.folders.rename'), () => renameFolderPrompt(id, name)]);
+        if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), () => openPermModal('folder', id, name)]);
+        items.push([window.t('knowledge.folders.delete'), () => deleteFolderPrompt(id, name)]);
     } else {
-        items.push([window.t('knowledge.folders.rename'), `renameArticlePrompt(${id}, ${JSON.stringify(name)})`]);
-        items.push([window.t('knowledge.detail.edit'), `viewArticle(${id}).then(editCurrentArticle)`]);
-        if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), `openPermModal('article', ${id}, ${JSON.stringify(name)})`]);
+        items.push([window.t('knowledge.folders.rename'), () => renameArticlePrompt(id, name)]);
+        items.push([window.t('knowledge.detail.edit'),    () => Promise.resolve(viewArticle(id)).then(editCurrentArticle)]);
+        if (kbCanManagePerms) items.push([window.t('knowledge.perm.manage'), () => openPermModal('article', id, name)]);
         // A row showing in a folder it does not LIVE in is being shown by a
         // shortcut, which is computable from what we already have — the article
         // carries its real folder_id. Removing the shortcut must never be
-        // offered as "delete", because it takes away a pointer and leaves the
-        // document exactly where it lives.
+        // offered as "delete": it takes away a pointer and leaves the document
+        // exactly where it lives.
         if (kbRowIsShortcut(id)) {
             items.push([window.t('knowledge.folders.shortcut_remove'),
-                        `folderAction({action:'remove_shortcut',article_id:${id},folder_id:${activeFolder}},'knowledge.folders.shortcut_removed')`]);
+                () => folderAction({ action: 'remove_shortcut', article_id: id, folder_id: activeFolder }, 'knowledge.folders.shortcut_removed')]);
         } else {
-            items.push([window.t('knowledge.folders.move_to_root'), `folderAction({action:'move_article',article_id:${id},folder_id:null},'knowledge.folders.moved_article')`]);
+            items.push([window.t('knowledge.folders.move_to_root'),
+                () => folderAction({ action: 'move_article', article_id: id, folder_id: null }, 'knowledge.folders.moved_article')]);
         }
     }
 
     const menu = document.createElement('div');
     menu.className = 'kb-context-menu';
     menu.id = 'kbContextMenu';
-    menu.innerHTML = items.map(([label, call]) =>
-        `<div class="kb-context-item" onclick="closeContextMenu(); ${escapeHtml(call)}">${escapeHtml(label)}</div>`).join('');
+    for (const [label, fn] of items) {
+        const row = document.createElement('div');
+        row.className = 'kb-context-item';
+        row.textContent = label;
+        row.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            closeContextMenu();
+            fn();
+        });
+        menu.appendChild(row);
+    }
     document.body.appendChild(menu);
 
     // Keep it on screen: a menu opened near the right or bottom edge would
@@ -959,45 +1058,64 @@ function renderFolderRows() {
  * Two shown, then "+N more". Clicking it reveals the rest IN PLACE rather than
  * opening anything: you wanted to see the tags, not to be taken somewhere.
  */
-const KB_CARD_TAG_LIMIT = 2;
+const KB_CARD_TAG_LIMIT = 5;
 
 function renderCardTags(article) {
     const tags = article.tags || [];
     const pill = t => `<span class="article-tag">${escapeHtml(t.name)}</span>`;
-    // MORE THAN TWO gets a pill — including exactly three, which becomes
-    // "two tags + 1 more". I first exempted three on the grounds that swapping
-    // one tag for a "+1 more" saves no width and costs a click. That was the
-    // wrong measure: the goal is uniform HEIGHT, and a third tag is exactly what
-    // wraps to a second line and makes one card taller than its neighbours. Two
-    // is the number that always fits on one line, so two is the cap.
+    // FIVE, not two. The first cut capped at two because the meta line was still
+    // fighting the author and date for half a card; now each has the full width
+    // there is room for a normal number of tags, and hiding what fits is just
+    // hiding things. The pill is for the genuinely over-tagged article.
     if (kbLayout !== 'cards' || tags.length <= KB_CARD_TAG_LIMIT) {
         return tags.map(pill).join('');
     }
     const shown  = tags.slice(0, KB_CARD_TAG_LIMIT).map(pill).join('');
-    const hidden = tags.slice(KB_CARD_TAG_LIMIT).map(t => t.name);
-    // ⚠️ A JSON ARRAY, not a joined string. Joining names and splitting them back
-    // apart needs a separator no tag can contain, and there is no such character
-    // — the first attempt joined on '' and split on '', which does not round-trip
-    // at all: it would have exploded "Firewall" into eight single-letter tags.
-    // An array survives any name, including one with a comma in it.
+    const hidden = tags.length - KB_CARD_TAG_LIMIT;
+    // ⚠️ A JSON ARRAY on the attribute, never a joined string. Joining names and
+    // splitting them apart needs a separator no tag can contain, and there is no
+    // such character — an earlier attempt joined on '' and split on '', which
+    // does not round-trip: it would have exploded "Firewall" into eight
+    // single-letter tags.
+    //
+    // ALL the tags go on the pill, not just the hidden ones: the dialog it opens
+    // shows the article's whole set, which is the question being asked ("what is
+    // this tagged with?") rather than "what did you crop?".
     return shown
-        + `<span class="article-tag article-tag--more" onclick="event.stopPropagation(); kbRevealTags(this)"
-                 data-tags="${jsAttr(JSON.stringify(hidden))}"
-                 title="${escapeHtml(hidden.join(', '))}">`
-        + escapeHtml(window.t('knowledge.list.tags_more', { count: hidden.length }))
+        + `<span class="article-tag article-tag--more" onclick="event.stopPropagation(); kbShowAllTags(this)"
+                 data-tags="${jsAttr(JSON.stringify(tags.map(t => t.name)))}"
+                 data-title="${jsAttr(article.title)}">`
+        + escapeHtml(window.t('knowledge.list.tags_more', { count: hidden }))
         + '</span>';
 }
 
-/** Swap the "+N more" pill for the tags it was standing in for. */
-function kbRevealTags(el) {
+/**
+ * Show every tag on the article in a small dialog.
+ *
+ * A dialog rather than expanding in place, at Ed's ask — and it is the better
+ * answer: expanding reflows the card, which re-ragged the grid the cap exists to
+ * keep even, and it left no way to put it back.
+ */
+function kbShowAllTags(el) {
     let names = [];
     try {
-        // jsAttr JSON-encodes once for the attribute, and what it encoded was
-        // itself JSON — so this comes back as a JSON string containing JSON.
+        // jsAttr JSON-encodes for the attribute, and what it encoded was itself
+        // JSON — so this returns a JSON string containing JSON.
         names = JSON.parse(JSON.parse(el.dataset.tags || '"[]"'));
     } catch (e) { return; }
     if (!Array.isArray(names)) return;
-    el.outerHTML = names.map(n => `<span class="article-tag">${escapeHtml(n)}</span>`).join('');
+
+    let title = '';
+    try { title = JSON.parse(el.dataset.title || '""'); } catch (e) { title = ''; }
+
+    document.getElementById('kbTagsModalTitle').textContent = title || window.t('knowledge.sidebar.tags_heading');
+    document.getElementById('kbTagsModalList').innerHTML =
+        names.map(n => `<span class="article-tag">${escapeHtml(n)}</span>`).join('');
+    document.getElementById('kbTagsModal').classList.add('active');
+}
+
+function closeTagsModal() {
+    document.getElementById('kbTagsModal').classList.remove('active');
 }
 
 /**
@@ -1364,11 +1482,15 @@ function renderArticleList() {
     countEl.textContent = window.t(articles.length === 1 ? 'knowledge.list.count_one' : 'knowledge.list.count', { count: articles.length });
     renderBreadcrumb();
 
-    // The tree draws folders and articles together, so it replaces the whole
-    // pane rather than sitting above the usual rows.
+    // The tree and the details table both draw folders and articles together, so
+    // each replaces the whole pane rather than sitting above the usual rows.
     container.className = 'article-list kb-layout-' + kbLayout;
     if (kbLayout === 'tree') {
         container.innerHTML = renderTreeLayout();
+        return;
+    }
+    if (kbLayout === 'details') {
+        container.innerHTML = renderDetailsLayout();
         return;
     }
 

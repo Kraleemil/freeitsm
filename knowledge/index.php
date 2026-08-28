@@ -121,6 +121,7 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                         <button type="button" class="kb-layout-btn active" data-layout="list" onclick="setLayout('list')" title="<?php echo htmlspecialchars(t('knowledge.layout.list')); ?>">☰</button>
                         <button type="button" class="kb-layout-btn" data-layout="cards" onclick="setLayout('cards')" title="<?php echo htmlspecialchars(t('knowledge.layout.cards')); ?>">▦</button>
                         <button type="button" class="kb-layout-btn" data-layout="tree" onclick="setLayout('tree')" title="<?php echo htmlspecialchars(t('knowledge.layout.tree')); ?>">🌳</button>
+                        <button type="button" class="kb-layout-btn" data-layout="details" onclick="setLayout('details')" title="<?php echo htmlspecialchars(t('knowledge.layout.details')); ?>">▤</button>
                     </div>
                 </div>
 
@@ -305,6 +306,24 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     </div>
 
     <!-- Share Email Modal -->
+    <!-- Every tag on one article, from the "+N more" pill on a card. A dialog
+         rather than expanding the pill in place: expanding reflows the card,
+         which re-rags the grid the cap exists to keep even, and leaves no way to
+         put it back. -->
+    <div class="modal" id="kbTagsModal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3 id="kbTagsModalTitle"></h3>
+            </div>
+            <div class="modal-body">
+                <div class="kb-tags-modal-list" id="kbTagsModalList"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeTagsModal()"><?php echo htmlspecialchars(t('knowledge.modal.close')); ?></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Asking for a name. A real dialog rather than the browser's prompt():
          the native one is unstyled, unbranded, says "freeitsm.internal says",
          cannot be translated, and looks like a phishing box in the middle of an

@@ -141,6 +141,14 @@ return [
         'list'  => 'List',
         'cards' => 'Cards',
         'tree'  => 'Tree',
+        'details' => 'Details',
+    ],
+
+    'details' => [
+        'name'     => 'Name',
+        'author'   => 'Author',
+        'modified' => 'Modified',
+        'tags'     => 'Tags',
     ],
 
     'folders' => [

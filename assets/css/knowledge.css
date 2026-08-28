@@ -1479,7 +1479,11 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 16px;
-    align-items: start;
+    /* ⚠️ NOT align-items: start. Stretch is the grid default and it is what makes
+       every card in a row the same height AUTOMATICALLY, whatever is in them —
+       which matters now that up to five tags can wrap. `start` sized each card
+       to its own content, which is what left the rows ragged. The min-height
+       below is only a floor for a row of very short cards. */
 }
 /* A card is scanned, not read: the preview is the first thing to go, because at
    240px wide it is three words and an ellipsis rather than a summary. */
@@ -1584,3 +1588,83 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     font-style: italic;
 }
 .article-tag--more:hover { opacity: 1; }
+
+/* ---------------------------------------------------------------------------
+   Details — Explorer's table view. Columns you can sort, folders always first.
+   --------------------------------------------------------------------------- */
+.article-list.kb-layout-details { display: block; }
+
+.kb-details-row {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 1.2fr) 110px minmax(0, 1.5fr);
+    align-items: center;
+    gap: 12px;
+    padding: 0 10px;
+    /* ⚠️ A FIXED HEIGHT, not padding. Rows were 34, 38 and 53px depending on
+       whether the row had tags and how tall the pills were — and a table whose
+       rows are different heights is not scannable, which is the only reason to
+       choose a table. The tag cell is clipped to suit (below) rather than being
+       allowed to set the height. */
+    height: 38px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+}
+.kb-details-row:hover { background: var(--surface-hover); }
+
+/* The header is not a row you can open, and it sticks so the columns stay
+   named when the list is long enough to scroll. */
+.kb-details-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--surface);
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: default;
+}
+.kb-details-head span { cursor: pointer; user-select: none; }
+.kb-details-head:hover { background: var(--surface); }
+
+.kb-details-folder { font-weight: 600; }
+.kb-details-folder.drop-target {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    background: var(--accent-soft);
+}
+
+/* Every cell truncates rather than wrapping: a table whose rows are different
+   heights because one title is long stops being scannable, which is the only
+   reason to use a table. */
+.kb-details-name,
+.kb-details-author,
+.kb-details-date {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+.kb-details-author,
+.kb-details-date { color: var(--text-muted); }
+.kb-details-tags {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    min-width: 0;
+}
+/* Pills must not be the thing that decides the row height. */
+.kb-details-tags .article-tag {
+    flex: 0 0 auto;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+/* Every tag in one article, from the "+N more" pill on a card. */
+.kb-tags-modal-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
