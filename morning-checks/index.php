@@ -264,7 +264,7 @@ $translationNamespaces = ['common', 'morning-checks'];
     <!-- Mobile layer. Linked AFTER this page's inline <style> on purpose: the
          mobile rules must win on equal specificity, and a link placed above it
          would silently lose to the desktop block below (the load-order trap). -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=79">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=80">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -730,7 +730,15 @@ $translationNamespaces = ['common', 'morning-checks'];
                         <div class="status-buttons">${buttonsHtml}</div>
                         ${orphanBadge}
                     </td>
-                    <td class="notes-display">${check.Notes ? escapeHtml(check.Notes) : window.t('morning-checks.checklist.no_notes')}</td>
+                    <td class="notes-display">${check.Notes
+                        ? escapeHtml(check.Notes)
+                        /* The "no notes" placeholder is wrapped so the phone can
+                           drop it: in a table an empty cell reads as a rendering
+                           fault, so the dash earns its place there — but on a
+                           card it is a line of its own saying nothing. The class
+                           carries NO desktop styling, so the table is unchanged;
+                           mobile.css hides the whole cell when it is present. */
+                        : `<span class="mc-nonotes">${escapeHtml(window.t('morning-checks.checklist.no_notes'))}</span>`}</td>
                     <td class="mc-checked-by">${checkedBy}</td>
                     <td class="mc-checked-at">${checkedAt}</td>
                     <td class="mc-actions">${raiseBtn}${clearBtn}</td>

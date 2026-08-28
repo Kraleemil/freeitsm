@@ -4600,6 +4600,12 @@
         margin-top: 4px;
         word-break: break-word;
     }
+    /* Notes, or nothing. A check with none rendered a lone "-" under its
+       buttons — a whole line of card spent saying there is nothing to say. The
+       same treatment the by-line above gets, and for the same reason: in a
+       TABLE a dash stops an empty cell looking broken, but a card has no empty
+       cell to explain. */
+    #checksTable td.notes-display:has(.mc-nonotes) { display: none; }
 
     /* Raise / undo sit beside the status buttons (Ed's ask), so they are sized
        to their icons rather than stretched — they must not take room the three
