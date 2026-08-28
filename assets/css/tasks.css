@@ -1639,3 +1639,52 @@ body {
     gap: 6px;
     margin-top: 8px;
 }
+
+/* ── Opening a task in a large window (System → Preferences) ───────────────
+   The SAME panel element as the side drawer, restyled. There is no second
+   panel: two of them would be two things to keep in step, and the one nobody
+   is looking at is the one that rots. */
+.detail-panel.as-modal {
+    top: 3vh;
+    bottom: 3vh;
+    left: 3vw;
+    right: 3vw;
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+    /* The drawer slides in from the right; a centred window has nowhere to
+       slide from, so it rises and fades instead. */
+    transform: translateY(14px) scale(0.995);
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+/* Three classes, so this beats `.detail-panel.open`'s translateX(0). */
+.detail-panel.as-modal.open {
+    transform: none;
+    opacity: 1;
+}
+
+/* Two columns: prose on the left with room to breathe, the short fields
+   stacked down the right. */
+.tdm-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 0 32px;
+    align-items: start;
+}
+.tdm-main { min-width: 0; }
+.tdm-side { min-width: 0; }
+
+/* The description is the reason for the large window, so let it use the height
+   the window now has rather than staying at its drawer size. */
+.detail-panel.as-modal .detail-description .tox-tinymce { min-height: 320px; }
+
+/* A narrow window is a drawer with extra steps — one column reads better than
+   two cramped ones. Also covers a phone, where the modal is full bleed. */
+@media (max-width: 1100px) {
+    .tdm-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+@media (max-width: 700px) {
+    .detail-panel.as-modal { top: 0; bottom: 0; left: 0; right: 0; border-radius: 0; }
+}

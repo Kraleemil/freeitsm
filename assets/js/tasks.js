@@ -819,6 +819,42 @@ function lookupOptions(list, current) {
 
 // ── Detail Panel ───────────────────────────────────────────────────
 
+// Does this analyst open tasks in the large window? Set per analyst in
+// System → Preferences and published by tasks/index.php, so the choice is known
+// before anything opens rather than fetched on the way.
+function taskViewIsModal() {
+    return window.TASK_DETAIL_VIEW === 'modal';
+}
+
+// The same content, laid out in two columns: the things that want width on the
+// left, the properties down the right. Called only in the large-window view.
+//
+// ⚠️ Runs BEFORE the description editor and the documents panel are mounted.
+// Moving a node after TinyMCE has attached to it tears the editor's iframe out
+// of the document, and it does not come back.
+function applyModalLayout(body) {
+    // The blocks that earn the wide column: prose and conversation. Everything
+    // else is a short field and reads better in a narrow stack.
+    const WIDE = '.detail-description, .subtask-section, .comments-section';
+    const layout = document.createElement('div');
+    layout.className = 'tdm-layout';
+    const main = document.createElement('div');
+    main.className = 'tdm-main';
+    const side = document.createElement('div');
+    side.className = 'tdm-side';
+
+    Array.from(body.children).forEach(el => {
+        // The title stays full width across the top — it is the heading of the
+        // window, not a field in either column.
+        if (el.querySelector && el.querySelector('#detailTitle')) return;
+        (el.matches(WIDE) ? main : side).appendChild(el);
+    });
+
+    layout.appendChild(main);
+    layout.appendChild(side);
+    body.appendChild(layout);
+}
+
 async function openDetailPanel(taskId) {
     // Prevent opening from drag
     if (dragState) return;
@@ -827,8 +863,13 @@ async function openDetailPanel(taskId) {
     try {
         const data = await fetch(API_BASE + 'get.php?id=' + taskId).then(r => r.json());
         if (!data.success) return;
+        const panel = document.getElementById('detailPanel');
+        // One panel, two shapes. The drawer is the default and is untouched;
+        // the modal is the same element with a class on it, so there is no
+        // second panel to keep in step.
+        panel.classList.toggle('as-modal', taskViewIsModal());
         renderDetailPanel(data.task);
-        document.getElementById('detailPanel').classList.add('open');
+        panel.classList.add('open');
         document.getElementById('detailOverlay').classList.add('open');
     } catch (e) { console.error(e); }
 }
@@ -1035,6 +1076,12 @@ function renderDetailPanel(task) {
             <div id="taskDocuments"></div>
         </div>
     `;
+
+    // In the large-window view, the SAME markup is regrouped into two columns.
+    // Deliberately a rearrangement rather than a second template: two copies of
+    // this panel would be two things to keep in step, and the one that is not
+    // being looked at is the one that rots.
+    if (taskViewIsModal()) applyModalLayout(body);
 
     renderTagSection();
 

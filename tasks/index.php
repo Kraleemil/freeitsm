@@ -9,6 +9,22 @@ require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
 require_once '../includes/timezone.php';
 requireModuleAccess('tasks');
+
+// How this analyst likes a task to open: the side panel, or a large window.
+// Read here and published to the page, the same way the theme and timezone are
+// — tasks.js must not have to fetch a preference before it can open anything.
+$taskDetailView = 'panel';
+try {
+    $__p = connectToDatabase()->prepare(
+        "SELECT preference_value FROM user_preferences
+         WHERE analyst_id = ? AND preference_key = 'tasks_detail_view'"
+    );
+    $__p->execute([(int) ($_SESSION['analyst_id'] ?? 0)]);
+    $__v = $__p->fetchColumn();
+    if ($__v === 'modal') { $taskDetailView = 'modal'; }
+} catch (Throwable $e) {
+    // Un-migrated install, or no preferences row: the side panel, as before.
+}
 I18n::initFromSession();
 Tz::init();
 
@@ -25,7 +41,7 @@ $translationNamespaces = ['common', 'tasks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('tasks.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/tasks.css?v=17">
+    <link rel="stylesheet" href="../assets/css/tasks.css?v=18">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -172,9 +188,10 @@ $translationNamespaces = ['common', 'tasks'];
 
     <!-- Toast -->
     <script>window.API_BASE = '../api/tasks/';
-    window.APP_BASE = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>';</script>
+    window.APP_BASE = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>';
+    window.TASK_DETAIL_VIEW = <?php echo json_encode($taskDetailView); ?>;</script>
     <script src="../assets/js/tasks-ctx-menu.js?v=1"></script>
-    <script src="../assets/js/tasks.js?v=22"></script>
+    <script src="../assets/js/tasks.js?v=23"></script>
     <script src="../assets/js/mobile.js?v=28"></script>
 </body>
 </html>

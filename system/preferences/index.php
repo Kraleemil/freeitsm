@@ -40,6 +40,12 @@ $prefDefaults = [
     // Read on every analyst page by renderWaffleMenuJS(); played by
     // assets/js/notification-sound.js.
     'notification_sound'         => 'off',
+    // How a task opens: 'panel' is the right-hand drawer, 'modal' is a large
+    // near-full-screen window that lays the same content out in two columns.
+    // Per analyst rather than per install, because it is a working-style
+    // preference — the drawer keeps the board visible behind it, the modal gives
+    // the description and comments room to breathe.
+    'tasks_detail_view'          => 'panel',
     // Left-panel visibility — one key per module that has a left panel.
     // Each module's header reads its key; module settings pages (where one
     // exists) edit the same key. Surfaced together below.
@@ -450,6 +456,19 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
                     ? t('system.preferences.landing_portal')
                     : t('system.preferences.landing_analyst');
             ?>
+            <!-- How a task opens (Ed's request). A working-style choice, so it is
+                 per analyst: the drawer keeps the board visible behind it, the
+                 modal gives the description and comments room. -->
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.task_view_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.task_view_desc')); ?></p>
+                <select id="taskViewSelect" class="pref-language-select">
+                    <option value="panel" <?php echo $prefs['tasks_detail_view'] !== 'modal' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.task_view_panel')); ?></option>
+                    <option value="modal" <?php echo $prefs['tasks_detail_view'] === 'modal' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.task_view_modal')); ?></option>
+                </select>
+                <span class="pref-saving-hint" id="taskViewSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+            </div>
+
             <div class="pref-section">
                 <h3><?php echo htmlspecialchars(t('system.preferences.landing_heading')); ?></h3>
                 <p><?php echo htmlspecialchars(t('system.preferences.landing_desc')); ?></p>
@@ -863,6 +882,17 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
                 setTimeout(() => soundHint.classList.remove('show'), 1200);
             });
             soundPreview.addEventListener('click', playSelectedSound);
+        }
+
+        // ===== How a task opens (tasks_detail_view) =====
+        const taskViewSelect = document.getElementById('taskViewSelect');
+        const taskViewHint   = document.getElementById('taskViewSavingHint');
+        if (taskViewSelect) {
+            taskViewSelect.addEventListener('change', async function() {
+                taskViewHint.classList.add('show');
+                await savePref('tasks_detail_view', taskViewSelect.value);
+                setTimeout(() => taskViewHint.classList.remove('show'), 1200);
+            });
         }
 
         // ===== Start page (default_landing_page) =====

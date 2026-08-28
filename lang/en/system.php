@@ -675,6 +675,10 @@ return [
         'sound_note'    => 'Your browser will not play a sound until you have clicked somewhere on the page, so the first notification after opening a tab may be silent. Nothing is heard for notifications that were already waiting when you opened the tab.',
 
         // Start page (discussion #63). The override for the install-wide setting.
+        'task_view_heading' => 'Opening a task',
+        'task_view_desc'    => 'Whether a task opens in the panel at the side of the board, or in a large window with room for the description and comments.',
+        'task_view_panel'   => 'In the side panel',
+        'task_view_modal'   => 'In a large window',
         'landing_heading' => 'Start page',
         'workcal_heading' => 'My work calendar',
         'workcal_desc'    => 'Put the tickets you have scheduled into the calendar you actually use — Google, Apple, Outlook or anything else that can subscribe to a calendar.',
