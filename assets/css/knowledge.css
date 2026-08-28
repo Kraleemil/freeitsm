@@ -1423,15 +1423,40 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
    Going into a folder from the main pane: a breadcrumb, then folder rows above
    the articles. NOT a view mode — see the note in knowledge.js.
    --------------------------------------------------------------------------- */
+/* ⚠️ It has to be SEEN. The first cut was 13px muted text with no background,
+   floating above the heading — Ed went looking for an "up a level" button while
+   the way back out was already on screen, which is the clearest possible
+   evidence that a control is too quiet. It now reads as a bar. */
 .kb-breadcrumb {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    padding: 0 0 10px;
+    margin-bottom: 14px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
     font-size: 13px;
     color: var(--text-muted);
 }
+
+/* Up one level. The trail says where you are and lets you jump anywhere along
+   it; going up ONE step is the commonest move and should not require reading
+   the trail to work out which crumb is the parent. Explorer has both. */
+.kb-crumb-up {
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1;
+    padding: 4px 8px;
+    margin-right: 4px;
+    cursor: pointer;
+}
+.kb-crumb-up:hover { background: var(--surface-hover); }
 .kb-breadcrumb a { color: var(--accent); cursor: pointer; }
 .kb-breadcrumb a:hover { text-decoration: underline; }
 /* The last crumb is where you already are, so it is not a link anywhere. */
@@ -1667,4 +1692,73 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+   "Who can see this" — a FIXED height, whatever is in it.
+
+   The dialog was sized by its contents, so it grew and shrank as you searched,
+   added somebody, or removed them: the Close button moved under the cursor
+   between one click and the next, and the list jumped while you were reading it.
+   A permissions screen is one you edit repeatedly in a single sitting, which is
+   exactly the case where a dialog that resizes itself is most annoying.
+
+   80% of the window, and the LIST is the part that flexes — so the tickboxes,
+   the explanation and the search box stay put and only the thing that varies
+   scrolls.
+   --------------------------------------------------------------------------- */
+#kbPermModal .modal-content {
+    height: 80vh;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+/* ⚠️ min-height: 0 on every flex ancestor of the scroller. Without it a flex
+   item refuses to shrink below its content, so the list grows the dialog
+   instead of scrolling inside it and the fixed height does nothing. */
+#kbPermModal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#kbPermModal #kbPermOwnRules {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+#kbPermModal .kb-perm-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+}
+/* The search results are capped rather than flexing: they appear and vanish as
+   you type, and letting them take space from the list would put the jumping
+   back in by another route. */
+#kbPermModal .kb-perm-results { max-height: 180px; flex: 0 0 auto; }
+#kbPermModal .modal-header,
+#kbPermModal .modal-footer { flex: 0 0 auto; }
+
+/* The exceptions report has the same problem for the same reason. */
+#kbExceptionsModal .modal-content {
+    height: 80vh;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+#kbExceptionsModal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#kbExceptionsModal .kb-perm-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
 }

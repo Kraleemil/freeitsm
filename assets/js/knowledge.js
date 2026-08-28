@@ -548,6 +548,23 @@ function applySidebarMode(mode) {
 
 let kbPromptResolve = null;
 
+/**
+ * The app's shared confirmation dialog, with a safety net.
+ *
+ * showConfirm() lives in assets/js/confirm.js and is auto-loaded by the waffle
+ * menu, so it is normally there. Falling back to the browser's confirm() rather
+ * than assuming: if the shared one is ever missing, the choice is between an
+ * ugly dialog and NO CONFIRMATION AT ALL on a destructive action — and a
+ * `showConfirm(...)` that throws would take the whole handler with it, deleting
+ * nothing and reporting nothing.
+ */
+async function kbConfirm(opts) {
+    if (typeof window.showConfirm === 'function') {
+        return await window.showConfirm(opts);
+    }
+    return confirm(opts.message || '');
+}
+
 function kbPrompt(title, value) {
     const modal = document.getElementById('kbPromptModal');
     // No dialog on the page (an older cached template): fall back rather than
@@ -700,8 +717,27 @@ function renderFolderPicker() {
     sel.value = keep;
 }
 
+/**
+ * Up one level.
+ *
+ * ⚠️ From a TOP-LEVEL folder this goes to "All articles", not to nothing — the
+ * root is a real destination even though it is not a row in the table. Without
+ * that, the button would be dead exactly where people expect it to take them
+ * out of the tree.
+ */
+function goUpOneLevel() {
+    if (activeFolder === '' || activeFolder === 'root') return;
+    const path = folderPath(activeFolder);
+    const parent = path.length >= 2 ? path[path.length - 2].id : '';
+    selectFolder(String(parent));
+}
+
 function selectFolder(value) {
     activeFolder = String(value);
+    // ⚠️ The URL syncs from showView(), and changing folder does not change
+    // VIEW — so without this the address bar keeps naming whichever folder you
+    // arrived on and every link copied afterwards is wrong.
+    syncArticleUrl('list');
     renderFolderTree(0);   // repaint the selection; counts come back on reload
     loadFolders();
     loadArticles(document.getElementById('articleSearch').value, activeTagFilters);
@@ -723,7 +759,12 @@ async function renameFolderPrompt(id, current) {
 }
 
 async function deleteFolderPrompt(id, name) {
-    if (!confirm(window.t('knowledge.folders.delete_confirm', { name: name }))) return;
+    if (!await kbConfirm({
+        title: window.t('knowledge.folders.delete'),
+        message: window.t('knowledge.folders.delete_confirm', { name: name }),
+        okLabel: window.t('knowledge.folders.delete'),
+        okClass: 'danger'
+    })) return;
     await folderAction({ action: 'delete', id: id }, 'knowledge.folders.deleted');
 }
 
@@ -992,7 +1033,16 @@ function renderBreadcrumb() {
         parts.push(`<a onclick="selectFolder('${f.id}')">${escapeHtml(f.name)}</a>`);
     }
     bar.style.display = '';
-    bar.innerHTML = parts.join('<span class="kb-crumb-sep">›</span>');
+    // An explicit "up one level" as well as the trail. The trail tells you where
+    // you are and lets you jump anywhere along it; going up ONE step is the
+    // commonest move of all and should not require reading the trail first to
+    // work out which crumb is the parent — which is precisely why Explorer has
+    // both.
+    bar.innerHTML =
+        `<button type="button" class="kb-crumb-up" onclick="goUpOneLevel()"
+                 title="${escapeHtml(window.t('knowledge.folders.up'))}"
+                 aria-label="${escapeHtml(window.t('knowledge.folders.up'))}">↑</button>`
+        + parts.join('<span class="kb-crumb-sep">›</span>');
 }
 
 /**
@@ -1235,7 +1285,7 @@ function renderPermList() {
         <div class="kb-perm-entry">
             <span class="kb-perm-entry-name">${escapeHtml(e.name)}</span>
             <span class="kb-perm-entry-kind">${escapeHtml(e.principal_type.replace('_', ' '))}</span>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="permRemove(${e.id})">${escapeHtml(window.t('knowledge.perm.remove'))}</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="permRemove(${e.id}, ${jsAttr(e.name)})">${escapeHtml(window.t('knowledge.perm.remove'))}</button>
         </div>`).join('');
 }
 
@@ -1253,7 +1303,12 @@ async function permSetMode(askIfWiping) {
 
     if (askIfWiping) {
         const n = ((permState && permState.entries) || []).length;
-        if (n > 0 && !confirm(window.t('knowledge.perm.wipe_confirm', { count: n }))) {
+        if (n > 0 && !await kbConfirm({
+            title: window.t('knowledge.perm.title'),
+            message: window.t('knowledge.perm.wipe_confirm', { count: n }),
+            okLabel: window.t('knowledge.perm.wipe_ok'),
+            okClass: 'danger'
+        })) {
             // Put the tickbox back: it must show what is stored, not what was
             // clicked and then abandoned.
             document.getElementById('kbPermRestricted').checked = !restricted;
@@ -1265,14 +1320,36 @@ async function permSetMode(askIfWiping) {
     await permLoad();
 }
 
-async function permRemove(entryId) {
+/**
+ * Take somebody off the list.
+ *
+ * Asked for first, because on a RESTRICTED object this takes access away and
+ * the person it happens to is not in the room to notice. The name is in the
+ * question rather than a bare "are you sure?" — the rows all look alike, and
+ * the mis-click this guards against is removing the one below the one you meant.
+ */
+async function permRemove(entryId, name) {
+    const ok = await kbConfirm({
+        title: window.t('knowledge.perm.remove'),
+        message: window.t('knowledge.perm.remove_confirm', { name: name || '' }),
+        okLabel: window.t('knowledge.perm.remove'),
+        okClass: 'danger'
+    });
+    if (!ok) return;
+
     const d = await permPost({ action: 'remove', entry_id: entryId });
-    if (d && d.now_unreachable) showToast(window.t('knowledge.perm.now_unreachable'), 'warning');
+    if (!d) return;                       // permPost already said why
+    showToast(window.t('knowledge.perm.removed', { name: name || '' }), 'success');
+    // Said AFTER the removal succeeded, and as a warning rather than a success:
+    // "restricted to nobody" is legal and occasionally meant, but it is almost
+    // never what somebody intended by removing one person.
+    if (d.now_unreachable) showToast(window.t('knowledge.perm.now_unreachable'), 'warning');
     await permLoad();
 }
 
 async function permAdd(type, id) {
-    await permPost({ action: 'add', principal_type: type, principal_id: id });
+    const d = await permPost({ action: 'add', principal_type: type, principal_id: id });
+    if (d) showToast(window.t('knowledge.perm.added'), 'success');
     document.getElementById('kbPermSearch').value = '';
     document.getElementById('kbPermResults').innerHTML = '';
     await permLoad();
@@ -2054,6 +2131,16 @@ function syncArticleUrl(view) {
     } else {
         return;
     }
+
+    // The folder you are looking at, so a folder can be linked to and reloaded
+    // as easily as an article. Only on the list: while an article is open the
+    // URL names the ARTICLE, which is the more specific thing and the one
+    // somebody means to share.
+    if (view === 'list' && activeFolder !== '') {
+        url.searchParams.set('folder', activeFolder);
+    } else {
+        url.searchParams.delete('folder');
+    }
     // One-shot params that must never survive into a copied link.
     ['id', 'edit', 'askai'].forEach(function (k) { url.searchParams.delete(k); });
 
@@ -2544,6 +2631,19 @@ function blobToBase64(blob) {
     const urlParams = new URLSearchParams(window.location.search);
     const articleId = urlParams.get('article') || urlParams.get('id');
     const wantEdit = urlParams.get('edit') === '1';
+
+    // ?folder=N (or 'root') opens straight into that folder, so a folder can be
+    // linked to and reloaded exactly as an article can. Applied only when no
+    // article is named: an article link is the more specific request, and
+    // opening a folder underneath it would just be a flicker on the way past.
+    const folderParam = urlParams.get('folder');
+    if (!articleId && folderParam !== null && folderParam !== '') {
+        activeFolder = (folderParam === 'root' || /^\d+$/.test(folderParam)) ? folderParam : '';
+        // No fetch here — the initial loadArticles() has not run yet and will
+        // pick this up. Kicking off a second one would race the first, and the
+        // loser would overwrite the winner.
+    }
+
     if (!articleId) return;
 
     const checkAndLoad = setInterval(() => {
