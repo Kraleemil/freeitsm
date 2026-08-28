@@ -230,11 +230,43 @@ $pageStyles = <<<'CSS'
 @media (max-width: 768px) {
     /* On a phone, ONE scroller: the page. A list that scrolls inside a page
        that also scrolls is the thing people complain about when a thumb swipe
-       moves the wrong layer, and there is no second pane to keep visible here
-       anyway — the panes are stacked. */
+       moves the wrong layer. */
     .tk-list      { max-height: none; }
     .tk-list-body { overflow-y: visible; }
+
+    /* ── Outlook-style master and detail ──────────────────────────────────
+       One at a time, not both stacked. Stacking them meant that opening a
+       ticket left you looking at the list, with the ticket you had just asked
+       for somewhere below the fold — you had to scroll past everything to
+       reach it. Same shape as the analyst inbox on a phone: the list IS the
+       screen, a ticket replaces it, and Back returns.
+       Driven by a class on <body>, so the pane markup is untouched and the
+       desktop two-pane layout is not involved at all. */
+    body.tk-reading .tk-list { display: none; }
+    body.tk-reading .tk-back { display: block; }
+    body:not(.tk-reading) .tk-read { display: none; }
+
+    .tk-read { min-height: 0; }
+
+    .tk-back {
+        display: none;              /* revealed by body.tk-reading, above */
+        width: 100%;
+        text-align: left;
+        padding: 12px 14px;
+        min-height: 44px;
+        border: none;
+        border-bottom: 1px solid var(--border-soft, #eee);
+        background: var(--surface, #fff);
+        color: var(--accent, #2e7d32);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+    }
 }
+
+/* The back control is a phone affordance only; the desktop layout shows both
+   panes at once and has nothing to go back to. */
+.tk-back { display: none; }
 CSS;
 
 $pageScripts = <<<'JS'
@@ -284,7 +316,8 @@ let ssTickets = [];
                 const first = visibleTickets()[0];
                 const wanted = ssSelected || window.PAGE.ticketId || (first ? first.id : 0);
                 // Awaited: an un-awaited select here would race the caller's own.
-                if (wanted) await selectTicket(wanted);
+                // reveal ONLY for a deep link — see selectTicket.
+                if (wanted) await selectTicket(wanted, !!window.PAGE.ticketId);
             } catch (e) {
                 document.getElementById('tkList').innerHTML =
                     '<div class="loading-state">' + esc(window.t('self-service.tickets.load_failed')) + '</div>';
@@ -347,17 +380,71 @@ let ssTickets = [];
             }).join('');
         }
 
-        async function selectTicket(id) {
+        // ── Phone master/detail ───────────────────────────────────────────
+        // The panes are one at a time on a phone (see the CSS). This is the
+        // only state: a class on <body>. matchMedia rather than a width read,
+        // so rotating the handset re-evaluates without a reload.
+        const ssPhone = window.matchMedia('(max-width: 768px)');
+
+        function ssSetReading(on) {
+            document.body.classList.toggle('tk-reading', !!on && ssPhone.matches);
+        }
+
+        // Back to the list. Prefers history.back() so the DEVICE back button and
+        // this button are the same action rather than two that disagree —
+        // otherwise tapping Back leaves a stale entry and the phone's own back
+        // gesture then appears to do nothing.
+        function ssBackToList() {
+            if (history.state && history.state.ssReading) { history.back(); return; }
+            ssSetReading(false);
+        }
+
+        // The phone's back gesture returns to the list rather than leaving the
+        // portal, which is what every mail app does.
+        window.addEventListener('popstate', function (e) {
+            ssSetReading(!!(e.state && e.state.ssReading));
+        });
+
+        // Rotating to landscape can cross the breakpoint: if the class is left
+        // on, the desktop two-pane layout would come back with the list hidden.
+        (ssPhone.addEventListener ? ssPhone.addEventListener.bind(ssPhone, 'change')
+                                  : ssPhone.addListener.bind(ssPhone))(function () {
+            if (!ssPhone.matches) document.body.classList.remove('tk-reading');
+        });
+
+        // `reveal` = "the person asked for this ticket", so on a phone we should
+        // switch from the list to the ticket. Defaults TRUE because every caller
+        // that is a tap wants that.
+        //
+        // ⚠️ The load path passes FALSE. It auto-selects the first ticket so the
+        // desktop's second pane is never empty — right there, and wrong on a
+        // phone, where it landed you inside a ticket you never chose instead of
+        // on your list. A deep link (?id=) is a real request, so that still
+        // reveals.
+        async function selectTicket(id, reveal) {
+            const wantsReveal = (reveal === undefined) ? true : !!reveal;
             ssSelected = id;
             ssFiles = [];
             renderList();
+            if (wantsReveal) ssSetReading(true);
             // Keep the address bar in step so the ticket can be linked/bookmarked.
             // Guarded: history writes throw in some contexts (file:// origins,
             // strict embedders), and a URL nicety must never stop the ticket
             // itself loading.
             try {
                 if (window.history && window.history.replaceState) {
-                    window.history.replaceState({ ticketId: id }, '', 'tickets.php?id=' + id);
+                    // ⚠️ PUSH on a phone, REPLACE on a desktop, and the difference
+                    // is deliberate. Pushing is what gives the handset's own back
+                    // gesture something to pop, so it returns to the list like a
+                    // mail app. On a desktop both panes are on screen and there is
+                    // nothing to go back FROM, so pushing would only litter the
+                    // history with one entry per ticket read.
+                    if (wantsReveal && ssPhone.matches && !(history.state && history.state.ssReading)) {
+                        window.history.pushState({ ticketId: id, ssReading: true }, '', 'tickets.php?id=' + id);
+                    } else {
+                        window.history.replaceState(
+                            { ticketId: id, ssReading: wantsReveal && ssPhone.matches }, '', 'tickets.php?id=' + id);
+                    }
                 }
             } catch (e) { /* not fatal */ }
 
@@ -730,6 +817,15 @@ require_once __DIR__ . '/includes/header.php';
                 <div class="loading-state"><?php echo htmlspecialchars(t('self-service.tickets.loading')); ?></div>
             </div>
         </div>
+
+        <!-- Phone-only "back to the list", shown by CSS when body.tk-reading is
+             set. It sits OUTSIDE #tkRead deliberately: that element's innerHTML
+             is replaced on every selection, so a button inside it would have to
+             be re-created each time and would go missing the first time somebody
+             changed the renderer. -->
+        <button type="button" class="tk-back" id="tkBack" onclick="ssBackToList()">
+            &#8592; <?php echo htmlspecialchars(t('self-service.tickets.back_to_list')); ?>
+        </button>
 
         <div class="tk-read" id="tkRead">
             <div class="tk-read-empty"><?php echo htmlspecialchars(t('self-service.tickets.select')); ?></div>

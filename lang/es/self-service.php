@@ -164,6 +164,7 @@ return [
         'load_failed'   => 'No se han podido cargar sus tickets. Inténtelo de nuevo.',
         'none'          => 'Aquí no hay nada',
         'select'        => 'Seleccione un ticket para leerlo',
+        'back_to_list'  => 'Todos los tickets',
     ],
     'ticket' => [
         'title'               => 'Portal de autoservicio - Detalle del ticket',

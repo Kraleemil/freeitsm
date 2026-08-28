@@ -178,6 +178,7 @@ return [
         'load_failed'   => 'Ihre Tickets konnten nicht geladen werden. Bitte versuchen Sie es erneut.',
         'none'          => 'Hier ist nichts',
         'select'        => 'Wählen Sie ein Ticket aus, um es zu lesen',
+        'back_to_list'  => 'Alle Tickets',
     ],
     'ticket' => [
         'title'               => 'Self-Service-Portal - Ticketdetails',

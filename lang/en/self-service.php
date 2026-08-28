@@ -192,6 +192,7 @@ return [
         'load_failed'   => 'Could not load your tickets. Please try again.',
         'none'          => 'Nothing here',
         'select'        => 'Select a ticket to read it',
+        'back_to_list'  => 'All tickets',
     ],
 
     'ticket' => [
