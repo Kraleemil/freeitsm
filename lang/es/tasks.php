@@ -260,7 +260,7 @@ return [
 
     'time' => [
         'heading'            => 'Tiempo',
-        'total'              => '{amount}',
+        'total'              => 'Total {amount}',
         'total_with_subtasks'=> '{amount} incluidas las subtareas',
         'empty'              => 'Aún no se ha registrado tiempo.',
         'add'                => 'Añadir',

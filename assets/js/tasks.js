@@ -1194,6 +1194,9 @@ function renderTaskTime(taskId, d) {
     // '&middot;' in the lang file goes through esc() with everything else and
     // renders as the literal text "&middot;" — which is exactly what it did
     // until the page was driven in a browser and read.
+    // The heading is separated from the total by a middot, exactly as the ticket
+    // panel reads: "Time · Total 30m". Without the word "Total" the number is
+    // ambiguous — "Time 30m" could as easily be a name as a sum.
     const parts = [esc(window.t('tasks.time.total', { amount: formatMinutes(d.total_minutes) }))];
     if (d.subtask_minutes > 0) {
         parts.push(esc(window.t('tasks.time.total_with_subtasks', {
@@ -1226,8 +1229,13 @@ function renderTaskTime(taskId, d) {
         }).join('')
         : `<div class="time-entry-empty">${esc(window.t('tasks.time.empty'))}</div>`;
 
+    // ⚠️ A <label>, which is what this used to be, is styled for FIELD NAMES:
+    // 11px, uppercased and muted. The total was genuinely on screen and read as
+    // "TIME 30M" — indistinguishable from a heading, and impossible to spot as a
+    // number. It uses the ticket panel's own header rule instead, so the total
+    // looks like a total and looks the same in both modules.
     el.innerHTML = `
-        <label>${esc(window.t('tasks.time.heading'))} ${total}</label>
+        <div class="time-entries-header">${esc(window.t('tasks.time.heading'))} &middot; ${total}</div>
         <form class="time-entry-form" onsubmit="event.preventDefault(); addTaskTime(${taskId});">
             <input type="number" min="1" step="1" id="taskTimeMinutes" class="time-entry-input-minutes"
                    placeholder="${escAttr(window.t('tasks.time.minutes_placeholder'))}" required>

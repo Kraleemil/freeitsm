@@ -443,7 +443,7 @@ return [
     // Time recorded against a task (GH #112).
     'time' => [
         'heading'            => 'Time',
-        'total'              => '{amount}',
+        'total'              => 'Total {amount}',
         'total_with_subtasks'=> '{amount} including subtasks',
         'empty'              => 'No time recorded yet.',
         'add'                => 'Add',

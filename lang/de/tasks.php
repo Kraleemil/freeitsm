@@ -397,7 +397,7 @@ return [
 
     'time' => [
         'heading'            => 'Zeit',
-        'total'              => '{amount}',
+        'total'              => 'Gesamt {amount}',
         'total_with_subtasks'=> '{amount} inklusive Unteraufgaben',
         'empty'              => 'Noch keine Zeit erfasst.',
         'add'                => 'Hinzufügen',
