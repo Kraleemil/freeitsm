@@ -51,6 +51,40 @@ foreach ($rows as $r) {
 }
 $out .= "];\n";
 
+// --check: is the committed file already what this script would write?
+//
+// ⚠️ WHY THIS EXISTS. The Database Verification screen has always detected this
+// drift, and told the administrator to run this script. But nothing ran it
+// BEFORE a release, so a shipped version went out with 16 indexes in
+// freeitsm.sql and missing from the list — and every administrator who ran
+// Verification, on every update, was shown a developer instruction they could do
+// nothing useful with (GH #113). Detecting a mistake at the far end, in somebody
+// else's install, is not the same as catching it.
+//
+// Exits 1 when they differ, so this can gate a release rather than rely on
+// remembering. Writes nothing in this mode.
+if (in_array('--check', $argv, true)) {
+    $current = is_readable($outPath) ? file_get_contents($outPath) : '';
+    if ($current === $out) {
+        echo "db_verify_indexes.php is up to date with freeitsm.sql (" . count($rows) . " indexes).\n";
+        exit(0);
+    }
+    fwrite(STDERR, "OUT OF DATE: includes/db_verify_indexes.php does not match database/freeitsm.sql.\n");
+    fwrite(STDERR, "Run: php scripts/gen_db_verify_indexes.php   then commit BOTH files.\n");
+    // Name what differs, so the failure is actionable without a diff tool.
+    $committed = is_readable($outPath) ? (array) (require $outPath) : [];
+    $key = fn(array $r) => $r[0] . '.' . $r[1];
+    $freshKeys = array_map($key, $rows);
+    $commKeys  = array_map($key, $committed);
+    foreach (array_diff($freshKeys, $commKeys) as $k) {
+        fwrite(STDERR, "  missing from the list: $k\n");
+    }
+    foreach (array_diff($commKeys, $freshKeys) as $k) {
+        fwrite(STDERR, "  in the list but not in freeitsm.sql: $k\n");
+    }
+    exit(1);
+}
+
 file_put_contents($outPath, $out);
 
 // Report the breakdown, not just the total — a FULLTEXT index silently parsed as

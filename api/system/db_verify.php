@@ -3203,9 +3203,19 @@ try {
     // the failure mode is someone adding an index to freeitsm.sql but forgetting
     // to regenerate — so the mirror silently omits it and grown installs miss it
     // again. Re-parse freeitsm.sql and compare; if they've drifted, say so loudly
-    // right here (this page is the ritual after a schema change). Silent when in
-    // sync, which is every shipped install (both files ship from one commit), so
-    // this only ever fires for a developer mid-change. Mirrors capSelfCheck().
+    // right here (this page is the ritual after a schema change). Mirrors
+    // capSelfCheck().
+    //
+    // ⚠️ This used to say the check "only ever fires for a developer mid-change,
+    // because both files ship from one commit". That was wrong, and it was
+    // reported by a user (GH #113): the two files ship from one commit, but
+    // nothing checked they AGREED in that commit, so a shipped release carried
+    // 16 indexes present in freeitsm.sql and missing from the list. Every
+    // administrator who ran Verification saw a developer instruction they could
+    // do nothing with, after every update.
+    // The check is right; what was missing was running it before shipping —
+    // `php scripts/gen_db_verify_indexes.php --check` now does that, and exits
+    // non-zero.
     require_once '../../includes/db_verify_index_parse.php';
     $indexListDrift = dbVerifyIndexListSelfCheck();
     if (!empty($indexListDrift)) {

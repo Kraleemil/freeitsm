@@ -830,6 +830,18 @@ if (!isset($_SESSION['analyst_id'])) {
             const fixBtn = document.querySelector('#detailBody .fix-btn');
             if (fixBtn) fixBtn.addEventListener('click', () => fixOrphans(fixBtn));
 
+            // ⚠️ Not every result IS a table. The drift self-checks report under
+            // a human label ("index backfill list", "column list"), which is not
+            // an identifier — asking the server to describe it returned a blunt
+            // "A valid table name is required" on top of the real message the
+            // admin came to read (GH #113). Those rows have their details and
+            // nothing to describe, so stop here rather than ask.
+            if (!/^[a-zA-Z0-9_]+$/.test(r.table || '')) {
+                const loading = document.querySelector('#detailBody .detail-loading');
+                if (loading) loading.remove();
+                return;
+            }
+
             try {
                 const res = await fetch('../../api/system/db_describe.php?table=' + encodeURIComponent(r.table));
                 const data = await res.json();
