@@ -1774,3 +1774,11 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     overflow-y: auto;
 }
 #kbPermInherited { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+/* Breathing room inside the inherited panel. The two explanatory lines and the
+   list were butting up against each other, so the whole thing read as one
+   undifferentiated block rather than "here is where these come from" / "here is
+   the list" / "here is how to change it". */
+#kbPermInherited .field-hint { margin: 0 0 4px; line-height: 1.5; }
+#kbPermInherited .kb-perm-list { margin-top: 12px; margin-bottom: 12px; }
+#kbPermInherited .no-results { padding: 18px 14px; }
