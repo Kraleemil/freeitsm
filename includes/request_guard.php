@@ -26,8 +26,22 @@
  * deliberate follow-up, not something to bolt on inside a security fix.
  *
  * What is safe to do centrally today is refuse the one Content-Type that has no
- * legitimate use here. Our own front end sends `application/json` and nothing else
- * (149 fetch call sites, all of them). Browsers and integrations send
+ * legitimate use here.
+ *
+ * ⚠️ THIS GUARD BREAKS ANY OF OUR OWN CODE THAT FORGETS THE HEADER. `fetch` with a
+ * string body and no `headers` sends `text/plain;charset=UTF-8`, which is exactly
+ * what this refuses — so the caller gets a 415 reading "Send application/json",
+ * usually straight into an alert() in front of a user who did nothing wrong.
+ * This comment used to assert that our front end sent `application/json` at all
+ * 149 of its call sites. That was not true when it was written: the three POSTs on
+ * the API-keys screen had never set it, and this guard silently took every write
+ * action on that screen out of service for three weeks (GH #114). The claim was
+ * doing real harm as documentation, because it invited the reader to skip the
+ * check. So it is now a TESTED claim rather than a stated one — see
+ * `tests/security-findings/run.php`, which scans every fetch() in the tree for a
+ * JSON body sent without the header. Do not restore a prose promise here.
+ *
+ * Browsers and integrations send
  * application/json, multipart/form-data or application/x-www-form-urlencoded. None
  * of them send text/plain — it exists in this context only as a way to dodge a
  * preflight. Refusing it costs nothing and closes the exact attack above.

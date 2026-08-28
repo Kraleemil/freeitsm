@@ -375,6 +375,70 @@ check("cookie_secure is NOT forced in static config (it would lock out HTTP inst
       && strpos(code("$APP/.user.ini"), 'session.cookie_secure') === false
       && strpos(code("$APP/docker/php.ini"), 'session.cookie_secure') === false);
 
+// ⚠️ THE OTHER HALF OF THIS GUARD. Everything above proves it refuses an ATTACKER's
+// text/plain. Nothing proved that our OWN front end had stopped sending it — and it
+// had not. `fetch` with a string body and no `headers` sends text/plain;charset=UTF-8,
+// so the three POSTs on the API-keys screen were refused by our own defence, taking
+// create/edit/enable/delete on that screen out of service for three weeks before
+// anybody reported it (GH #114). The guard's header comment asserted in prose that
+// all 149 call sites sent application/json; the claim was false when written, and
+// being written down is what stopped anyone checking. Hence this scan.
+//
+// FormData bodies are deliberately NOT flagged: the browser must set the multipart
+// boundary itself, so those are correct WITHOUT a Content-Type. The rule therefore
+// looks only at bodies built with JSON.stringify.
+function fetchCallsMissingJsonHeader(string $src): array
+{
+    $hits = [];
+    $off  = 0;
+    while (($p = strpos($src, 'fetch(', $off)) !== false) {
+        $off = $p + 6;
+        // Stop the window at the NEXT fetch( so a compliant neighbour can never
+        // mask a bare one, nor a bare neighbour incriminate a compliant one.
+        $next = strpos($src, 'fetch(', $off);
+        $win  = substr($src, $p, min(700, ($next === false ? strlen($src) : $next) - $p));
+        if (strpos($win, 'JSON.stringify') === false) continue;   // not a JSON body
+        if (strpos($win, 'body') === false) continue;             // not sending one
+        if (stripos($win, 'Content-Type') !== false) continue;    // declared, fine
+        $hits[] = substr_count(substr($src, 0, $p), "\n") + 1;
+    }
+    return $hits;
+}
+
+// SELF-TEST BOTH WAYS. A scanner that matched nothing would report a clean tree and
+// look identical to a clean pass — which is precisely the failure this whole file
+// exists to avoid.
+check("the scanner detects a fetch() JSON body sent with no Content-Type",
+      count(fetchCallsMissingJsonHeader("await fetch(u, {method:'POST', body: JSON.stringify(x)});")) === 1);
+check("POSITIVE CONTROL: the scanner passes the same call once the header is set",
+      count(fetchCallsMissingJsonHeader("await fetch(u, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(x)});")) === 0);
+
+$offenders = [];
+$it = new RecursiveIteratorIterator(
+    new RecursiveCallbackFilterIterator(
+        new RecursiveDirectoryIterator($APP, FilesystemIterator::SKIP_DOTS),
+        function ($f, $key, $iter) {
+            if ($iter->hasChildren()) {
+                // Vendored code is not ours to hold to this rule.
+                return !in_array($f->getFilename(), ['.git', 'node_modules', 'tinymce', 'vendor'], true);
+            }
+            return preg_match('/\.(js|php)$/i', $f->getFilename()) === 1;
+        }
+    )
+);
+foreach ($it as $file) {
+    // This file carries a deliberate violation as its own self-test, two checks up.
+    if (realpath($file->getPathname()) === realpath(__FILE__)) continue;
+    $src = @file_get_contents($file->getPathname());
+    if (!is_string($src) || strpos($src, 'fetch(') === false) continue;
+    foreach (fetchCallsMissingJsonHeader($src) as $line) {
+        $offenders[] = ltrim(str_replace($APP, '', $file->getPathname()), '/\\') . ':' . $line;
+    }
+}
+check("every fetch() in the tree that sends a JSON body declares application/json",
+      $offenders === [],
+      $offenders ? (count($offenders) . ' would be refused by our own guard: ' . implode(', ', array_slice($offenders, 0, 8))) : '');
+
 if ($BASE === null) {
     skipped("the cookie really arrives HttpOnly + SameSite=Lax", 'no base URL given');
     skipped("an attacker-chosen session id is refused", 'no base URL given');

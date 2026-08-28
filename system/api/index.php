@@ -407,6 +407,7 @@ $apiBaseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_UR
     window.toggleKey = async function (id, active) {
         const res = await fetch(API + 'update_key.php', {
             method: 'POST',
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({id: id, active: active === true || active === 'true'})
         });
         const data = await res.json();
@@ -417,7 +418,7 @@ $apiBaseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_UR
     window.deleteKey = async function (id) {
         const key = keys.find(k => k.id === id);
         if (!confirm(`Delete the API key "${key ? key.name : id}"? Integrations using it will stop working immediately.`)) return;
-        const res = await fetch(API + 'delete_key.php', {method: 'POST', body: JSON.stringify({id: id})});
+        const res = await fetch(API + 'delete_key.php', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: id})});
         const data = await res.json();
         if (!data.success) { alert(data.error || 'Delete failed'); return; }
         loadKeys();
@@ -447,7 +448,7 @@ $apiBaseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . BASE_UR
         try {
             if (id) payload.id = parseInt(id, 10);
             const res = await fetch(API + (id ? 'update_key.php' : 'create_key.php'), {
-                method: 'POST', body: JSON.stringify(payload)
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
             });
             const data = await res.json();
             if (!data.success) { alert(data.error || 'Save failed'); return; }
