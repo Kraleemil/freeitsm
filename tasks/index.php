@@ -41,7 +41,7 @@ $translationNamespaces = ['common', 'tasks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('tasks.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/tasks.css?v=18">
+    <link rel="stylesheet" href="../assets/css/tasks.css?v=19">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -160,6 +160,13 @@ $translationNamespaces = ['common', 'tasks'];
 
     <!-- Card right-click context menu -->
     <div class="ctx-menu" id="ctxMenu">
+        <div class="ctx-item" data-action="open">
+            <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.open')); ?></span>
+        </div>
+        <div class="ctx-item" data-action="assign-me">
+            <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.assign_me')); ?></span>
+        </div>
+        <div class="ctx-sep"></div>
         <div class="ctx-item ctx-has-sub" data-action="analyst">
             <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.assign_analyst')); ?></span>
             <span class="ctx-arrow">&rsaquo;</span>
@@ -180,9 +187,31 @@ $translationNamespaces = ['common', 'tasks'];
             <span class="ctx-arrow">&rsaquo;</span>
             <div class="ctx-submenu" id="ctxPriority"></div>
         </div>
+        <div class="ctx-item ctx-has-sub" data-action="due">
+            <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.due_date')); ?></span>
+            <span class="ctx-arrow">&rsaquo;</span>
+            <div class="ctx-submenu" id="ctxDue"></div>
+        </div>
         <div class="ctx-sep"></div>
+        <!-- Label flips between Mark complete and Reopen, set per task in
+             buildSubmenus() from the status's is_closed FLAG — never by comparing
+             the status name to the English word "Done", which any installation is
+             free to rename. -->
+        <div class="ctx-item" data-action="complete">
+            <span class="ctx-item-label" id="ctxCompleteLabel"><?php echo htmlspecialchars(t('tasks.context.mark_complete')); ?></span>
+        </div>
+        <div class="ctx-item" data-action="logtime" id="ctxLogTime">
+            <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.log_time')); ?></span>
+        </div>
         <div class="ctx-item" data-action="subtask">
             <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.create_subtask')); ?></span>
+        </div>
+        <div class="ctx-sep"></div>
+        <div class="ctx-item" data-action="copylink">
+            <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.copy_link')); ?></span>
+        </div>
+        <div class="ctx-item ctx-danger" data-action="delete">
+            <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.delete')); ?></span>
         </div>
     </div>
 
@@ -190,8 +219,8 @@ $translationNamespaces = ['common', 'tasks'];
     <script>window.API_BASE = '../api/tasks/';
     window.APP_BASE = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>';
     window.TASK_DETAIL_VIEW = <?php echo json_encode($taskDetailView); ?>;</script>
-    <script src="../assets/js/tasks-ctx-menu.js?v=1"></script>
-    <script src="../assets/js/tasks.js?v=23"></script>
+    <script src="../assets/js/tasks-ctx-menu.js?v=2"></script>
+    <script src="../assets/js/tasks.js?v=24"></script>
     <script src="../assets/js/mobile.js?v=28"></script>
 </body>
 </html>

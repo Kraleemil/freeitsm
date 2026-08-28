@@ -127,6 +127,36 @@
             (lookups.priorities || []).map(p =>
                 opt('priority', p.name, p.name, task.priority === p.name, sw(p.colour))).join('')
             || `<div class="ctx-sub-empty">${esc(T('context.no_priorities'))}</div>`;
+
+        // ── Due date shortcuts ────────────────────────────────────────────
+        // ⚠️ Built from LOCAL date parts, never toISOString(): a due date is a
+        // bare date, and toISOString() converts to UTC first, so anyone west of
+        // Greenwich would get yesterday. Same trap as GH #116, different field.
+        const ymd = (d) => d.getFullYear() + '-' +
+            String(d.getMonth() + 1).padStart(2, '0') + '-' +
+            String(d.getDate()).padStart(2, '0');
+        const today = new Date();
+        const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+        const nextMonday = new Date(today);
+        // getDay(): 0 = Sunday. Always lands on the NEXT Monday, never today.
+        nextMonday.setDate(today.getDate() + ((8 - today.getDay()) % 7 || 7));
+
+        const elD = document.getElementById('ctxDue');
+        if (elD) elD.innerHTML =
+            opt('due_date', ymd(today), T('context.due_today'), task.due_date === ymd(today)) +
+            opt('due_date', ymd(tomorrow), T('context.due_tomorrow'), task.due_date === ymd(tomorrow)) +
+            opt('due_date', ymd(nextMonday), T('context.due_next_monday'), task.due_date === ymd(nextMonday)) +
+            opt('due_date', '', T('context.due_clear'), !task.due_date);
+
+        // ── Complete / reopen, and whether logging time is offered here ────
+        const closed = !!task.status_is_closed;
+        const lbl = document.getElementById('ctxCompleteLabel');
+        if (lbl) lbl.textContent = T(closed ? 'context.reopen' : 'context.mark_complete');
+
+        // Hidden rather than shown-and-refused when the administrator has
+        // switched time off for this kind of task (GH #112).
+        const lt = document.getElementById('ctxLogTime');
+        if (lt) lt.style.display = (cfg.timeAllowedFor && cfg.timeAllowedFor(task)) ? '' : 'none';
     }
 
     function onMenuClick(e) {
@@ -140,10 +170,64 @@
             setField(field, value);
             return;
         }
+        const id = ctxTaskId;
+        const task = id && cfg.getTask ? cfg.getTask(id) : null;
+
         if (e.target.closest('[data-action="subtask"]')) {
-            const id = ctxTaskId;
             closeCtx();
             if (id && cfg.onCreateSubtask) cfg.onCreateSubtask(id);
+            return;
+        }
+        if (e.target.closest('[data-action="open"]')) {
+            closeCtx();
+            if (id && cfg.onOpen) cfg.onOpen(id);
+            return;
+        }
+        if (e.target.closest('[data-action="assign-me"]')) {
+            // Bare identifier: ANALYST_ID is a const in tasks.js, so the config
+            // hands it over rather than this file reaching for window.
+            setField('assigned_analyst_id', cfg.currentAnalystId ? parseInt(cfg.currentAnalystId, 10) : null);
+            return;
+        }
+        if (e.target.closest('[data-action="complete"]')) {
+            // By the is_closed FLAG, never by the status's name — an installation
+            // that renamed "Done" would otherwise never be able to finish a task.
+            const statuses = (cfg.getLookups() || {}).statuses || [];
+            const closed = task && task.status_is_closed;
+            const target = closed
+                ? (statuses.find(s => !s.is_closed && s.is_default) || statuses.find(s => !s.is_closed))
+                : statuses.find(s => s.is_closed);
+            if (!target) {
+                showToast(window.t('tasks.context.no_status_for_that'), 'error');
+                closeCtx();
+                return;
+            }
+            setField('status', target.name);
+            return;
+        }
+        if (e.target.closest('[data-action="logtime"]')) {
+            closeCtx();
+            if (id && cfg.onLogTime) cfg.onLogTime(id);
+            return;
+        }
+        if (e.target.closest('[data-action="copylink"]')) {
+            closeCtx();
+            const base = (window.APP_BASE || '/');
+            const url = location.origin + base + 'tasks/?task=' + id;
+            // ⚠️ copyToClipboard(), never navigator.clipboard directly: that is
+            // undefined outside a secure context and throws SYNCHRONOUSLY, so a
+            // .catch() fallback never runs. The helper also reports honestly
+            // whether the copy happened, so we never claim one we did not make.
+            copyToClipboard(url).then(ok => {
+                showToast(window.t(ok ? 'tasks.context.link_copied' : 'tasks.context.link_copy_failed'),
+                          ok ? 'success' : 'error');
+            });
+            return;
+        }
+        if (e.target.closest('[data-action="delete"]')) {
+            closeCtx();
+            if (id && cfg.onDelete) cfg.onDelete(id, task);
+            return;
         }
     }
 

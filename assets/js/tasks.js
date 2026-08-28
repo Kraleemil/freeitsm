@@ -67,6 +67,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             statuses:   statusList,
             priorities: priorityList,
         }),
+        // ANALYST_ID is a `const` in this file and therefore NOT on window, so it
+        // is handed over rather than reached for.
+        currentAnalystId: ANALYST_ID,
+        timeAllowedFor,
+        onOpen:    id => openDetailPanel(id),
+        onLogTime: id => openTaskAndFocusTime(id),
+        onDelete:  (id, task) => deleteTaskById(id, task),
         onUpdate: () => loadTasks(),
         apiBase: API_BASE,
         // Open the task and drop the cursor straight into the Add-subtask box
@@ -1218,6 +1225,49 @@ async function saveWorkEnd(value) {
 }
 
 // ── Time spent (GH #112) ───────────────────────────────────────────
+
+// "Log time" from the right-click menu. Opens the task and puts the cursor in
+// the minutes box rather than inventing a second little dialog for it — one
+// place where time is recorded, and you land looking at what is already there.
+async function openTaskAndFocusTime(taskId) {
+    await openDetailPanel(taskId);
+    const box = document.getElementById('taskTimeMinutes');
+    if (box) {
+        box.scrollIntoView({ block: 'center' });
+        box.focus();
+    }
+}
+
+// Delete from the right-click menu, which may be a card that is not the one
+// open in the panel — so it takes the id rather than using selectedTaskId.
+async function deleteTaskById(taskId, task) {
+    const name = (task && task.title) ? task.title : '#' + taskId;
+    if (!(await showConfirm({
+        title: window.t('tasks.context.delete'),
+        message: window.t('tasks.context.delete_confirm', { title: name }),
+        okLabel: window.t('tasks.context.delete'),
+        okClass: 'danger'
+    }))) return;
+    try {
+        const d = await fetch(API_BASE + 'delete.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: taskId })
+        }).then(r => r.json());
+        if (!d || !d.success) {
+            showToast((d && d.error) || window.t('tasks.toast.delete_failed'), 'error');
+            return;
+        }
+        // If the deleted task was the one on screen, the panel is now showing a
+        // record that no longer exists.
+        if (selectedTaskId === taskId) closeDetailPanel();
+        showToast(window.t('tasks.toast.task_deleted'), 'success');
+        loadTasks();
+    } catch (e) {
+        console.error(e);
+        showToast(window.t('tasks.toast.delete_failed'), 'error');
+    }
+}
 
 async function loadTaskTime(taskId) {
     const el = document.getElementById('taskTimeSection');
