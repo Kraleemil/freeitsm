@@ -35,7 +35,7 @@ $translationNamespaces = ['common', 'knowledge'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=4"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
-    <link rel="stylesheet" href="../assets/css/help.css?v=1">
+    <link rel="stylesheet" href="../assets/css/help.css?v=3">
     <style>
         /* The only thing a help page should need to say for itself: its colour. */
         body {
@@ -103,20 +103,28 @@ $translationNamespaces = ['common', 'knowledge'];
                 <span class="help-nav-num">3</span>
                 <?php echo htmlspecialchars(t('knowledge.help.nav_review')); ?>
             </a>
-            <a href="#ask-ai" class="help-nav-link" data-section="ask-ai">
+            <a href="#folders" class="help-nav-link" data-section="folders">
                 <span class="help-nav-num">4</span>
+                <?php echo htmlspecialchars(t('knowledge.help.nav_folders')); ?>
+            </a>
+            <a href="#permissions" class="help-nav-link" data-section="permissions">
+                <span class="help-nav-num">5</span>
+                <?php echo htmlspecialchars(t('knowledge.help.nav_permissions')); ?>
+            </a>
+            <a href="#ask-ai" class="help-nav-link" data-section="ask-ai">
+                <span class="help-nav-num">6</span>
                 <?php echo htmlspecialchars(t('knowledge.help.nav_ask_ai')); ?>
             </a>
             <a href="#search-navigation" class="help-nav-link" data-section="search-navigation">
-                <span class="help-nav-num">5</span>
+                <span class="help-nav-num">7</span>
                 <?php echo htmlspecialchars(t('knowledge.help.nav_search')); ?>
             </a>
             <a href="#sharing-export" class="help-nav-link" data-section="sharing-export">
-                <span class="help-nav-num">6</span>
+                <span class="help-nav-num">8</span>
                 <?php echo htmlspecialchars(t('knowledge.help.nav_sharing')); ?>
             </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">7</span>
+                <span class="help-nav-num">9</span>
                 <?php echo htmlspecialchars(t('knowledge.help.nav_tips')); ?>
             </a>
         </div>
@@ -300,10 +308,170 @@ $translationNamespaces = ['common', 'knowledge'];
                     <p class="help-note"><?php echo t('knowledge.help.review_tip'); ?></p>
                 </div>
 
-                <!-- Section 4: Ask AI -->
-                <div class="help-section" id="ask-ai">
+                <!-- Section 4: Folders & views -->
+                <div class="help-section" id="folders">
                     <div class="help-section-header">
                         <span class="help-section-num">4</span>
+                        <div>
+                            <h3><?php echo htmlspecialchars(t('knowledge.help.folders_heading')); ?></h3>
+                            <p><?php echo htmlspecialchars(t('knowledge.help.folders_intro')); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.folders_make_heading')); ?></h4>
+                        <div class="help-steps">
+                            <div class="help-step">
+                                <div class="help-step-num">1</div>
+                                <div><?php echo t('knowledge.help.folders_step1'); ?></div>
+                            </div>
+                            <div class="help-step">
+                                <div class="help-step-num">2</div>
+                                <div><?php echo t('knowledge.help.folders_step2'); ?></div>
+                            </div>
+                            <div class="help-step">
+                                <div class="help-step-num">3</div>
+                                <div><?php echo t('knowledge.help.folders_step3'); ?></div>
+                            </div>
+                            <div class="help-step">
+                                <div class="help-step-num">4</div>
+                                <div><?php echo t('knowledge.help.folders_step4'); ?></div>
+                            </div>
+                            <div class="help-step">
+                                <div class="help-step-num">5</div>
+                                <div><?php echo t('knowledge.help.folders_step5'); ?></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.folders_views_heading')); ?></h4>
+                        <div class="help-cards">
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.folders_view_list')); ?></strong>
+                                <span><?php echo htmlspecialchars(t('knowledge.help.folders_view_list_desc')); ?></span>
+                            </div>
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.folders_view_cards')); ?></strong>
+                                <span><?php echo htmlspecialchars(t('knowledge.help.folders_view_cards_desc')); ?></span>
+                            </div>
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.folders_view_tree')); ?></strong>
+                                <span><?php echo htmlspecialchars(t('knowledge.help.folders_view_tree_desc')); ?></span>
+                            </div>
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.folders_view_details')); ?></strong>
+                                <span><?php echo htmlspecialchars(t('knowledge.help.folders_view_details_desc')); ?></span>
+                            </div>
+                        </div>
+                        <p class="help-note"><?php echo htmlspecialchars(t('knowledge.help.folders_views_note')); ?></p>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.folders_home_heading')); ?></h4>
+                        <div class="help-list">
+                            <div><?php echo t('knowledge.help.folders_home'); ?></div>
+                            <div><?php echo t('knowledge.help.folders_breadcrumb'); ?></div>
+                            <div><?php echo t('knowledge.help.folders_search'); ?></div>
+                        </div>
+                    </div>
+
+                    <p class="help-note"><?php echo t('knowledge.help.folders_tip'); ?></p>
+                </div>
+
+                <!-- Section 5: Who can see what -->
+                <div class="help-section" id="permissions">
+                    <div class="help-section-header">
+                        <span class="help-section-num">5</span>
+                        <div>
+                            <h3><?php echo htmlspecialchars(t('knowledge.help.perms_heading')); ?></h3>
+                            <p><?php echo htmlspecialchars(t('knowledge.help.perms_intro')); ?></p>
+                        </div>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.perms_two_heading')); ?></h4>
+                        <div class="help-defs">
+                        <div class="help-def">
+                            <div class="help-def-term"><?php echo t('knowledge.help.perms_audience_title'); ?></div>
+                            <div class="help-def-desc"><?php echo t('knowledge.help.perms_audience_desc'); ?></div>
+                        </div>
+                        <div class="help-def">
+                            <div class="help-def-term"><?php echo t('knowledge.help.perms_acl_title'); ?></div>
+                            <div class="help-def-desc"><?php echo t('knowledge.help.perms_acl_desc'); ?></div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.perms_mode_heading')); ?></h4>
+                        <p><?php echo t('knowledge.help.perms_mode_intro'); ?></p>
+                        <div class="help-cards">
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.perms_open_title')); ?></strong>
+                                <span><?php echo t('knowledge.help.perms_open_desc'); ?></span>
+                            </div>
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.perms_restricted_title')); ?></strong>
+                                <span><?php echo t('knowledge.help.perms_restricted_desc'); ?></span>
+                            </div>
+                        </div>
+                        <p><?php echo t('knowledge.help.perms_mode_why'); ?></p>
+                        <p class="help-note warn"><?php echo t('knowledge.help.perms_mode_switch'); ?></p>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.perms_inherit_heading')); ?></h4>
+                        <div class="help-list">
+                            <div><?php echo t('knowledge.help.perms_inherit'); ?></div>
+                            <div><?php echo t('knowledge.help.perms_inherit_view'); ?></div>
+                            <div><?php echo t('knowledge.help.perms_inherit_own'); ?></div>
+                        </div>
+                        <p class="help-note"><?php echo t('knowledge.help.perms_exceptions'); ?></p>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.perms_model_heading')); ?></h4>
+                        <p><?php echo t('knowledge.help.perms_model_intro'); ?></p>
+                        <div class="help-cards">
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.perms_containers_title')); ?></strong>
+                                <span><?php echo htmlspecialchars(t('knowledge.help.perms_containers_desc')); ?></span>
+                            </div>
+                            <div class="help-card">
+                                <strong><?php echo htmlspecialchars(t('knowledge.help.perms_filing_title')); ?></strong>
+                                <span><?php echo htmlspecialchars(t('knowledge.help.perms_filing_desc')); ?></span>
+                            </div>
+                        </div>
+                        <p class="help-note"><?php echo t('knowledge.help.perms_model_preview'); ?></p>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.perms_where_heading')); ?></h4>
+                        <p><?php echo htmlspecialchars(t('knowledge.help.perms_where_intro')); ?></p>
+                        <div class="help-list">
+                            <div><?php echo t('knowledge.help.perms_where_analysts'); ?></div>
+                            <div><?php echo t('knowledge.help.perms_where_portal'); ?></div>
+                            <div><?php echo t('knowledge.help.perms_where_ai'); ?></div>
+                            <div><?php echo t('knowledge.help.perms_where_chat'); ?></div>
+                            <div><?php echo t('knowledge.help.perms_where_api'); ?></div>
+                        </div>
+                    </div>
+
+                    <div class="help-subsection">
+                        <h4><?php echo htmlspecialchars(t('knowledge.help.perms_admin_heading')); ?></h4>
+                        <div class="help-list">
+                            <div><?php echo t('knowledge.help.perms_admin'); ?></div>
+                            <div><?php echo t('knowledge.help.perms_admin_audit'); ?></div>
+                        </div>
+                        <p class="help-note warn"><?php echo t('knowledge.help.perms_admin_tip'); ?></p>
+                    </div>
+                </div>
+
+                <!-- Section 6: Ask AI -->
+                <div class="help-section" id="ask-ai">
+                    <div class="help-section-header">
+                        <span class="help-section-num">6</span>
                         <h3><?php echo htmlspecialchars(t('knowledge.help.ai_heading')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('knowledge.help.ai_intro')); ?></p>
@@ -348,10 +516,10 @@ $translationNamespaces = ['common', 'knowledge'];
                     <p class="help-note"><?php echo htmlspecialchars(t('knowledge.help.ai_tip')); ?></p>
                 </div>
 
-                <!-- Section 5: Search & Navigation -->
+                <!-- Section 7: Search & Navigation -->
                 <div class="help-section" id="search-navigation">
                     <div class="help-section-header">
-                        <span class="help-section-num">5</span>
+                        <span class="help-section-num">7</span>
                         <h3><?php echo htmlspecialchars(t('knowledge.help.search_heading')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('knowledge.help.search_intro')); ?></p>
@@ -366,10 +534,10 @@ $translationNamespaces = ['common', 'knowledge'];
                     <p class="help-note"><?php echo htmlspecialchars(t('knowledge.help.search_tip')); ?></p>
                 </div>
 
-                <!-- Section 6: Sharing & Export (highlighted) -->
+                <!-- Section 8: Sharing & Export -->
                 <div class="help-section" id="sharing-export">
                     <div class="help-section-header">
-                        <span class="help-section-num">6</span>
+                        <span class="help-section-num">8</span>
                         <h3><?php echo htmlspecialchars(t('knowledge.help.sharing_heading')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('knowledge.help.sharing_intro')); ?></p>
@@ -400,10 +568,10 @@ $translationNamespaces = ['common', 'knowledge'];
                     <p class="help-note"><?php echo htmlspecialchars(t('knowledge.help.sharing_tip')); ?></p>
                 </div>
 
-                <!-- Section 7: Quick Tips -->
+                <!-- Section 9: Quick Tips -->
                 <div class="help-section" id="tips">
                     <div class="help-section-header">
-                        <span class="help-section-num">7</span>
+                        <span class="help-section-num">9</span>
                         <h3><?php echo htmlspecialchars(t('knowledge.help.tips_heading')); ?></h3>
                     </div>
                     <div class="help-cards">

@@ -40,7 +40,7 @@ $translationNamespaces = ['common', 'tickets'];
     <title>Calendar Sync — Guide</title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/help.css?v=1">
+    <link rel="stylesheet" href="../assets/css/help.css?v=3">
 </head>
 <body>
 <?php include 'includes/header.php'; ?>

@@ -67,7 +67,7 @@ JS;
 // The house style for every help guide in the product lives in help.css; the
 // portal loads it through $pageHead, the hook for a page that needs one extra
 // stylesheet. All this page adds is the portal's own accent.
-$pageHead    = '<link rel="stylesheet" href="../assets/css/help.css?v=1">';
+$pageHead    = '<link rel="stylesheet" href="../assets/css/help.css?v=3">';
 $pageStyles  = <<<'CSS'
 body {
     --accent:       var(--ss-accent);
