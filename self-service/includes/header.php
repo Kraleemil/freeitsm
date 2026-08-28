@@ -86,7 +86,7 @@ $pageTitle  = isset($pageTitleKey) ? t($pageTitleKey) : t('self-service.portal')
     <title><?php echo htmlspecialchars($pageTitle); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/self-service.css?v=6">
+    <link rel="stylesheet" href="../assets/css/self-service.css?v=8">
     <?php if ($pageStyles !== ''): ?>
     <style><?php echo $pageStyles; ?></style>
     <?php endif; ?>

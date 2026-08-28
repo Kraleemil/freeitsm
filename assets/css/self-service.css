@@ -526,7 +526,28 @@ body.portal-app .portal-layout { padding: 0; max-width: none; margin: 0; }
     .portal-nav a { padding: 6px 10px; }
 }
 @media (max-width: 500px) {
-    .summary-cards { grid-template-columns: 1fr; }
+    /* THREE across, not one. At one card per row these six counts took 412px of
+       a 360px screen — the whole of the first screenful was spent on numbers
+       nobody scrolls to read, and the things you came to do were below the fold.
+       They are counts of two or three digits, so they do not need a full width
+       each; three across fits at ~100px per card and puts the actions back on
+       the first screen.
+       ⚠️ The label is what constrains this, not the number: it already
+       truncates with an ellipsis, so a longer status name shortens rather than
+       wrapping the card taller than its neighbours. */
+    .summary-cards {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    /* ⚠️ `min-width: 0`, or the three columns are NOT equal. A grid item
+       defaults to `min-width: auto`, which is its CONTENT's minimum — so
+       "Awaiting Response" made its column 116px while the others got 96px and
+       the rows did not line up. The ellipsis alone does not fix it: the label
+       truncates happily, but the item still refuses to shrink below the width
+       the untruncated text wants. */
+    .summary-card { padding: 8px 9px; min-width: 0; }
+    .summary-card .card-label { font-size: 9px; letter-spacing: 0.2px; }
+    .summary-card .card-value { font-size: 17px; }
     /* Table rows get cramped; hide the least important columns rather than
        letting the table scroll sideways — see the mobile-friendly guidance. */
     .ticket-table .col-optional { display: none; }
