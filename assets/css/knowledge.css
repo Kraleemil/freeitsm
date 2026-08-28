@@ -1762,3 +1762,15 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     max-height: none;
     overflow-y: auto;
 }
+
+/* Inherited permissions, shown read-only. Visibly not editable: no Remove
+   button and a muted background, so it cannot be mistaken for the list you can
+   change two lines below it. */
+.kb-perm-entry--readonly { opacity: 0.85; }
+#kbPermInherited .kb-perm-list {
+    background: var(--surface-hover);
+    flex: 0 1 auto;
+    max-height: 40vh;
+    overflow-y: auto;
+}
+#kbPermInherited { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }

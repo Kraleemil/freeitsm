@@ -121,12 +121,77 @@ function handleGet(PDO $conn, array $src): void
         ];
     }
 
-    echo json_encode([
+    $out = [
         'success'       => true,
         'is_restricted' => (int)$row['is_restricted'],
         'inherits'      => (int)$row['inherit_permissions'],
         'entries'       => $entries,
-    ]);
+    ];
+
+    // ⚠️ WHEN IT INHERITS, SAY WHAT IT INHERITS. Hiding the list behind the
+    // tickbox left a dialog headed "Who can see this" that answered nothing —
+    // the one question it exists for. Resolve the folder actually governing this
+    // object and return ITS rules, to be shown read-only.
+    if ((int)$row['inherit_permissions'] === 1) {
+        $out['inherited'] = resolveInherited($conn, $type, $id);
+    }
+
+    echo json_encode($out);
+}
+
+/**
+ * Walk up to the folder whose rules actually apply, and describe them.
+ *
+ * Returns null when nothing above restricts anything — which is the ordinary
+ * case and deserves saying plainly rather than showing an empty list, because an
+ * empty list and "no restrictions anywhere" look identical and mean opposite
+ * things.
+ */
+function resolveInherited(PDO $conn, string $type, int $id): ?array
+{
+    $folders = knowledgeFolderIndex($conn);
+
+    // An article starts at its folder; a folder starts at its parent.
+    if ($type === 'article') {
+        $st = $conn->prepare("SELECT folder_id FROM knowledge_articles WHERE id = ?");
+        $st->execute([$id]);
+        $cursor = $st->fetchColumn();
+        $cursor = ($cursor === null || $cursor === false) ? null : (int)$cursor;
+    } else {
+        $cursor = $folders[$id]['parent'] ?? null;
+    }
+
+    $seen = [];
+    while ($cursor !== null && isset($folders[$cursor])) {
+        if (isset($seen[$cursor])) return null;    // a cycle; fail quiet rather than hang
+        $seen[$cursor] = true;
+
+        if (!$folders[$cursor]['inherit']) {
+            $st = $conn->prepare("SELECT name FROM knowledge_folders WHERE id = ?");
+            $st->execute([$cursor]);
+            $name = (string)$st->fetchColumn();
+
+            $st = $conn->prepare("SELECT id, principal_type, principal_id FROM knowledge_acl WHERE object_type = 'folder' AND object_id = ? ORDER BY principal_type, principal_id");
+            $st->execute([$cursor]);
+            $entries = [];
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $entries[] = [
+                    'id'             => (int)$r['id'],
+                    'principal_type' => $r['principal_type'],
+                    'principal_id'   => (int)$r['principal_id'],
+                    'name'           => principalName($conn, $r['principal_type'], (int)$r['principal_id']),
+                ];
+            }
+            return [
+                'folder_id'     => $cursor,
+                'folder_name'   => $name,
+                'is_restricted' => (int)$folders[$cursor]['restricted'],
+                'entries'       => $entries,
+            ];
+        }
+        $cursor = $folders[$cursor]['parent'];
+    }
+    return null;
 }
 
 /**

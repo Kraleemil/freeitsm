@@ -194,6 +194,9 @@ return [
     'perm' => [
         'title'              => 'Who can see this',
         'title_folder'       => 'Who can see "{name}"',
+        'inherit_from'       => 'These permissions come from the folder "{folder}".',
+        'inherit_readonly'   => 'To change them, open the permissions on that folder. Untick the box above to give this its own rules instead.',
+        'inherit_none'       => 'Nothing above this restricts who can see it, so it follows the ordinary rules: anyone with access to Knowledge and to its company can read it.',
         'inherit'            => 'Use the same permissions as the folder above',
         'restrict'           => 'Restrict to chosen people',
         'explain_open'       => 'Everyone who can already see it, except the people listed below.',
@@ -205,8 +208,22 @@ return [
         'remove_confirm'     => 'Take {name} off this list?',
         'removed'            => '{name} removed',
         'added'              => 'Added',
-        'wipe_ok'            => 'Clear and switch',
-        'wipe_confirm'       => 'Changing this clears the {count} people already listed, because the list means the opposite thing in the other mode. Continue?',
+        // ⚠️ THE QUESTION HAS TO EXPLAIN BOTH STATES. The first version said
+        // "changing this clears the 1 people already listed, because the list
+        // means the opposite thing in the other mode" — which names the damage
+        // without explaining it, mishandles the singular, and reads (Ed's word)
+        // like a riddle. Somebody meeting this for the first time needs to know
+        // what the list means NOW, what it will mean AFTER, and why the two
+        // cannot be merged. That is three sentences, and three sentences is fine
+        // for a question asked once in a while about who can see something.
+        'wipe_people_one'    => '1 person',
+        'wipe_people'        => '{count} people',
+        'wipe_title_restrict'=> 'Restrict this to chosen people?',
+        'wipe_title_open'    => 'Open this to everyone again?',
+        'wipe_to_restricted' => "At the moment everyone who can reach the folder above can see this, apart from the {people} you have listed — that list is who is SHUT OUT.\n\nRestricting it turns the list around: it becomes the only people who CAN see this, and everybody else loses access.\n\nBecause the two lists mean opposite things, the {people} listed now will be cleared and you will start again by adding whoever should have access.",
+        'wipe_to_open'       => "At the moment only the {people} you have listed can see this — that list is who is LET IN.\n\nOpening it turns the list around: it becomes the people who are SHUT OUT, and everybody else gains access.\n\nBecause the two lists mean opposite things, the {people} listed now will be cleared.",
+        'wipe_ok_restrict'   => 'Restrict it',
+        'wipe_ok_open'       => 'Open it',
         'now_unreachable'    => 'Nobody is listed now, so only an administrator can see this.',
         'no_permission'      => 'You do not have permission to manage access.',
         'failed'             => 'Could not load permissions',

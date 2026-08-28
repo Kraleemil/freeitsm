@@ -6,6 +6,10 @@
 const API_BASE = window.API_BASE || 'api/';
 
 let articles = [];
+// Whether the first fetch has come back. An empty `articles` means both
+// "nothing here" and "not asked yet", and only the first should ever draw an
+// empty state — see renderArticleList().
+let kbArticlesLoaded = false;
 let tags = [];
 let selectedTags = [];
 let currentArticle = null;
@@ -1262,10 +1266,55 @@ async function permLoad() {
         document.getElementById('kbPermOwnRules').style.display = d.inherits ? 'none' : '';
         document.getElementById('kbPermInherit').checked = !!d.inherits;
         document.getElementById('kbPermRestricted').checked = !!d.is_restricted;
+        renderInherited(d);
         renderPermList();
     } catch (e) {
         box.innerHTML = '<div class="no-results">' + escapeHtml(window.t('knowledge.perm.failed')) + '</div>';
     }
+}
+
+/**
+ * What this inherits, shown READ-ONLY.
+ *
+ * ⚠️ Ticking "use the same permissions as the folder above" used to hide
+ * everything, leaving a dialog headed "Who can see this" that answered nothing
+ * — the single question it exists for. Inheriting is the ordinary case, so that
+ * was the ordinary case showing the least.
+ *
+ * Read-only rather than editable, because these rules belong to the FOLDER
+ * ABOVE: editing them here would change what other things see without saying
+ * so. The folder is named, so the way to change them is obvious.
+ */
+function renderInherited(d) {
+    const box = document.getElementById('kbPermInherited');
+    if (!box) return;
+    if (!d.inherits) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = '';
+
+    // Nothing above restricts anything. Say so plainly: an empty list and "no
+    // restrictions anywhere" look identical and mean opposite things.
+    if (!d.inherited) {
+        box.innerHTML = '<p class="field-hint">'
+            + escapeHtml(window.t('knowledge.perm.inherit_none')) + '</p>';
+        return;
+    }
+
+    const inh = d.inherited;
+    const rows = (inh.entries || []).length
+        ? inh.entries.map(e => `
+            <div class="kb-perm-entry kb-perm-entry--readonly">
+                <span class="kb-perm-entry-name">${escapeHtml(e.name)}</span>
+                <span class="kb-perm-entry-kind">${escapeHtml(e.principal_type.replace('_', ' '))}</span>
+            </div>`).join('')
+        : `<div class="no-results">${escapeHtml(window.t(
+              inh.is_restricted ? 'knowledge.perm.none_restricted' : 'knowledge.perm.none_open'))}</div>`;
+
+    box.innerHTML =
+        `<p class="field-hint">${escapeHtml(window.t('knowledge.perm.inherit_from', { folder: inh.folder_name }))}</p>`
+      + `<p class="field-hint">${escapeHtml(window.t(
+             inh.is_restricted ? 'knowledge.perm.explain_restricted' : 'knowledge.perm.explain_open'))}</p>`
+      + `<div class="kb-perm-list">${rows}</div>`
+      + `<p class="field-hint">${escapeHtml(window.t('knowledge.perm.inherit_readonly'))}</p>`;
 }
 
 function renderPermList() {
@@ -1303,10 +1352,16 @@ async function permSetMode(askIfWiping) {
 
     if (askIfWiping) {
         const n = ((permState && permState.entries) || []).length;
+        // The question has to explain BOTH states, because the whole difficulty
+        // is that the same list means opposite things either side of the switch.
+        // Naming only the consequence ("this clears N") tells somebody what will
+        // be destroyed without telling them why, which reads as an obstacle
+        // rather than an explanation.
+        const people = window.t(n === 1 ? 'knowledge.perm.wipe_people_one' : 'knowledge.perm.wipe_people', { count: n });
         if (n > 0 && !await kbConfirm({
-            title: window.t('knowledge.perm.title'),
-            message: window.t('knowledge.perm.wipe_confirm', { count: n }),
-            okLabel: window.t('knowledge.perm.wipe_ok'),
+            title:   window.t(restricted ? 'knowledge.perm.wipe_title_restrict' : 'knowledge.perm.wipe_title_open'),
+            message: window.t(restricted ? 'knowledge.perm.wipe_to_restricted'  : 'knowledge.perm.wipe_to_open', { people: people }),
+            okLabel: window.t(restricted ? 'knowledge.perm.wipe_ok_restrict'    : 'knowledge.perm.wipe_ok_open'),
             okClass: 'danger'
         })) {
             // Put the tickbox back: it must show what is stored, not what was
@@ -1425,6 +1480,7 @@ async function loadArticles(search = '', tagIds = []) {
 
         if (data.success) {
             articles = data.articles;
+            kbArticlesLoaded = true;
             renderArticleList();
         } else {
             articleList.innerHTML = '<div class="no-results">' + escapeHtml(window.t('knowledge.list.error_loading')) + '</div>';
@@ -1555,6 +1611,24 @@ async function applyBulkAudience() {
 function renderArticleList() {
     const container = document.getElementById('articleList');
     const countEl = document.getElementById('articleCount');
+
+    // ⚠️ NOTHING IS DRAWN UNTIL THE ARTICLES HAVE ARRIVED, and this is a bug I
+    // introduced. `articles` starts as [], and I added several callers that
+    // repaint the list — applyBrowseMode(), applyLayout(), loadFolders() — every
+    // one of which can fire before the fetch returns. Each painted the empty
+    // state over the spinner, so a refresh flashed "No articles found", then a
+    // count of 0, then the real content.
+    //
+    // An empty array means TWO different things: "nothing here" and "not asked
+    // yet". Only the first deserves an empty state; the second is a spinner. The
+    // flag is what tells them apart, because the array cannot.
+    if (!kbArticlesLoaded) {
+        if (container && !container.querySelector('.spinner')) {
+            container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+        }
+        if (countEl) countEl.textContent = '';
+        return;
+    }
 
     countEl.textContent = window.t(articles.length === 1 ? 'knowledge.list.count_one' : 'knowledge.list.count', { count: articles.length });
     renderBreadcrumb();

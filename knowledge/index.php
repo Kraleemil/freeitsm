@@ -376,6 +376,10 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
                     <input type="checkbox" id="kbPermInherit" onchange="permSetMode()">
                     <span><?php echo htmlspecialchars(t('knowledge.perm.inherit')); ?></span>
                 </label>
+                <!-- What it inherits, when it inherits: read-only, because these
+                     rules belong to the folder above and editing them here would
+                     change what OTHER things see without saying so. -->
+                <div id="kbPermInherited" style="display:none;"></div>
                 <div id="kbPermOwnRules">
                     <label class="kb-perm-row" for="kbPermRestricted">
                         <input type="checkbox" id="kbPermRestricted" onchange="permSetMode(true)">
