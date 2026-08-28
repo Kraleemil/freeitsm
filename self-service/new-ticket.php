@@ -144,6 +144,22 @@ $pageStyles = <<<'CSS'
         }
 
         @media (max-width: 768px) {
+            /* ── Side margins ─────────────────────────────────────────────
+               47px of furniture on each side before a field even started:
+               24px from the layout, 22px from the card and its 1px border. On
+               a 360px screen that is a quarter of the width spent on framing,
+               and it left the subject box 266px wide.
+
+               ⚠️ The layout rule needs the SAME two-part selector to win. The
+               stylesheet already tries `@media 640 { .portal-layout { padding:
+               20px 14px } }`, and it loses — this page's own
+               `body.portal-app .portal-layout` is (0,2,0) against its (0,1,0),
+               so the 14px never applied here and the 24px stood. A bare
+               `.portal-layout` here would lose the same way, however late it
+               appears in the file. */
+            body.portal-app .portal-layout { padding: 14px 12px; }
+            .form-card { padding: 14px 12px; }
+
             /* ── Write it full screen ─────────────────────────────────────
                Same idea as the Change Management and Knowledge editors on a
                phone: the message is the longest thing anybody types here, and
