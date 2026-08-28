@@ -1531,12 +1531,50 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     flex-direction: column;
     min-height: 168px;
 }
-/* The meta block sinks to the bottom, so the dates line up across the row
-   however long the titles are. */
-.kb-layout-cards .article-card-meta { margin-top: auto; }
-/* Two tags is one line at this width; wrapping is what made the cards uneven in
-   the first place, so it is allowed but bounded by the "+N more" pill. */
-.kb-layout-cards .article-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+/* ── The order inside a card: title, then who and when, then the tags ──────
+   The shared meta block is `flex; justify-content: space-between` — tags on the
+   left, author and date on the right. That is right for a full-width row and
+   wrong for a 240px card, where the two halves fight: the tags stack one per
+   line and "By (deleted analyst)" wraps onto three.
+
+   So in cards the block becomes a column, REVERSED — the markup is tags-then-
+   info and the card wants info-then-tags — and each part gets the full width
+   instead of half. */
+.kb-layout-cards .article-card-meta {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+/* Author and date on ONE line, and it stays one line: nowrap is the whole
+   point, since wrapping is what was making the cards uneven. */
+.kb-layout-cards .article-card-info {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 10px;
+    white-space: nowrap;
+    min-width: 0;
+}
+/* The author is the part that can be arbitrarily long, so it is the part that
+   gets trimmed — the date must never be the thing pushed off. */
+.kb-layout-cards .article-card-info > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.kb-layout-cards .article-card-info > span:last-child { flex: 0 0 auto; }
+
+/* Tags run across the full width of the card and wrap as a group, rather than
+   being squeezed into the half a space-between row would give them. Bounded by
+   the "+N more" pill, so this can never exceed one line in practice. */
+.kb-layout-cards .article-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+}
 
 /* The pill that stands in for the tags not shown. Looks like a tag because it
    occupies a tag's place, but reads as an action. */
