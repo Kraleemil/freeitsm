@@ -517,6 +517,7 @@ function renderTreeLayout() {
         for (const f of kbFolders.filter(x => x.parent_id === parent).sort((a, b) => byName(a.name, b.name))) {
             html += `
                 <div class="kb-tree-folder${String(activeFolder) === String(f.id) ? ' active' : ''}" style="padding-left:${10 + depth * 18}px"
+                     draggable="true" ondragstart="kbDragStart(event, 'folder', ${f.id})" ondragend="kbDragEnd()"
                      ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
                      data-folder="${f.id}" onclick="selectFolder('${f.id}')"
                      oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">
@@ -841,6 +842,10 @@ let kbDrag = null;   // { type: 'article'|'folder', id }
 
 function kbDragStart(e, type, id) {
     kbDrag = { type: type, id: id };
+    // Fade the row being dragged. Half of "where will this land?" is knowing
+    // what is in flight - especially in cards view, where the pointer is often
+    // nowhere near the card it picked up.
+    if (e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.add('kb-dragging');
     // Some browsers refuse to start a drag with no payload, even when the
     // handler carries the state itself.
     try { e.dataTransfer.setData('text/plain', type + ':' + id); } catch (_) {}
@@ -850,6 +855,7 @@ function kbDragStart(e, type, id) {
 
 function kbDragEnd() {
     kbDrag = null;
+    document.querySelectorAll('.kb-dragging').forEach(el => el.classList.remove('kb-dragging'));
     // Every kind of drop target, not just the tree in the panel — the folder
     // CARDS and the tree ROWS in the main pane are targets too, and a highlight
     // left behind after an abandoned drag looks like the row is selected.
@@ -1112,6 +1118,7 @@ function renderFolderRows() {
 
     return kids.map(f => `
         <div class="article-card kb-folder-card" onclick="selectFolder('${f.id}')"
+             draggable="true" ondragstart="kbDragStart(event, 'folder', ${f.id})" ondragend="kbDragEnd()"
              ondragover="kbDragOver(event)" ondragleave="kbDragLeave(event)" ondrop="kbDrop(event, ${f.id})"
              data-folder="${f.id}"
              oncontextmenu="kbContextMenu(event, 'folder', ${f.id}, ${jsAttr(f.name)})">

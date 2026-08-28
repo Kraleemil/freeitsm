@@ -1383,11 +1383,30 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
    Drag and drop, and the right-click menu. Desktop only — a phone has neither a
    hover nor a second button, and everything here is reachable another way.
    --------------------------------------------------------------------------- */
-.kb-folder.drop-target {
+/* ⚠️ ONE RULE FOR EVERY KIND OF DROP TARGET.
+
+   There were three near-identical copies of this - one for the left panel, one
+   for the tree, one for the details table - and the FOURTH kind, the folder
+   cards used by the list and cards views, had no rule at all. The class was
+   being added to them the whole time; nothing painted it. Dragging a document
+   onto a folder therefore lit up in two views out of four and gave no feedback
+   whatsoever in the other two, which reads as the drag not working.
+
+   Copies drift, and the way they drift is that one of them never gets written.
+   Keep this as one selector list: a new kind of folder row added later shows up
+   here as a missing selector, not as a silently dead highlight. */
+.kb-folder.drop-target,
+.kb-tree-folder.drop-target,
+.kb-details-folder.drop-target,
+.kb-folder-card.drop-target {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
     background: var(--accent-soft);
 }
+
+/* The thing being dragged fades, so it is obvious WHAT is in flight as well as
+   where it would land. */
+.kb-dragging { opacity: 0.45; }
 .article-card[draggable="true"] { cursor: grab; }
 .article-card[draggable="true"]:active { cursor: grabbing; }
 
@@ -1536,11 +1555,6 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
     background: var(--accent-soft);
     color: var(--accent);
 }
-.kb-tree-folder.drop-target {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-    background: var(--accent-soft);
-}
 .kb-tree-icon { flex: 0 0 auto; font-size: 12px; }
 .kb-tree-label {
     flex: 1 1 auto;
@@ -1657,11 +1671,6 @@ div.code-toolbar > .toolbar > .toolbar-item > span {
 .kb-details-head:hover { background: var(--surface); }
 
 .kb-details-folder { font-weight: 600; }
-.kb-details-folder.drop-target {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-    background: var(--accent-soft);
-}
 
 /* Every cell truncates rather than wrapping: a table whose rows are different
    heights because one title is long stops being scannable, which is the only
