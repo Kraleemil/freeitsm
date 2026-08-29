@@ -66,9 +66,9 @@ class TasksService
         }
 
         $status   = self::resolveLookup($conn, $in, 'status', 'task_statuses', true)
-            ?? self::lookupDefault($conn, 'task_statuses', 'To Do', true);
+            ?? self::lookupDefault($conn, 'task_statuses', true);
         $priority = self::resolveLookup($conn, $in, 'priority', 'task_priorities')
-            ?? self::lookupDefault($conn, 'task_priorities', 'Medium');
+            ?? self::lookupDefault($conn, 'task_priorities');
 
         $analystId = null;
         if (isset($in['assigned_analyst_id']) && $in['assigned_analyst_id'] !== '') {
@@ -526,16 +526,30 @@ class TasksService
         return $out;
     }
 
-    /** The default row of a lookup table: prefers the named seed, then is_default. */
-    private static function lookupDefault(PDO $conn, string $table, string $preferName, bool $withClosed = false): array
+    /**
+     * The default row of a lookup table — the CONFIGURED default, never a name.
+     *
+     * This used to try `WHERE name = 'To Do'` / `'Medium'` first and fall back to
+     * is_default. Two faults in one line. It ignored an admin who had made a
+     * different status or priority the default, because the English seed name
+     * won; and on a site that had renamed or translated them the name matched
+     * nothing, which is the shape of GH #79 — every ticket intake path looked the
+     * starting status up by the word 'Open', and a German install that renamed it
+     * to Offen got tickets with no status and no error.
+     *
+     * Same ordering as the fix there: is_active filters rather than sorts, since
+     * a deactivated default is absent from the dropdown and choosing it would
+     * reproduce the symptom by another route; is_closed is deliberately not
+     * filtered, because an admin who makes a closed status the default has said
+     * what they meant.
+     */
+    private static function lookupDefault(PDO $conn, string $table, bool $withClosed = false): array
     {
         $cols = 'id, name' . ($withClosed ? ', is_closed' : '');
-        $stmt = $conn->prepare("SELECT $cols FROM `$table` WHERE name = ? LIMIT 1");
-        $stmt->execute([$preferName]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row) {
-            $row = $conn->query("SELECT $cols FROM `$table` WHERE is_default = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-        }
+        $row = $conn->query(
+            "SELECT $cols FROM `$table` WHERE is_active = 1
+             ORDER BY is_default DESC, display_order, id LIMIT 1"
+        )->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
             return $withClosed ? [null, null, 0] : [null, null];
         }

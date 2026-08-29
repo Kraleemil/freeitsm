@@ -41,8 +41,14 @@ try {
 
     // card_fields — which extras show on board cards. Stored as JSON;
     // always returned as a complete object so callers needn't merge defaults.
+    //
+    // `priority` is the one entry that is NOT a boolean: it holds a placement —
+    // off / dot / pill / border — because discussion #108 asked to choose how
+    // priority reads on a card, not merely whether it appears. It stays inside
+    // card_fields rather than becoming a second setting so that "how priority
+    // shows on a card" has one home. Legacy rows hold the old 1/0 and are read
+    // as dot/off, which is exactly what those installs render today.
     $cardDefaults = [
-        'priority'    => 1,
         'assignee'    => 1,
         'team'        => 0,
         'start_date'  => 0,
@@ -51,12 +57,24 @@ try {
         'subtasks'    => 1,
         'links'       => 1,
     ];
+    $priorityStyles  = ['off', 'dot', 'pill', 'border'];
+    $priorityDefault = 'dot';
+
     $cardFields = $cardDefaults;
+    $cardFields['priority'] = $priorityDefault;
     if (isset($settings['card_fields'])) {
         $decoded = json_decode($settings['card_fields'], true);
         if (is_array($decoded)) {
             foreach ($cardDefaults as $k => $v) {
                 $cardFields[$k] = empty($decoded[$k]) ? 0 : 1;
+            }
+            if (array_key_exists('priority', $decoded)) {
+                $p = $decoded['priority'];
+                if (is_string($p) && in_array($p, $priorityStyles, true)) {
+                    $cardFields['priority'] = $p;
+                } else {
+                    $cardFields['priority'] = empty($p) ? 'off' : 'dot';
+                }
             }
         }
     }

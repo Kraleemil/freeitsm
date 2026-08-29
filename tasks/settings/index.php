@@ -39,11 +39,12 @@ $translationNamespaces = ['common', 'tasks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('tasks.title') . ' ' . t('tasks.nav.settings')); ?></title>
     <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../../assets/css/tasks.css?v=19">
+    <link rel="stylesheet" href="../../assets/css/tasks.css?v=20">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../../assets/js/tz.js?v=5"></script>
     <script src="../../assets/js/i18n.js?v=2"></script>
+    <script src="../../assets/js/tasks-priority.js?v=1"></script>
     <style>
         body { display: block; --accent: var(--tsk-accent, #7c3aed); }
 
@@ -100,6 +101,23 @@ $translationNamespaces = ['common', 'tasks'];
         .card-field-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 14px; border-radius: 8px; cursor: pointer; transition: background 0.12s; }
         .card-field-row:hover { background: #faf5ff; }
         .card-field-row input { margin-top: 1px; accent-color: var(--tsk-accent, #7c3aed); width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+        .card-field-row-static { cursor: default; }
+        .card-field-row-static:hover { background: transparent; }
+        .cp-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .cp-option {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px; border: 1px solid var(--border, #d5dbe1);
+            border-radius: 6px; font-size: 13px; cursor: pointer;
+            background: var(--surface, #fff); transition: border-color .15s, background .15s;
+        }
+        .cp-option:hover { border-color: var(--tsk-accent, #7c3aed); }
+        .cp-option:has(input:checked) { border-color: var(--tsk-accent, #7c3aed); background: #faf5ff; }
+        .cp-option input { width: 14px; height: 14px; margin: 0; accent-color: var(--tsk-accent, #7c3aed); }
+        .cp-preview-wrap { margin-top: 14px; }
+        .cp-preview-label { font-size: 12px; color: var(--text-dim, #888); margin-bottom: 6px; }
+        .cp-preview { background: var(--bg-subtle, #f4f5f7); border-radius: 8px; padding: 12px; max-width: 280px; }
+        [data-theme-mode="dark"] .cp-option:has(input:checked) { background: #241b3d; }
+        [data-theme-mode="dark"] .cp-preview { background: #1b1830; }
         .card-field-name { font-weight: 600; font-size: 14px; color: var(--text, #333); }
         .card-field-desc { font-size: 13px; color: var(--text-dim, #888); margin-top: 2px; line-height: 1.4; }
 
@@ -235,13 +253,30 @@ $translationNamespaces = ['common', 'tasks'];
             </div>
             <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo htmlspecialchars(t('tasks.settings.card_intro')); ?></p>
             <div class="card-field-options">
-                <label class="card-field-row">
-                    <input type="checkbox" data-field="priority" onchange="saveCardFields()">
-                    <div>
+                <!-- Priority is a placement, not a tick (discussion #108 asked to
+                     choose how it reads, not just whether it shows). The options are
+                     generated from PRIORITY_STYLES so the form cannot offer a value
+                     the server will refuse to store. -->
+                <div class="card-field-row card-field-row-static">
+                    <div style="width:100%">
                         <div class="card-field-name"><?php echo htmlspecialchars(t('tasks.settings.card_priority_name')); ?></div>
                         <div class="card-field-desc"><?php echo htmlspecialchars(t('tasks.settings.card_priority_desc')); ?></div>
+                        <div class="cp-options" data-field="priority">
+                            <?php foreach (['off', 'dot', 'pill', 'border'] as $cpStyle): ?>
+                            <label class="cp-option">
+                                <input type="radio" name="cp_priority"
+                                       value="<?php echo htmlspecialchars($cpStyle); ?>"
+                                       onchange="saveCardFields()">
+                                <span><?php echo htmlspecialchars(t('tasks.settings.card_priority_style.' . $cpStyle)); ?></span>
+                            </label>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="cp-preview-wrap">
+                            <div class="cp-preview-label"><?php echo htmlspecialchars(t('tasks.settings.card_preview')); ?></div>
+                            <div class="cp-preview" id="cpPreview"></div>
+                        </div>
                     </div>
-                </label>
+                </div>
                 <label class="card-field-row">
                     <input type="checkbox" data-field="assignee" onchange="saveCardFields()">
                     <div>
@@ -596,8 +631,43 @@ $translationNamespaces = ['common', 'tasks'];
         }
 
         // ── Card field toggles ──
-        const CARD_FIELDS = ['priority', 'assignee', 'team', 'start_date',
+        // priority is deliberately absent: it holds a placement, not a boolean,
+        // and is read from / written to its own radio group.
+        const CARD_FIELDS = ['assignee', 'team', 'start_date',
                              'due_date', 'description', 'subtasks', 'links'];
+
+        function cpSelected() {
+            const r = document.querySelector('input[name="cp_priority"]:checked');
+            return r ? r.value : 'dot';
+        }
+
+        /**
+         * The preview uses the REAL card markup, the REAL stylesheet and the REAL
+         * TasksPriority renderer, so it cannot drift from the board the way a
+         * hand-drawn mock-up would.
+         *
+         * It also previews the install's OWN default priority rather than the word
+         * "High", which is the whole point of #108: a German site that renamed its
+         * priorities sees "Hoch" here in its configured colour, and can tell at a
+         * glance that the indicator now follows the name and the swatch they set.
+         */
+        function cpRenderPreview() {
+            const el = document.getElementById('cpPreview');
+            if (!el) return;
+            const list = lookupCache.priority || [];
+            const p = list.find(x => x.is_default && x.is_active)
+                   || list.find(x => x.is_active)
+                   || { name: 'High', colour: '#f59e0b' };
+            const style = cpSelected();
+            el.innerHTML =
+                `<div class="task-card"${TasksPriority.accentAttrs(p.name, p.colour, style)}>
+                    <div class="task-card-title">${escapeHtml(t('tasks.settings.card_preview_title'))}</div>
+                    <div class="task-card-meta">
+                        ${TasksPriority.markup(p.name, p.colour, style)}
+                        <span class="assignee-badge">EM</span>
+                    </div>
+                </div>`;
+        }
 
         async function loadCardFields() {
             try {
@@ -607,11 +677,24 @@ $translationNamespaces = ['common', 'tasks'];
                     const cb = document.querySelector(`input[data-field="${f}"]`);
                     if (cb) cb.checked = !!cf[f];
                 });
+                const style = TasksPriority.normaliseStyle(cf.priority);
+                const radio = document.querySelector(`input[name="cp_priority"][value="${style}"]`);
+                if (radio) radio.checked = true;
+                // The lookups populate the preview's name and colour; if that tab
+                // has not been opened yet the cache is empty, so fetch it here too.
+                if (!(lookupCache.priority || []).length) {
+                    try {
+                        const pd = await fetch(API_BASE + 'get_task_priorities.php').then(r => r.json());
+                        if (pd.success) lookupCache.priority = pd.priorities || [];
+                    } catch (e) { /* preview falls back to a sample */ }
+                }
+                cpRenderPreview();
             } catch (e) { console.error(e); }
         }
 
         async function saveCardFields() {
-            const cf = {};
+            cpRenderPreview();
+            const cf = { priority: cpSelected() };
             CARD_FIELDS.forEach(f => {
                 const cb = document.querySelector(`input[data-field="${f}"]`);
                 cf[f] = (cb && cb.checked) ? 1 : 0;

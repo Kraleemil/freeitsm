@@ -54,8 +54,11 @@ try {
     }
 
     $allowed = ['calendar_span_mode', 'card_fields', 'tag_settings', 'time_scope'];
-    $cardFieldKeys = ['priority', 'assignee', 'team', 'start_date',
+    // `priority` is absent from this list on purpose — it holds a placement,
+    // not a boolean, and is normalised separately below. See get_settings.php.
+    $cardFieldKeys = ['assignee', 'team', 'start_date',
                       'due_date', 'description', 'subtasks', 'links'];
+    $priorityStyles = ['off', 'dot', 'pill', 'border'];
     $tagSettingKeys = ['allow_create', 'surface_card', 'surface_filter',
                        'surface_search', 'surface_calendar'];
 
@@ -73,6 +76,19 @@ try {
             $clean = [];
             foreach ($cardFieldKeys as $fk) {
                 $clean[$fk] = (is_array($value) && !empty($value[$fk])) ? 1 : 0;
+            }
+            // Normalise the placement BEFORE storage so the database only ever
+            // holds a registry value — the same rule the ticket row-display
+            // settings follow. Anything unrecognised falls back to the shipped
+            // default rather than to 'off', so a bad payload cannot silently
+            // switch the indicator off for everybody.
+            $p = is_array($value) ? ($value['priority'] ?? null) : null;
+            if (is_string($p) && in_array($p, $priorityStyles, true)) {
+                $clean['priority'] = $p;
+            } elseif ($p === 0 || $p === '0' || $p === false) {
+                $clean['priority'] = 'off';
+            } else {
+                $clean['priority'] = 'dot';
             }
             $value = json_encode($clean);
         } elseif ($key === 'tag_settings') {

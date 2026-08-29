@@ -292,17 +292,36 @@ body {
 }
 
 /* Priority badges */
+/* The colour is applied inline from task_priorities.colour by TasksPriority.
+ * 🔴 There are deliberately NO per-name rules here. There used to be four
+ * (.urgent/.high/.medium/.low) and a renamed or translated priority matched
+ * none of them, leaving a transparent 8px circle and no dot at all — see
+ * assets/js/tasks-priority.js. The grey below is a floor, not a default: if a
+ * renderer ever forgets the inline colour the dot is visibly wrong rather than
+ * invisible, which is the failure that took discussion #108 to notice. */
 .priority-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     flex-shrink: 0;
+    background: #9ca3af;
 }
 
-.priority-dot.urgent { background: #dc3545; }
-.priority-dot.high { background: #f57c00; }
-.priority-dot.medium { background: #0078d4; }
-.priority-dot.low { background: #999; }
+/* Left-edge accent, the 'border' placement. The colour arrives as an inline
+ * custom property so the width and radius stay here in one place. */
+[data-priority-accent] {
+    border-left: 3px solid var(--priority-accent, #9ca3af);
+}
+.task-card[data-priority-accent] {
+    /* The card already has a radius; square off only the accented edge so the
+     * stripe reads as a full-height bar rather than a clipped sliver. */
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+.subtask-item[data-priority-accent],
+.tl-row-label[data-priority-accent] {
+    padding-left: 8px;
+}
 
 /* Assignee initials */
 .assignee-badge {
@@ -660,6 +679,14 @@ body {
     align-items: center;
     gap: 5px;
     font-size: 12px;
+}
+
+/* The pill placement carries the priority's name beside its dot. Muted rather
+ * than coloured text: the dot is the colour signal, and a second coloured
+ * element competes with it at card density. */
+.priority-pill-label {
+    color: var(--text-muted, #666);
+    white-space: nowrap;
 }
 
 /* ── Detail panel ── */

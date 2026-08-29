@@ -26,7 +26,7 @@ $translationNamespaces = ['common', 'tasks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('tasks.title') . ' ' . t('tasks.nav.timeline')); ?></title>
     <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../../assets/css/tasks.css?v=19">
+    <link rel="stylesheet" href="../../assets/css/tasks.css?v=20">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../../assets/js/tz.js?v=5"></script>
@@ -116,9 +116,10 @@ $translationNamespaces = ['common', 'tasks'];
     </div>
 
     <script>window.API_BASE = '../../api/tasks/';</script>
+    <script src="../../assets/js/tasks-priority.js?v=1"></script>
     <script src="../../assets/js/tasks-ctx-menu.js?v=1"></script>
     <script src="../../assets/js/tasks-quick-panel.js?v=1"></script>
-    <script src="../../assets/js/tasks-timeline.js?v=11"></script>
+    <script src="../../assets/js/tasks-timeline.js?v=12"></script>
     <script src="../../assets/js/mobile.js?v=33"></script>
 </body>
 </html>

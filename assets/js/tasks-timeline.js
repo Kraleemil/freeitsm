@@ -28,6 +28,9 @@ let statuses = [];
 let priorities = [];
 let groupBy = 'analyst';
 let surfaceTags = false;
+// Priority placement from Settings → Card, so the timeline reads the same way
+// as the board. 'dot' matches what this view has always shown.
+let priorityStyle = 'dot';
 
 // Drag-to-edit state — set on mousedown over a bar, cleared on mouseup
 let dragState = null;
@@ -68,6 +71,9 @@ async function loadSettings() {
         const d = await fetch(API_BASE + 'get_settings.php').then(r => r.json());
         if (d.success && d.settings.tag_settings) {
             surfaceTags = !!d.settings.tag_settings.surface_calendar;
+        }
+        if (d.success && d.settings.card_fields) {
+            priorityStyle = TasksPriority.normaliseStyle(d.settings.card_fields.priority);
         }
     } catch (e) { console.error('Failed to load settings:', e); }
 }
@@ -250,9 +256,9 @@ function render() {
                     `<span class="mini-tag-dot" style="background:${esc(tg.colour || '#6b7280')}"></span>`).join('')
                 : '';
             body += `<div class="tl-row" style="width:${innerW}px">
-                <div class="tl-row-label" style="width:${LABEL_W}px" title="${esc(t.title)}"
-                     onclick="openTask(${t.id})">
-                    <span class="priority-dot ${(t.priority || 'medium').toLowerCase()}"></span>
+                <div class="tl-row-label" title="${esc(t.title)}"
+                     onclick="openTask(${t.id})"${TasksPriority.accentAttrs(t.priority, t.priority_colour, priorityStyle, `width:${LABEL_W}px;`)}>
+                    ${TasksPriority.markup(t.priority, t.priority_colour, priorityStyle)}
                     <span class="tl-row-title">${esc(t.title)}</span>
                 </div>
                 <div class="tl-row-track" style="width:${trackW}px">

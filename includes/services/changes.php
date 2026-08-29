@@ -785,10 +785,22 @@ class ChangesService
         return $out;
     }
 
-    /** The default (is_default=1) row of a change lookup table: [id, name] or [null, null]. */
+    /**
+     * The default row of a change lookup table: [id, name] or [null, null].
+     *
+     * This one never had the GH #79 name-lookup fault, but it shared the narrower
+     * half: a default that has since been deactivated is absent from the dropdown,
+     * so selecting it produces a change set to something nobody can choose. Same
+     * ordering as the tickets fix and includes/services/tasks.php — is_active
+     * filters, and falling back through display_order means there is always an
+     * answer as long as one active row exists.
+     */
     private static function lookupDefault(PDO $conn, string $table): array
     {
-        $row = $conn->query("SELECT id, name FROM `$table` WHERE is_default = 1 LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        $row = $conn->query(
+            "SELECT id, name FROM `$table` WHERE is_active = 1
+             ORDER BY is_default DESC, display_order, id LIMIT 1"
+        )->fetch(PDO::FETCH_ASSOC);
         return $row ? [(int)$row['id'], $row['name']] : [null, null];
     }
 

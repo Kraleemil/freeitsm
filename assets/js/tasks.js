@@ -400,9 +400,10 @@ function renderCard(t) {
 
     // Meta row — each piece is opt-in via Settings → Card
     const meta = [];
-    if (cf.priority && t.priority) {
-        meta.push(`<span class="priority-dot ${t.priority.toLowerCase()}" title="${esc(t.priority)}"></span>`);
-    }
+    // Priority is a placement, not a tick: off / dot / pill / border (#108).
+    // 'border' draws on the card element itself, so it contributes nothing here.
+    const priorityMarkup = TasksPriority.markup(t.priority, t.priority_colour, cf.priority);
+    if (priorityMarkup) meta.push(priorityMarkup);
     if (cf.assignee && initials) {
         meta.push(`<span class="assignee-badge" title="${esc(t.analyst_name)}">${esc(initials)}</span>`);
     }
@@ -437,7 +438,9 @@ function renderCard(t) {
         tagsHtml = `<div class="task-card-tags">${t.tags.map(tg => tagChipHtml(tg)).join('')}</div>`;
     }
 
-    return `<div class="task-card" data-id="${t.id}" onclick="openDetailPanel(${t.id})">
+    const accent = TasksPriority.accentAttrs(t.priority, t.priority_colour, cf.priority);
+
+    return `<div class="task-card" data-id="${t.id}" onclick="openDetailPanel(${t.id})"${accent}>
         <div class="task-card-title">${esc(t.title)}</div>
         ${descHtml}
         ${meta.length ? `<div class="task-card-meta">${meta.join('')}</div>` : ''}
@@ -784,10 +787,18 @@ function renderList() {
 
         const tagsHtml = (tagSettings.surface_card && t.tags && t.tags.length)
             ? `<div class="task-card-tags">${t.tags.map(tg => tagChipHtml(tg)).join('')}</div>` : '';
+        // Always the pill here, whatever the card placement says: this is a column
+        // headed "Priority", and honouring 'off' would empty it while leaving the
+        // header in place. The card setting governs cards.
+        // The old code called t.priority.toLowerCase() unguarded, which throws on a
+        // task with no priority (priority_id is nullable) and takes the whole list
+        // render down with it — the map() never completes.
+        const priorityCell = TasksPriority.markup(t.priority, t.priority_colour, 'pill') || '—';
+
         return `<tr onclick="openDetailPanel(${t.id})">
             <td><strong>${esc(t.title)}</strong>${tagsHtml}</td>
             <td><span class="status-pill" style="background:${sc}1f;color:${sc}">${esc(t.status)}</span></td>
-            <td><span class="priority-pill"><span class="priority-dot ${t.priority.toLowerCase()}"></span> ${esc(t.priority)}</span></td>
+            <td>${priorityCell}</td>
             <td>${esc(t.analyst_name || '—')}</td>
             <td>${esc(t.team_name || '—')}</td>
             <td>${dueBadge || '—'}</td>
@@ -1069,7 +1080,12 @@ function renderDetailPanel(task) {
                 ${(task.subtasks || []).map(s => {
                     const dueBadge = s.due_date ? formatDueBadge(s.due_date) : '';
                     const assignee = s.analyst_name ? esc(s.analyst_name) : '';
-                    const priorityCls = (s.priority || 'medium').toLowerCase();
+                    // Follows the same card placement, so a board set to pills
+                    // reads the same way inside a task. Note the line below about
+                    // never deriving anything from a status NAME — this dot used
+                    // to do exactly that with the priority name, two lines apart.
+                    const priorityHtml   = TasksPriority.markup(s.priority, s.priority_colour, cardFields.priority);
+                    const priorityAccent = TasksPriority.accentAttrs(s.priority, s.priority_colour, cardFields.priority);
                     // The propagation guard belongs on CLICK, not on CHANGE.
                     // Ticking a checkbox fires a click on the input, which bubbles
                     // to the row's onclick — so the row opened the subtask instead
@@ -1081,11 +1097,11 @@ function renderDetailPanel(task) {
                     // the status name to the English word Done: rename the status
                     // and the box would never appear ticked however complete it was.
                     return `
-                    <div class="subtask-item" onclick="openDetailPanel(${s.id})">
+                    <div class="subtask-item" onclick="openDetailPanel(${s.id})"${priorityAccent}>
                         <input type="checkbox" ${s.status_is_closed ? 'checked' : ''}
                                onclick="event.stopPropagation()"
                                onchange="toggleSubtask(${s.id})">
-                        <span class="priority-dot ${priorityCls}" title="${esc(s.priority || '')}"></span>
+                        ${priorityHtml}
                         <span class="subtask-title ${s.status_is_closed ? 'completed' : ''}">${esc(s.title)}</span>
                         <span class="subtask-meta">
                             ${assignee ? '<span class="subtask-assignee">' + assignee + '</span>' : ''}
