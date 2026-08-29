@@ -226,6 +226,22 @@ return [
         'required'          => 'Required',
         'remove_field'      => 'Remove field',
         'untitled_field'    => 'Untitled field',
+
+        // Confirmation before a field leaves the form. Nothing is written to
+        // the database until Save, and answers already given are kept — the
+        // field is retired rather than deleted (see the "Retire whatever is no
+        // longer on the form" pass in includes/services/forms.php). Both facts
+        // are stated, because they are what makes this safe to say yes to.
+        'remove_confirm_title'   => 'Remove field',
+        'remove_confirm_message' => 'Remove "{label}" from this form? Answers already given to it are kept and stay visible in submissions. Nothing changes until you save.',
+        'remove_confirm_refs'    => 'Remove "{label}" from this form? {n} rule that shows or hides another question depends on it and will be removed too. Answers already given are kept and stay visible in submissions. Nothing changes until you save.',
+        'remove_confirm_refs_plural' => 'Remove "{label}" from this form? {n} rules that show or hide other questions depend on it and will be removed too. Answers already given are kept and stay visible in submissions. Nothing changes until you save.',
+        'remove_confirm_ok'      => 'Remove',
+
+        // Removing one choice from a dropdown / radio / checkbox list. Only
+        // asked when the option has text in it — see removeOption().
+        'remove_option_confirm_title'   => 'Remove option',
+        'remove_option_confirm_message' => 'Remove "{label}" from this list? Nothing changes until you save.',
     ],
 
     // Conditional visibility editor (forms/edit/index.php)

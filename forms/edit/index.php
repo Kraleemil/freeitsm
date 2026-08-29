@@ -407,7 +407,7 @@ $translationNamespaces = ['common', 'forms'];
     <!-- Mobile layer. Linked AFTER this page's inline <style> on purpose: the
          mobile rules must win on equal specificity, and a link placed above it
          would silently lose to the desktop block below (the load-order trap). -->
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=88">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=90">
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
@@ -1364,8 +1364,42 @@ $translationNamespaces = ['common', 'forms'];
         }
         function updateLabel(i, val)    { fields[i].label = val;       markDirty(); updatePreview(); }
         function toggleRequired(i, val) { fields[i].is_required = val; markDirty(); updatePreview(); }
-        function deleteField(i) {
+        // #1290 — Ed: "if you delete something it would be good if there was a
+        // confirm box". Nothing is committed until Save, which is why there was
+        // no confirmation here; but a mis-tap still loses the field's label,
+        // its options and its visibility rule, and on a phone the delete icon
+        // sits a few pixels from the Required checkbox. The dialog says both of
+        // the things that make it safe to answer: existing answers are KEPT
+        // (save_form retires a removed field rather than deleting it), and
+        // nothing is written until you save.
+        async function deleteField(i) {
             const goneKey = fields[i]._key;
+            const label   = (fields[i].label || '').trim() || window.t('forms.field.untitled_field');
+
+            // Count the rules on OTHER fields that point at this one. They are
+            // silently dropped below, and until now nothing ever said so —
+            // which is the part of this action a person cannot see coming.
+            let refs = 0;
+            fields.forEach((f, fi) => {
+                if (fi === i) return;
+                const vif = f.config && f.config.visible_if;
+                if (!vif || !vif.rules) return;
+                refs += vif.rules.filter(r => r._ref === goneKey).length;
+            });
+
+            const message = refs === 0
+                ? window.t('forms.field.remove_confirm_message', { label })
+                : window.t(refs === 1 ? 'forms.field.remove_confirm_refs'
+                                      : 'forms.field.remove_confirm_refs_plural', { label, n: refs });
+
+            const ok = await showConfirm({
+                title:   window.t('forms.field.remove_confirm_title'),
+                message: message,
+                okLabel: window.t('forms.field.remove_confirm_ok'),
+                okClass: 'danger'
+            });
+            if (!ok) return;
+
             fields.splice(i, 1);
             // Drop any condition that pointed at it, so nothing is left referring to a
             // question that is no longer on the form.
@@ -1389,7 +1423,24 @@ $translationNamespaces = ['common', 'forms'];
             fields[fi].options[oi] = val;
             markDirty(); updatePreview();
         }
-        function removeOption(fi, oi) {
+        // #1290 — Ed asked for the confirm on dropdown options too.
+        // ⚠️ NOT on a blank one. Adding an option creates an empty row, and
+        // "+ Add option" then "×" is a normal thing to do a second after
+        // doing it by accident — a dialog there is a nag guarding nothing,
+        // and a dialog people learn to dismiss without reading stops
+        // protecting the case that matters. An option with text typed into
+        // it is the one worth asking about.
+        async function removeOption(fi, oi) {
+            const opt = (fields[fi].options[oi] || '').trim();
+            if (opt) {
+                const ok = await showConfirm({
+                    title:   window.t('forms.field.remove_option_confirm_title'),
+                    message: window.t('forms.field.remove_option_confirm_message', { label: opt }),
+                    okLabel: window.t('forms.field.remove_confirm_ok'),
+                    okClass: 'danger'
+                });
+                if (!ok) return;
+            }
             fields[fi].options.splice(oi, 1);
             markDirty(); renderFields(); updatePreview();
         }
@@ -2128,6 +2179,6 @@ $translationNamespaces = ['common', 'forms'];
     </div>
     <!-- Mobile layer. Adds the views hamburger and the module drawer on a phone.
          Loaded last so it can wrap the page's own globals rather than edit them. -->
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=31"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=33"></script>
 </body>
 </html>

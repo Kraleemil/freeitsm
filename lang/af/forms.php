@@ -144,6 +144,13 @@ return [
         'required'          => 'Verpligtend',
         'remove_field'      => 'Verwyder veld',
         'untitled_field'    => 'Naamlose veld',
+        'remove_confirm_title'   => 'Verwyder veld',
+        'remove_confirm_message' => 'Verwyder "{label}" uit hierdie vorm? Antwoorde wat reeds daarop gegee is, word behou en bly sigbaar in indienings. Niks verander voordat jy stoor nie.',
+        'remove_confirm_refs'    => 'Verwyder "{label}" uit hierdie vorm? {n} reël wat ’n ander vraag wys of versteek, hang daarvan af en word ook verwyder. Antwoorde wat reeds gegee is, word behou en bly sigbaar in indienings. Niks verander voordat jy stoor nie.',
+        'remove_confirm_refs_plural' => 'Verwyder "{label}" uit hierdie vorm? {n} reëls wat ander vrae wys of versteek, hang daarvan af en word ook verwyder. Antwoorde wat reeds gegee is, word behou en bly sigbaar in indienings. Niks verander voordat jy stoor nie.',
+        'remove_confirm_ok'      => 'Verwyder',
+        'remove_option_confirm_title'   => 'Verwyder opsie',
+        'remove_option_confirm_message' => 'Verwyder "{label}" uit hierdie lys? Niks verander voordat jy stoor nie.',
     ],
 
     // Live preview (forms/edit/index.php)

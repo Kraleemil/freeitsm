@@ -4816,10 +4816,26 @@
     /* ⚠️ `height: calc(100vh - 48px)` assumes a 48px single-row header. The
        mobile header wraps taller than that, so the pane ends up starting
        below the fold with its own scrollbar inside the page's. LAYER 2's
-       flex body already gives these panes their height. */
+       flex body already gives these panes their height.
+
+       🔴 #1290 — ED: "the row of icons at the bottom are overlapping the back
+       button, address bar etc in safari - can they be moved up a bit."
+       `.forms-edit-page` was missing from this list, and that is the whole
+       cause. **On iOS `100vh` is the LARGE viewport — the height the page
+       would have if Safari's toolbars were hidden** — so a pane sized by it
+       is taller than what you can actually see, and anything pinned to its
+       bottom edge sits UNDERNEATH the browser chrome. It is not a margin
+       problem and adding one would only move the bar up by a guess; the pane
+       has to stop where the visible area stops.
+
+       ⚠️ **No headless browser has this chrome**, so nothing measured here
+       could ever have caught it — the pane is exactly right in Chrome at
+       360px. Ed's device is the only instrument for this one. */
     .forms-list-container,
+    .forms-edit-page,
     .ca-container {
         height: auto;
+        flex: 1 1 auto;
         min-height: 0;
     }
 
@@ -4981,6 +4997,29 @@
        The one page in this module somebody genuinely uses standing up, so it
        gets the room. The card spends 50px a side on desktop padding, which is
        100px of a 360px screen. */
+
+    /* 🔴🔴 #1290 — ED: "when you tap the icon to fill in a form you can't
+       scroll." Correct, and it is the SAME fault the Assets round hit on
+       `.servers-container` (15f), for the same reason, in a module six rounds
+       later: **`.fill-container` is ALSO `.main-container`**, so LAYER 2 has
+       already given it `overflow: hidden` for the tickets pane stack — a pane
+       stack this page does not have. 316px of the form was unreachable.
+
+       ⚠️ THE MEASUREMENT THAT FINDS IT, because none of the usual ones do:
+       the page CONTAINS fine, the document never spills, and `scrollTop` can
+       still be SET from script even on an `overflow: hidden` box — so a test
+       that assigns `scrollTop` and re-measures reports a happy PASS over a
+       screen a finger cannot move. The tell is `scrollHeight - clientHeight`
+       > 0 while the computed `overflow-y` is `hidden`. Assert that, or assert
+       `elementFromPoint` changes after a REAL scroll — never `scrollTop`.
+
+       `.subs-container` is the same class and the same shape. It did not show
+       the fault only because the page happened to be shorter than the screen;
+       it would break the moment a form has a few more submissions. Both are
+       fixed here rather than waiting for the second report. */
+    .fill-container,
+    .subs-container { overflow-y: auto; overflow-x: hidden; }
+
     .fill-content { padding: 12px 12px 24px; }
     .fill-card {
         padding: 18px 16px 22px;
@@ -5059,13 +5098,42 @@
     .subs-toolbar-left h2 { font-size: 17px; }
     .subs-toolbar-right { flex-wrap: wrap; gap: 8px; }
 
-    /* Two date filters, Clear and Export on one row is 540px. The filters
-       take a line each and the two buttons share the next. */
-    .subs-toolbar-right .filter-group { flex: 1 1 100%; }
+    /* Two date filters, Clear and Export on one row is 540px.
+
+       🔴 #1290 — ED: "the From and To date selectors are a mess in terms of
+       layout and style." They were. The first pass gave each filter group a
+       full-width row and left `.filter-group`'s desktop `display: flex` alone,
+       so the label sat BESIDE its field — and "From" is 30px wide where "To"
+       is 13px, so **the two date fields started at different x positions and
+       came out different lengths**, from one shared rule. A ragged pair of
+       controls that are obviously meant to match.
+
+       ⭐ The tell is the same one §20 records for a date field beside a select:
+       **two controls that one rule sizes, rendering at different widths, is a
+       layout fault and it shows AT REST.** Worth looking for by eye — no
+       containment check will ever report it, because nothing overflows.
+
+       From and To are a PAIR, so they share a row at exactly half each with
+       the label above rather than beside; Clear and Export share the next.
+       Every edge then lines up. */
+    .subs-toolbar-right .filter-group {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+    /* The label is now a heading for its field, not a word in a row. */
+    .subs-toolbar-right .filter-group label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-dim, #888);
+    }
     .subs-toolbar-right .filter-group input[type="date"] {
-        flex: 1 1 auto;
+        width: 100%;
         min-width: 0;
         font-size: 16px;
+        padding: 9px 10px;
         -webkit-appearance: none;
         appearance: none;
     }
@@ -5073,7 +5141,12 @@
         margin: 0;
         text-align: left;
     }
-    .subs-toolbar-right .btn { flex: 1 1 40%; justify-content: center; min-height: 40px; }
+    .subs-toolbar-right .btn {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 0;
+        justify-content: center;
+        min-height: 42px;
+    }
 
     /* The submissions table becomes a feed — and this one needs NO labels at
        all, because of what the page already does: every row carries
@@ -5237,6 +5310,13 @@
        ⭐ Reordering is left ALONE — see the note at the top of this layer.
        `.field-drag` carries `touch-action: none` and iOS Safari drives the
        HTML5 drag API from a long-press, exactly as Morning Checks does. */
+    /* #1290 — ED: "tighten the left and right margin, we are wasting space
+       (check other modules)." `.forms-main` carries the desktop `20px 30px`,
+       so 60px of a 360px screen — a sixth of it — went on margin before the
+       tab content added its own on top. 14px is what every other module's
+       mobile layer uses (26a, 24b, 15e), so this matches rather than invents. */
+    .forms-main { padding: 12px 14px; }
+
     .editor-toolbar {
         flex-direction: column;
         align-items: stretch;
@@ -5245,6 +5325,108 @@
     .editor-toolbar h2 { font-size: 18px; }
     .editor-toolbar-actions { flex-wrap: wrap; gap: 8px; }
     .editor-toolbar-actions > * { flex: 1 1 auto; justify-content: center; min-height: 40px; }
+
+    /* --------------------------------------------------------------------
+       27h — THE EDITOR ACTION BAR  (#1290, Ed's request)
+
+       "a row of icons at bottom just like in tickets which will cover AI,
+       versions, new version, properties, save and cancel. just like tickets
+       if there's not enough room have a '...' button which shows everything
+       else."
+
+       The four inspection tools (AI Assist, Versions, Save as new version,
+       Properties) sit in the top toolbar on desktop, and 27g stacked them —
+       which on a phone meant **four full-width rows, ~150px, before a single
+       field**. `mobile.js` moves them into the footer beside Cancel and Save,
+       drops every label to its icon, and overflows anything that will not fit
+       behind a "⋯" exactly as LAYER 5 does for the reading pane.
+
+       🔑 **This REUSES `.mobile-more-panel`** (LAYER 5) rather than inventing
+       a second overflow panel, so the two behave identically and there is one
+       set of rules to fix.
+
+       ⚠️ The BEHAVIOUR could not be reused, though it looks like it should be:
+       LAYER 5's tap-outside-to-close handler is inside mobile.js's main IIFE,
+       which returns early on `!document.querySelector('.email-list-container')`
+       — the tickets-inbox guard. On this page it never runs. The forms IIFE
+       carries its own copy. **Sharing a CSS class does not share the JS that
+       usually comes with it**, and the failure would have been silent: the
+       panel opens correctly and simply never closes.
+
+       ⚠️ The footer is ALREADY the bottom bar: `.forms-edit-page` is a flex
+       column whose `.forms-main` scrolls, so `.editor-footer` pins itself with
+       `flex-shrink: 0`. No `position: fixed`, and therefore no padding to add
+       underneath and nothing that can cover the last field.
+       -------------------------------------------------------------------- */
+    .editor-footer {
+        justify-content: flex-start;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: nowrap;          /* it is a bar; things leave via the "⋯" */
+        position: relative;         /* the overflow panel anchors to it */
+    }
+
+    /* Every button in the bar is a square icon target. `flex: 0 0 auto` and
+       NOT `1 1 auto`: in a bar the widths are stated, so adding a seventh
+       action makes the "⋯" appear rather than quietly shrinking all six. */
+    .editor-footer > .btn,
+    .editor-footer > .versions-wrap > .btn,
+    .editor-footer > .mobile-more-btn {
+        flex: 0 0 auto;
+        min-width: 46px;
+        min-height: 46px;
+        padding: 0 10px;
+        justify-content: center;
+        gap: 0;
+    }
+    .editor-footer > .versions-wrap { flex: 0 0 auto; }
+
+    /* ⚠️ These buttons carry their label as a BARE TEXT NODE, not a span, so
+       CSS alone cannot hide it — LAYER 5's `span:not(.action-btn-icon)` trick
+       has nothing to match. mobile.js wraps each label in `.fm-label` on the
+       way in, which is also what lets the overflow panel show the WORDS while
+       the bar shows the icon. */
+    .editor-footer .fm-label { display: none; }
+    .editor-footer svg { width: 18px; height: 18px; }
+
+    /* Save keeps its accent so the primary action is still identifiable once
+       the words are gone, and it sits at the right where the thumb is. */
+    .editor-footer > .save-btn { margin-left: auto; }
+
+    /* The overflow panel: LAYER 5's own class, positioned against this bar. */
+    .editor-footer .mobile-more-panel {
+        bottom: calc(100% + 6px);
+        left: 8px;
+        right: 8px;
+        top: auto;
+    }
+    /* In the panel the icons get their words back — that is the whole point of
+       an overflow list, and it is why the label is wrapped rather than
+       discarded. */
+    .editor-footer .mobile-more-panel .btn {
+        justify-content: flex-start;
+        gap: 10px;
+        width: 100%;
+        min-height: 44px;
+        padding: 0 12px;
+    }
+    .editor-footer .mobile-more-panel .fm-label { display: inline; }
+
+    /* The versions dropdown opens `top: calc(100% + 6px)` from its button —
+       which, once that button is in a bar at the BOTTOM of the screen, is
+       entirely below the fold. An author `!important` beats the author rule
+       and turns it into a sheet above the bar (the same move the calendar's
+       click-positioned popup took). */
+    .versions-dropdown {
+        position: fixed !important;
+        left: 8px !important;
+        right: 8px !important;
+        top: auto !important;
+        bottom: 76px !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: 60vh !important;
+    }
 
     /* Four tabs at 24px of side padding each need more than the screen. */
     .form-tabs {
@@ -5344,7 +5526,30 @@
     .ai-modal-footer { flex-wrap: wrap; gap: 8px; }
     .ai-modal-footer > * { flex: 1 1 auto; justify-content: center; min-height: 44px; }
 
-    .editor-footer { padding: 10px 14px 14px; gap: 8px; }
-    .editor-footer > * { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+    /* ⚠️ The footer's own layout is stated ONCE, in 27h, which turns it into
+       the action bar. A second `.editor-footer` block here setting `gap` and
+       `flex` for the old stacked version would win on document order and
+       quietly half-undo it — the failure mode 26a's rival `@media` block is
+       about, one file closer to home. Padding only. */
+    /* The bar's clearance from the bottom edge.
+
+       ⚠️ TWO ROUNDS TO GET RIGHT, and the second correction is the
+       interesting one. 27a fixed the real fault (the pane was sized by
+       `100vh`, so the bar sat UNDER Safari's toolbar) and this rule added
+       `calc(12px + env(safe-area-inset-bottom, 0px))` on top, to clear the
+       home indicator as well. Ed's verdict on the device: **"that's better
+       but they are a bit high"** — the two allowances stacked, and clearing
+       the same edge twice is a gap, not safety.
+
+       🔑 `env(safe-area-inset-bottom)` is gone deliberately. Once the pane
+       stops where the VISIBLE viewport stops, the browser's own chrome is
+       already accounted for, and on a notched iPhone Safari's toolbar sits
+       between this bar and the home indicator anyway — so the inset was
+       reserving room for something that was never adjacent. **Do not add it
+       back without a device saying it is needed**; nothing headless can see
+       either the toolbar or the indicator, so this rule's only instrument is
+       Ed's phone. */
+    .editor-footer { padding: 8px 12px 8px; }
+    .fm-glyph { font-size: 17px; line-height: 1; }
     .readonly-banner { padding: 10px 12px; font-size: 13px; }
 }

@@ -144,6 +144,13 @@ return [
         'required'          => 'Obligatoire',
         'remove_field'      => 'Supprimer le champ',
         'untitled_field'    => 'Champ sans titre',
+        'remove_confirm_title'   => 'Supprimer le champ',
+        'remove_confirm_message' => 'Supprimer « {label} » de ce formulaire ? Les réponses déjà données sont conservées et restent visibles dans les soumissions. Rien ne change tant que vous n’avez pas enregistré.',
+        'remove_confirm_refs'    => 'Supprimer « {label} » de ce formulaire ? {n} règle qui affiche ou masque une autre question en dépend et sera également supprimée. Les réponses déjà données sont conservées et restent visibles dans les soumissions. Rien ne change tant que vous n’avez pas enregistré.',
+        'remove_confirm_refs_plural' => 'Supprimer « {label} » de ce formulaire ? {n} règles qui affichent ou masquent d’autres questions en dépendent et seront également supprimées. Les réponses déjà données sont conservées et restent visibles dans les soumissions. Rien ne change tant que vous n’avez pas enregistré.',
+        'remove_confirm_ok'      => 'Supprimer',
+        'remove_option_confirm_title'   => 'Supprimer l’option',
+        'remove_option_confirm_message' => 'Supprimer « {label} » de cette liste ? Rien ne change tant que vous n’avez pas enregistré.',
     ],
 
     // Live preview (forms/edit/index.php)

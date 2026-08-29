@@ -226,6 +226,13 @@ return [
         'required'          => 'Wajib',
         'remove_field'      => 'Keluarkan medan',
         'untitled_field'    => 'Medan tanpa tajuk',
+        'remove_confirm_title'   => 'Keluarkan medan',
+        'remove_confirm_message' => 'Keluarkan "{label}" daripada borang ini? Jawapan yang telah diberikan disimpan dan kekal kelihatan dalam penyerahan. Tiada apa-apa berubah sehingga anda menyimpan.',
+        'remove_confirm_refs'    => 'Keluarkan "{label}" daripada borang ini? {n} peraturan yang menunjukkan atau menyembunyikan soalan lain bergantung padanya dan akan turut dikeluarkan. Jawapan yang telah diberikan disimpan dan kekal kelihatan dalam penyerahan. Tiada apa-apa berubah sehingga anda menyimpan.',
+        'remove_confirm_refs_plural' => 'Keluarkan "{label}" daripada borang ini? {n} peraturan yang menunjukkan atau menyembunyikan soalan lain bergantung padanya dan akan turut dikeluarkan. Jawapan yang telah diberikan disimpan dan kekal kelihatan dalam penyerahan. Tiada apa-apa berubah sehingga anda menyimpan.',
+        'remove_confirm_ok'      => 'Keluarkan',
+        'remove_option_confirm_title'   => 'Keluarkan pilihan',
+        'remove_option_confirm_message' => 'Keluarkan "{label}" daripada senarai ini? Tiada apa-apa berubah sehingga anda menyimpan.',
     ],
 
     // Editor keterlihatan bersyarat (forms/edit/index.php)

@@ -144,6 +144,13 @@ return [
         'required'          => 'Wymagane',
         'remove_field'      => 'Usuń pole',
         'untitled_field'    => 'Pole bez nazwy',
+        'remove_confirm_title'   => 'Usuń pole',
+        'remove_confirm_message' => 'Usunąć "{label}" z tego formularza? Udzielone już odpowiedzi zostają zachowane i pozostają widoczne w zgłoszeniach. Nic się nie zmieni, dopóki nie zapiszesz.',
+        'remove_confirm_refs'    => 'Usunąć "{label}" z tego formularza? {n} reguła pokazująca lub ukrywająca inne pytanie zależy od niego i również zostanie usunięta. Udzielone już odpowiedzi zostają zachowane i pozostają widoczne w zgłoszeniach. Nic się nie zmieni, dopóki nie zapiszesz.',
+        'remove_confirm_refs_plural' => 'Usunąć "{label}" z tego formularza? Od tego pola zależy {n} reguł pokazujących lub ukrywających inne pytania i również zostaną usunięte. Udzielone już odpowiedzi zostają zachowane i pozostają widoczne w zgłoszeniach. Nic się nie zmieni, dopóki nie zapiszesz.',
+        'remove_confirm_ok'      => 'Usuń',
+        'remove_option_confirm_title'   => 'Usuń opcję',
+        'remove_option_confirm_message' => 'Usunąć "{label}" z tej listy? Nic się nie zmieni, dopóki nie zapiszesz.',
     ],
 
     // Live preview (forms/edit/index.php)

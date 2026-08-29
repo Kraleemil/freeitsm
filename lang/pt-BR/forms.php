@@ -212,6 +212,13 @@ return [
         'required'          => 'Obrigatório',
         'remove_field'      => 'Remover campo',
         'untitled_field'    => 'Campo sem título',
+        'remove_confirm_title'   => 'Remover campo',
+        'remove_confirm_message' => 'Remover "{label}" deste formulário? As respostas já dadas são mantidas e continuam visíveis nos envios. Nada muda até você salvar.',
+        'remove_confirm_refs'    => 'Remover "{label}" deste formulário? {n} regra que mostra ou oculta outra pergunta depende dele e também será removida. As respostas já dadas são mantidas e continuam visíveis nos envios. Nada muda até você salvar.',
+        'remove_confirm_refs_plural' => 'Remover "{label}" deste formulário? {n} regras que mostram ou ocultam outras perguntas dependem dele e também serão removidas. As respostas já dadas são mantidas e continuam visíveis nos envios. Nada muda até você salvar.',
+        'remove_confirm_ok'      => 'Remover',
+        'remove_option_confirm_title'   => 'Remover opção',
+        'remove_option_confirm_message' => 'Remover "{label}" desta lista? Nada muda até você salvar.',
     ],
 
     // Conditional visibility editor (forms/edit/index.php)

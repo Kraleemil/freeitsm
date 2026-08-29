@@ -144,6 +144,13 @@ return [
         'required'          => 'Obligatorio',
         'remove_field'      => 'Quitar campo',
         'untitled_field'    => 'Campo sin título',
+        'remove_confirm_title'   => 'Quitar campo',
+        'remove_confirm_message' => '¿Quitar "{label}" de este formulario? Las respuestas ya dadas se conservan y siguen visibles en los envíos. No cambia nada hasta que guardes.',
+        'remove_confirm_refs'    => '¿Quitar "{label}" de este formulario? {n} regla que muestra u oculta otra pregunta depende de él y también se quitará. Las respuestas ya dadas se conservan y siguen visibles en los envíos. No cambia nada hasta que guardes.',
+        'remove_confirm_refs_plural' => '¿Quitar "{label}" de este formulario? {n} reglas que muestran u ocultan otras preguntas dependen de él y también se quitarán. Las respuestas ya dadas se conservan y siguen visibles en los envíos. No cambia nada hasta que guardes.',
+        'remove_confirm_ok'      => 'Quitar',
+        'remove_option_confirm_title'   => 'Quitar opción',
+        'remove_option_confirm_message' => '¿Quitar "{label}" de esta lista? No cambia nada hasta que guardes.',
     ],
 
     // Live preview (forms/edit/index.php)

@@ -144,6 +144,13 @@ return [
         'required'          => 'Wajib',
         'remove_field'      => 'Hapus bidang',
         'untitled_field'    => 'Bidang tanpa judul',
+        'remove_confirm_title'   => 'Hapus bidang',
+        'remove_confirm_message' => 'Hapus "{label}" dari formulir ini? Jawaban yang sudah diberikan tetap disimpan dan tetap terlihat di kiriman. Tidak ada yang berubah sampai Anda menyimpan.',
+        'remove_confirm_refs'    => 'Hapus "{label}" dari formulir ini? {n} aturan yang menampilkan atau menyembunyikan pertanyaan lain bergantung padanya dan juga akan dihapus. Jawaban yang sudah diberikan tetap disimpan dan tetap terlihat di kiriman. Tidak ada yang berubah sampai Anda menyimpan.',
+        'remove_confirm_refs_plural' => 'Hapus "{label}" dari formulir ini? {n} aturan yang menampilkan atau menyembunyikan pertanyaan lain bergantung padanya dan juga akan dihapus. Jawaban yang sudah diberikan tetap disimpan dan tetap terlihat di kiriman. Tidak ada yang berubah sampai Anda menyimpan.',
+        'remove_confirm_ok'      => 'Hapus',
+        'remove_option_confirm_title'   => 'Hapus opsi',
+        'remove_option_confirm_message' => 'Hapus "{label}" dari daftar ini? Tidak ada yang berubah sampai Anda menyimpan.',
     ],
 
     // Live preview (forms/edit/index.php)

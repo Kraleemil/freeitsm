@@ -144,6 +144,13 @@ return [
         'required'          => 'Obbligatorio',
         'remove_field'      => 'Rimuovi campo',
         'untitled_field'    => 'Campo senza titolo',
+        'remove_confirm_title'   => 'Rimuovi campo',
+        'remove_confirm_message' => 'Rimuovere "{label}" da questo modulo? Le risposte già fornite vengono conservate e restano visibili negli invii. Nulla cambia finché non salvi.',
+        'remove_confirm_refs'    => 'Rimuovere "{label}" da questo modulo? {n} regola che mostra o nasconde un’altra domanda dipende da esso e verrà rimossa anche quella. Le risposte già fornite vengono conservate e restano visibili negli invii. Nulla cambia finché non salvi.',
+        'remove_confirm_refs_plural' => 'Rimuovere "{label}" da questo modulo? {n} regole che mostrano o nascondono altre domande dipendono da esso e verranno rimosse anche quelle. Le risposte già fornite vengono conservate e restano visibili negli invii. Nulla cambia finché non salvi.',
+        'remove_confirm_ok'      => 'Rimuovi',
+        'remove_option_confirm_title'   => 'Rimuovi opzione',
+        'remove_option_confirm_message' => 'Rimuovere "{label}" da questo elenco? Nulla cambia finché non salvi.',
     ],
 
     // Live preview (forms/edit/index.php)

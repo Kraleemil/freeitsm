@@ -1812,3 +1812,239 @@
     if (mq.addEventListener) { mq.addEventListener('change', apply); }
     else if (mq.addListener) { mq.addListener(apply); }
 })();
+
+/* ====================================================================
+   FORMS EDITOR — the four inspection tools join Save and Cancel in one
+   bottom action bar, with a "…" overflow  (#1290, Ed's request)
+
+   ITS OWN top-level IIFE, for the reason the blocks above document.
+
+   On desktop the editor has two groups of controls: AI Assist / Versions
+   / Save as new version / Properties in the top toolbar, and Cancel /
+   Save in a sticky footer. That is a sound desktop split — inspection at
+   the top, completion at the bottom. On a phone LAYER 27g stacked the
+   top four into four full-width rows, which spent ~150px before a single
+   form field. Ed asked for the tickets treatment instead: one row of
+   icons at the bottom, and a "…" for whatever will not fit.
+
+   What this does, and only when `mq.matches`:
+     1. wraps each button's bare label text in a `.fm-label` span, so CSS
+        can hide it on the bar and show it again in the overflow panel;
+     2. moves the four toolbar buttons into the footer, before Save;
+     3. measures, and pushes whatever does not fit into a
+        `.mobile-more-panel` behind a "…" — LAYER 5's own class;
+     4. puts every one of them back where it came from if the viewport
+        goes wide again.
+
+   Desktop is untouched: nothing runs, and step 4 makes a mid-session
+   resize back to desktop exact rather than approximately right.
+   ==================================================================== */
+(function () {
+    var mq = window.matchMedia('(max-width: 768px)');
+
+    var footer = document.querySelector('.forms-edit-page .editor-footer');
+    var toolbarActions = document.querySelector('.forms-edit-page .editor-toolbar-actions');
+    if (!footer || !toolbarActions) return;          // not the form builder
+
+    var saveBtn = footer.querySelector('.save-btn');
+
+    // The four, in the order Ed asked for them. Each is looked up rather
+    // than taken as "every child", because the toolbar also holds the
+    // versions dropdown, which travels with its wrapper and must not be
+    // treated as a button in its own right.
+    var MOVERS = ['.btn-ai-assist', '#versionsWrap', '#newVersionBtn', '#propertiesBtn'];
+
+    var moved = [];          // { el, parent, next } so the move is reversible
+
+    // ---- 1. the label ---------------------------------------------------
+    // ⚠️ These buttons carry their label as a BARE TEXT NODE beside an
+    // <svg>, so `span:not(.action-btn-icon)` — LAYER 5's way of hiding a
+    // label — has nothing to match. Wrap it once, idempotently.
+    function wrapLabel(btn) {
+        if (!btn || btn.querySelector('.fm-label')) return;
+        var kids = Array.prototype.slice.call(btn.childNodes);
+        var span = null;
+        kids.forEach(function (n) {
+            if (n.nodeType !== 3 || !n.nodeValue.trim()) return;
+            if (!span) {
+                span = document.createElement('span');
+                span.className = 'fm-label';
+                btn.insertBefore(span, n);
+            }
+            span.appendChild(n);          // moves the text node into the span
+        });
+        // Keep the accessible name intact: the label is now hidden by CSS on
+        // the bar, so a button with no title would be an unlabelled icon.
+        if (span && !btn.getAttribute('aria-label')) {
+            btn.setAttribute('aria-label', span.textContent.trim());
+        }
+    }
+
+    // ---- 3. the overflow -------------------------------------------------
+    function clearOverflow() {
+        var panel = footer.querySelector('.mobile-more-panel');
+        var btn = footer.querySelector('.mobile-more-btn');
+        if (panel) {
+            // Put its contents back on the bar before removing it, or they
+            // would be destroyed along with it.
+            while (panel.firstChild) footer.insertBefore(panel.firstChild, panel);
+            panel.parentNode.removeChild(panel);
+        }
+        if (btn) btn.parentNode.removeChild(btn);
+    }
+
+    function buildOverflow() {
+        clearOverflow();
+
+        // Only VISIBLE controls count. Versions is hidden for a brand-new
+        // form and Save as new version for a frozen snapshot, and a hidden
+        // button must not push a visible one into the overflow.
+        var items = Array.prototype.filter.call(footer.children, function (el) {
+            return el.offsetParent !== null && !el.classList.contains('mobile-more-panel');
+        });
+        if (items.length < 2) return;
+
+        // Measure rather than assume a count: the bar's capacity depends on
+        // the screen, and how many controls are showing depends on the form.
+        var style = window.getComputedStyle(footer);
+        var avail = footer.clientWidth
+            - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        var gap = parseFloat(style.columnGap || style.gap) || 6;
+
+        var used = 0, overflow = [];
+        for (var i = 0; i < items.length; i++) {
+            var w = items[i].getBoundingClientRect().width;
+            var next = used + (used ? gap : 0) + w;
+            // Reserve room for the "…" itself from the moment one is needed.
+            var budget = (i === items.length - 1 && !overflow.length) ? avail : avail - (46 + gap);
+            if (next > budget && items[i] !== saveBtn) {
+                overflow.push(items[i]);
+            } else {
+                used = next;
+            }
+        }
+        if (!overflow.length) return;      // everything fits — no "…" at all
+
+        var panel = document.createElement('div');
+        panel.className = 'mobile-more-panel';
+        // ⚠️ Inline `display:none`. mobile.css is @media-only, so it cannot
+        // give an injected node a desktop default — the documented trap.
+        panel.style.display = 'none';
+
+        var moreBtn = document.createElement('button');
+        moreBtn.type = 'button';
+        moreBtn.className = 'btn btn-secondary mobile-more-btn';
+        moreBtn.innerHTML = '<span class="action-btn-icon">⋯</span>';
+        // English, deliberately: LAYER 5's tickets bar labels its own "…" the
+        // same way, there is no translated "More" anywhere in lang/ to
+        // harvest, and inventing a key here would put ONE English string in
+        // 23 locale files. Matching the existing button keeps it to one thing
+        // to fix if a key is ever added. It is an aria-label, never rendered.
+        moreBtn.setAttribute('aria-label', 'More actions');
+        moreBtn.title = 'More actions';
+        moreBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            panel.style.display = (panel.style.display === 'none') ? 'flex' : 'none';
+        });
+
+        overflow.forEach(function (el) {
+            el.addEventListener('click', function () { panel.style.display = 'none'; });
+            panel.appendChild(el);
+        });
+
+        // Before Save, so Save stays the rightmost thing on the bar.
+        footer.insertBefore(moreBtn, saveBtn || null);
+        footer.appendChild(panel);
+    }
+
+    // ⚠️ LAYER 5's tap-outside-to-close handler lives in the main IIFE,
+    // which returns early on any page without an .email-list-container. It
+    // never runs here, so this block needs its own — the failure would have
+    // been silent, the panel opening happily and never closing.
+    document.addEventListener('click', function (e) {
+        if (!mq.matches || !e.target.closest) return;
+        var panel = footer.querySelector('.mobile-more-panel');
+        if (!panel || panel.style.display === 'none') return;
+        if (e.target.closest('.mobile-more-panel') || e.target.closest('.mobile-more-btn')) return;
+        panel.style.display = 'none';
+    });
+
+    // ---- 2 & 4. move in, and put back ------------------------------------
+    // ⚠️ Cancel is the ONE control here with no <svg> — it is a plain
+    // `<button>Cancel</button>` — so hiding its label leaves an empty grey
+    // rectangle on the bar. It looked like a broken button, because that is
+    // exactly what it was. Anything without an icon gets one.
+    // 🔑 The general rule: **before hiding a label, check every button
+    // actually has something left to show.**
+    var GLYPHS = { cancelEdit: '✕' };          // ✕
+    function ensureIcon(btn) {
+        if (!btn || btn.querySelector('svg') || btn.querySelector('.fm-glyph')) return;
+        var on = btn.getAttribute('onclick') || '';
+        var glyph = null;
+        Object.keys(GLYPHS).forEach(function (fn) { if (on.indexOf(fn) === 0) glyph = GLYPHS[fn]; });
+        if (!glyph) return;
+        var s = document.createElement('span');
+        s.className = 'fm-glyph';
+        s.textContent = glyph;
+        btn.insertBefore(s, btn.firstChild);
+    }
+
+    function moveIn() {
+        // The first original child is Cancel; everything moved in goes BEFORE
+        // it, in the order MOVERS lists, so the bar reads left to right the
+        // way Ed asked for it. Inserting each at `firstChild` instead — which
+        // is what the first version did — silently REVERSES the list.
+        var anchor = footer.firstElementChild;
+        MOVERS.forEach(function (sel) {
+            var el = document.querySelector('.forms-edit-page ' + sel);
+            if (!el || el.parentNode === footer) return;
+            moved.push({ el: el, parent: el.parentNode, next: el.nextSibling });
+            wrapLabel(el.classList.contains('versions-wrap') ? el.querySelector('.btn') : el);
+            footer.insertBefore(el, anchor);
+        });
+        // Cancel and Save carry labels too, and Save's accent is what
+        // identifies it once the bar is icons.
+        Array.prototype.forEach.call(footer.querySelectorAll('.btn'), function (b) {
+            wrapLabel(b);
+            ensureIcon(b);
+        });
+    }
+
+    function moveOut() {
+        clearOverflow();
+        moved.forEach(function (m) {
+            if (m.next && m.next.parentNode === m.parent) m.parent.insertBefore(m.el, m.next);
+            else m.parent.appendChild(m.el);
+        });
+        moved = [];
+        // The .fm-label spans are left in place deliberately: they are inert
+        // (the hiding rule is inside the @media block) and removing them
+        // would mean unwrapping text nodes the page's own renderer may since
+        // have replaced.
+    }
+
+    function sync() {
+        if (mq.matches) {
+            if (!moved.length) moveIn();
+            buildOverflow();
+        } else if (moved.length) {
+            moveOut();
+        }
+    }
+
+    sync();
+    if (mq.addEventListener) { mq.addEventListener('change', sync); }
+    else if (mq.addListener) { mq.addListener(sync); }
+
+    // The Versions and Save-as-new-version buttons are shown/hidden by the
+    // page's own JS once the form has loaded, which changes how many controls
+    // the bar is carrying. Re-measure when that happens rather than guessing
+    // at load time, when both are still hidden.
+    if (window.MutationObserver) {
+        var reflow = null;
+        new MutationObserver(function () {
+            if (!mq.matches || reflow) return;
+            reflow = setTimeout(function () { reflow = null; buildOverflow(); }, 60);
+        }).observe(footer, { attributes: true, attributeFilter: ['style'], subtree: true });
+    }
+})();

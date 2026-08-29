@@ -144,6 +144,13 @@ return [
         'required'          => 'Verplicht',
         'remove_field'      => 'Veld verwijderen',
         'untitled_field'    => 'Naamloos veld',
+        'remove_confirm_title'   => 'Veld verwijderen',
+        'remove_confirm_message' => '"{label}" uit dit formulier verwijderen? Al gegeven antwoorden blijven bewaard en zichtbaar in de inzendingen. Er verandert niets totdat je opslaat.',
+        'remove_confirm_refs'    => '"{label}" uit dit formulier verwijderen? {n} regel die een andere vraag toont of verbergt hangt ervan af en wordt ook verwijderd. Al gegeven antwoorden blijven bewaard en zichtbaar in de inzendingen. Er verandert niets totdat je opslaat.',
+        'remove_confirm_refs_plural' => '"{label}" uit dit formulier verwijderen? {n} regels die andere vragen tonen of verbergen hangen ervan af en worden ook verwijderd. Al gegeven antwoorden blijven bewaard en zichtbaar in de inzendingen. Er verandert niets totdat je opslaat.',
+        'remove_confirm_ok'      => 'Verwijderen',
+        'remove_option_confirm_title'   => 'Optie verwijderen',
+        'remove_option_confirm_message' => '"{label}" uit deze lijst verwijderen? Er verandert niets totdat je opslaat.',
     ],
 
     // Live preview (forms/edit/index.php)

@@ -224,6 +224,13 @@ return [
         'required'          => 'Obligatorisk',
         'remove_field'      => 'Fjern felt',
         'untitled_field'    => 'Felt utan namn',
+        'remove_confirm_title'   => 'Fjern felt',
+        'remove_confirm_message' => 'Fjerne "{label}" frå dette skjemaet? Svar som alt er gjevne blir tekne vare på og er framleis synlege i innsendingane. Ingenting endrar seg før du lagrar.',
+        'remove_confirm_refs'    => 'Fjerne "{label}" frå dette skjemaet? {n} regel som viser eller skjuler eit anna spørsmål er avhengig av det og blir fjerna òg. Svar som alt er gjevne blir tekne vare på og er framleis synlege i innsendingane. Ingenting endrar seg før du lagrar.',
+        'remove_confirm_refs_plural' => 'Fjerne "{label}" frå dette skjemaet? {n} reglar som viser eller skjuler andre spørsmål er avhengige av det og blir fjerna òg. Svar som alt er gjevne blir tekne vare på og er framleis synlege i innsendingane. Ingenting endrar seg før du lagrar.',
+        'remove_confirm_ok'      => 'Fjern',
+        'remove_option_confirm_title'   => 'Fjern alternativ',
+        'remove_option_confirm_message' => 'Fjerne "{label}" frå denne lista? Ingenting endrar seg før du lagrar.',
     ],
 
     // Conditional visibility editor (forms/edit/index.php)
