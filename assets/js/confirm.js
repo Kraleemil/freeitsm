@@ -31,10 +31,20 @@
  *   okLabel     - Label for the OK button. Default: 'OK'.
  *   okClass     - 'primary' | 'danger'. Drives the OK button colour. Default: 'primary'.
  *   cancelLabel - Label for the Cancel button. Default: 'Cancel'.
- *   onConfirm   - Callback fired when the user confirms.
+ *   onConfirm   - Callback fired when the user confirms. Receives { checked }.
  *   onCancel    - Callback fired when the user cancels (or dismisses).
+ *   checkbox    - Optional extra opt-in inside the dialog, for a destructive
+ *                 action with a wider and a narrower reading:
+ *                   checkbox: { label: 'Also delete unread', checked: false }
+ *                 Omit it entirely and the dialog is exactly as it always was.
  *
  * Returns: Promise<boolean> — resolves true on confirm, false on cancel.
+ *
+ * ⚠️ THE RETURN TYPE IS A BOOLEAN AND MUST STAY ONE. 114 of the 129 call sites
+ * do `if (await showConfirm(...))`. Resolving an object instead would make every
+ * one of them treat a CANCEL as a confirm, because `{}` is truthy — a silent,
+ * app-wide, destructive regression. So the checkbox state is reported through
+ * onConfirm's argument rather than the promise.
  */
 (function() {
     if (window.showConfirm) return; // already loaded
@@ -68,7 +78,14 @@
         '.fitsm-confirm-btn-primary{background:var(--accent,#0078d4);color:#fff}' +
         '.fitsm-confirm-btn-primary:hover{background:var(--accent-hover,#005ea5)}' +
         '.fitsm-confirm-btn-danger{background:#c62828;color:#fff}' +
-        '.fitsm-confirm-btn-danger:hover{background:#a02020}';
+        '.fitsm-confirm-btn-danger:hover{background:#a02020}' +
+        // The optional checkbox. Sits under the message inside the body, so it
+        // reads as part of the question rather than as a third button.
+        '.fitsm-confirm-check{display:flex;align-items:flex-start;gap:8px;margin-top:14px;' +
+            'cursor:pointer;color:var(--text,#333);font-size:13px;line-height:1.4}' +
+        '.fitsm-confirm-check[hidden]{display:none}' +
+        '.fitsm-confirm-check input{margin:1px 0 0;flex:none;width:15px;height:15px;cursor:pointer;' +
+            'accent-color:var(--accent,#0078d4)}';
     document.head.appendChild(style);
 
     var overlay = null;
@@ -76,6 +93,9 @@
     var bodyEl = null;
     var cancelBtn = null;
     var okBtn = null;
+    var checkWrap = null;
+    var checkInput = null;
+    var checkLabel = null;
     var currentOnConfirm = null;
     var currentOnCancel = null;
     var currentResolve = null;
@@ -101,6 +121,17 @@
         body.className = 'fitsm-confirm-body';
         bodyEl = document.createElement('p');
         body.appendChild(bodyEl);
+
+        checkWrap = document.createElement('label');
+        checkWrap.className = 'fitsm-confirm-check';
+        checkWrap.hidden = true;
+        checkInput = document.createElement('input');
+        checkInput.type = 'checkbox';
+        checkLabel = document.createElement('span');
+        checkWrap.appendChild(checkInput);
+        checkWrap.appendChild(checkLabel);
+        body.appendChild(checkWrap);
+
         modal.appendChild(body);
 
         var footer = document.createElement('div');
@@ -129,8 +160,11 @@
     function handleConfirm() {
         var cb = currentOnConfirm;
         var resolve = currentResolve;
+        // Read the box BEFORE close() resets anything, and hand it to the
+        // callback. The promise still resolves a plain boolean — see the header.
+        var state = { checked: !!(checkInput && !checkWrap.hidden && checkInput.checked) };
         close();
-        if (typeof cb === 'function') cb();
+        if (typeof cb === 'function') cb(state);
         if (typeof resolve === 'function') resolve(true);
     }
 
@@ -165,6 +199,15 @@
 
         var cls = (opts.okClass === 'danger') ? 'danger' : 'primary';
         okBtn.className = 'fitsm-confirm-btn fitsm-confirm-btn-' + cls;
+
+        // Reset every time: the dialog is a single reused element, so a checkbox
+        // left over from a previous call would appear on an unrelated one.
+        checkWrap.hidden = !opts.checkbox;
+        checkInput.checked = false;
+        if (opts.checkbox) {
+            checkLabel.textContent = opts.checkbox.label || '';
+            checkInput.checked = !!opts.checkbox.checked;
+        }
 
         currentOnConfirm = opts.onConfirm || null;
         currentOnCancel = opts.onCancel || null;

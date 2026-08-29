@@ -334,6 +334,52 @@ class NotificationsService
         return $stmt->rowCount();
     }
 
+    /**
+     * Remove specific notifications outright (discussion #111).
+     *
+     * A hard DELETE, deliberately. This table is a display cache for the bell and
+     * nothing else in the app reads it — the durable record of what happened lives
+     * in the workflow events and the entity's own audit trail. So a dismissed row
+     * preserves nothing, and a soft-delete column would buy a migration plus a
+     * filter on every read in exchange for that nothing.
+     *
+     * Scoped to the analyst for the same reason markRead() is: ids belonging to
+     * somebody else match nothing rather than erroring, which keeps a stale open
+     * tab harmless.
+     */
+    public static function clear(PDO $conn, int $analystId, array $ids): int
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids), fn($i) => $i > 0));
+        if (!$ids) {
+            return 0;
+        }
+        $place = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $conn->prepare(
+            "DELETE FROM notifications WHERE analyst_id = ? AND id IN ($place)"
+        );
+        $stmt->execute(array_merge([$analystId], $ids));
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Empty the panel.
+     *
+     * ⚠️ $includeUnread defaults to FALSE, and that default IS the safety catch.
+     * Clearing is irreversible, and the rows most worth keeping are precisely the
+     * ones nobody has looked at yet — so unless the analyst deliberately ticks the
+     * box in the confirmation, unread news survives a Clear all.
+     */
+    public static function clearAll(PDO $conn, int $analystId, bool $includeUnread = false): int
+    {
+        $sql = "DELETE FROM notifications WHERE analyst_id = ?";
+        if (!$includeUnread) {
+            $sql .= " AND read_datetime IS NOT NULL";
+        }
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([$analystId]);
+        return $stmt->rowCount();
+    }
+
     private static function clip($value, int $max): ?string
     {
         if ($value === null) {
