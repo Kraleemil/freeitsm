@@ -404,6 +404,10 @@ $translationNamespaces = ['common', 'forms'];
             color: var(--text-muted, #475569);
         }
     </style>
+    <!-- Mobile layer. Linked AFTER this page's inline <style> on purpose: the
+         mobile rules must win on equal specificity, and a link placed above it
+         would silently lose to the desktop block below (the load-order trap). -->
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=88">
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
@@ -2122,5 +2126,8 @@ $translationNamespaces = ['common', 'forms'];
             </div>
         </div>
     </div>
+    <!-- Mobile layer. Adds the views hamburger and the module drawer on a phone.
+         Loaded last so it can wrap the page's own globals rather than edit them. -->
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=31"></script>
 </body>
 </html>

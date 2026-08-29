@@ -76,6 +76,10 @@ $translationNamespaces = ['common', 'forms'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <!-- Mobile layer. Linked AFTER this page's inline <style> on purpose: the
+         mobile rules must win on equal specificity, and a link placed above it
+         would silently lose to the desktop block below (the load-order trap). -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=88">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -222,5 +226,8 @@ $translationNamespaces = ['common', 'forms'];
         function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : t); return d.innerHTML; }
         function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     </script>
+    <!-- Mobile layer. Adds the views hamburger and the module drawer on a phone.
+         Loaded last so it can wrap the page's own globals rather than edit them. -->
+    <script src="../assets/js/mobile.js?v=31"></script>
 </body>
 </html>

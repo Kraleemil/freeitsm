@@ -1705,3 +1705,110 @@
     if (mq.addEventListener) { mq.addEventListener('change', sync); }
     else if (mq.addListener) { mq.addListener(sync); }
 })();
+
+/* ====================================================================
+   FORMS — give a card feed its column labels back (#1289)
+
+   ITS OWN top-level IIFE, for the reason the block above documents.
+
+   Every card feed in this rollout so far has had to drop its column
+   labels, because the only pure-CSS way to put one back is
+   `td::before { content: "Submissions" }` — a hardcoded English string
+   in a product that ships in 24 languages. So the rule became "reading
+   order carries the meaning instead", which works when the values are
+   self-describing (a name, a date, a status pill) and fails completely
+   when they are not.
+
+   The forms list is the case where it fails: two of its eight columns
+   are BARE COUNTS, and "New Starter Request / v1 / Active / 7 / 10"
+   tells you nothing about what 7 and 10 are.
+
+   ⭐ But the labels are already on the page, already translated, in the
+   `<thead>` the feed hides. So copy them onto the cells as a data
+   attribute and let CSS print them with `attr()`. Zero invented
+   strings, zero new locale keys, and it works for any table in any
+   module — the same trick as harvesting `common.back` from a locale
+   that already had the word, one level up.
+
+   Desktop is untouched: the attribute is inert without the @media rule
+   that prints it, and `thead` is only hidden below 768px.
+   ==================================================================== */
+(function () {
+    var mq = window.matchMedia('(max-width: 768px)');
+
+    /* Which columns get a label, per table. Deliberately a LIST rather
+       than "all of them": a card whose every line is prefixed reads like
+       a spreadsheet, and most of these columns are self-describing. Only
+       the ones that are meaningless bare want one.
+
+       Indexes are into the header row, zero-based:
+         3 = the field count, 4 = the submission count. */
+    var FEEDS = [
+        { table: '#formsTable', columns: [3, 4] }
+    ];
+
+    function labelCardFeed(table, columns) {
+        var head = table.tHead;
+        if (!head || !head.rows.length) return;
+        var headCells = head.rows[0].cells;
+        var body = table.tBodies[0];
+        if (!body) return;
+
+        for (var r = 0; r < body.rows.length; r++) {
+            var row = body.rows[r];
+            for (var c = 0; c < columns.length; c++) {
+                var i = columns[c];
+                var cell = row.cells[i];
+                if (!cell || !headCells[i]) continue;
+                // ⚠️ The empty / loading / error row is a single
+                // `<td colspan="8">`, so row.cells[3] on it is undefined
+                // — but a two-cell variant would put the label on the
+                // wrong thing. Skip any row that is not the full width.
+                if (row.cells.length !== headCells.length) continue;
+
+                // The header carries a sort-arrow span; take the text
+                // nodes only so the arrow glyphs do not come with it.
+                var text = '';
+                var kids = headCells[i].childNodes;
+                for (var k = 0; k < kids.length; k++) {
+                    if (kids[k].nodeType === 3) text += kids[k].nodeValue;
+                }
+                text = text.replace(/\s+/g, ' ').trim();
+                if (!text) continue;
+                cell.setAttribute('data-mobile-label', text);
+            }
+        }
+    }
+
+    function apply() {
+        if (!mq.matches) return;
+        for (var i = 0; i < FEEDS.length; i++) {
+            var t = document.querySelector(FEEDS[i].table);
+            if (t) labelCardFeed(t, FEEDS[i].columns);
+        }
+    }
+
+    // The list is re-rendered by the page's own renderForms() on load,
+    // on search and on every sort, and it replaces the tbody's innerHTML
+    // — so a one-shot pass at load would be undone by the first fetch
+    // that resolves after it. Observing the table is cheaper and safer
+    // than wrapping four call sites, and it cannot get out of step with
+    // a renderer this file does not own.
+    var watched = [];
+    for (var i = 0; i < FEEDS.length; i++) {
+        var el = document.querySelector(FEEDS[i].table);
+        if (el) watched.push(el);
+    }
+    if (!watched.length) return;              // not a page with a labelled feed
+
+    if (window.MutationObserver) {
+        var obs = new MutationObserver(function () { apply(); });
+        for (var j = 0; j < watched.length; j++) {
+            obs.observe(watched[j], { childList: true, subtree: true });
+        }
+    }
+
+    apply();
+    if (mq.addEventListener) { mq.addEventListener('change', apply); }
+    else if (mq.addListener) { mq.addListener(apply); }
+})();

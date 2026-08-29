@@ -4745,4 +4745,606 @@
        In a card there is no column to protect and it just truncates the width
        of the text. */
     .notes-display { max-width: none; font-size: 13px; }
+
+    /* ====================================================================
+       LAYER 27 — FORMS  (#1289)
+       ====================================================================
+       Thirteenth module. Opening numbers were the familiar ones: all SEVEN
+       pages measured 904px on a 360px screen, every one of them from
+       `nav.header-nav` and `.header-right` in the shared header. Opting the
+       pages in took six of them straight to docScrollW === 360 and the list
+       page to 460.
+
+       That left four real jobs, and only one of them was visible to a
+       containment check:
+
+         · forms/            — an EIGHT column table, cells crushed to
+                               105 x 113px. The 82 x 134 signature again.
+         · forms/submissions — measured "CONTAINED" while being **1400px
+                               wide inside a 360px box**. `.subs-container`
+                               sets `overflow-y: auto`, and a box with one
+                               axis not `visible` computes the OTHER axis to
+                               `auto` too — so the page scrolled sideways and
+                               every document-level check stayed clean.
+         · forms/approvals   — a 260px sidebar beside a `flex: 1` main pane
+                               left the main pane **100px wide, 40px of it
+                               content**. Its headings measured clientW=0.
+                               Also invisible: nothing overflowed, it was
+                               simply crushed to nothing.
+         · forms/edit        — the builder: 24 shrink floors and SIX distinct
+                               font sizes below 16px.
+
+       ⭐ Reordering fields in the builder is a drag, and drag surfaces are
+       normally out of scope on a phone (see 25's board, 26c's divider).
+       This one is NOT, and the reason is worth writing down because I had it
+       wrong: **iOS Safari has driven the HTML5 drag-and-drop API from a
+       long-press since iOS 11**, so `draggable="true"` + `dragstart` really
+       do fire on the device. `.field-drag` and `.check-drag` (Morning Checks,
+       which is already shipped and works) both carry `touch-action: none`,
+       which is the part that stops the page scrolling instead. So the
+       builder's reordering is left exactly as it is, and nothing in this
+       layer touches `.field-drag`.
+
+       ⚠️ `forms/index.php` carries a SECOND `<style>` block **inside its
+       `<body>`** (the catalogue-approval modal, `.ca-modal-*`). That block
+       comes after this file in document order, so on an equal-specificity
+       tie it wins and the load-order rule in §9 cannot save us — those few
+       rules are the only ones in this layer that need `!important`, and they
+       say so where they appear.
+       -------------------------------------------------------------------- */
+
+    /* ---- 27a: containment ----
+       The pin from LAYER 15, needed again for the same reason: LAYER 2 makes
+       <body> a flex column, and a flex item's automatic minimum size is its
+       CONTENT width — so a wide toolbar or table stretches the container
+       itself and every scroller inside is then sized against an
+       already-too-wide parent. Contain the parent before blaming the child.
+
+       `.fill-container` and `.subs-container` are this module's own class
+       names (checked); `.forms-container` is shared between the list and the
+       editor, which is the point of keying on it. */
+    .forms-container,
+    .forms-list-container,
+    .fill-container,
+    .subs-container,
+    .ca-container {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    /* ⚠️ `height: calc(100vh - 48px)` assumes a 48px single-row header. The
+       mobile header wraps taller than that, so the pane ends up starting
+       below the fold with its own scrollbar inside the page's. LAYER 2's
+       flex body already gives these panes their height. */
+    .forms-list-container,
+    .ca-container {
+        height: auto;
+        min-height: 0;
+    }
+
+    /* ---- 27b: the forms list toolbar ----
+       `Forms | [search 260px] [+ New form]` on one row needs 351px of
+       toolbar on a 360px screen. The search box is the whole problem: it
+       carries `min-width: 260px`, and a flex item cannot shrink below its
+       min-width however much the row is squeezed. */
+    .forms-list-container { padding: 0; }
+
+    .forms-list-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 12px 14px 10px;
+    }
+    .forms-list-toolbar h1 { font-size: 19px; }
+
+    .forms-list-toolbar .toolbar-actions {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .forms-list-search {
+        /* The floor, not the width, is what breaks the row. */
+        min-width: 0;
+        flex: 1 1 100%;
+        /* 16px or iOS zooms on focus, which reflows the page to desktop
+           width and switches this whole media block off (§3). */
+        font-size: 16px;
+    }
+    .new-form-btn {
+        flex: 1 1 100%;
+        justify-content: center;
+        min-height: 42px;
+    }
+
+    /* ---- 27c: the forms list becomes a feed of cards ----
+       Eight columns: title | version | status | fields | submissions |
+       modified | modified by | actions. Measured 1294px inside a 300px card,
+       with the count cells crushed to 92 x 113px — a two-digit number four
+       lines tall.
+
+       Columns are known and the reader takes in one row at a time, so §11
+       says card feed. Two of the eight are the awkward case §11 warns about
+       though: `fields` and `submissions` are BARE NUMBERS whose meaning is
+       entirely in the header, and a card reading "New Starter Request / v1 /
+       Active / 7 / 10" says nothing.
+
+       ⭐ The way out is new, and it is general: the headers are already in
+       the DOM and already translated, so `mobile.js` copies each `<th>` into
+       its cells as `data-mobile-label` and the label is printed from
+       `attr()`. No hardcoded English, no invented string, no new key in 24
+       locales — which is the objection that has made every card feed so far
+       drop its labels entirely. See `labelCardFeed()` in mobile.js.
+
+       ⚠️ THE EMPTY STATE IS A `<td colspan="8">`, i.e. the first AND last
+       child of its row — the exact shape that swallowed the Calendar feed's
+       message (§11). Every rule below that keys on position excludes it. */
+    #formsTable,
+    #formsTable tbody { display: block; width: 100%; }
+    #formsTable thead { display: none; }
+
+    #formsTable tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 8px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    #formsTable tbody td {
+        flex: 1 1 100%;
+        /* 🔴 LOAD-BEARING, and its absence cost a round. A flex item's
+           automatic minimum size is its CONTENT width, and the description
+           below is `white-space: nowrap` — so the title cell could not
+           shrink below the 434px that sentence wanted and every card came
+           out 448px wide inside a 360px screen. The document stayed
+           contained the whole time, because the card scrolls. */
+        min-width: 0;
+        padding: 0 !important;
+        border: none;
+        /* The desktop rule right-aligns the two counts with an inline style;
+           in a card they are a run of text, not a column. */
+        text-align: left !important;
+    }
+
+    /* The form's name is the card's heading, and its description the line
+       under it — which is what the desktop cell already contains. */
+    #formsTable tbody td.col-title { margin-bottom: 6px; }
+    #formsTable tbody td.col-title strong { font-size: 15px; }
+    /* ⚠️ The desktop rule truncates the description to one ellipsised line
+       capped at 480px, so a table column stays narrow. In a card there is no
+       column to protect, and a one-line summary of what the form is for is
+       worth two lines of a phone screen. Same shape as 26's `.notes-display`. */
+    #formsTable tbody td.col-title small {
+        font-size: 12.5px;
+        white-space: normal;
+        max-width: none;
+        overflow: visible;
+    }
+
+    /* ⚠️ `flex: 0 0 auto`, NOT `display: inline`. A flex item's display is
+       BLOCKIFIED, so an inline cell inside a flex row still takes a line of
+       its own — the trap 26b hit and wrote up. These four want to pair up:
+       version beside status, then the two counts beside each other. */
+    #formsTable tbody td:nth-child(2),
+    #formsTable tbody td:nth-child(3),
+    #formsTable tbody td:nth-child(4),
+    #formsTable tbody td:nth-child(5) { flex: 0 0 auto; }
+    #formsTable tbody td:nth-child(3) { flex: 1 1 auto; }   /* status pills take the rest */
+
+    /* The quiet meta line: when, and who by. */
+    #formsTable tbody td:nth-child(4),
+    #formsTable tbody td:nth-child(5),
+    #formsTable tbody td:nth-child(6),
+    #formsTable tbody td:nth-child(7) {
+        font-size: 12.5px;
+        color: var(--text-dim, #888);
+        margin-top: 4px;
+    }
+    #formsTable tbody td:nth-child(6),
+    #formsTable tbody td:nth-child(7) { flex: 0 0 auto; }
+    #formsTable tbody td:nth-child(7)::before {
+        content: "\00b7";
+        margin: 0 5px 0 0;
+        color: var(--text-faint, #bbb);
+    }
+
+    /* The harvested header (27c). Only cells mobile.js has stamped get one,
+       so a table it has not been pointed at is unaffected. */
+    #formsTable tbody td[data-mobile-label]::before {
+        content: attr(data-mobile-label) "\00a0";
+        color: var(--text-faint, #999);
+    }
+
+    #formsTable tbody td.col-actions {
+        flex: 1 1 100%;
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    #formsTable tbody td.col-actions > * { flex: 1 1 auto; min-height: 38px; }
+
+    /* ⚠️ The empty / loading / error row is a single full-width cell. Without
+       this it inherits `flex: 0 0 auto` from nothing but does inherit the
+       card padding and the ::before rules keyed on position. */
+    #formsTable tbody td[colspan] {
+        flex: 1 1 100% !important;
+        text-align: center !important;
+        margin: 0;
+        padding: 24px 14px !important;
+    }
+    #formsTable tbody td[colspan]::before { content: none; }
+
+    .forms-table-card { border-radius: 0; }
+
+    /* ---- 27d: filling a form in ----
+       The one page in this module somebody genuinely uses standing up, so it
+       gets the room. The card spends 50px a side on desktop padding, which is
+       100px of a 360px screen. */
+    .fill-content { padding: 12px 12px 24px; }
+    .fill-card {
+        padding: 18px 16px 22px;
+        /* 600px of forced height on a page whose form may be three fields
+           long is 600px of empty white. */
+        min-height: 0;
+        border-radius: 8px;
+    }
+    .fill-title { font-size: 19px; }
+
+    /* Every field, in one rule with an exclusion list rather than an
+       enumeration — a field type added later is covered by default instead
+       of forgotten at the browser's 13.33px. */
+    .form-field input:not([type="checkbox"]):not([type="radio"]),
+    .form-field textarea,
+    .form-field select { font-size: 16px; }
+
+    /* §20 — a native date/time input IGNORES the width you give it. iOS
+       spells the month out ("12 May 2026") where Chrome on Windows draws
+       "12/05/2026", so the field is far wider on the device than in any
+       browser this can be tested in, and it spills. The appearance reset
+       plus the value margin is the fix; the tell that it is still wrong is
+       the field being WIDER THAN THE SELECT BESIDE IT, at rest. */
+    .form-field input[type="date"],
+    .form-field input[type="time"],
+    .form-field input[type="datetime-local"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        max-width: 100%;
+    }
+    .form-field input[type="date"]::-webkit-date-and-time-value,
+    .form-field input[type="time"]::-webkit-date-and-time-value,
+    .form-field input[type="datetime-local"]::-webkit-date-and-time-value {
+        margin: 0;
+        text-align: left;
+    }
+
+    /* A radio or checkbox option is a tap target, not a line of text. */
+    .form-field.choice-field .choice-row { padding: 7px 0; }
+    .form-field.choice-field .choice-row label { font-size: 15px; }
+
+    /* Submit is the point of the page. Full width, and Cancel beside it
+       rather than under it — two buttons fit on one row at 360px. */
+    .form-actions {
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    .form-actions .btn {
+        flex: 1 1 auto;
+        justify-content: center;
+        min-height: 44px;
+        font-size: 15px;
+    }
+
+    /* The lookup suggestion list is positioned against the field, so it
+       inherits the field's width — but its rows were sized for a mouse. */
+    .lookup-option { padding: 11px 12px; font-size: 15px; }
+
+    /* ---- 27e: submissions ----
+       🔴 THE ONE THE CHECKS COULD NOT SEE. `.subs-content` measured **1400px
+       inside a 360px viewport** and `docScrollW === innerWidth` was TRUE
+       throughout, because `.subs-container` sets `overflow-y: auto` and CSS
+       computes the other axis to `auto` when one axis is not `visible`. The
+       page scrolled sideways; nothing reported it. §13's lesson from the
+       other direction — assert the box, not just the document. */
+    .subs-content { padding: 12px 14px 24px; }
+
+    .subs-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .subs-toolbar-left { flex-wrap: wrap; gap: 8px; }
+    .subs-toolbar-left h2 { font-size: 17px; }
+    .subs-toolbar-right { flex-wrap: wrap; gap: 8px; }
+
+    /* Two date filters, Clear and Export on one row is 540px. The filters
+       take a line each and the two buttons share the next. */
+    .subs-toolbar-right .filter-group { flex: 1 1 100%; }
+    .subs-toolbar-right .filter-group input[type="date"] {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 16px;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    .subs-toolbar-right .filter-group input[type="date"]::-webkit-date-and-time-value {
+        margin: 0;
+        text-align: left;
+    }
+    .subs-toolbar-right .btn { flex: 1 1 40%; justify-content: center; min-height: 40px; }
+
+    /* The submissions table becomes a feed — and this one needs NO labels at
+       all, because of what the page already does: every row carries
+       `onclick="showDetail(idx)"` and opens an overlay listing every answer
+       against its own label. So the card only has to be enough to PICK a
+       row, and the three columns that identify one are fixed whatever the
+       form contains: number, who submitted it, when.
+
+       The rest are the form's own questions — thirteen of them here, one
+       holding prose ("Needs Visual Studio, Git, ...") at `white-space:
+       nowrap`. §11 is unambiguous about prose in a sideways scroller, and
+       equally unambiguous that unlabelled answers are meaningless. Hiding
+       them costs nothing because they are one tap away, complete and
+       labelled, which is more than the crushed table ever gave.
+
+       ⚠️ Keyed on `nth-child(n+4)` and `:last-child` — both stable however
+       many questions the form has, because the three leading columns and the
+       trailing delete button are written by the renderer, not by the form. */
+    .subs-table,
+    .subs-table tbody { display: block; width: 100%; }
+    .subs-table thead { display: none; }
+    .subs-table tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0 8px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    .subs-table tbody td {
+        padding: 0 !important;
+        border: none;
+        white-space: normal;      /* the desktop rule is nowrap, for columns */
+        flex: 0 0 auto;
+    }
+    /* The answers. One tap away in the detail overlay, with their labels. */
+    .subs-table tbody td:nth-child(n+4):not(:last-child) { display: none; }
+
+    .subs-table tbody td:nth-child(1) {                  /* the row number */
+        font-size: 12.5px;
+        color: var(--text-faint, #999);
+        flex: 0 0 auto;
+    }
+    .subs-table tbody td:nth-child(2) {                  /* submitted by */
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .subs-table tbody td:nth-child(3) {                  /* when */
+        font-size: 12.5px;
+        color: var(--text-dim, #888);
+        flex: 1 1 100%;
+        margin-top: 3px;
+    }
+    .subs-table tbody td:last-child { margin-left: auto; }
+    .subs-table .delete-btn { padding: 8px; }
+
+    /* ⚠️ A module with its own modal class is invisible to LAYER 3, which
+       only knows `.modal-content` — this one is `.detail-box`, and left alone
+       it stays a 90%-wide centred box capped at 80vh, which measures
+       perfectly well and is the wrong shape for reading thirteen answers. */
+    .detail-overlay.open { align-items: stretch; justify-content: stretch; }
+    .detail-box {
+        width: 100%;
+        max-width: 100%;
+        max-height: none;
+        height: 100dvh;
+        border-radius: 0;
+    }
+    .detail-header { border-radius: 0; padding: 14px 16px; }
+    .detail-body { padding: 16px; }
+    /* Label above value, not beside it — the desktop row is a two-column
+       shape that has nowhere to go at 360px. */
+    .detail-meta { flex-direction: column; gap: 4px; }
+    .detail-close { min-width: 40px; min-height: 40px; font-size: 26px; }
+
+    /* ---- 27f: the approvals inbox ----
+       🔴 The worst-measuring page in the module and the one nothing reported:
+       `.ca-container` is `display: flex` with a **260px** fixed sidebar and a
+       `flex: 1` main pane, so at 360px the main pane got 100px — 40px of it
+       content once its 30px side padding came off. The empty-state heading
+       measured `clientWidth: 0`. Nothing overflowed. It was simply gone.
+
+       Same answer as 22 and 23: the sidebar stops being a sidebar and
+       becomes a scrolling row of filter chips above the content. */
+    .ca-container { flex-direction: column; }
+
+    .ca-sidebar {
+        width: auto;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-right: none;
+        border-bottom: 1px solid var(--border, #ddd);
+        /* The three filters and their counts are wider than the screen, so
+           the strip scrolls rather than wrapping into two rows of chips. */
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        flex-shrink: 0;
+    }
+    /* "Show" is a column heading for a vertical list; above a row of chips it
+       is a word taking 219px of a scroller that has none to spare. */
+    .ca-sidebar h3 { display: none; }
+    .ca-filter {
+        flex: 0 0 auto;
+        gap: 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 16px;
+        white-space: nowrap;
+        min-height: 38px;
+    }
+    .ca-filter.active { border-color: var(--accent, #0078d4); }
+
+    .ca-main { padding: 14px; }
+    .ca-main h2 { font-size: 17px; margin-bottom: 14px; }
+
+    .ca-card { padding: 14px; }
+    .ca-card-top { flex-wrap: wrap; gap: 8px; }
+    .ca-card-meta { gap: 4px 14px; }
+
+    /* `flex: 0 0 40%` on the label is right beside a wide value and wrong
+       above a narrow one — at 360px it left 40% of the row for the label and
+       wrapped every answer to three lines. Stack them. */
+    .ca-answer { flex-direction: column; gap: 2px; padding: 8px 12px; }
+    .ca-answer .a-lbl { flex: 0 0 auto; font-size: 12px; }
+
+    .ca-comment { font-size: 16px; min-height: 60px; }
+    /* Approve and Reject are why the page is open on a phone. */
+    .ca-actions { gap: 10px; }
+    .ca-actions .ca-btn { flex: 1 1 auto; min-height: 44px; font-size: 15px; }
+    .ca-empty { padding: 40px 16px; }
+
+    /* ⚠️ !important, and ONLY here: `.ca-modal-*` is defined in a `<style>`
+       block INSIDE `forms/index.php`'s `<body>`, which comes after this file
+       in document order. Getting the load order right (§9) is what avoids
+       `!important` everywhere else in this layer; it cannot help against a
+       stylesheet further down the page than the </head> we are linked in. */
+    .ca-modal-overlay { align-items: stretch !important; }
+    .ca-modal-box {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100dvh !important;
+    }
+    .ca-modal-body { flex: 1 1 auto !important; overflow-y: auto !important; }
+    .ca-field select { font-size: 16px !important; }
+    .ca-modal-footer .ca-btn { flex: 1 1 auto !important; min-height: 44px !important; }
+
+    /* ---- 27g: the builder ----
+       Not a page anybody designs a form on standing up, but it is the page a
+       link from anywhere else in the module lands on, so it has to be
+       readable and its labels editable. 24 shrink floors and six distinct
+       sub-16px font sizes.
+
+       ⭐ Reordering is left ALONE — see the note at the top of this layer.
+       `.field-drag` carries `touch-action: none` and iOS Safari drives the
+       HTML5 drag API from a long-press, exactly as Morning Checks does. */
+    .editor-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .editor-toolbar h2 { font-size: 18px; }
+    .editor-toolbar-actions { flex-wrap: wrap; gap: 8px; }
+    .editor-toolbar-actions > * { flex: 1 1 auto; justify-content: center; min-height: 40px; }
+
+    /* Four tabs at 24px of side padding each need more than the screen. */
+    .form-tabs {
+        padding: 0 8px;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+    }
+    .form-tab { padding: 12px 14px; white-space: nowrap; flex: 0 0 auto; }
+    .form-tab-content { padding: 14px; }
+
+    /* The field row is `grip | label input | type select | controls` on one
+       line, which needs 383px before the controls have their say. The grip
+       and the controls keep their line; the label — the thing you came to
+       edit — gets a full-width line of its own beneath them. */
+    .field-item { padding: 10px 12px; }
+    .field-item-header { flex-wrap: wrap; gap: 8px; }
+    .field-label-input {
+        flex: 1 1 100%;
+        order: 3;
+        font-size: 16px;
+    }
+    .field-item-header .field-controls { margin-left: auto; }
+
+    /* Six sizes below 16px across this page, every one of them a zoom-on-
+       focus (§3). Stated as an exclusion list for the same reason as 27d.
+       ⚠️ Scoped to `.form-tab-content` on the first pass, which missed the
+       form's own title and description — they live in `.form-settings-card`
+       ABOVE the tabs. Two fields at 14px is exactly the near-miss that reads
+       as "the anti-zoom rule works" until you focus the one control at the
+       top of the page. Both containers, named. */
+    .form-tab-content input:not([type="checkbox"]):not([type="radio"]),
+    .form-tab-content textarea,
+    .form-tab-content select,
+    .form-settings-card input:not([type="checkbox"]):not([type="radio"]),
+    .form-settings-card textarea,
+    .form-settings-card select { font-size: 16px; }
+
+    /* A conditional-logic row is `[field] [operator] [value]` in a NO-WRAP
+       flex row with `flex: 1 1 0` on each control — three controls sharing
+       238px, so 79px each, and the value input measured 89px of content in a
+       67px box. There is no font size that rescues three controls on one
+       360px line, so the row wraps and each control takes its own. */
+    .cond-row { flex-wrap: wrap; gap: 6px; }
+    .cond-row select,
+    .cond-row input[type="text"],
+    .cond-row input[type="date"],
+    .cond-row input[type="time"],
+    .cond-row input[type="datetime-local"] {
+        flex: 1 1 100%;
+        font-size: 16px;
+        padding: 8px 10px;
+    }
+    /* §20 again — these are native date/time controls too. */
+    .cond-row input[type="date"],
+    .cond-row input[type="time"],
+    .cond-row input[type="datetime-local"] {
+        -webkit-appearance: none;
+        appearance: none;
+        max-width: 100%;
+    }
+    .cond-row input[type="date"]::-webkit-date-and-time-value,
+    .cond-row input[type="time"]::-webkit-date-and-time-value,
+    .cond-row input[type="datetime-local"]::-webkit-date-and-time-value {
+        margin: 0;
+        text-align: left;
+    }
+
+    /* A 360px drawer on a 360px screen leaves no way to see it is a drawer,
+       and `max-width: 90vw` then makes it 324px with a 36px dead strip. Full
+       width, with the backdrop doing the work of saying it is over the page. */
+    .properties-drawer { width: 100%; max-width: 100%; }
+    .properties-drawer-body { padding: 14px; }
+    .properties-close { min-width: 40px; min-height: 40px; }
+
+    /* dt / dd side by side at 80px + 194px. One column reads better and the
+       terms are short. */
+    .form-meta { grid-template-columns: 1fr; gap: 2px 0; }
+    .form-meta dd { margin-bottom: 8px; }
+
+    /* ⚠️ Another module modal class LAYER 3 cannot see. Unlike `.ca-modal-*`
+       this one is declared in the <head>, so load order does the work and no
+       `!important` is needed. */
+    .ai-modal-overlay { align-items: stretch; }
+    .ai-modal {
+        width: 100%;
+        max-width: 100%;
+        height: 100dvh;
+        max-height: none;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .ai-modal-body { flex: 1 1 auto; overflow-y: auto; }
+    .ai-modal-body textarea,
+    .ai-modal-body input:not([type="checkbox"]):not([type="radio"]),
+    .ai-modal-body select { font-size: 16px; }
+    .ai-modal-footer { flex-wrap: wrap; gap: 8px; }
+    .ai-modal-footer > * { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+
+    .editor-footer { padding: 10px 14px 14px; gap: 8px; }
+    .editor-footer > * { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+    .readonly-banner { padding: 10px 12px; font-size: 13px; }
 }

@@ -364,7 +364,7 @@ $translationNamespaces = ['common', 'watchtower'];
            inline, which reads on both grounds (the tint is the same hue as the
            text), so there is nothing left here to flip for dark mode. */
     </style>
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=87">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=88">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -1037,6 +1037,6 @@ $translationNamespaces = ['common', 'watchtower'];
     // Auto-refresh every 5 minutes
     refreshTimer = setInterval(loadDashboard, 5 * 60 * 1000);
     </script>
-    <script src="../assets/js/mobile.js?v=30"></script>
+    <script src="../assets/js/mobile.js?v=31"></script>
 </body>
 </html>
