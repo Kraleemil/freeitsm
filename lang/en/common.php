@@ -370,7 +370,7 @@ return [
         'layout_cards'         => 'Cards',
         'save_current'         => 'Save current view',
         'close'                => 'Close',
-        'none_yet'             => 'No saved views yet. Set the table up how you like it, then use Save current view.',
+        'none_yet'             => 'No saved views yet. Set the table up how you like it, then use Save view in the toolbar.',
         'none_matching'        => 'No views match what you typed.',
         'vis_private'          => 'Only me',
         'vis_team'             => 'Team',

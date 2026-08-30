@@ -367,7 +367,7 @@ return [
         'layout_cards'         => 'Karten',
         'save_current'         => 'Aktuelle Ansicht speichern',
         'close'                => 'Schließen',
-        'none_yet'             => 'Noch keine gespeicherten Ansichten. Richten Sie die Tabelle nach Wunsch ein und wählen Sie dann „Aktuelle Ansicht speichern“.',
+        'none_yet'             => 'Noch keine gespeicherten Ansichten. Richten Sie die Tabelle nach Wunsch ein und wählen Sie dann „Ansicht speichern“ in der Symbolleiste.',
         'none_matching'        => 'Keine Ansicht passt zu Ihrer Eingabe.',
         'vis_private'          => 'Nur ich',
         'vis_team'             => 'Team',

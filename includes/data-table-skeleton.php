@@ -37,6 +37,17 @@ $dtSearchPlaceholder = $dtSearchPlaceholder ?? 'Search across visible columns...
             </svg>
             <span class="dt-views-label">Views</span>
         </button>
+        <?php /* Saving is a verb about the table you are looking at; the library
+                 is a place you browse. Putting the commoner action behind the
+                 rarer one made you open a modal to save (Ed). */ ?>
+        <button type="button" class="dt-btn" id="dtSaveViewBtn" title="Save the current columns, sort and filters as a view">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save view
+        </button>
         <button type="button" class="dt-btn" id="dtResetBtn" title="Clear all filters, sort and search">Reset</button>
         <button type="button" class="dt-btn" id="dtCsvBtn" title="Download visible rows as CSV">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

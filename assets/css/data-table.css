@@ -330,12 +330,44 @@ table.dt-table {
     padding: 16px 20px 12px; border-bottom: 1px solid var(--border-soft, #eee);
 }
 .dt-modal-head h3 { margin: 0; font-size: 16px; }
+/* A real target, not a bare glyph. 21x22px with 4px of side padding was small
+   to hit and sat 3px above centre; a fixed square centred on its own axis fixes
+   both, and gives somewhere for the hover state to actually show. */
 .dt-modal-x {
     border: none; background: none; cursor: pointer;
-    font-size: 22px; line-height: 1; color: var(--text-faint, #999);
-    padding: 0 4px; border-radius: 4px;
+    font-size: 20px; line-height: 1; color: var(--text-faint, #999);
+    width: 30px; height: 30px; padding: 0; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    /* Horizontal only. It sits 3px below the header's vertical midpoint, and
+       that is the header's own asymmetric padding (16px above, 12px below, so
+       it clears the rule underneath) rather than anything about this button —
+       it IS centred against the heading beside it, which is what the eye reads.
+       A vertical nudge here would only decentre it from the title. */
+    margin-right: -6px;
 }
-.dt-modal-x:hover { color: var(--text, #333); }
+.dt-modal-x:hover { color: var(--text, #333); background: var(--surface-3, #eee); }
+
+/* ⚠️ THE MODAL'S BUTTONS NEED THEIR OWN RULE. .dt-btn is defined as
+   `.dt-toolbar .dt-btn`, so a .dt-btn anywhere else — like this footer — gets
+   no padding, no border and no radius, and renders as bare text on a coloured
+   block. That is exactly how it shipped, and it is the third time today a class
+   has been used outside the scope it is defined in. */
+.dt-modal .dt-btn {
+    padding: 7px 14px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 5px;
+    background: var(--surface, #fff);
+    color: var(--text, #333);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.dt-modal .dt-btn:hover { border-color: var(--dt-accent); color: var(--dt-accent); }
+.dt-modal .dt-btn-primary:hover { color: var(--on-accent, #fff); opacity: .92; }
 .dt-modal-body { padding: 16px 20px; overflow-y: auto; }
 .dt-modal-foot {
     display: flex; justify-content: flex-end; gap: 8px;

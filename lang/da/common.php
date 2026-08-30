@@ -334,7 +334,7 @@ return [
         'layout_cards'         => 'Kort',
         'save_current'         => 'Gem nuværende visning',
         'close'                => 'Luk',
-        'none_yet'             => 'Ingen gemte visninger endnu. Sæt tabellen op, som du vil have den, og vælg så „Gem nuværende visning“.',
+        'none_yet'             => 'Ingen gemte visninger endnu. Sæt tabellen op, som du vil have den, og brug så „Gem visning“ i værktøjslinjen.',
         'none_matching'        => 'Ingen visninger matcher det, du skrev.',
         'vis_private'          => 'Kun mig',
         'vis_team'             => 'Team',

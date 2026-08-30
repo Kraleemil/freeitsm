@@ -340,7 +340,6 @@
                     </div>
                     <div class="dt-views-body" id="dtViewsBody"></div>
                     <div class="dt-modal-foot">
-                        <button type="button" class="dt-btn dt-btn-primary" data-act="save-new">${esc(vt('save_current', 'Save current view'))}</button>
                         <button type="button" class="dt-btn" data-act="close">${esc(vt('close', 'Close'))}</button>
                     </div>
                 </div>`;
@@ -348,7 +347,6 @@
             document.addEventListener('keydown', viewsEsc);
 
             viewsModalEl.querySelectorAll('[data-act="close"]').forEach(b => b.addEventListener('click', closeViewsModal));
-            viewsModalEl.querySelector('[data-act="save-new"]').addEventListener('click', () => openViewEditor(null));
 
             viewsModalEl.querySelectorAll('.dt-views-layout-btn').forEach(b => {
                 b.classList.toggle('is-on', b.dataset.layout === viewLayout);
@@ -379,7 +377,7 @@
             if (!views.length) {
                 body.innerHTML = `<div class="dt-views-empty">${esc(q
                     ? vt('none_matching', 'No views match what you typed.')
-                    : vt('none_yet', 'No saved views yet. Set the table up how you like it, then use Save current view.'))}</div>`;
+                    : vt('none_yet', 'No saved views yet. Set the table up how you like it, then use Save view in the toolbar.'))}</div>`;
                 return;
             }
 
@@ -605,17 +603,29 @@
             // but only wired up on tables that asked for views, and hidden
             // otherwise — a button that does nothing is worse than no button.
             const vb = byId('dtViewsBtn');
-            if (vb) {
-                if (viewsKey) {
+            const sv = byId('dtSaveViewBtn');
+            if (viewsKey) {
+                if (vb) {
                     vb.addEventListener('click', e => { e.stopPropagation(); openViewsLibrary(); });
-                    try {
-                        const saved = localStorage.getItem('dtViewLayout');
-                        if (saved === 'cards' || saved === 'list') viewLayout = saved;
-                    } catch (e) { /* private window: the default is fine */ }
                     markActiveView();
-                } else {
-                    vb.style.display = 'none';
                 }
+                // Saving is its own toolbar action rather than something you
+                // open the library to reach: it is about the table in front of
+                // you, and it is the commoner of the two.
+                if (sv) sv.addEventListener('click', e => {
+                    e.stopPropagation();
+                    // The editor needs the analyst's teams to offer them, and
+                    // they arrive with the view list. Fetch before opening, or
+                    // the "A team" choice would be disabled the first time.
+                    loadViews('').then(() => openViewEditor(null)).catch(() => openViewEditor(null));
+                });
+                try {
+                    const saved = localStorage.getItem('dtViewLayout');
+                    if (saved === 'cards' || saved === 'list') viewLayout = saved;
+                } catch (e) { /* private window: the default is fine */ }
+            } else {
+                if (vb) vb.style.display = 'none';
+                if (sv) sv.style.display = 'none';
             }
 
             const csv = byId(els.csvBtn);

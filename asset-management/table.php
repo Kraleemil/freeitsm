@@ -74,7 +74,7 @@ try {
     <title>Service Desk - <?php echo htmlspecialchars(t('asset-management.table.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/data-table.css?v=3">
+    <link rel="stylesheet" href="../assets/css/data-table.css?v=4">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -94,7 +94,7 @@ try {
     </div>
 
     <script>window.assetCustomColumns = <?php echo json_encode($assetCustomColumns, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
-    <script src="../assets/js/data-table.js?v=5"></script>
+    <script src="../assets/js/data-table.js?v=6"></script>
     <script src="../assets/js/asset-table.js?v=7"></script>
     <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
     <script src="../assets/js/mobile.js?v=33"></script>
