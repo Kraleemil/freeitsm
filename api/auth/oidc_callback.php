@@ -102,10 +102,17 @@ try {
     $stmt->execute([$providerId, $sub]);
     $analystId = $stmt->fetchColumn();
 
+    // A link whose analyst has been deleted counts as no link at all — see
+    // oidcClearDanglingLink(). Fall through to the email match / JIT path.
+    $analyst = $analystId ? oidcLoadAnalyst($conn, (int)$analystId) : null;
+    if ($analystId && !$analyst) {
+        oidcClearDanglingLink($conn, 'analyst_sso_identities', $providerId, $sub);
+        $analystId = false;
+    }
+
     if ($analystId) {
         $analystId = (int)$analystId;
-        $analyst = oidcLoadAnalyst($conn, $analystId);
-        if (!$analyst || (int)$analyst['is_active'] !== 1) {
+        if ((int)$analyst['is_active'] !== 1) {
             ssoBail('Your account is inactive. Contact an administrator.');
         }
         // Strict isolation: must still be assigned to this provider.
@@ -230,12 +237,16 @@ function completeSelfServiceSso(PDO $conn, array $provider, int $providerId, str
     $stmt->execute([$providerId, $sub]);
     $userId = $stmt->fetchColumn();
 
+    // A link whose requester has been deleted counts as no link at all — see
+    // oidcClearDanglingLink(). Fall through to the email match / JIT path.
+    $user = $userId ? ssLoadUser($conn, (int)$userId) : null;
+    if ($userId && !$user) {
+        oidcClearDanglingLink($conn, 'user_sso_identities', $providerId, $sub);
+        $userId = false;
+    }
+
     if ($userId) {
         $userId = (int)$userId;
-        $user = ssLoadUser($conn, $userId);
-        if (!$user) {
-            ssoBail('Your account is no longer available. Contact your service desk.');
-        }
         // Strict isolation: must still be assigned to this provider.
         if ((int)($user['auth_provider_id'] ?? 0) !== $providerId) {
             ssoBail('Your account is not assigned to this sign-in method.');
