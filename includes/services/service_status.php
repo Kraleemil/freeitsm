@@ -162,6 +162,13 @@ class ServiceStatusService
 
         $links = (isset($in['services']) && is_array($in['services'])) ? self::validateIncidentServices($conn, $in['services']) : null;
 
+        // ⚠️ Worked out BEFORE anything is written. replaceIncidentServices()
+        // below overwrites the very rows this compares against, so asking
+        // afterwards would always answer "unchanged".
+        $statusChanged   = (string)$statusId !== (string)($current['status_id'] ?? '');
+        $commentChanged  = (string)$comment  !== (string)($current['comment'] ?? '');
+        $servicesChanged = $links !== null && self::incidentServicesDiffer($conn, $id, $links);
+
         $conn->beginTransaction();
         try {
             // resolved_datetime: stamped once on entering a resolved status
@@ -181,12 +188,35 @@ class ServiceStatusService
             if ($links !== null) {
                 self::replaceIncidentServices($conn, $id, $links);
             }
-            // ⚠️ Every edit is a moment in the incident's life, so every edit
-            // appends. $links is null when the caller did not mention services —
-            // recordIncidentUpdate() then snapshots the CURRENT links, so the
-            // timeline stays continuous through a status-only or comment-only
-            // change rather than gaining a hole where nothing was said.
-            self::recordIncidentUpdate($conn, $ctx, $id, $statusId, $comment, $links, $isInternal);
+            // ⚠️ An edit appends ONLY when it has something new to say.
+            //
+            // This used to append on every save, full stop. That was defensible
+            // while the timeline was an internal audit trail, and stopped being
+            // defensible in #99 when the same rows started reaching customers:
+            // opening an incident and pressing Save republished the last message
+            // to the portal, and fixing a typo published the sentence twice with
+            // the wrong version first. Ed found both.
+            //
+            // Changing only the VISIBILITY is not a new entry either — that is a
+            // correction to the update that already exists, and there is now an
+            // edit action for it.
+            //
+            // $links is null when the caller did not mention services, which
+            // counts as unchanged. When it did, recordIncidentUpdate() snapshots
+            // the links so the timeline stays continuous.
+            if ($statusChanged || $commentChanged || $servicesChanged) {
+                // ⚠️ The comment is carried onto the new entry ONLY if it changed.
+                // Otherwise a status change repeats the previous sentence, and a
+                // customer reads "Investigating — we are aware of delays" followed
+                // by "Resolved — we are aware of delays". Recording the status
+                // change on its own says the true thing: the status moved and
+                // nobody added to what was already said.
+                self::recordIncidentUpdate(
+                    $conn, $ctx, $id, $statusId,
+                    $commentChanged ? $comment : null,
+                    $links, $isInternal
+                );
+            }
             $conn->commit();
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -285,6 +315,107 @@ class ServiceStatusService
             $out[] = [$serviceId, (int)$impactId];
         }
         return $out;
+    }
+
+    /**
+     * Do the services (and their impacts) about to be written differ from what
+     * is stored? Used to decide whether a save has anything new to say.
+     *
+     * Order-insensitive: the dialog rebuilds its rows every time it opens, so
+     * the same two services can arrive in a different order without anything
+     * having actually changed — and appending on that would be the same bug in
+     * a different coat.
+     */
+    private static function incidentServicesDiffer(PDO $conn, int $incidentId, array $links): bool
+    {
+        $stmt = $conn->prepare("SELECT service_id, impact_level_id FROM status_incident_services WHERE incident_id = ?");
+        $stmt->execute([$incidentId]);
+
+        $now = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $now[] = (int)$r['service_id'] . ':' . (int)$r['impact_level_id'];
+        }
+        $next = [];
+        foreach ($links as [$serviceId, $impactId]) {
+            $next[] = (int)$serviceId . ':' . (int)$impactId;
+        }
+        sort($now);
+        sort($next);
+        return $now !== $next;
+    }
+
+    /**
+     * Correct an update that has already been posted (Ed, on top of #99).
+     *
+     * ⚠️ EDIT IN PLACE, not a new entry. Fixing a typo used to mean saving the
+     * incident again, which published the sentence twice with the wrong version
+     * first — and on a customer-facing timeline that reads as carelessness.
+     *
+     * Only the wording and the visibility can change. The status and the service
+     * impacts recorded on an update are what was true at that moment, and
+     * rewriting them would make the timeline a record of what somebody wishes
+     * had happened.
+     *
+     * @throws ServiceError when there is no such update.
+     */
+    public static function editIncidentUpdate(PDO $conn, ActorContext $ctx, int $updateId, array $in): void
+    {
+        $stmt = $conn->prepare("SELECT id, incident_id, comment, is_internal FROM status_incident_updates WHERE id = ?");
+        $stmt->execute([$updateId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new ServiceError('not_found', 'not_found', 'Update not found.');
+        }
+
+        $comment = array_key_exists('comment', $in)
+            ? (trim((string)$in['comment']) ?: null)
+            : $row['comment'];
+        $isInternal = array_key_exists('is_internal', $in)
+            ? ((bool)$in['is_internal'] ? 1 : 0)
+            : (int)$row['is_internal'];
+
+        $conn->prepare("UPDATE status_incident_updates SET comment = ?, is_internal = ? WHERE id = ?")
+             ->execute([$comment, $isInternal, $updateId]);
+
+        // The incident's own comment mirrors the LATEST update, so correcting
+        // that one has to correct the incident too or the board would still show
+        // the typo the timeline no longer has.
+        $last = $conn->prepare("SELECT id FROM status_incident_updates WHERE incident_id = ? ORDER BY created_datetime DESC, id DESC LIMIT 1");
+        $last->execute([(int)$row['incident_id']]);
+        if ((int)$last->fetchColumn() === $updateId) {
+            $conn->prepare("UPDATE status_incidents SET comment = ? WHERE id = ?")
+                 ->execute([$comment, (int)$row['incident_id']]);
+        }
+    }
+
+    /**
+     * Remove one update from the timeline.
+     *
+     * The incident and every other update survive it. As with editing, the
+     * incident's own comment follows if the one removed was the latest.
+     *
+     * @throws ServiceError when there is no such update.
+     */
+    public static function deleteIncidentUpdate(PDO $conn, ActorContext $ctx, int $updateId): void
+    {
+        $stmt = $conn->prepare("SELECT incident_id FROM status_incident_updates WHERE id = ?");
+        $stmt->execute([$updateId]);
+        $incidentId = $stmt->fetchColumn();
+        if ($incidentId === false) {
+            throw new ServiceError('not_found', 'not_found', 'Update not found.');
+        }
+        $incidentId = (int)$incidentId;
+
+        $conn->prepare("DELETE FROM status_incident_updates WHERE id = ?")->execute([$updateId]);
+
+        $last = $conn->prepare(
+            "SELECT comment FROM status_incident_updates WHERE incident_id = ?
+              ORDER BY created_datetime DESC, id DESC LIMIT 1"
+        );
+        $last->execute([$incidentId]);
+        $comment = $last->fetchColumn();
+        $conn->prepare("UPDATE status_incidents SET comment = ? WHERE id = ?")
+             ->execute([$comment === false ? null : $comment, $incidentId]);
     }
 
     private static function replaceIncidentServices(PDO $conn, int $incidentId, array $links): void

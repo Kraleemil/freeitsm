@@ -81,6 +81,16 @@ return [
         'delete'     => 'Vorfall löschen',
     ],
 
+    // Correcting a posted update (Ed, on top of #99)
+    'updates' => [
+        'edit'             => 'Diese Aktualisierung korrigieren',
+        'edit_prompt'      => 'Korrigieren Sie den Wortlaut. Damit wird die vorhandene Aktualisierung geändert, statt eine weitere zu veröffentlichen.',
+        'edited'           => 'Aktualisierung korrigiert',
+        'delete'           => 'Diese Aktualisierung entfernen',
+        'delete_message'   => 'Damit wird ein Eintrag aus dem Verlauf des Vorfalls entfernt. Der Vorfall selbst und alle anderen Aktualisierungen bleiben unverändert.',
+        'deleted'          => 'Aktualisierung entfernt',
+    ],
+
     'confirm' => [
         'delete_incident_title'   => 'Vorfall löschen',
         'delete_incident_message' => 'Diesen Vorfall löschen?',

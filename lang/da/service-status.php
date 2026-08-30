@@ -84,6 +84,16 @@ return [
         'delete'     => 'Slet hændelse',
     ],
 
+    // Correcting a posted update (Ed, on top of #99)
+    'updates' => [
+        'edit'             => 'Ret denne opdatering',
+        'edit_prompt'      => 'Ret ordlyden. Dette ændrer den opdatering, der allerede findes, i stedet for at lægge en ny op.',
+        'edited'           => 'Opdateringen er rettet',
+        'delete'           => 'Fjern denne opdatering',
+        'delete_message'   => 'Dette fjerner én post fra hændelsens forløb. Selve hændelsen og alle andre opdateringer forbliver, som de er.',
+        'deleted'          => 'Opdateringen er fjernet',
+    ],
+
     'confirm' => [
         'delete_incident_title' => 'Slet hændelse',
         'delete_incident_message' => 'Slet denne hændelse?',

@@ -97,6 +97,16 @@ return [
         'delete'     => 'Delete incident',
     ],
 
+    // Correcting a posted update (Ed, on top of #99)
+    'updates' => [
+        'edit'             => 'Correct this update',
+        'edit_prompt'      => 'Correct the wording. This changes the update that is already there rather than posting another one.',
+        'edited'           => 'Update corrected',
+        'delete'           => 'Remove this update',
+        'delete_message'   => 'This removes one entry from the incident timeline. The incident itself and every other update stay as they are.',
+        'deleted'          => 'Update removed',
+    ],
+
     'confirm' => [
         'delete_incident_title'   => 'Delete incident',
         'delete_incident_message' => 'Delete this incident?',

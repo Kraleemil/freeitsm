@@ -94,6 +94,16 @@ $translationNamespaces = ['common', 'service-status'];
             font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
             background: var(--surface-3, #eee); color: var(--text-muted, #666);
         }
+        /* Edit and remove, on the row they belong to. Pushed right so they
+           do not sit between the badge and the words. */
+        .inc-update-acts { margin-left: auto; display: inline-flex; gap: 2px; }
+        .inc-update-act {
+            border: none; background: none; cursor: pointer; padding: 2px 6px;
+            border-radius: 4px; font-size: 13px; line-height: 1; color: var(--text-faint, #bbb);
+        }
+        .inc-update-act:hover { background: var(--surface-3, #eee); color: var(--text, #333); }
+        .inc-update-act-danger:hover { background: var(--danger-bg, #fee2e2); color: var(--danger-text, #991b1b); }
+
         .inc-update-vis.is-external {
             background: var(--warning-bg, #fef3c7); color: var(--warning-text, #92400e);
         }
@@ -815,7 +825,7 @@ $translationNamespaces = ['common', 'service-status'];
                     const tags = (u.services || []).map(s =>
                         `<span class="incident-svc-tag"${s.colour ? ` style="background:${s.colour};color:#fff;"` : ''}>${escapeHtml(s.service)}${s.impact ? ' · ' + escapeHtml(s.impact) : ''}</span>`
                     ).join('');
-                    return `<div class="inc-update">
+                    return `<div class="inc-update" data-update="${u.id}">
                         <div class="inc-update-meta">
                             <span class="inc-update-when">${escapeHtml(formatDate(u.created_datetime))}</span>
                             ${u.status ? `<span class="incident-status"${u.status_colour ? ` style="background:${u.status_colour};color:#fff;"` : ''}>${escapeHtml(u.status)}</span>` : ''}
@@ -823,6 +833,12 @@ $translationNamespaces = ['common', 'service-status'];
                             ${Number(u.is_internal) === 0
                                 ? `<span class="inc-update-vis is-external">${escapeHtml(window.t('service-status.modal.vis_external'))}</span>`
                                 : `<span class="inc-update-vis">${escapeHtml(window.t('service-status.modal.vis_internal'))}</span>`}
+                            <span class="inc-update-acts">
+                                <button type="button" class="inc-update-act" title="${escapeHtml(window.t('service-status.updates.edit'))}"
+                                        onclick="editUpdate(${u.id}, ${incidentId})">&#9998;</button>
+                                <button type="button" class="inc-update-act inc-update-act-danger" title="${escapeHtml(window.t('service-status.updates.delete'))}"
+                                        onclick="deleteUpdate(${u.id}, ${incidentId})">&times;</button>
+                            </span>
                         </div>
                         ${u.comment ? `<div class="inc-update-comment">${escapeHtml(u.comment)}</div>` : ''}
                         ${tags ? `<div class="incident-services-list">${tags}</div>` : `<div class="inc-update-clear">${escapeHtml(window.t('service-status.board.updates_all_clear'))}</div>`}
@@ -1025,6 +1041,73 @@ $translationNamespaces = ['common', 'service-status'];
             } catch (error) {
                 showToast(window.t('service-status.toast.delete_incident_failed'), 'error');
             }
+        }
+
+        /**
+         * Correct an update that has already been posted (Ed).
+         *
+         * ⚠️ In place. Before this, fixing a typo meant saving the incident,
+         * which appended a second entry — so anybody reading the portal saw the
+         * same sentence twice with the wrong version first.
+         *
+         * A plain prompt, deliberately: this is a typo fix, and a modal with a
+         * rich editor for correcting one letter is furniture.
+         */
+        async function editUpdate(updateId, incidentId) {
+            const box = document.querySelector(`#incUpdates${incidentId} [data-update="${updateId}"] .inc-update-comment`);
+            const current = box ? box.textContent : '';
+            const next = window.prompt(window.t('service-status.updates.edit_prompt'), current);
+            if (next === null || next === current) return;
+
+            try {
+                const r = await fetch(API_BASE + 'save_incident_update.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: updateId, comment: next })
+                });
+                const d = await r.json();
+                if (!d.success) { showToast(d.error || window.t('service-status.toast.save_failed'), 'error'); return; }
+                showToast(window.t('service-status.updates.edited'), 'success');
+                refreshUpdates(incidentId);
+                loadDashboard();   // the board shows the latest comment, which may be this one
+            } catch (e) {
+                showToast(window.t('service-status.toast.save_failed'), 'error');
+            }
+        }
+
+        async function deleteUpdate(updateId, incidentId) {
+            const ok = await showConfirm({
+                title:   window.t('service-status.updates.delete'),
+                message: window.t('service-status.updates.delete_message'),
+                okLabel: window.t('service-status.confirm.delete_label'),
+                okClass: 'danger'
+            });
+            if (!ok) return;
+
+            try {
+                const r = await fetch(API_BASE + 'delete_incident_update.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: updateId })
+                });
+                const d = await r.json();
+                if (!d.success) { showToast(d.error || window.t('service-status.toast.delete_failed'), 'error'); return; }
+                showToast(window.t('service-status.updates.deleted'), 'success');
+                refreshUpdates(incidentId);
+                loadDashboard();
+            } catch (e) {
+                showToast(window.t('service-status.toast.delete_failed'), 'error');
+            }
+        }
+
+        /** Re-fetch an open thread in place, without collapsing it. */
+        function refreshUpdates(incidentId) {
+            const row = document.getElementById('incUpdatesRow' + incidentId);
+            const btn = row && row.previousElementSibling
+                     && row.previousElementSibling.querySelector('.inc-updates-toggle');
+            if (!row || row.hidden || !btn) return;
+            // Close and reopen through the existing toggle, so the button label
+            // and the loaded flag stay in step rather than being set by hand.
+            btn.click();
+            btn.click();
         }
 
         /**
