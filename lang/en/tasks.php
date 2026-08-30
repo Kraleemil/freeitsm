@@ -102,6 +102,15 @@ return [
         'link_change'    => 'Change',
         'search_tickets' => 'Search tickets to link...',
         'search_changes' => 'Search changes to link...',
+        // A task holds one ticket and one change, so linking a second REPLACES
+        // the first. The box stays visible and says so, rather than vanishing.
+        'replace_ticket'         => 'Search tickets to link instead...',
+        'replace_change'         => 'Search changes to link instead...',
+        'replace_ticket_title'   => 'Replace the linked ticket?',
+        'replace_change_title'   => 'Replace the linked change?',
+        'replace_ticket_confirm' => 'This task can only be linked to one ticket. {current} will be unlinked.',
+        'replace_change_confirm' => 'This task can only be linked to one change. {current} will be unlinked.',
+        'replace_ok'             => 'Replace',
         'subtasks'       => 'Subtasks',
         'remove_tag'               => 'Remove',
         'add_subtask'    => 'Add subtask...',

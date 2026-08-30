@@ -38,6 +38,8 @@ let tagSettings = {
 };
 let currentTagFilter = '';
 let detailTags = [];
+// What the open task is linked to, so replacing a link can ask first (Ed).
+let detailLinks = { ticket_id: null, ticket_label: '', change_id: null, change_label: '' };
 const TAG_PALETTE = ['#dc2626', '#ea580c', '#d97706', '#16a34a',
                      '#0891b2', '#2563eb', '#7c3aed', '#db2777'];
 
@@ -964,6 +966,16 @@ function closeDetailPanel() {
 
 function renderDetailPanel(task) {
     const body = document.getElementById('detailPanelBody');
+    // What is currently linked, kept so linkItem() can warn before REPLACING it
+    // rather than silently overwriting. A task holds one ticket and one change.
+    detailLinks = {
+        ticket_id: task.ticket_id || null,
+        ticket_label: task.ticket_id
+            ? ('#' + (task.ticket_number || task.ticket_id) + (task.ticket_subject ? ' — ' + task.ticket_subject : ''))
+            : '',
+        change_id: task.change_id || null,
+        change_label: task.change_id ? (task.change_title || ('#' + task.change_id)) : '',
+    };
     detailTags = (task.tags || []).map(t => ({ id: t.id, name: t.name, colour: t.colour }));
     const analystOptions = analysts.map(a =>
         `<option value="${a.id}" ${a.id == task.assigned_analyst_id ? 'selected' : ''}>${esc(a.name)}</option>`
@@ -1082,16 +1094,25 @@ function renderDetailPanel(task) {
                 ${task.ticket_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_ticket'))}</span> ${linkedRecord(task.ticket_url, '#' + (task.ticket_number || task.ticket_id) + ' — ' + (task.ticket_subject || ''))}${taskPreviewBadge('ticket', task.ticket_id)}<button class="link-remove" onclick="removeLink('ticket_id')">&times;</button></div>` : ''}
                 ${task.change_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_change'))}</span> ${linkedRecord(task.change_url, task.change_title || (window.t('tasks.detail.link_change') + ' #' + task.change_id))}${taskPreviewBadge('change', task.change_id)}<button class="link-remove" onclick="removeLink('change_id')">&times;</button></div>` : ''}
             </div>
-            ${!task.ticket_id ? `
+            <!--
+                ⚠️ Shown even when something is ALREADY linked. A task holds one
+                ticket and one change (they are single columns), so the box used
+                to disappear the moment you filled it — which read as "you can
+                only link changes here" rather than as "this is already full".
+                It stays, and linking over the top asks first. (Ed)
+            -->
             <div class="link-search-container">
-                <input class="link-search-input" placeholder="${escAttr(window.t('tasks.detail.search_tickets'))}" oninput="searchLink(this.value, 'ticket')">
+                <input class="link-search-input" placeholder="${escAttr(window.t(
+                    task.ticket_id ? 'tasks.detail.replace_ticket' : 'tasks.detail.search_tickets'))}"
+                    oninput="searchLink(this.value, 'ticket')">
                 <div class="link-search-results" id="ticketSearchResults"></div>
-            </div>` : ''}
-            ${!task.change_id ? `
+            </div>
             <div class="link-search-container">
-                <input class="link-search-input" placeholder="${escAttr(window.t('tasks.detail.search_changes'))}" oninput="searchLink(this.value, 'change')">
+                <input class="link-search-input" placeholder="${escAttr(window.t(
+                    task.change_id ? 'tasks.detail.replace_change' : 'tasks.detail.search_changes'))}"
+                    oninput="searchLink(this.value, 'change')">
                 <div class="link-search-results" id="changeSearchResults"></div>
-            </div>` : ''}
+            </div>
         </div>
 
 
@@ -2085,7 +2106,39 @@ async function searchLink(query, type) {
     }, 300);
 }
 
+/**
+ * Link a ticket or a change to the open task.
+ *
+ * ⚠️ A task holds ONE of each — `ticket_id` and `change_id` are single columns,
+ * not join tables — so linking when something is already there REPLACES it.
+ * That is a quiet way to lose a link you meant to keep, so it asks first and
+ * names what is about to go (Ed). The confirm is skipped when the slot is
+ * empty, which is the ordinary case.
+ */
 async function linkItem(field, id) {
+    const kind    = field === 'ticket_id' ? 'ticket' : 'change';
+    const current = detailLinks[field];
+
+    // Re-picking the one that is already linked is a no-op, not a replacement —
+    // asking "replace X with X?" would be nonsense.
+    if (current && String(current) !== String(id)) {
+        const ok = await showConfirm({
+            title:   window.t('tasks.detail.replace_' + kind + '_title'),
+            message: window.t('tasks.detail.replace_' + kind + '_confirm', {
+                current: detailLinks[kind + '_label'] || ('#' + current)
+            }),
+            okLabel: window.t('tasks.detail.replace_ok'),
+            okClass: 'primary'
+        });
+        if (!ok) {
+            // Put the picker away, or the results stay open over a change the
+            // analyst just declined to make.
+            const results = document.getElementById(kind + 'SearchResults');
+            if (results) results.classList.remove('open');
+            return;
+        }
+    }
+
     await saveField(field, id);
     openDetailPanel(selectedTaskId);
 }

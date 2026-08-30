@@ -238,7 +238,7 @@ $translationNamespaces = ['common', 'tasks'];
     window.TASK_DETAIL_VIEW = <?php echo json_encode($taskDetailView); ?>;</script>
     <script src="../assets/js/tasks-priority.js?v=1"></script>
     <script src="../assets/js/tasks-ctx-menu.js?v=3"></script>
-    <script src="../assets/js/tasks.js?v=33"></script>
+    <script src="../assets/js/tasks.js?v=34"></script>
     <script src="../assets/js/mobile.js?v=33"></script>
 </body>
 </html>
