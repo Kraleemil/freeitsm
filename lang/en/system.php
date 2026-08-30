@@ -84,6 +84,9 @@ return [
         'search_title'      => 'Search',
         'search_desc'       => 'See what the search index holds, and rebuild it if it has drifted.',
         'search_keywords'   => 'search index full-text fulltext corpus rebuild reindex backfill find content',
+        'status_portal_title'      => 'Service status on the portal',
+        'status_portal_desc'       => 'Whether end users see outages and their updates in the self-service portal, and how far back.',
+        'status_portal_keywords'   => 'status portal outage incident public external customer self-service updates transparency',
         'colours_title'     => 'Colours',
         'colours_desc'      => 'Customise the colour theme for each module. Changes apply to headers, icons, and the home screen.',
         'colours_keywords'  => 'colours colors theme palette appearance customise branding',
@@ -357,6 +360,24 @@ return [
     ],
 
     // Search index page (system/search/index.php) — discussion #53
+    // Service status on the self-service portal (#99)
+    'status_portal' => [
+        'heading'            => 'Service status on the portal',
+        'intro'              => 'End users already see which services are healthy in the self-service portal. This decides whether they also see the <strong>incidents</strong> behind an outage, and the updates your team has marked as external.',
+        'warning'            => '<strong>Read this before switching it on.</strong> Incident titles were written for your team, not for customers &mdash; check what yours say before end users start reading them. Only updates explicitly marked <strong>external</strong> are ever shown; everything written before this feature existed is internal, and stays internal.',
+        'panel_heading'      => 'What the portal shows',
+        'enable_label'       => 'Show incidents and their external updates in the self-service portal',
+        'enable_hint'        => 'Off by default. While this is off, the portal shows service health only &mdash; exactly as it did before.',
+        'mode_open'          => 'Only what is happening now',
+        'mode_open_desc'     => 'The cleanest page. An outage disappears the moment it is resolved, so somebody who was affected an hour ago gets no confirmation it was fixed.',
+        'mode_recent'        => 'What is happening now, plus anything resolved in the last',
+        'mode_recent_days'   => 'days',
+        'mode_recent_desc'   => 'Recommended. A resolved entry is the most reassuring thing on a status page, and this is what most people mean by a status page.',
+        'mode_all'           => 'Everything, ever',
+        'mode_all_desc'      => 'The full history, collapsed. Most transparent, and closest to a public status page &mdash; but on a quiet portal it is a long list of things that are no longer wrong.',
+        'saved'              => 'Saved',
+    ],
+
     'search' => [
         'heading'       => 'Search',
         'intro'         => 'What the search index holds. It keeps itself up to date, so rebuilding is only needed after changing the database settings below, or if you suspect it has drifted.',

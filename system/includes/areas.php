@@ -63,6 +63,17 @@ function getSystemAreas() {
         // Next to Database Verification on purpose: the search index is created
         // by it, and "I ran Verification, now what does search hold?" is the
         // question this screen answers.
+        // What END USERS see about outages (#99). Under System rather than
+        // Service Status because turning it on publishes incident titles to
+        // the portal - a decision for whoever administers the install, not
+        // for everybody who can raise an incident.
+        [
+            'icon'     => 'status_portal',
+            'url'      => 'status-portal/',
+            'title'    => 'system.landing.status_portal_title',
+            'desc'     => 'system.landing.status_portal_desc',
+            'keywords' => 'system.landing.status_portal_keywords',
+        ],
         [
             'icon'     => 'search',
             'url'      => 'search/',
@@ -193,6 +204,7 @@ function getSystemAreas() {
  */
 function systemAreaIcon($key) {
     $icons = [
+        'status_portal' => '<path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"></path><path d="M16 9a4 4 0 0 1 0 6"></path><path d="M19 6.5a8 8 0 0 1 0 11"></path>',
         'encryption'  => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>',
         'modules'     => '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>',
         'analysts'    => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><polyline points="15 11 17 13 21 9"></polyline>',
