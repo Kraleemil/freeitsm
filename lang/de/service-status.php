@@ -35,6 +35,7 @@ return [
         'history_no_issues' => 'keine Probleme',
         'updates_show'      => 'Updates',
         'updates_hide'      => 'Updates ausblenden',
+        'col_actions'       => 'Aktionen',
         'updates_failed'    => 'Die Updates zu diesem Vorfall konnten nicht geladen werden.',
         'updates_none'      => 'Für diesen Vorfall wurden keine Updates erfasst. Vorfälle, die vor der Einführung der Update-Protokollierung angelegt wurden, haben keines.',
         'updates_all_clear' => 'Zu diesem Zeitpunkt sind keine Services betroffen.',
@@ -56,6 +57,8 @@ return [
     'toast' => [
         'incident_saved'         => 'Vorfall gespeichert',
         'incident_deleted'       => 'Vorfall gelöscht',
+        'incident_resolved'    => 'Vorfall gelöst',
+        'no_resolved_status'   => 'Kein Vorfallstatus ist als gelöst markiert, es gibt also nichts zu setzen. Legen Sie einen unter Einstellungen an.',
         'save_failed'            => 'Speichern fehlgeschlagen',
         'delete_failed'          => 'Löschen fehlgeschlagen',
         'save_incident_failed'   => 'Vorfall konnte nicht gespeichert werden',
@@ -65,9 +68,19 @@ return [
         'save_service_failed'    => 'Service konnte nicht gespeichert werden',
         'delete_service_failed'  => 'Service konnte nicht gelöscht werden',
     ],
+    // Row actions and the right-click menu (#100)
+    'actions' => [
+        'edit'       => 'Vorfall bearbeiten',
+        'resolve'    => 'Vorfall lösen',
+        'show_updates' => 'Aktualisierungen anzeigen',
+        'delete'     => 'Vorfall löschen',
+    ],
+
     'confirm' => [
         'delete_incident_title'   => 'Vorfall löschen',
         'delete_incident_message' => 'Diesen Vorfall löschen?',
+        'resolve_title'        => 'Diesen Vorfall lösen?',
+        'resolve_message'      => 'Damit wird „{title}“ auf {status} gesetzt. Die betroffenen Dienste kehren in den Normalzustand zurück, und die Änderung wird in den Aktualisierungen des Vorfalls festgehalten.',
         'delete_title'            => 'Löschen',
         'delete_message'          => '"{name}" löschen?',
         'delete_label'            => 'Löschen',

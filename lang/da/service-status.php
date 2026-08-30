@@ -30,6 +30,7 @@ return [
         'history_no_issues' => 'ingen problemer',
         'updates_show' => 'Opdateringer',
         'updates_hide' => 'Skjul opdateringer',
+        'col_actions'       => 'Handlinger',
         'updates_failed' => 'Kunne ikke indlæse opdateringerne til denne hændelse.',
         'updates_none' => 'Der blev ikke registreret nogen opdateringer til denne hændelse. Hændelser, der blev oprettet, før opdateringslog blev tilføjet, har ingen.',
         'updates_all_clear' => 'Ingen tjenester er påvirket på nuværende tidspunkt.',
@@ -59,6 +60,8 @@ return [
     'toast' => [
         'incident_saved' => 'Hændelse gemt',
         'incident_deleted' => 'Hændelse slettet',
+        'incident_resolved'    => 'Hændelsen er lukket',
+        'no_resolved_status'   => 'Ingen hændelsesstatus er markeret som løst, så der er intet at sætte. Opret en under Indstillinger.',
         'save_failed' => 'Kunne ikke gemme',
         'delete_failed' => 'Kunne ikke slette',
         'save_incident_failed' => 'Kunne ikke gemme hændelsen',
@@ -68,9 +71,19 @@ return [
         'save_service_failed' => 'Kunne ikke gemme tjenesten',
         'delete_service_failed' => 'Kunne ikke slette tjenesten',
     ],
+    // Row actions and the right-click menu (#100)
+    'actions' => [
+        'edit'       => 'Rediger hændelse',
+        'resolve'    => 'Luk hændelse',
+        'show_updates' => 'Vis opdateringer',
+        'delete'     => 'Slet hændelse',
+    ],
+
     'confirm' => [
         'delete_incident_title' => 'Slet hændelse',
         'delete_incident_message' => 'Slet denne hændelse?',
+        'resolve_title'        => 'Luk denne hændelse?',
+        'resolve_message'      => 'Dette sætter „{title}“ til {status}. De berørte tjenester vender tilbage til normal, og ændringen registreres i hændelsens opdateringer.',
         'delete_title' => 'Slet',
         'delete_message' => 'Slet "{name}"?',
         'delete_label' => 'Slet',

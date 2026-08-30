@@ -251,6 +251,26 @@ $translationNamespaces = ['common', 'service-status'];
         }
 
         .incident-title:hover { color: var(--ss-accent, #10b981); }
+        /* The title is still a link, and now it looks like one. It was the only
+           way into an incident and nothing said so — discussion #100. */
+        .incident-title { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; text-decoration-color: var(--border, #ddd); }
+        .incident-title:hover { text-decoration-color: var(--ss-accent, #10b981); }
+
+        /* Actions column (#100). Same shape as the contracts list, so the two
+           read as the same control rather than two ideas of one. */
+        .inc-actions-col { width: 1%; white-space: nowrap; text-align: right; }
+        .incident-actions { white-space: nowrap; text-align: right; }
+        .action-btn {
+            background: none; border: 1px solid var(--border, #ddd); color: var(--text-muted, #666);
+            cursor: pointer; padding: 6px; margin-left: 4px; border-radius: 4px;
+            display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .action-btn:hover { background: var(--surface-hover, #f0f0f0); border-color: var(--ss-accent, #10b981); color: var(--ss-accent, #10b981); }
+        .action-btn svg { width: 16px; height: 16px; }
+        /* Delete turns red on hover only. Red at rest would make every row look
+           like a warning, on a board whose whole job is telling you which rows
+           are the problem. */
+        .action-btn-danger:hover { background: var(--danger-bg, #fee2e2); border-color: var(--danger-border, #f0c2c2); color: var(--danger-text, #991b1b); }
 
         .incident-services-list {
             display: flex;
@@ -387,6 +407,7 @@ $translationNamespaces = ['common', 'service-status'];
                         <th><?php echo htmlspecialchars(t('service-status.board.col_status')); ?></th>
                         <th><?php echo htmlspecialchars(t('service-status.board.col_affected')); ?></th>
                         <th><?php echo htmlspecialchars(t('service-status.board.col_updated')); ?></th>
+                        <th class="inc-actions-col"><?php echo htmlspecialchars(t('service-status.board.col_actions')); ?></th>
                     </tr>
                 </thead>
                 <tbody id="incidentList"></tbody>
@@ -396,6 +417,35 @@ $translationNamespaces = ['common', 'service-status'];
     </div>
 
     <!-- Incident Modal -->
+    <!-- Right-click an incident (discussion #100) -->
+    <div class="ticket-context-menu" id="incidentContextMenu" role="menu">
+        <div class="ticket-context-menu-header" id="incidentCtxHeader"></div>
+
+        <button class="ticket-context-menu-item" type="button" data-action="edit"
+                onclick="closeIncidentContextMenu(); editIncident(ctxIncidentId);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span><?php echo htmlspecialchars(t('service-status.actions.edit')); ?></span>
+        </button>
+
+        <button class="ticket-context-menu-item" type="button" data-action="updates"
+                onclick="closeIncidentContextMenu(); toggleIncidentUpdatesById(ctxIncidentId);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span><?php echo htmlspecialchars(t('service-status.actions.show_updates')); ?></span>
+        </button>
+
+        <button class="ticket-context-menu-item" type="button" data-action="resolve"
+                onclick="closeIncidentContextMenu(); resolveIncident(ctxIncidentId);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            <span><?php echo htmlspecialchars(t('service-status.actions.resolve')); ?></span>
+        </button>
+
+        <button class="ticket-context-menu-item" type="button" data-action="delete"
+                onclick="closeIncidentContextMenu(); deleteIncidentById(ctxIncidentId);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            <span><?php echo htmlspecialchars(t('service-status.actions.delete')); ?></span>
+        </button>
+    </div>
+
     <div class="modal" id="incidentModal">
         <div class="modal-content">
             <div class="modal-header" id="incidentModalTitle"><?php echo htmlspecialchars(t('service-status.modal.new_incident')); ?></div>
@@ -634,8 +684,18 @@ $translationNamespaces = ['common', 'service-status'];
                 const date = inc.updated_datetime || inc.created_datetime;
                 const dateStr = date ? formatDate(date) : '';
 
+                // Discussion #100: the title was the only way in, and nothing
+                // about it said so. Icons in an actions column, plus the same
+                // actions on a right-click. The title stays clickable — taking
+                // that away would break the habit of anybody who had found it.
+                const resolveBtn = isResolved ? '' : `
+                            <button type="button" class="action-btn" title="${escapeHtml(window.t('service-status.actions.resolve'))}"
+                                    onclick="resolveIncident(${inc.id})">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                            </button>`;
+
                 return `
-                    <tr class="${isResolved ? 'resolved' : ''}">
+                    <tr class="${isResolved ? 'resolved' : ''}" oncontextmenu="return openIncidentContextMenu(event, ${inc.id});">
                         <td>
                             <span class="incident-title" onclick="editIncident(${inc.id})">${escapeHtml(inc.title)}</span>
                             <button type="button" class="inc-updates-toggle" onclick="toggleIncidentUpdates(${inc.id}, this)">${escapeHtml(window.t('service-status.board.updates_show'))}</button>
@@ -643,9 +703,19 @@ $translationNamespaces = ['common', 'service-status'];
                         <td><span class="incident-status" ${statusStyle}>${escapeHtml(inc.status)}</span></td>
                         <td><div class="incident-services-list">${svcs || `<span style="color:var(--text-dim, #999)">${escapeHtml(window.t('service-status.board.none'))}</span>`}</div></td>
                         <td><span class="incident-date">${dateStr}</span></td>
+                        <td class="incident-actions">
+                            <button type="button" class="action-btn" title="${escapeHtml(window.t('service-status.actions.edit'))}"
+                                    onclick="editIncident(${inc.id})">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>${resolveBtn}
+                            <button type="button" class="action-btn action-btn-danger" title="${escapeHtml(window.t('service-status.actions.delete'))}"
+                                    onclick="deleteIncidentById(${inc.id})">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                            </button>
+                        </td>
                     </tr>
                     <tr class="inc-updates-row" id="incUpdatesRow${inc.id}" hidden>
-                        <td colspan="4"><div class="inc-updates" id="incUpdates${inc.id}"></div></td>
+                        <td colspan="5"><div class="inc-updates" id="incUpdates${inc.id}"></div></td>
                     </tr>
                 `;
             }).join('');
@@ -850,8 +920,18 @@ $translationNamespaces = ['common', 'service-status'];
             }
         });
 
+        /**
+         * Delete from the modal. Kept as the entry point the modal's button
+         * already calls, delegating so there is one implementation rather than
+         * two that drift.
+         */
         async function deleteIncident() {
             const id = document.getElementById('incidentId').value;
+            if (!id) return;
+            await deleteIncidentById(parseInt(id, 10));
+        }
+
+        async function deleteIncidentById(id) {
             if (!id) return;
             const ok = await showConfirm({
                 title: window.t('service-status.confirm.delete_incident_title'),
@@ -879,6 +959,119 @@ $translationNamespaces = ['common', 'service-status'];
                 showToast(window.t('service-status.toast.delete_incident_failed'), 'error');
             }
         }
+
+        /**
+         * Resolve an incident in one click (discussion #100, "Close Incident").
+         *
+         * ⚠️ Sends ONLY the id and the status. The service treats an update as a
+         * partial one and keeps the current title, comment and affected services
+         * for anything not supplied, so this cannot quietly blank the incident —
+         * and it goes through exactly the same path as resolving it in the
+         * modal, so resolved_datetime is stamped, an entry is written to the
+         * update thread and the workflow event fires.
+         */
+        async function resolveIncident(id) {
+            const resolved = incidentStatuses.find(s => s.is_resolved);
+            if (!resolved) {
+                // No resolved status is configured, so there is nothing to set.
+                // Said plainly rather than failing silently or guessing a name.
+                showToast(window.t('service-status.toast.no_resolved_status'), 'error');
+                return;
+            }
+
+            const inc = dashboardData.incidents.find(i => i.id == id);
+            const ok  = await showConfirm({
+                title:   window.t('service-status.confirm.resolve_title'),
+                message: window.t('service-status.confirm.resolve_message', {
+                    title:  inc ? inc.title : '',
+                    status: resolved.name
+                }),
+                okLabel: window.t('service-status.actions.resolve')
+            });
+            if (!ok) return;
+
+            try {
+                const response = await fetch(API_BASE + 'save_incident.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: parseInt(id), status: resolved.name })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(window.t('service-status.toast.incident_resolved'), 'success');
+                    loadDashboard();
+                } else {
+                    showToast(data.error || window.t('service-status.toast.save_failed'), 'error');
+                }
+            } catch (error) {
+                showToast(window.t('service-status.toast.save_failed'), 'error');
+            }
+        }
+
+        /**
+         * Toggle the update thread when we have an id but no button — from the
+         * context menu.
+         *
+         * ⚠️ It finds the row's own toggle and drives THAT, rather than
+         * duplicating the open/close logic. Otherwise the row's button would
+         * still say "Show updates" while the updates were showing.
+         */
+        function toggleIncidentUpdatesById(id) {
+            const row = document.getElementById('incUpdatesRow' + id);
+            if (!row) return;
+            const btn = row.previousElementSibling
+                     && row.previousElementSibling.querySelector('.inc-updates-toggle');
+            if (btn) { btn.click(); }
+        }
+
+        // ── Right-click an incident (discussion #100) ────────────────────────
+        //
+        // The same actions as the column, named rather than drawn. Reuses the
+        // .ticket-context-menu classes from inbox.css, which this page already
+        // loads — the names say "ticket" and the styles are structural.
+        let ctxIncidentId = null;
+
+        function openIncidentContextMenu(event, id) {
+            // Never over a text selection or a link: the browser's own menu is
+            // the right one when somebody is trying to copy something.
+            if (window.getSelection && String(window.getSelection()).length) return true;
+            event.preventDefault();
+
+            ctxIncidentId = id;
+            const inc  = dashboardData.incidents.find(i => i.id == id);
+            const sts  = inc ? statusByName(inc.status) : null;
+            const menu = document.getElementById('incidentContextMenu');
+
+            document.getElementById('incidentCtxHeader').textContent = inc ? inc.title : '';
+
+            // Resolving something already resolved is a no-op, so it is absent
+            // rather than present and inert.
+            const resolveItem = menu.querySelector('[data-action="resolve"]');
+            resolveItem.style.display = (sts && sts.is_resolved) ? 'none' : '';
+
+            // The updates row says whether it is currently open, so the item can
+            // say Show or Hide rather than guessing.
+            const row = document.getElementById('incUpdatesRow' + id);
+            menu.querySelector('[data-action="updates"] span').textContent =
+                window.t(row && !row.hidden ? 'service-status.board.updates_hide'
+                                            : 'service-status.actions.show_updates');
+
+            menu.classList.add('active');
+            const w = menu.offsetWidth, h = menu.offsetHeight;
+            menu.style.left = Math.max(8, Math.min(event.clientX, window.innerWidth  - w - 8)) + 'px';
+            menu.style.top  = Math.max(8, Math.min(event.clientY, window.innerHeight - h - 8)) + 'px';
+            return false;
+        }
+
+        function closeIncidentContextMenu() {
+            const menu = document.getElementById('incidentContextMenu');
+            if (menu) menu.classList.remove('active');
+        }
+
+        document.addEventListener('click', closeIncidentContextMenu);
+        document.addEventListener('scroll', closeIncidentContextMenu, true);
+        window.addEventListener('resize', closeIncidentContextMenu);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeIncidentContextMenu(); });
 
         function escapeHtml(text) {
             const div = document.createElement('div');

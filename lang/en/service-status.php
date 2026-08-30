@@ -40,6 +40,7 @@ return [
         'history_no_issues'   => 'no issues',
         'updates_show'      => 'Updates',
         'updates_hide'      => 'Hide updates',
+        'col_actions'       => 'Actions',
         'updates_failed'    => 'Could not load the updates for this incident.',
         'updates_none'      => 'No updates were recorded for this incident. Incidents raised before update logging was added do not have one.',
         'updates_all_clear' => 'No services impacted at this point.',
@@ -71,6 +72,8 @@ return [
     'toast' => [
         'incident_saved'   => 'Incident saved',
         'incident_deleted' => 'Incident deleted',
+        'incident_resolved'    => 'Incident resolved',
+        'no_resolved_status'   => 'No incident status is marked as resolved, so there is nothing to set. Add one under Settings.',
         'save_failed'      => 'Failed to save',
         'delete_failed'    => 'Failed to delete',
         'save_incident_failed'   => 'Failed to save incident',
@@ -81,9 +84,19 @@ return [
         'delete_service_failed'  => 'Failed to delete service',
     ],
 
+    // Row actions and the right-click menu (#100)
+    'actions' => [
+        'edit'       => 'Edit incident',
+        'resolve'    => 'Resolve incident',
+        'show_updates' => 'Show updates',
+        'delete'     => 'Delete incident',
+    ],
+
     'confirm' => [
         'delete_incident_title'   => 'Delete incident',
         'delete_incident_message' => 'Delete this incident?',
+        'resolve_title'        => 'Resolve this incident?',
+        'resolve_message'      => 'This sets "{title}" to {status}. The affected services return to normal and the change is recorded in the incident\'s updates.',
         'delete_title'            => 'Delete',
         'delete_message'          => 'Delete "{name}"?',
         'delete_label'            => 'Delete',
