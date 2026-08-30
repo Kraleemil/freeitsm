@@ -151,13 +151,69 @@ try {
     [$rid5, $t8] = series($conn,
         ['mode'=>'schedule','freq'=>'daily','interval_n'=>1,'next_due_date'=>$threeDaysAgo],
         ['title'=>'ZZREC nightly report', 'due_date'=>$threeDaysAgo], $openStatus);
-    $newIds = TaskRecurrence::runDue($conn);
+    // Scoped to this test's own series. Unscoped, this acts on every series in
+    // the database — which on a developer machine means the developer's real
+    // tasks, and makes the count below somebody else's to influence.
+    $newIds = TaskRecurrence::runDue($conn, null, 24, [$rid5]);
     foreach ($newIds as $id) $made[] = $id;
     $c5 = $conn->prepare("SELECT COUNT(*) FROM tasks WHERE recurrence_id = ? AND id <> ?");
     $c5->execute([$rid5, $t8]);
     $n5 = (int)$c5->fetchColumn();
     ok('it catches up rather than skipping', $n5 >= 3, "made {$n5}, expected at least 3");
     ok('and it does not run away', $n5 <= 24, "made {$n5} — the per-run cap failed");
+
+    // ---- 5b. An occurrence arrives when work can START ---------------------
+    //
+    // The defect this covers: every test above uses a task with a due date and
+    // no start date, so a worker that fired on the due date passed all of them.
+    // A task that needs a fortnight, created on the day it falls due, is born a
+    // fortnight past the day it should have been started — a two-week bar
+    // lying entirely in the past that nobody could ever have done.
+    echo "\nA task with a duration, due in the future:\n";
+    $due10 = gmdate('Y-m-d', strtotime('+10 day'));
+    [$rid6, $t9] = series($conn,
+        ['mode'=>'schedule','freq'=>'weekly','interval_n'=>1,'next_due_date'=>$due10],
+        ['title'=>'ZZREC fortnightly audit',
+         'due_date'   => gmdate('Y-m-d'),
+         'start_date' => gmdate('Y-m-d', strtotime('-14 day'))], $openStatus);
+
+    foreach (TaskRecurrence::runDue($conn, null, 24, [$rid6]) as $id) $made[] = $id;
+    $g = $conn->prepare("SELECT * FROM tasks WHERE recurrence_id = ? AND id <> ? ORDER BY id");
+    $g->execute([$rid6, $t9]);
+    $spawn6 = $g->fetchAll(PDO::FETCH_ASSOC);
+
+    ok('exactly one occurrence is created', count($spawn6) === 1, 'made ' . count($spawn6));
+    if ($spawn6) {
+        ok('it exists BEFORE its due date',
+           (string)$spawn6[0]['due_date'] === $due10 && $due10 > gmdate('Y-m-d'),
+           "due {$spawn6[0]['due_date']}, today " . gmdate('Y-m-d'));
+        ok('and its fortnight is intact, starting in the past',
+           (string)$spawn6[0]['start_date'] === gmdate('Y-m-d', strtotime('-4 day')),
+           "start {$spawn6[0]['start_date']}, expected " . gmdate('Y-m-d', strtotime('-4 day')));
+    } else {
+        ok('it exists BEFORE its due date', false, 'nothing was created');
+        ok('and its fortnight is intact, starting in the past', false, 'nothing was created');
+    }
+
+    // Negative controls. Without these the test above would also pass a worker
+    // that simply created everything, which is the behaviour we rejected.
+    echo "\nNegative controls — what must still NOT be created:\n";
+    [$rid7, $t10] = series($conn,
+        ['mode'=>'schedule','freq'=>'weekly','interval_n'=>1,'next_due_date'=>$due10],
+        ['title'=>'ZZREC point in time', 'due_date'=>gmdate('Y-m-d')], $openStatus);
+
+    [$rid8, $t11] = series($conn,
+        ['mode'=>'schedule','freq'=>'weekly','interval_n'=>1,'next_due_date'=>$due10],
+        ['title'=>'ZZREC two day job',
+         'due_date'   => gmdate('Y-m-d'),
+         'start_date' => gmdate('Y-m-d', strtotime('-2 day'))], $openStatus);
+
+    foreach (TaskRecurrence::runDue($conn, null, 24, [$rid7, $rid8]) as $id) $made[] = $id;
+    $c7 = $conn->prepare("SELECT COUNT(*) FROM tasks WHERE recurrence_id = ? AND id <> ?");
+    $c7->execute([$rid7, $t10]);
+    ok('a task with no start date still waits for its due date', (int)$c7->fetchColumn() === 0);
+    $c7->execute([$rid8, $t11]);
+    ok('a two-day job due in ten days is not created yet', (int)$c7->fetchColumn() === 0);
 
     // ---- 6. A task with no rule is untouched -------------------------------
     echo "\nNegative control:\n";

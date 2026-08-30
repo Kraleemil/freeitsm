@@ -272,24 +272,43 @@ class TaskRecurrence
      * forget. Capped per series per run so a rule left dormant for two years
      * cannot create six hundred tasks in one go.
      */
-    public static function runDue(PDO $conn, ?string $today = null, int $capPerSeries = 24): array
+    public static function runDue(PDO $conn, ?string $today = null, int $capPerSeries = 24,
+                                  ?array $onlyRecurrenceIds = null): array
     {
         $today = $today ?: gmdate('Y-m-d');
         $made  = [];
 
+        // ⚠️ $onlyRecurrenceIds exists because the tests need it. Without it a
+        // test calling runDue() operates on EVERY series in the database, which
+        // on a developer machine is the developer's real tasks — it created a
+        // real occurrence of a real series while this very change was being
+        // tested. It also makes the assertions honest: "it made 3" cannot be
+        // satisfied by somebody else's series catching up at the same moment.
+        $scope = '';
+        $args  = [];
+        if ($onlyRecurrenceIds !== null) {
+            $ids = array_values(array_filter(array_map('intval', $onlyRecurrenceIds)));
+            if (!$ids) return [];
+            $scope = ' AND id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')';
+            $args  = $ids;
+        }
+
+        // Deliberately NOT filtered on next_due_date. A series whose next
+        // occurrence is due in a fortnight may still be ready to start today —
+        // see startForDue() — so the date is decided per series below, with the
+        // source task in hand, rather than in SQL that cannot see the gap.
         $s = $conn->prepare(
             "SELECT * FROM task_recurrences
-              WHERE is_active = 1 AND mode = 'schedule'
-                AND next_due_date IS NOT NULL AND next_due_date <= ?"
+              WHERE is_active = 1 AND mode = 'schedule' AND next_due_date IS NOT NULL" . $scope
         );
-        $s->execute([$today]);
+        $s->execute($args);
 
         foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $rule) {
             $rid  = (int)$rule['id'];
             $due  = (string)$rule['next_due_date'];
             $seen = 0;
 
-            while ($due !== '' && $due <= $today && $seen < $capPerSeries) {
+            while ($due !== '' && $seen < $capPerSeries) {
                 if (self::isExhausted($rule, $due)) { self::deactivate($conn, $rid); break; }
 
                 // The newest occurrence is what the next one is copied from, so
@@ -297,6 +316,17 @@ class TaskRecurrence
                 // whatever the first one said a year ago.
                 $src = self::latestOccurrence($conn, $rid);
                 if (!$src) { self::deactivate($conn, $rid); break; }
+
+                // An occurrence is created when work on it can BEGIN, not when
+                // it falls due. A task that needs a fortnight appears a
+                // fortnight ahead; one with no start date is a point-in-time
+                // task and appears on the day, as before. This is why the board
+                // holds work you could actually be doing now: the lead time is
+                // the task's own duration, which the user has already told us,
+                // rather than a number somebody has to guess.
+                $row    = self::taskRow($conn, $src);
+                $begins = ($row ? self::startForDue($row, $due) : null) ?: $due;
+                if ($begins > $today) break;   // not yet — a later run will take it
 
                 try {
                     // Idempotency, and it is not theoretical. A series is seeded
@@ -352,7 +382,8 @@ class TaskRecurrence
         $out = [];
         $s = $conn->prepare(
             "SELECT r.*, t.id AS source_task_id, t.title, t.status_id, t.priority_id,
-                    t.assigned_analyst_id, t.tenant_id
+                    t.assigned_analyst_id, t.tenant_id,
+                    t.start_date AS src_start, t.due_date AS src_due
                FROM task_recurrences r
                JOIN tasks t ON t.id = (
                     SELECT id FROM tasks WHERE recurrence_id = r.id AND parent_task_id IS NULL
@@ -381,7 +412,13 @@ class TaskRecurrence
                         'recurrence_id'  => (int)$rule['id'],
                         'title'          => $rule['title'],
                         'due_date'       => $due,
-                        'start_date'     => null,
+                        // The same span the real occurrence will have, so a
+                        // fortnight of work is drawn as a fortnight rather than
+                        // as a single day it could never be done in.
+                        'start_date'     => self::startForDue(
+                            ['start_date' => $rule['src_start'], 'due_date' => $rule['src_due']],
+                            $due
+                        ),
                         'status_id'      => $rule['status_id'],
                         'priority_id'    => $rule['priority_id'],
                         'assigned_analyst_id' => $rule['assigned_analyst_id'],
@@ -416,6 +453,52 @@ class TaskRecurrence
     }
 
     /** The most recent task in a series - the one a new occurrence is copied from. */
+    /**
+     * The day work on an occurrence due $due can BEGIN.
+     *
+     * A repeat keeps the gap between starting and being due, because "start a
+     * week before it is due" is part of the plan rather than an accident of the
+     * first occurrence. A fortnight of work due on the 31st therefore starts on
+     * the 17th.
+     *
+     * ⚠️ That gap is also why the worker cannot wait for the due date. An
+     * occurrence created on the day it is due would be born a fortnight past the
+     * day it should have been started — a two-week bar lying entirely in the
+     * past, that nobody ever had a chance to do. See runDue().
+     *
+     * Returns null when the source has no start date, or none worth keeping.
+     * That is a point-in-time task, and it correctly appears on its due date.
+     */
+    public static function startForDue(array $task, string $due): ?string
+    {
+        if (empty($task['start_date']) || empty($task['due_date'])) return null;
+
+        // ⚠️ All of this in UTC, and with DateTime rather than arithmetic on
+        // timestamps. strtotime() reads a bare date as LOCAL midnight while
+        // gmdate() writes UTC, so on an installation east of Greenwich — which
+        // includes the UK for seven months of the year — subtracting the gap
+        // landed a day early, and landed correctly in winter. A gap spanning a
+        // clock change is the same trap from the other end: 14 days is 14 days
+        // and an hour, and dividing by 86400 truncates it to 13.
+        $tz    = new DateTimeZone('UTC');
+        $start = new DateTimeImmutable((string)$task['start_date'], $tz);
+        $dueOn = new DateTimeImmutable((string)$task['due_date'], $tz);
+        if ($dueOn <= $start) return null;
+
+        $gap = (int)$start->diff($dueOn)->days;
+        if ($gap <= 0) return null;
+
+        return (new DateTimeImmutable($due, $tz))->modify("-{$gap} days")->format('Y-m-d');
+    }
+
+    private static function taskRow(PDO $conn, int $id): ?array
+    {
+        $s = $conn->prepare("SELECT * FROM tasks WHERE id = ?");
+        $s->execute([$id]);
+        $row = $s->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
     private static function latestOccurrence(PDO $conn, int $recurrenceId): ?int
     {
         $s = $conn->prepare(
@@ -446,13 +529,7 @@ class TaskRecurrence
         $statusId = self::defaultOpenStatusId($conn);
         if ($statusId === null) return null;   // no open status configured: do nothing rather than guess
 
-        // Keep the gap between starting and being due. "Start a week before it is
-        // due" is part of the plan, not an accident of the first occurrence.
-        $start = null;
-        if (!empty($t['start_date']) && !empty($t['due_date'])) {
-            $gap = (int)((strtotime((string)$t['due_date']) - strtotime((string)$t['start_date'])) / 86400);
-            if ($gap > 0) $start = gmdate('Y-m-d', strtotime($due) - $gap * 86400);
-        }
+        $start = self::startForDue($t, $due);
 
         $master = $t['recurrence_master_id'] ?: $t['id'];
 

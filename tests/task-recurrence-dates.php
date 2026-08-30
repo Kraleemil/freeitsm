@@ -105,5 +105,39 @@ is_('past the end date',     TaskRecurrence::isExhausted(['ends_mode'=>'on_date'
 is_('5 of 6 made',           TaskRecurrence::isExhausted(['ends_mode'=>'after_count','max_occurrences'=>6,'occurrences_created'=>5], '2026-09-01'), false);
 is_('6 of 6 made - stop',    TaskRecurrence::isExhausted(['ends_mode'=>'after_count','max_occurrences'=>6,'occurrences_created'=>6], '2026-09-01'), true);
 
+// ── When work on an occurrence can begin ─────────────────────────────────────
+//
+// The worker creates an occurrence when its START arrives, not when it falls
+// due, so that a fortnight of work does not appear on the day it is already
+// due. These are here rather than in the spawning tests because they need no
+// database — and because the two faults below are invisible to a test that
+// only uses tasks with a due date, which is every other test in the suite.
+echo "\nWhen work on an occurrence can begin:\n";
+$span = fn(string $start, string $due) => ['start_date' => $start, 'due_date' => $due];
+
+is_('a fortnight of work starts a fortnight before it is due',
+    TaskRecurrence::startForDue($span('2026-08-17', '2026-08-31'), '2026-09-14'), '2026-08-31');
+is_('a same-day task has no start of its own',
+    TaskRecurrence::startForDue($span('2026-08-31', '2026-08-31'), '2026-09-14'), null);
+is_('no start date means the due date is all there is',
+    TaskRecurrence::startForDue(['due_date' => '2026-08-31'], '2026-09-14'), null);
+is_('a start after the due date is nonsense, not a negative gap',
+    TaskRecurrence::startForDue($span('2026-09-30', '2026-08-31'), '2026-09-14'), null);
+
+// This one was genuinely wrong: the old code read a bare date as LOCAL midnight
+// and wrote the answer with gmdate, so it landed a day early — and only while
+// the clocks are forward. Checked against the old implementation, which returns
+// 2026-08-16 here and the right answer in midwinter, so a fault present for
+// seven months of the year was invisible for the other five.
+is_('British Summer Time does not shift it a day early',
+    TaskRecurrence::startForDue($span('2026-08-17', '2026-08-31'), '2026-08-31'), '2026-08-17');
+
+// This one the old code got right, by luck rather than design: dividing a
+// 14-day-and-one-hour gap by 86400 truncated it to 13, and the timezone skew
+// above shifted it back a day, so two faults cancelled. Kept as a guard,
+// because fixing either one alone would have exposed the other.
+is_('a gap spanning the clock change is still the same number of days',
+    TaskRecurrence::startForDue($span('2026-03-22', '2026-04-05'), '2026-05-03'), '2026-04-19');
+
 echo "\n" . str_repeat('=', 78) . "\n  {$pass} passed, {$fail} failed\n\n";
 exit($fail === 0 ? 0 : 1);
