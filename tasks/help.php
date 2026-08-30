@@ -74,14 +74,17 @@ $translationNamespaces = ['common', 'tasks'];
             <a href="#panel" class="help-nav-link" data-section="panel">
                 <span class="help-nav-num">7</span> <?php echo htmlspecialchars(t('tasks.help.nav_panel')); ?>
             </a>
+            <a href="#repeats" class="help-nav-link" data-section="repeats">
+                <span class="help-nav-num">8</span> <?php echo htmlspecialchars(t('tasks.help.nav_repeats')); ?>
+            </a>
             <a href="#tags" class="help-nav-link" data-section="tags">
-                <span class="help-nav-num">8</span> <?php echo htmlspecialchars(t('tasks.help.nav_tags')); ?>
+                <span class="help-nav-num">9</span> <?php echo htmlspecialchars(t('tasks.help.nav_tags')); ?>
             </a>
             <a href="#settings" class="help-nav-link" data-section="settings">
-                <span class="help-nav-num">9</span> <?php echo htmlspecialchars(t('tasks.help.nav_settings')); ?>
+                <span class="help-nav-num">10</span> <?php echo htmlspecialchars(t('tasks.help.nav_settings')); ?>
             </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">10</span> <?php echo htmlspecialchars(t('tasks.help.nav_tips')); ?>
+                <span class="help-nav-num">11</span> <?php echo htmlspecialchars(t('tasks.help.nav_tips')); ?>
             </a>
         </div>
 
@@ -313,10 +316,68 @@ $translationNamespaces = ['common', 'tasks'];
                     <p style="margin-top:10px;"><?php echo t('tasks.help.panel_delete_note'); ?></p>
                 </div>
 
-                <!-- 8. Tags -->
-                <div class="help-section" id="tags">
+                <!-- 8. Repeating tasks -->
+                <div class="help-section" id="repeats">
                     <div class="help-section-header">
                         <span class="help-section-num">8</span>
+                        <div>
+                            <h3><?php echo htmlspecialchars(t('tasks.help.repeats_heading')); ?></h3>
+                            <p><?php echo t('tasks.help.repeats_intro'); ?></p>
+                        </div>
+                    </div>
+
+                    <p class="help-note bad"><?php echo t('tasks.help.repeats_cron_warning'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_setup_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_setup_body'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_mode_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_mode_body'); ?></p>
+                    <div class="help-cards">
+                        <div class="help-card"><span><?php echo t('tasks.help.repeats_mode_completion'); ?></span></div>
+                        <div class="help-card"><span><?php echo t('tasks.help.repeats_mode_schedule'); ?></span></div>
+                    </div>
+                    <p class="help-note"><?php echo t('tasks.help.repeats_tip'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_pattern_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_pattern_body'); ?></p>
+                    <div class="help-list">
+                        <div><?php echo t('tasks.help.repeats_pattern_daily'); ?></div>
+                        <div><?php echo t('tasks.help.repeats_pattern_weekly'); ?></div>
+                        <div><?php echo t('tasks.help.repeats_pattern_dom'); ?></div>
+                        <div><?php echo t('tasks.help.repeats_pattern_nth'); ?></div>
+                        <div><?php echo t('tasks.help.repeats_pattern_yearly'); ?></div>
+                    </div>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_ends_heading')); ?></h4>
+                    <div class="help-list">
+                        <div><?php echo t('tasks.help.repeats_ends_never'); ?></div>
+                        <div><?php echo t('tasks.help.repeats_ends_date'); ?></div>
+                        <div><?php echo t('tasks.help.repeats_ends_count'); ?></div>
+                    </div>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_carry_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_carry_body'); ?></p>
+                    <p class="help-note"><?php echo t('tasks.help.repeats_carry_note'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_when_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_when_body'); ?></p>
+                    <p><?php echo t('tasks.help.repeats_when_note'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_preview_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_preview_body'); ?></p>
+                    <p class="help-note"><?php echo t('tasks.help.repeats_preview_note'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_finding_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_finding_body'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('tasks.help.repeats_stop_heading')); ?></h4>
+                    <p><?php echo t('tasks.help.repeats_stop_body'); ?></p>
+                </div>
+                <!-- 9. Tags -->
+                <div class="help-section" id="tags">
+                    <div class="help-section-header">
+                        <span class="help-section-num">9</span>
                         <div>
                             <h3><?php echo htmlspecialchars(t('tasks.help.tags_heading')); ?></h3>
                             <p><?php echo t('tasks.help.tags_intro'); ?></p>
@@ -327,10 +388,10 @@ $translationNamespaces = ['common', 'tasks'];
                     <p class="help-note"><?php echo t('tasks.help.tags_tip'); ?></p>
                 </div>
 
-                <!-- 9. Settings -->
+                <!-- 10. Settings -->
                 <div class="help-section" id="settings">
                     <div class="help-section-header">
-                        <span class="help-section-num">9</span>
+                        <span class="help-section-num">10</span>
                         <div>
                             <h3><?php echo htmlspecialchars(t('tasks.help.settings_heading')); ?></h3>
                             <p><?php echo t('tasks.help.settings_intro'); ?></p>
@@ -368,10 +429,10 @@ $translationNamespaces = ['common', 'tasks'];
                     <p style="margin-top:14px;"><?php echo t('tasks.help.settings_tags_note'); ?></p>
                 </div>
 
-                <!-- 10. Quick tips -->
+                <!-- 11. Quick tips -->
                 <div class="help-section" id="tips">
                     <div class="help-section-header">
-                        <span class="help-section-num">10</span>
+                        <span class="help-section-num">11</span>
                         <div>
                             <h3><?php echo htmlspecialchars(t('tasks.help.tips_heading')); ?></h3>
                             <p><?php echo t('tasks.help.tips_intro'); ?></p>
