@@ -970,7 +970,13 @@ $translationNamespaces = ['common', 'asset-management'];
            read as two different kinds of thing. */
         .asset-contract-row {
             display: grid;
-            grid-template-columns: minmax(90px, auto) 1fr auto auto;
+            /* Five columns: reference, title, supplier, ends, notice. The two
+               dates are separate cells rather than one stacked cell (Ed) - they
+               are two different deadlines, and stacking made the earlier and
+               more urgent one look like a footnote to the later one. Fixed
+               widths on the dates so they line up down the list; a column that
+               shifts row to row is no easier to scan than no column. */
+            grid-template-columns: minmax(90px, auto) 1fr auto 150px 165px;
             gap: 12px;
             align-items: center;
             padding: 9px 16px;
@@ -987,9 +993,14 @@ $translationNamespaces = ['common', 'asset-management'];
         .asset-contract-title em { color: var(--text-muted, #6b7280); font-style: normal; font-size: 12px; }
         .asset-contract-meta { color: var(--text-muted, #6b7280); font-size: 12px; }
         .asset-contract-when { color: var(--text-muted, #6b7280); font-size: 12px; text-align: right; }
-        /* The notice date is the one people miss, so it gets its own line and
-           the warning colour rather than sitting in the run of grey. */
-        .asset-contract-notice { display: block; color: var(--warning-text, #92400e); }
+        /* The notice date is the one people miss, so it keeps the warning colour
+           even now that it has a column of its own. */
+        .asset-contract-notice {
+            color: var(--warning-text, #92400e);
+            font-size: 12px;
+            text-align: right;
+            white-space: nowrap;
+        }
 
         /* The row and its remove button. The button is a sibling of the link,
            not inside it, so clicking it cannot also navigate. */
@@ -1061,9 +1072,10 @@ $translationNamespaces = ['common', 'asset-management'];
             .asset-ticket-ref, .asset-ticket-when { display: none; }
 
             /* The contract rows lose the reference and the supplier, but KEEP
-               the dates: on a contract, when it ends and when notice is due is
-               the whole reason for looking. */
-            .asset-contract-row { grid-template-columns: 1fr auto; }
+               both dates: when it ends and when notice is due is the whole
+               reason for looking. The fixed date widths go too — on a phone
+               there is not room to reserve them. */
+            .asset-contract-row { grid-template-columns: 1fr auto auto; }
             .asset-contract-ref, .asset-contract-meta { display: none; }
         }
 
@@ -2172,8 +2184,13 @@ $translationNamespaces = ['common', 'asset-management'];
                     const ends = c.contract_end
                         ? `${escapeHtml(window.t('asset-management.detail.contract_ends'))} ${escapeHtml(c.contract_end)}`
                         : escapeHtml(window.t('asset-management.detail.contract_no_end'));
+                    // Its own column (Ed). Stacked under the end date it read as
+                    // a footnote to it; they are two different deadlines and the
+                    // notice one is the earlier and more urgent of the two.
+                    // A contract with no notice date still gets the cell, so the
+                    // dates below it stay in a straight line.
                     const notice = c.notice_date
-                        ? `<span class="asset-contract-notice">${escapeHtml(window.t('asset-management.detail.contract_notice_by'))} ${escapeHtml(c.notice_date)}</span>`
+                        ? `${escapeHtml(window.t('asset-management.detail.contract_notice_by'))} ${escapeHtml(c.notice_date)}`
                         : '';
                     // The remove button is a SIBLING of the anchor, not inside
                     // it: a button nested in a link is a link, and clicking it
@@ -2184,7 +2201,8 @@ $translationNamespaces = ['common', 'asset-management'];
                             <span class="asset-contract-ref">${escapeHtml(c.contract_number || '')}</span>
                             <span class="asset-contract-title">${escapeHtml(c.title || '')}${c.reference ? ` <em>${escapeHtml(c.reference)}</em>` : ''}</span>
                             <span class="asset-contract-meta">${escapeHtml(supplier)}</span>
-                            <span class="asset-contract-when">${ends}${notice}</span>
+                            <span class="asset-contract-when">${ends}</span>
+                            <span class="asset-contract-notice">${notice}</span>
                         </a>
                         <button type="button" class="asset-contract-remove"
                                 title="${escapeHtml(window.t('asset-management.detail.remove_contract'))}"
