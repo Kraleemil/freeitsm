@@ -138,8 +138,18 @@ $translationNamespaces = ['common', 'service-status'];
         /* The strip. flex with min-width 0 cells so 7, 30, 90 or 365 days all fit
            the same width without a horizontal scrollbar appearing at 365. */
         .svc-strip { display: flex; gap: 1px; align-items: stretch; height: 30px; }
-        .svc-day { flex: 1 1 0; min-width: 0; border-radius: 1px; background: var(--ok-bg, #d1fae5); }
-        .svc-day-ok   { background: var(--ok-bg, #d1fae5); }
+        /* ⚠️ A LITERAL, like every other day colour below, and it used to be
+           var(--ok-bg, …) — a token that does not exist in theme.css, so it has
+           always silently used this fallback. Nothing looked wrong because the
+           fallback is the right colour; what was wrong was the implication that
+           the strip follows the theme.
+           It must not. --success-bg is the obvious candidate and it is #16331f
+           in dark mode, against a card of #1e2228 — a good day would all but
+           vanish while an outage (#dc2626) still shouted, which inverts the one
+           thing this strip exists to show. Same reasoning as the excluded-day
+           note below. */
+        .svc-day { flex: 1 1 0; min-width: 0; border-radius: 1px; background: #d1fae5; }
+        .svc-day-ok   { background: #d1fae5; }
         /* ⚠️ NOT var(--border). That token is a divider colour and it is #343b45 in
            dark mode, so an excluded day rendered as a near-black gap in the strip —
            it read as "broken", which is the one thing it is not. A literal mid-grey
