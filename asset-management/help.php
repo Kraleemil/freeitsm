@@ -93,8 +93,11 @@ $translationNamespaces = ['common', 'asset-management'];
                 <span class="help-nav-num">10</span>
                 Tickets on an asset
             </a>
+            <a href="#linked-contracts" class="help-nav-link" data-section="linked-contracts">
+                <span class="help-nav-num">11</span> Contracts covering an asset
+            </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">11</span>
+                <span class="help-nav-num">12</span>
                 <?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?>
             </a>
         </div>
@@ -514,9 +517,25 @@ $translationNamespaces = ['common', 'asset-management'];
                     <p class="help-note">Tickets appear here once somebody links the asset to them &mdash; from the <strong>Links</strong> bar on the ticket (<strong>Link to&hellip; &rarr; Equipment</strong>), or by the requester choosing their device when raising it in the self-service portal. Nothing is linked automatically, so this tab stays empty on assets nobody has attached to a ticket.</p>
                 </div>
 
-                <div class="help-section" id="tips">
+                <div class="help-section" id="linked-contracts">
                     <div class="help-section-header">
                         <span class="help-section-num">11</span>
+                        <h3>Contracts covering an asset</h3>
+                    </div>
+                    <p>Every asset has a <strong>Contracts</strong> tab listing the agreements that cover it &mdash; the mobile service agreement behind a handset, the internet agreement behind a router, the maintenance contract behind a server. Each row shows the supplier, when the contract ends, and when notice has to be given. Click one to open the contract.</p>
+
+                    <p>The <strong>notice date</strong> is picked out in the warning colour, and that is the point of the tab. An end date is easy to plan around; a notice period is what quietly turns a decision you meant to make into a renewal you did not. Having it on the equipment means the question can be asked at the moment somebody is holding the thing, rather than only when the contract happens to be open in front of them.</p>
+
+                    <p>A link can carry a short <strong>reference</strong> &mdash; a phone number, a line ID, a seat number &mdash; which is shown beside the contract title. It describes the equipment's place on that particular agreement, so a handset moved to a different contract keeps the handset and loses the line.</p>
+
+                    <p class="help-note">Links are made from the <strong>contract</strong> side: open a contract, find the <strong>Equipment</strong> panel and click <strong>Add</strong>. Nothing is linked automatically, so this tab stays empty on equipment nobody has put on a contract. Removing a link there takes the equipment off the contract and does not delete the asset.</p>
+
+                    <p class="help-note">If you cannot see the Contracts module, this tab says so rather than showing an empty list &mdash; &ldquo;no contracts&rdquo; and &ldquo;you may not see contracts&rdquo; are different answers, and reading one as the other is how somebody concludes a contract was never set up.</p>
+                </div>
+
+<div class="help-section" id="tips">
+                    <div class="help-section-header">
+                        <span class="help-section-num">12</span>
                         <h3><?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?></h3>
                     </div>
                     <div class="help-cards">

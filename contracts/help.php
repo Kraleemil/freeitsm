@@ -92,20 +92,23 @@ $translationNamespaces = ['common', 'contracts'];
                 <span class="help-nav-num">3</span>
                 <?php echo htmlspecialchars(t('contracts.help.nav_terms')); ?>
             </a>
+            <a href="#equipment" class="help-nav-link" data-section="equipment">
+                <span class="help-nav-num">4</span> <?php echo htmlspecialchars(t('contracts.help.nav_equipment')); ?>
+            </a>
             <a href="#suppliers" class="help-nav-link" data-section="suppliers">
-                <span class="help-nav-num">4</span>
+                <span class="help-nav-num">5</span>
                 <?php echo htmlspecialchars(t('contracts.help.nav_suppliers')); ?>
             </a>
             <a href="#contacts" class="help-nav-link" data-section="contacts">
-                <span class="help-nav-num">5</span>
+                <span class="help-nav-num">6</span>
                 <?php echo htmlspecialchars(t('contracts.help.nav_contacts')); ?>
             </a>
             <a href="#settings" class="help-nav-link" data-section="settings">
-                <span class="help-nav-num">6</span>
+                <span class="help-nav-num">7</span>
                 <?php echo htmlspecialchars(t('contracts.help.nav_settings')); ?>
             </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">7</span>
+                <span class="help-nav-num">8</span>
                 <?php echo htmlspecialchars(t('contracts.help.nav_tips')); ?>
             </a>
         </div>
@@ -235,9 +238,32 @@ $translationNamespaces = ['common', 'contracts'];
                 </div>
 
                 <!-- Section 4: Suppliers -->
-                <div class="help-section" id="suppliers">
+                <div class="help-section" id="equipment">
                     <div class="help-section-header">
                         <span class="help-section-num">4</span>
+                        <h3><?php echo htmlspecialchars(t('contracts.help.nav_equipment')); ?></h3>
+                    </div>
+                    <p><?php echo t('contracts.help.equipment_intro'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('contracts.help.equipment_adding_heading')); ?></h4>
+                    <p><?php echo t('contracts.help.equipment_adding_body'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('contracts.help.equipment_reference_heading')); ?></h4>
+                    <p><?php echo t('contracts.help.equipment_reference_body'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('contracts.help.equipment_asset_heading')); ?></h4>
+                    <p><?php echo t('contracts.help.equipment_asset_body'); ?></p>
+
+                    <h4><?php echo htmlspecialchars(t('contracts.help.equipment_removing_heading')); ?></h4>
+                    <p><?php echo t('contracts.help.equipment_removing_body'); ?></p>
+
+                    <p class="help-note"><?php echo t('contracts.help.equipment_renewals_note'); ?></p>
+                    <p class="help-note"><?php echo t('contracts.help.equipment_tenancy_note'); ?></p>
+                </div>
+
+<div class="help-section" id="suppliers">
+                    <div class="help-section-header">
+                        <span class="help-section-num">5</span>
                         <h3><?php echo htmlspecialchars(t('contracts.help.nav_suppliers')); ?></h3>
                     </div>
                     <p><?php echo t('contracts.help.suppliers_intro'); ?></p>
@@ -294,7 +320,7 @@ $translationNamespaces = ['common', 'contracts'];
                 <!-- Section 5: Contacts -->
                 <div class="help-section" id="contacts">
                     <div class="help-section-header">
-                        <span class="help-section-num">5</span>
+                        <span class="help-section-num">6</span>
                         <h3><?php echo htmlspecialchars(t('contracts.help.nav_contacts')); ?></h3>
                     </div>
                     <p><?php echo t('contracts.help.contacts_intro'); ?></p>
@@ -329,7 +355,7 @@ $translationNamespaces = ['common', 'contracts'];
                 <!-- Section 6: Settings -->
                 <div class="help-section" id="settings">
                     <div class="help-section-header">
-                        <span class="help-section-num">6</span>
+                        <span class="help-section-num">7</span>
                         <h3><?php echo htmlspecialchars(t('contracts.help.nav_settings')); ?></h3>
                     </div>
                     <p><?php echo t('contracts.help.settings_intro'); ?></p>
@@ -365,7 +391,7 @@ $translationNamespaces = ['common', 'contracts'];
                 <!-- Section 7: Quick Tips -->
                 <div class="help-section" id="tips">
                     <div class="help-section-header">
-                        <span class="help-section-num">7</span>
+                        <span class="help-section-num">8</span>
                         <h3><?php echo htmlspecialchars(t('contracts.help.nav_tips')); ?></h3>
                     </div>
                     <div class="help-cards">

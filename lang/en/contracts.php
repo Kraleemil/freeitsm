@@ -367,6 +367,20 @@ return [
         'nav_settings'  => 'Settings',
         'nav_tips'      => 'Quick tips',
 
+        // Equipment covered by a contract (#106)
+        'nav_equipment'                => 'Equipment',
+        'equipment_intro'              => 'A contract can list the equipment it covers. The mobile service agreement and the handsets and SIM cards on it, the internet agreement and the router, the maintenance contract and the machines it protects. The link is visible from both ends, so you can start from either the paperwork or the thing on somebody&rsquo;s desk.',
+        'equipment_adding_heading'     => 'Adding equipment',
+        'equipment_adding_body'        => 'Open a contract and find the <strong>Equipment</strong> panel, then click <strong>Add</strong>. Search by name, model, serial number, asset tag or <strong>location</strong> &mdash; location matters more than it looks, because nobody knows the hostname of a meeting-room television and nobody knows the serial number of a SIM card. Anything already on the contract is left out of the results, since offering it again could only produce a no-op.',
+        'equipment_reference_heading'  => 'The reference on a link',
+        'equipment_reference_body'     => 'Each link carries an optional <strong>reference</strong>, typed straight onto the row: a phone number, a line ID, a seat number. It belongs to the <em>link</em> rather than to the equipment, and that distinction is the useful part &mdash; move a handset onto a different agreement and you keep the handset and lose the line, which is exactly what happens in real life. Details of the thing itself, such as a SIM&rsquo;s IMSI or a laptop&rsquo;s purchase date, belong on the asset, where custom fields can hold them.',
+        'equipment_asset_heading'      => 'From the equipment&rsquo;s side',
+        'equipment_asset_body'         => 'An asset gains a <strong>Contracts</strong> tab listing every agreement covering it, with the supplier, the end date and the <strong>notice date</strong>. The notice date is picked out in the warning colour on purpose: it is the date people actually miss, and leaving it on the contract page is where it gets missed. This is the half of the feature that pays for the linking &mdash; standing on a handset and asking &ldquo;what are we on, and by when do we have to say something?&rdquo;',
+        'equipment_removing_heading'   => 'Removing equipment',
+        'equipment_removing_body'      => '<strong>Remove</strong> takes the equipment off the contract and nothing else. The asset stays exactly where it was in Asset Management, and the contract is untouched. It is worth saying plainly because &ldquo;Remove&rdquo; next to a piece of equipment reads as &ldquo;delete the equipment&rdquo; to enough people to be worth a sentence, so the confirmation says so too.',
+        'equipment_renewals_note'      => '<strong>Renewal reminders already exist and are separate from this.</strong> A workflow can fire on a contract approaching its end date, at windows you choose, without anything being linked to it. Linking equipment tells you <em>what</em> is affected when that reminder arrives; it is not what produces the reminder.',
+        'equipment_tenancy_note'       => '<strong>On an installation serving more than one company</strong>, the equipment list on a contract shows only equipment from the companies you can reach. It does not tell you how many were left out, because a count of things you cannot see is itself a disclosure.',
+
         'hero_title'    => 'Contracts management guide',
         'hero_subtitle' => 'Track contracts, manage suppliers, and stay on top of renewals &mdash; all in one place.',
 
