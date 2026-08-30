@@ -118,6 +118,40 @@ try {
         return $tg;
     }, $stmt->fetchAll(PDO::FETCH_ASSOC));
 
+    // Recurrence (#94). Three separate things the panel needs: the rule itself,
+    // where this occurrence sits in the series, and how to reach the original.
+    $task['recurrence'] = null;
+    $task['recurrence_master'] = null;
+    $task['recurrence_position'] = null;
+    if (!empty($task['recurrence_id'])) {
+        try {
+            $stmt = $conn->prepare("SELECT * FROM task_recurrences WHERE id = ?");
+            $stmt->execute([(int)$task['recurrence_id']]);
+            $task['recurrence'] = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            // The task the series started from, so an occurrence can point a
+            // reader back to it. Null when this IS the master.
+            if (!empty($task['recurrence_master_id']) && (int)$task['recurrence_master_id'] !== (int)$task['id']) {
+                $stmt = $conn->prepare("SELECT id, title, due_date FROM tasks WHERE id = ?");
+                $stmt->execute([(int)$task['recurrence_master_id']]);
+                $task['recurrence_master'] = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            }
+
+            // "3 of 12" - counted by date so it reads the way a person would
+            // count, not by insertion order.
+            $stmt = $conn->prepare(
+                "SELECT COUNT(*) FROM tasks
+                  WHERE recurrence_id = ? AND parent_task_id IS NULL
+                    AND (due_date < ? OR (due_date = ? AND id <= ?) OR (due_date IS NULL AND id <= ?))"
+            );
+            $stmt->execute([(int)$task['recurrence_id'], $task['due_date'], $task['due_date'], (int)$task['id'], (int)$task['id']]);
+            $task['recurrence_position'] = (int)$stmt->fetchColumn();
+        } catch (Throwable $e) {
+            // An install part-way through an upgrade still gets its task.
+            $task['recurrence'] = null;
+        }
+    }
+
     echo json_encode(['success' => true, 'task' => $task]);
 
 } catch (Exception $e) {
