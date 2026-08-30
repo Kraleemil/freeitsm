@@ -833,21 +833,58 @@ $translationNamespaces = ['common', 'service-status'];
                     </tr>
                 `;
             }).join('');
+
+            reopenUpdateThreads();
+        }
+
+        /**
+         * Put back any update thread that was open before the table was rebuilt.
+         *
+         * ⚠️ Driven through the row's OWN toggle rather than by setting hidden
+         * directly, so the button label, the fetch and the open-set all stay in
+         * step — the same reason the context menu drives it that way. The set is
+         * copied first because toggling mutates it while we iterate.
+         */
+        function reopenUpdateThreads() {
+            if (!openUpdateThreads.size) return;
+            Array.from(openUpdateThreads).forEach(id => {
+                const row = document.getElementById('incUpdatesRow' + id);
+                if (!row || !row.hidden) return;
+                const btn = row.previousElementSibling
+                         && row.previousElementSibling.querySelector('.inc-updates-toggle');
+                // Gone entirely: the incident was deleted or filtered away, so
+                // stop remembering it rather than leaving it open forever.
+                if (!btn) { openUpdateThreads.delete(id); return; }
+                btn.click();
+            });
         }
 
         /* ─── Incident update thread (discussion #59, phase 2) ────────────────
            The rows behind the per-service history: what was said, when, by whom,
            and which services were at which impact at that moment. Loaded on
            demand — most people reading the board never open one. */
+        /**
+         * Which incidents have their update thread open.
+         *
+         * ⚠️ Kept because loadDashboard() rebuilds the whole incident table, so
+         * anything open at the time is destroyed and comes back collapsed. That
+         * showed up as having to click Updates again after correcting one (Ed),
+         * but it was never only about editing — resolving or deleting from the
+         * right-click menu closed an open thread the same way.
+         */
+        const openUpdateThreads = new Set();
+
         async function toggleIncidentUpdates(incidentId, btn) {
             const row = document.getElementById('incUpdatesRow' + incidentId);
             const box = document.getElementById('incUpdates' + incidentId);
             if (!row) return;
             if (!row.hidden) {
                 row.hidden = true;
+                openUpdateThreads.delete(Number(incidentId));
                 btn.textContent = window.t('service-status.board.updates_show');
                 return;
             }
+            openUpdateThreads.add(Number(incidentId));
             row.hidden = false;
             btn.textContent = window.t('service-status.board.updates_hide');
             box.innerHTML = `<div class="svc-history-loading">${escapeHtml(window.t('service-status.board.history_loading'))}</div>`;
@@ -1157,8 +1194,10 @@ $translationNamespaces = ['common', 'service-status'];
                 if (!d.success) { showToast(d.error || window.t('service-status.toast.save_failed'), 'error'); return; }
                 closeUpdateEditModal();
                 showToast(window.t('service-status.updates.edited'), 'success');
-                refreshUpdates(incidentId);
-                loadDashboard();   // the board shows the latest comment, which may be this one
+                // loadDashboard() rebuilds the table (the board shows the latest
+                // comment, which may be this one) and puts the open thread back
+                // with the corrected text.
+                loadDashboard();
             } catch (err) {
                 showToast(window.t('service-status.toast.save_failed'), 'error');
             }
@@ -1181,24 +1220,17 @@ $translationNamespaces = ['common', 'service-status'];
                 const d = await r.json();
                 if (!d.success) { showToast(d.error || window.t('service-status.toast.delete_failed'), 'error'); return; }
                 showToast(window.t('service-status.updates.deleted'), 'success');
-                refreshUpdates(incidentId);
                 loadDashboard();
             } catch (e) {
                 showToast(window.t('service-status.toast.delete_failed'), 'error');
             }
         }
 
-        /** Re-fetch an open thread in place, without collapsing it. */
-        function refreshUpdates(incidentId) {
-            const row = document.getElementById('incUpdatesRow' + incidentId);
-            const btn = row && row.previousElementSibling
-                     && row.previousElementSibling.querySelector('.inc-updates-toggle');
-            if (!row || row.hidden || !btn) return;
-            // Close and reopen through the existing toggle, so the button label
-            // and the loaded flag stay in step rather than being set by hand.
-            btn.click();
-            btn.click();
-        }
+        /* refreshUpdates() used to close and reopen the thread by hand here.
+           It is gone: loadDashboard() rebuilds the table and reopenUpdateThreads()
+           puts the thread back with fresh contents, so doing it twice was both
+           redundant and the reason it sometimes ended up collapsed — the manual
+           reopen raced the rebuild that was about to destroy it. One mechanism. */
 
         /**
          * Say what marking an update external will actually do (#99).
