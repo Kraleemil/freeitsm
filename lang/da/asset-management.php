@@ -157,6 +157,20 @@ return [
         'scan' => 'Scan',
         'add_asset' => 'Tilføj',
     ],
+    // Right-click an asset (Ed)
+    'ctx' => [
+        'open'               => 'Åbn',
+        'status'             => 'Status',
+        'type'               => 'Type',
+        'location'           => 'Placering',
+        'add_to_contract'    => 'Tilføj til en kontrakt',
+        'assign'             => 'Tildel til nogen',
+        'print_label'        => 'Udskriv mærkat',
+        'copy_tag'           => 'Kopiér aktivmærke',
+        'copy_serial'        => 'Kopiér serienummer',
+        'none_configured'    => 'Intet konfigureret',
+    ],
+
     'detail' => [
         'select_prompt' => 'Vælg et aktiv for at se detaljer og tildelte brugere',
         'service_tag' => 'Service Tag',
@@ -183,6 +197,12 @@ return [
         'contract_ends'                => 'Slutter',
         'contract_notice_by'           => 'Opsigelse senest',
         'contract_no_end'              => 'Ingen slutdato',
+        'add_contract'                 => 'Tilføj til en kontrakt',
+        'remove_contract'              => 'Fjern',
+        'remove_contract_message'      => 'Dette tager udstyret af den kontrakt. Selve kontrakten bliver hverken opsagt eller slettet, og udstyret bliver her.',
+        'contract_picker_title'        => 'Tilføj dette udstyr til en kontrakt',
+        'contract_search_placeholder'  => 'Søg efter kontraktnummer, titel eller leverandør',
+        'no_contracts_found'           => 'Intet matchede. Prøv leverandørens navn eller en del af kontrakttitlen.',
         'saved' => 'Gemt.',
         'save_failed' => 'Kunne ikke gemme det.',
         'name_required' => 'Et aktiv skal have et navn.',

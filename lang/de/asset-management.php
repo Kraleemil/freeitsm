@@ -69,6 +69,20 @@ return [
         'count'              => '{count} Assets',
         'add_asset'          => 'Hinzufügen',
     ],
+    // Right-click an asset (Ed)
+    'ctx' => [
+        'open'               => 'Öffnen',
+        'status'             => 'Status',
+        'type'               => 'Typ',
+        'location'           => 'Standort',
+        'add_to_contract'    => 'Zu einem Vertrag hinzufügen',
+        'assign'             => 'Jemandem zuweisen',
+        'print_label'        => 'Etikett drucken',
+        'copy_tag'           => 'Inventarnummer kopieren',
+        'copy_serial'        => 'Seriennummer kopieren',
+        'none_configured'    => 'Nichts konfiguriert',
+    ],
+
     'detail' => [
         'print_label'             => 'Etikett drucken',
         'tab_keyinfo'             => 'Eckdaten',
@@ -95,6 +109,12 @@ return [
         'contract_ends'                => 'Endet',
         'contract_notice_by'           => 'Kündigung bis',
         'contract_no_end'              => 'Kein Enddatum',
+        'add_contract'                 => 'Zu einem Vertrag hinzufügen',
+        'remove_contract'              => 'Entfernen',
+        'remove_contract_message'      => 'Damit wird das Gerät aus diesem Vertrag genommen. Der Vertrag selbst wird weder gekündigt noch gelöscht, und das Gerät bleibt hier.',
+        'contract_picker_title'        => 'Dieses Gerät zu einem Vertrag hinzufügen',
+        'contract_search_placeholder'  => 'Nach Vertragsnummer, Titel oder Lieferant suchen',
+        'no_contracts_found'           => 'Keine Treffer. Versuchen Sie den Lieferantennamen oder einen Teil des Vertragstitels.',
         'saved'                   => 'Gespeichert.',
         'save_failed'             => 'Konnte nicht gespeichert werden.',
         'name_required'           => 'Ein Asset benötigt einen Namen.',

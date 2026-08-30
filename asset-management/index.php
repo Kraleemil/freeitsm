@@ -990,6 +990,53 @@ $translationNamespaces = ['common', 'asset-management'];
         /* The notice date is the one people miss, so it gets its own line and
            the warning colour rather than sitting in the run of grey. */
         .asset-contract-notice { display: block; color: var(--warning-text, #92400e); }
+
+        /* The row and its remove button. The button is a sibling of the link,
+           not inside it, so clicking it cannot also navigate. */
+        .asset-contract-item { display: flex; align-items: center; }
+        .asset-contract-item .asset-contract-row { flex: 1; min-width: 0; border-bottom: none; }
+        .asset-contract-item { border-bottom: 1px solid var(--border-soft, #f0f0f0); }
+        .asset-contract-remove {
+            flex-shrink: 0; width: 26px; height: 26px; margin-right: 10px; line-height: 1;
+            border: none; background: none; cursor: pointer;
+            font-size: 18px; color: var(--text-faint, #bbb); border-radius: 4px;
+        }
+        .asset-contract-remove:hover { background: var(--danger-bg, #fee2e2); color: var(--danger-text, #991b1b); }
+
+        .asset-contract-add-bar { padding: 10px 16px 4px; }
+        .asset-contract-add {
+            border: 1px solid var(--border, #ddd); background: var(--surface, #fff);
+            color: var(--accent, #0078d4); border-radius: 6px;
+            padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .asset-contract-add:hover { background: var(--surface-hover, #f5f5f5); }
+
+        .contract-pick-results { max-height: 320px; overflow-y: auto; margin-top: 10px; }
+        .ctr-pick-search {
+            width: 100%; box-sizing: border-box; padding: 8px 10px;
+            border: 1px solid var(--border, #ddd); border-radius: 6px;
+            font: inherit; font-size: 13px;
+            background: var(--surface, #fff); color: var(--text, #333);
+        }
+        .ctr-pick-search:focus { outline: none; border-color: var(--accent, #0078d4); }
+        .contract-pick {
+            display: block; width: 100%; text-align: left; cursor: pointer;
+            padding: 9px 10px; border: none; border-radius: 6px;
+            background: none; font: inherit; color: var(--text, #333);
+        }
+        .contract-pick:hover { background: var(--surface-hover, #f5f5f5); }
+        .contract-pick-name { display: block; font-size: 13px; font-weight: 500; }
+        .contract-pick-meta { display: block; font-size: 12px; color: var(--text-muted, #6b7280); }
+
+        /* Right-click menu. The menu itself, its items and its flyouts come from
+           .ticket-context-menu in inbox.css, which this page already loads; only
+           the parts that menu has never needed are defined here. */
+        .asset-ctx-sep { height: 1px; margin: 4px 0; background: var(--border-soft, #eee); }
+        /* A fixed-width gutter so the labels line up whether or not a row is the
+           current value - a tick that shifts the text is worse than no tick. */
+        .asset-ctx-tick { display: inline-block; width: 14px; color: var(--accent, #0078d4); }
+        .asset-ctx-empty { color: var(--text-dim, #999); cursor: default; }
+        .asset-ctx-empty:hover { background: none; }
         .asset-ticket-ref { color: var(--text-dim, #6b7280); font-family: monospace; font-size: 12px; }
         .asset-ticket-subject {
             color: var(--text, #111827);
@@ -1353,6 +1400,89 @@ $translationNamespaces = ['common', 'asset-management'];
     </div>
 
     <!-- Asset History Modal -->
+    <!-- Add this equipment to a contract (discussion #106) -->
+    <div class="modal" id="contractPickerModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span><?php echo htmlspecialchars(t('asset-management.detail.contract_picker_title')); ?></span>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="contractPickerSearch" class="ctr-pick-search" autocomplete="off"
+                       oninput="contractPickerInput()"
+                       placeholder="<?php echo htmlspecialchars(t('asset-management.detail.contract_search_placeholder')); ?>">
+                <div id="contractPickerResults" class="contract-pick-results"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeContractPicker()"><?php echo htmlspecialchars(t('asset-management.common.close')); ?></button>
+            </div>
+        </div>
+    </div>
+
+    <!--
+      Right-click an asset (Ed's request).
+
+      ⚠️ Reuses the .ticket-context-menu classes from inbox.css, which this page
+      already loads. The names say "ticket" and the styles are entirely
+      structural - menu, header, item, submenu parent with a flyout, and the
+      left-flip when there is no room on the right. A second copy of all that
+      under an asset-flavoured name is how two menus end up looking different.
+    -->
+    <div class="ticket-context-menu" id="assetContextMenu" role="menu">
+        <div class="ticket-context-menu-header" id="assetCtxHeader"></div>
+
+        <button class="ticket-context-menu-item" type="button" data-action="open">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14L21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.open')); ?></span>
+        </button>
+
+        <div class="asset-ctx-sep"></div>
+
+        <div class="ticket-context-menu-item ticket-context-menu-parent" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.status')); ?></span>
+            <span class="ctx-sub-arrow">&rsaquo;</span>
+            <div class="ticket-context-submenu" id="assetCtxStatus"></div>
+        </div>
+        <div class="ticket-context-menu-item ticket-context-menu-parent" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.type')); ?></span>
+            <span class="ctx-sub-arrow">&rsaquo;</span>
+            <div class="ticket-context-submenu" id="assetCtxType"></div>
+        </div>
+        <div class="ticket-context-menu-item ticket-context-menu-parent" tabindex="0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.location')); ?></span>
+            <span class="ctx-sub-arrow">&rsaquo;</span>
+            <div class="ticket-context-submenu" id="assetCtxLocation"></div>
+        </div>
+
+        <div class="asset-ctx-sep"></div>
+
+        <button class="ticket-context-menu-item" type="button" data-action="contract" id="assetCtxContract">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.add_to_contract')); ?></span>
+        </button>
+        <button class="ticket-context-menu-item" type="button" data-action="assign">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.assign')); ?></span>
+        </button>
+
+        <div class="asset-ctx-sep"></div>
+
+        <button class="ticket-context-menu-item" type="button" data-action="label">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.print_label')); ?></span>
+        </button>
+        <button class="ticket-context-menu-item" type="button" data-action="copy-tag">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.copy_tag')); ?></span>
+        </button>
+        <button class="ticket-context-menu-item" type="button" data-action="copy-serial">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span><?php echo htmlspecialchars(t('asset-management.ctx.copy_serial')); ?></span>
+        </button>
+    </div>
+
     <div class="modal" id="assetHistoryModal">
         <div class="modal-content modal-wide">
             <div class="modal-header">
@@ -1592,7 +1722,8 @@ $translationNamespaces = ['common', 'asset-management'];
 
             container.innerHTML = assets.map(asset => `
                 <div class="asset-item ${selectedAssetId == asset.id ? 'selected' : ''} ${assetSelection.has(asset.id) ? 'multi-selected' : ''}"
-                     data-asset-id="${asset.id}" onclick="handleAssetRowClick(event, ${asset.id})">
+                     data-asset-id="${asset.id}" onclick="handleAssetRowClick(event, ${asset.id})"
+                     oncontextmenu="return openAssetContextMenu(event, ${asset.id});">
                     <?php /* The type's icon (#1146) — the whole point of the
                              feature. 576 rows of near-identical text become
                              scannable, and a television stops looking like a
@@ -2021,12 +2152,22 @@ $translationNamespaces = ['common', 'asset-management'];
                 const rows = data.contracts || [];
                 if (badge) badge.textContent = rows.length;
 
+                // The Add bar shows whenever contracts are permitted, INCLUDING
+                // when the list is empty — an empty tab with no way to fill it is
+                // where the feature looks unfinished.
+                const addBar = `<div class="asset-contract-add-bar">
+                        <button type="button" class="asset-contract-add" onclick="openContractPicker()">
+                            ${escapeHtml(window.t('asset-management.detail.add_contract'))}
+                        </button>
+                    </div>`;
+
                 if (!rows.length) {
-                    list.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.no_contracts'))}</div>`;
+                    list.innerHTML = addBar
+                        + `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.no_contracts'))}</div>`;
                     return;
                 }
 
-                list.innerHTML = rows.map(c => {
+                list.innerHTML = addBar + rows.map(c => {
                     const supplier = c.supplier_trading_name || c.supplier_name || '';
                     const ends = c.contract_end
                         ? `${escapeHtml(window.t('asset-management.detail.contract_ends'))} ${escapeHtml(c.contract_end)}`
@@ -2034,17 +2175,248 @@ $translationNamespaces = ['common', 'asset-management'];
                     const notice = c.notice_date
                         ? `<span class="asset-contract-notice">${escapeHtml(window.t('asset-management.detail.contract_notice_by'))} ${escapeHtml(c.notice_date)}</span>`
                         : '';
+                    // The remove button is a SIBLING of the anchor, not inside
+                    // it: a button nested in a link is a link, and clicking it
+                    // would navigate as well as unlink.
                     return `
-                    <a class="asset-contract-row" href="../contracts/view.php?id=${c.contract_id}">
-                        <span class="asset-contract-ref">${escapeHtml(c.contract_number || '')}</span>
-                        <span class="asset-contract-title">${escapeHtml(c.title || '')}${c.reference ? ` <em>${escapeHtml(c.reference)}</em>` : ''}</span>
-                        <span class="asset-contract-meta">${escapeHtml(supplier)}</span>
-                        <span class="asset-contract-when">${ends}${notice}</span>
-                    </a>`;
+                    <div class="asset-contract-item">
+                        <a class="asset-contract-row" href="../contracts/view.php?id=${c.contract_id}">
+                            <span class="asset-contract-ref">${escapeHtml(c.contract_number || '')}</span>
+                            <span class="asset-contract-title">${escapeHtml(c.title || '')}${c.reference ? ` <em>${escapeHtml(c.reference)}</em>` : ''}</span>
+                            <span class="asset-contract-meta">${escapeHtml(supplier)}</span>
+                            <span class="asset-contract-when">${ends}${notice}</span>
+                        </a>
+                        <button type="button" class="asset-contract-remove"
+                                title="${escapeHtml(window.t('asset-management.detail.remove_contract'))}"
+                                onclick="unlinkAssetContract(${c.link_id})">&times;</button>
+                    </div>`;
                 }).join('');
             } catch (e) {
                 if (badge) badge.textContent = '0';
                 list.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.contracts_load_failed'))}</div>`;
+            }
+        }
+
+        // ── Right-click an asset (Ed's request) ──────────────────────────────
+        //
+        // Every item is backed by something that ALREADY works: the three
+        // submenus go through update_asset_field.php, which is a thin adapter
+        // over AssetsService::updateFields, so validation, the audit trail and
+        // the warranty-calendar sync come with them. A context menu that writes
+        // its own SQL is a second set of rules nobody remembers to update.
+        //
+        // ⚠️ Right-clicking an asset SELECTS it first. The menu acts on the
+        // selection, and acting on a row you have not selected is how somebody
+        // changes the status of the wrong machine.
+        let ctxAssetId = null;
+
+        function openAssetContextMenu(event, assetId) {
+            event.preventDefault();
+
+            // Select first, so the panel on the right and the menu agree about
+            // which asset this is. Skipped when it is already selected, because
+            // re-selecting rebuilds the whole detail pane for nothing.
+            if (selectedAssetId != assetId) selectAsset(assetId);
+            ctxAssetId = assetId;
+
+            const asset = assets.find(a => a.id == assetId);
+            const menu  = document.getElementById('assetContextMenu');
+            document.getElementById('assetCtxHeader').textContent = asset ? assetDisplayName(asset) : '';
+
+            buildCtxSubmenu('assetCtxStatus',   assetStatusTypes, 'asset_status_id', asset && asset.asset_status_id);
+            buildCtxSubmenu('assetCtxType',     assetTypes,       'asset_type_id',   asset && asset.asset_type_id);
+            buildCtxSubmenu('assetCtxLocation', assetLocations,   'location_id',     asset && asset.location_id);
+
+            // Copying is only offered when there is something to copy — an item
+            // that silently does nothing is worse than one that is not there.
+            toggleCtxItem('copy-tag',    !!(asset && asset.asset_tag));
+            toggleCtxItem('copy-serial', !!(asset && asset.service_tag));
+
+            menu.classList.add('active');
+
+            // Position, then correct if it would hang off the edge. Measured
+            // after showing, because a hidden element has no height.
+            const w = menu.offsetWidth, h = menu.offsetHeight;
+            const x = Math.min(event.clientX, window.innerWidth  - w - 8);
+            const y = Math.min(event.clientY, window.innerHeight - h - 8);
+            menu.style.left = Math.max(8, x) + 'px';
+            menu.style.top  = Math.max(8, y) + 'px';
+
+            // Flyouts open leftwards when there is no room to the right.
+            menu.classList.toggle('flip-sub', (x + w + 200) > window.innerWidth);
+            return false;
+        }
+
+        /** A readable name for an asset, matching what the list shows. */
+        function assetDisplayName(a) {
+            return a.hostname || a.asset_tag || a.service_tag
+                || [a.manufacturer, a.model].filter(Boolean).join(' ')
+                || ('#' + a.id);
+        }
+
+        function toggleCtxItem(action, show) {
+            const el = document.querySelector(`#assetContextMenu [data-action="${action}"]`);
+            if (el) el.style.display = show ? '' : 'none';
+        }
+
+        /**
+         * Fill one flyout from a lookup list, ticking the current value.
+         *
+         * The tick matters: without it the menu tells you what you COULD set and
+         * never what it currently is, so you cannot tell a no-op from a change.
+         */
+        function buildCtxSubmenu(elementId, items, field, currentId) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            if (!items || !items.length) {
+                el.innerHTML = `<div class="ticket-context-menu-item asset-ctx-empty">${escapeHtml(window.t('asset-management.ctx.none_configured'))}</div>`;
+                return;
+            }
+            el.innerHTML = items.map(i => `
+                <button class="ticket-context-menu-item" type="button"
+                        onclick="ctxSetField('${field}', ${i.id})">
+                    <span class="asset-ctx-tick">${String(i.id) === String(currentId) ? '&check;' : ''}</span>
+                    <span>${escapeHtml(i.name)}</span>
+                </button>`).join('');
+        }
+
+        async function ctxSetField(field, value) {
+            closeAssetContextMenu();
+            if (!ctxAssetId) return;
+            // updateAssetField acts on selectedAssetId, and the menu has already
+            // made this asset the selected one.
+            await updateAssetField(field, value);
+            loadAssets(document.getElementById('assetSearch').value || '');
+        }
+
+        function closeAssetContextMenu() {
+            const menu = document.getElementById('assetContextMenu');
+            if (menu) menu.classList.remove('active');
+        }
+
+        document.addEventListener('click', closeAssetContextMenu);
+        document.addEventListener('scroll', closeAssetContextMenu, true);
+        window.addEventListener('resize', closeAssetContextMenu);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAssetContextMenu(); });
+
+        document.getElementById('assetContextMenu').addEventListener('click', function (e) {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const asset = assets.find(a => a.id == ctxAssetId);
+            closeAssetContextMenu();
+            switch (btn.dataset.action) {
+                case 'open':        selectAsset(ctxAssetId); break;
+                case 'contract':    openContractPicker(); break;
+                case 'assign':      openAssignModal(); break;
+                case 'label':       printAssetLabel(ctxAssetId); break;
+                // ⚠️ copyToClipboard, never navigator.clipboard — the native API
+                // is undefined outside a secure context and throws synchronously,
+                // so a .catch() fallback never runs.
+                case 'copy-tag':    if (asset) copyToClipboard(asset.asset_tag); break;
+                case 'copy-serial': if (asset) copyToClipboard(asset.service_tag); break;
+            }
+        });
+
+        // ── Linking a contract from the equipment's side (#106) ──────────────
+        //
+        // The same links as the contract page manages, reached from the other
+        // end: somebody standing on a new handset should not have to go and find
+        // the agreement first. Both ends call the SAME endpoints, so there is one
+        // set of rules about who may link what.
+        let contractPickerTimer = null;
+
+        function openContractPicker() {
+            if (!selectedAssetId) return;
+            document.getElementById('contractPickerModal').classList.add('active');
+            const box = document.getElementById('contractPickerSearch');
+            box.value = '';
+            box.focus();
+            searchLinkableContracts();
+        }
+
+        function closeContractPicker() {
+            document.getElementById('contractPickerModal').classList.remove('active');
+        }
+
+        function contractPickerInput() {
+            clearTimeout(contractPickerTimer);
+            contractPickerTimer = setTimeout(searchLinkableContracts, 200);
+        }
+
+        async function searchLinkableContracts() {
+            const results = document.getElementById('contractPickerResults');
+            const q = document.getElementById('contractPickerSearch').value.trim();
+            try {
+                const resp = await fetch(`${API_BASE}search_linkable_contracts.php?asset_id=${selectedAssetId}&q=${encodeURIComponent(q)}`);
+                const data = await resp.json();
+                if (!data.success) {
+                    results.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(data.error || window.t('asset-management.detail.contracts_load_failed'))}</div>`;
+                    return;
+                }
+                if (!data.contracts.length) {
+                    results.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.no_contracts_found'))}</div>`;
+                    return;
+                }
+                results.innerHTML = data.contracts.map(c => {
+                    const supplier = c.supplier_trading_name || c.supplier_name || '';
+                    const ends = c.contract_end
+                        ? `${window.t('asset-management.detail.contract_ends')} ${c.contract_end}`
+                        : window.t('asset-management.detail.contract_no_end');
+                    return `
+                    <button type="button" class="contract-pick" onclick="linkAssetContract(${c.contract_id})">
+                        <span class="contract-pick-name">${escapeHtml(c.contract_number || '')} ${escapeHtml(c.title || '')}</span>
+                        <span class="contract-pick-meta">${escapeHtml(supplier)}${supplier ? ' &bull; ' : ''}${escapeHtml(ends)}</span>
+                    </button>`;
+                }).join('');
+            } catch (e) {
+                results.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.contracts_load_failed'))}</div>`;
+            }
+        }
+
+        async function linkAssetContract(contractId) {
+            try {
+                const resp = await fetch('../api/contracts/save_contract_asset.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contract_id: contractId, asset_id: selectedAssetId })
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    showToast(data.error || window.t('asset-management.detail.contracts_load_failed'), 'error');
+                    return;
+                }
+                closeContractPicker();
+                loadAssetContracts(selectedAssetId);
+            } catch (e) {
+                showToast(window.t('asset-management.detail.contracts_load_failed'), 'error');
+            }
+        }
+
+        async function unlinkAssetContract(linkId) {
+            // Same wording as the contract side, for the same reason: "Remove"
+            // beside a contract reads as "cancel the contract" to enough people
+            // to be worth a sentence.
+            const okToGo = typeof window.showConfirm === 'function'
+                ? await window.showConfirm({
+                      title: window.t('asset-management.detail.remove_contract'),
+                      message: window.t('asset-management.detail.remove_contract_message'),
+                      okLabel: window.t('asset-management.detail.remove_contract'), okClass: 'danger'
+                  })
+                : confirm(window.t('asset-management.detail.remove_contract_message'));
+            if (!okToGo) return;
+
+            try {
+                const resp = await fetch('../api/contracts/delete_contract_asset.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ link_id: linkId })
+                });
+                const data = await resp.json();
+                if (!data.success) {
+                    showToast(data.error || window.t('asset-management.detail.contracts_load_failed'), 'error');
+                    return;
+                }
+                loadAssetContracts(selectedAssetId);
+            } catch (e) {
+                showToast(window.t('asset-management.detail.contracts_load_failed'), 'error');
             }
         }
 

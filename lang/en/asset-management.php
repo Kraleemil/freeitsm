@@ -184,6 +184,20 @@ return [
     ],
 
     // Asset detail panel (right pane)
+    // Right-click an asset (Ed)
+    'ctx' => [
+        'open'               => 'Open',
+        'status'             => 'Status',
+        'type'               => 'Type',
+        'location'           => 'Location',
+        'add_to_contract'    => 'Add to a contract',
+        'assign'             => 'Assign to somebody',
+        'print_label'        => 'Print label',
+        'copy_tag'           => 'Copy asset tag',
+        'copy_serial'        => 'Copy serial number',
+        'none_configured'    => 'None configured',
+    ],
+
     'detail' => [
         'select_prompt'     => 'Select an asset to view details and assigned users',
         'service_tag'       => 'Service Tag',
@@ -210,6 +224,12 @@ return [
         'contract_ends'                => 'Ends',
         'contract_notice_by'           => 'Notice by',
         'contract_no_end'              => 'No end date',
+        'add_contract'                 => 'Add to a contract',
+        'remove_contract'              => 'Remove',
+        'remove_contract_message'      => 'This takes the equipment off that contract. The contract itself is not cancelled or deleted, and the equipment stays here.',
+        'contract_picker_title'        => 'Add this equipment to a contract',
+        'contract_search_placeholder'  => 'Search by contract number, title or supplier',
+        'no_contracts_found'           => 'Nothing matched. Try the supplier name, or part of the contract title.',
 
         // Editing the four fields that used to be read-only (#1143).
         'saved'             => 'Saved.',
