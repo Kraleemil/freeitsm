@@ -297,6 +297,7 @@ class TasksService
 
         if ($firesCompleted) {
             self::completedDispatch($conn, $taskId);
+            self::recurrenceOnClosed($conn, $taskId);
         }
         if ($assignedTo !== null) {
             self::assignedDispatch($conn, $taskId, $assignedTo);
@@ -346,7 +347,34 @@ class TasksService
             if ($conn->inTransaction()) $conn->rollBack();
             throw $e;
         }
+
+        // Recurrence fires from HERE TOO (#94). Dragging a card into a closed
+        // column is the commonest way a task gets completed, and this method
+        // deliberately dispatches no workflow event — so hooking only saveTask
+        // would give a task that repeats when you tick it and silently does not
+        // when you drag it. Outside the transaction: the move is committed and
+        // must stand whatever the recurrence does.
+        if ($targetIsClosed && !(bool)$current['status_is_closed']) {
+            self::recurrenceOnClosed($conn, $taskId);
+        }
         return $taskId;
+    }
+
+    /**
+     * Make the next occurrence, if this task repeats on completion (#94).
+     *
+     * Wrapped rather than called directly so both completion paths go through
+     * one place, and so a missing recurrence service — an install part-way
+     * through an upgrade — cannot break completing a task.
+     */
+    private static function recurrenceOnClosed(PDO $conn, int $taskId): void
+    {
+        try {
+            require_once __DIR__ . '/task_recurrence.php';
+            TaskRecurrence::onTaskClosed($conn, $taskId);
+        } catch (Throwable $e) {
+            error_log('Task recurrence hook failed for task ' . $taskId . ': ' . $e->getMessage());
+        }
     }
 
     /** Hard-delete a task + its whole subtask tree (comments/tags too). Returns ['id','subtasks_deleted']. */

@@ -1161,6 +1161,20 @@ try {
             try { $conn->exec("ALTER TABLE tasks ADD INDEX idx_tasks_tenant (tenant_id)"); } catch (Exception $e) {}
         }
     }
+    // Recurring tasks (#94). Both SET NULL rather than CASCADE, deliberately:
+    // deleting the rule must stop the series repeating, and deleting the first
+    // task must not take the work already done from later occurrences with it.
+    // A task that has happened is a record of something, whatever produced it.
+    if ($tableExists('tasks') && $tableExists('task_recurrences') && $colExists('tasks', 'recurrence_id')) {
+        if (!$fkExists('tasks', 'fk_tasks_recurrence')) {
+            try { $conn->exec("ALTER TABLE tasks ADD CONSTRAINT fk_tasks_recurrence FOREIGN KEY (recurrence_id) REFERENCES task_recurrences (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+    }
+    if ($tableExists('tasks') && $colExists('tasks', 'recurrence_master_id')) {
+        if (!$fkExists('tasks', 'fk_tasks_recurrence_master')) {
+            try { $conn->exec("ALTER TABLE tasks ADD CONSTRAINT fk_tasks_recurrence_master FOREIGN KEY (recurrence_master_id) REFERENCES tasks (id) ON DELETE SET NULL"); } catch (Exception $e) {}
+        }
+    }
     // apikeys.tenant_id: the company an ingest key pins its assets to (NULL =
     // Default). SET NULL so deleting a company reverts its keys to Default rather
     // than orphaning the agent.

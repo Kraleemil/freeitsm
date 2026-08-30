@@ -211,4 +211,279 @@ class TaskRecurrence
         $d = DateTimeImmutable::createFromFormat('!Y-m-d', substr(trim($ymd), 0, 10), new DateTimeZone('UTC'));
         return $d ?: null;
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  Making the next occurrence
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** The rule a task belongs to, or null. */
+    public static function ruleForTask(PDO $conn, int $taskId): ?array
+    {
+        $s = $conn->prepare(
+            "SELECT r.* FROM task_recurrences r
+               JOIN tasks t ON t.recurrence_id = r.id
+              WHERE t.id = ? AND r.is_active = 1"
+        );
+        $s->execute([$taskId]);
+        return $s->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * A task has just been completed. If it repeats on completion, make the next
+     * one and return its id.
+     *
+     * Called from BOTH ways a task can close - saving a status change, and
+     * dragging the card on the board. moveTask() is documented "No workflow
+     * event" and dispatches nothing, so hooking only the save path would have
+     * meant a task that repeats when you tick it and silently does not when you
+     * drag it, which is the worst of both.
+     *
+     * Never throws. A recurrence that cannot be produced must not take the
+     * completion down with it: the person finished their work and that has to be
+     * recorded whatever happens next.
+     */
+    public static function onTaskClosed(PDO $conn, int $taskId): ?int
+    {
+        try {
+            $rule = self::ruleForTask($conn, $taskId);
+            if (!$rule || $rule['mode'] !== 'completion') return null;
+
+            // Counted from the day it was actually finished, not from the day it
+            // was due. A monthly check finished four days late is next due a
+            // month after you did it.
+            $next = self::nextDate($rule, gmdate('Y-m-d'));
+            if ($next === null || self::isExhausted($rule, $next)) {
+                if ($next === null || self::isExhausted($rule, $next)) self::deactivate($conn, (int)$rule['id']);
+                return null;
+            }
+            return self::createOccurrence($conn, $taskId, $rule, $next);
+        } catch (Throwable $e) {
+            error_log('TaskRecurrence::onTaskClosed failed for task ' . $taskId . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Produce every occurrence now due on a fixed schedule. Returns the ids made.
+     *
+     * Deliberately catches up rather than skipping: a series whose worker has not
+     * run for a week produces the occurrences it owed, because a missed
+     * compliance review is a fact somebody needs to see, not something to quietly
+     * forget. Capped per series per run so a rule left dormant for two years
+     * cannot create six hundred tasks in one go.
+     */
+    public static function runDue(PDO $conn, ?string $today = null, int $capPerSeries = 24): array
+    {
+        $today = $today ?: gmdate('Y-m-d');
+        $made  = [];
+
+        $s = $conn->prepare(
+            "SELECT * FROM task_recurrences
+              WHERE is_active = 1 AND mode = 'schedule'
+                AND next_due_date IS NOT NULL AND next_due_date <= ?"
+        );
+        $s->execute([$today]);
+
+        foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $rule) {
+            $rid  = (int)$rule['id'];
+            $due  = (string)$rule['next_due_date'];
+            $seen = 0;
+
+            while ($due !== '' && $due <= $today && $seen < $capPerSeries) {
+                if (self::isExhausted($rule, $due)) { self::deactivate($conn, $rid); break; }
+
+                // The newest occurrence is what the next one is copied from, so
+                // an edit to the series carries forward rather than resurrecting
+                // whatever the first one said a year ago.
+                $src = self::latestOccurrence($conn, $rid);
+                if (!$src) { self::deactivate($conn, $rid); break; }
+
+                try {
+                    // Idempotency, and it is not theoretical. A series is seeded
+                    // with next_due_date set to its FIRST occurrence's own due
+                    // date, so without this the very first worker run produces a
+                    // duplicate of the task the series was created from. The same
+                    // guard covers the worker running twice — two cron entries, or
+                    // someone running it by hand after it has already fired.
+                    if (self::occurrenceExistsFor($conn, $rid, $due)) {
+                        $id = null;
+                    } else {
+                        $id = self::createOccurrence($conn, $src, $rule, $due);
+                    }
+                    if ($id) { $made[] = $id; $rule['occurrences_created'] = (int)$rule['occurrences_created'] + 1; }
+                } catch (Throwable $e) {
+                    error_log("TaskRecurrence::runDue series $rid failed: " . $e->getMessage());
+                    break;
+                }
+
+                $next = self::nextDate($rule, $due);
+                if ($next === null || $next === $due) { self::deactivate($conn, $rid); break; }
+                $due = $next;
+                $seen++;
+                $conn->prepare("UPDATE task_recurrences SET next_due_date = ? WHERE id = ?")->execute([$due, $rid]);
+            }
+        }
+        return $made;
+    }
+
+    private static function deactivate(PDO $conn, int $recurrenceId): void
+    {
+        $conn->prepare("UPDATE task_recurrences SET is_active = 0, updated_datetime = UTC_TIMESTAMP() WHERE id = ?")
+             ->execute([$recurrenceId]);
+    }
+
+    /** Does this series already have a top-level occurrence due on that date? */
+    private static function occurrenceExistsFor(PDO $conn, int $recurrenceId, string $due): bool
+    {
+        $s = $conn->prepare(
+            "SELECT 1 FROM tasks
+              WHERE recurrence_id = ? AND parent_task_id IS NULL AND due_date = ? LIMIT 1"
+        );
+        $s->execute([$recurrenceId, $due]);
+        return (bool)$s->fetchColumn();
+    }
+
+    /** The most recent task in a series - the one a new occurrence is copied from. */
+    private static function latestOccurrence(PDO $conn, int $recurrenceId): ?int
+    {
+        $s = $conn->prepare(
+            "SELECT id FROM tasks WHERE recurrence_id = ? AND parent_task_id IS NULL
+              ORDER BY id DESC LIMIT 1"
+        );
+        $s->execute([$recurrenceId]);
+        $id = $s->fetchColumn();
+        return $id ? (int)$id : null;
+    }
+
+    /**
+     * Copy $sourceTaskId into a new task due on $due, honouring the rule's
+     * copy_* flags, and count it against the series.
+     *
+     * What is NEVER copied: the completed timestamp, and the status. A new
+     * occurrence starts open even if the series was completed into some other
+     * status - spawning one straight into a closed status would make it look
+     * done on arrival, and in completion mode could loop.
+     */
+    private static function createOccurrence(PDO $conn, int $sourceTaskId, array $rule, string $due): ?int
+    {
+        $src = $conn->prepare("SELECT * FROM tasks WHERE id = ?");
+        $src->execute([$sourceTaskId]);
+        $t = $src->fetch(PDO::FETCH_ASSOC);
+        if (!$t) return null;
+
+        $statusId = self::defaultOpenStatusId($conn);
+        if ($statusId === null) return null;   // no open status configured: do nothing rather than guess
+
+        // Keep the gap between starting and being due. "Start a week before it is
+        // due" is part of the plan, not an accident of the first occurrence.
+        $start = null;
+        if (!empty($t['start_date']) && !empty($t['due_date'])) {
+            $gap = (int)((strtotime((string)$t['due_date']) - strtotime((string)$t['start_date'])) / 86400);
+            if ($gap > 0) $start = gmdate('Y-m-d', strtotime($due) - $gap * 86400);
+        }
+
+        $master = $t['recurrence_master_id'] ?: $t['id'];
+
+        $conn->prepare(
+            "INSERT INTO tasks (title, description, status_id, priority_id, start_date, due_date,
+                                assigned_analyst_id, assigned_team_id,
+                                ticket_id, change_id, contract_id, tenant_id,
+                                recurrence_id, recurrence_master_id,
+                                board_position, created_by_id, created_datetime, updated_datetime)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     (SELECT * FROM (SELECT COALESCE(MAX(board_position), -1) + 1 FROM tasks
+                                      WHERE status_id = ? AND parent_task_id IS NULL) x),
+                     ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+        )->execute([
+            $t['title'],
+            (int)$rule['copy_description'] ? $t['description'] : null,
+            $statusId,
+            $t['priority_id'],
+            $start,
+            $due,
+            (int)$rule['copy_assignee'] ? $t['assigned_analyst_id'] : null,
+            (int)$rule['copy_assignee'] ? $t['assigned_team_id']    : null,
+            (int)$rule['copy_links'] ? $t['ticket_id']   : null,
+            (int)$rule['copy_links'] ? $t['change_id']   : null,
+            (int)$rule['copy_links'] ? $t['contract_id'] : null,
+            $t['tenant_id'],
+            $rule['id'],
+            $master,
+            $statusId,
+            $t['created_by_id'],
+        ]);
+        $newId = (int)$conn->lastInsertId();
+
+        if ((int)$rule['copy_tags']) {
+            $conn->prepare(
+                "INSERT IGNORE INTO task_tag_map (task_id, tag_id)
+                 SELECT ?, tag_id FROM task_tag_map WHERE task_id = ?"
+            )->execute([$newId, $sourceTaskId]);
+        }
+
+        if ((int)$rule['copy_subtasks']) {
+            // Titles and assignees carry; a subtask's own completion never does,
+            // and neither do its dates - last month's dates mean nothing here.
+            $subs = $conn->prepare(
+                "SELECT title, assigned_analyst_id, assigned_team_id, priority_id
+                   FROM tasks WHERE parent_task_id = ? ORDER BY board_position, id"
+            );
+            $subs->execute([$sourceTaskId]);
+            $ins = $conn->prepare(
+                "INSERT INTO tasks (title, status_id, priority_id, assigned_analyst_id, assigned_team_id,
+                                    parent_task_id, tenant_id, created_by_id, created_datetime, updated_datetime)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+            );
+            foreach ($subs->fetchAll(PDO::FETCH_ASSOC) as $s2) {
+                $ins->execute([
+                    $s2['title'], $statusId, $s2['priority_id'],
+                    (int)$rule['copy_assignee'] ? $s2['assigned_analyst_id'] : null,
+                    (int)$rule['copy_assignee'] ? $s2['assigned_team_id']    : null,
+                    $newId, $t['tenant_id'], $t['created_by_id'],
+                ]);
+            }
+        }
+
+        if ((int)$rule['copy_attachments']) {
+            // Links the SAME documents to the new task. It does not duplicate
+            // files: one procedure attached to twelve monthly checks should be
+            // one document, edited once.
+            try {
+                $conn->prepare(
+                    "INSERT INTO document_links (document_id, parent_type, parent_id, linked_by_id, created_datetime)
+                     SELECT document_id, 'task', ?, linked_by_id, UTC_TIMESTAMP()
+                       FROM document_links WHERE parent_type = 'task' AND parent_id = ?"
+                )->execute([$newId, $sourceTaskId]);
+            } catch (Throwable $e) {
+                // An install without the documents tables still gets its task.
+            }
+        }
+
+        $conn->prepare(
+            "UPDATE task_recurrences
+                SET occurrences_created = occurrences_created + 1, updated_datetime = UTC_TIMESTAMP()
+              WHERE id = ?"
+        )->execute([(int)$rule['id']]);
+
+        return $newId;
+    }
+
+    /**
+     * The status a new occurrence starts in: the configured default, but only
+     * among OPEN statuses.
+     *
+     * TasksService::lookupDefault deliberately does not filter on is_closed,
+     * because an admin who makes a closed status the default has said what they
+     * meant. That reasoning does not carry here - a recurrence that arrives
+     * already closed is not work anybody will do, and on completion mode it
+     * would complete itself.
+     */
+    private static function defaultOpenStatusId(PDO $conn): ?int
+    {
+        $id = $conn->query(
+            "SELECT id FROM task_statuses WHERE is_active = 1 AND is_closed = 0
+              ORDER BY is_default DESC, display_order, id LIMIT 1"
+        )->fetchColumn();
+        return $id ? (int)$id : null;
+    }
 }

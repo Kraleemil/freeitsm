@@ -3022,7 +3022,59 @@ return [
         'work_start_datetime' => 'DATETIME NULL',
         'work_end_datetime'   => 'DATETIME NULL',
         'work_all_day'        => 'TINYINT(1) NOT NULL DEFAULT 0',
+        // Recurring tasks (#94). A recurrence is a SERIES, not a template:
+        // recurrence_id names the rule every occurrence was made by, and
+        // recurrence_master_id points at the FIRST task of the series so any
+        // occurrence can show a reader where it started. Both NULL on the vast
+        // majority of tasks, which do not repeat.
+        'recurrence_id'        => 'INT NULL',
+        'recurrence_master_id' => 'INT NULL',
         'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
+    ],
+
+    /**
+     * The rule behind a repeating task (#94, dschipfel).
+     *
+     * One row per SERIES. Every task the series produces carries its id, and the
+     * rule is read to work out the next date each time one is completed (mode
+     * 'completion') or by the worker (mode 'schedule').
+     *
+     * The copy_* flags are the reporter's own list: description, subtasks,
+     * assignees, tags, links and attachments, each optional because "carry the
+     * attachments forward" is right for a checklist and wrong for an audit that
+     * gathers fresh evidence every quarter.
+     */
+    'task_recurrences' => [
+        'id'                  => 'INT NOT NULL AUTO_INCREMENT',
+        // completion = count from the day it was finished (Planner's behaviour).
+        // schedule   = fixed dates whether or not the last one was done.
+        'mode'                => "VARCHAR(12) NOT NULL DEFAULT 'completion'",
+        'freq'                => "VARCHAR(10) NOT NULL DEFAULT 'weekly'",
+        'interval_n'          => 'INT NOT NULL DEFAULT 1',
+        'weekdays'            => 'VARCHAR(20) NULL',      // weekly: ISO days, "1,4"
+        'month_mode'          => "VARCHAR(4) NULL",       // dom | nth
+        'day_of_month'        => 'INT NULL',              // 1..31, or -1 = last day
+        'nth'                 => 'INT NULL',              // 1..5, or -1 = last
+        'nth_weekday'         => 'INT NULL',              // ISO 1..7
+        'month_of_year'       => 'INT NULL',              // yearly: 1..12
+        'ends_mode'           => "VARCHAR(12) NOT NULL DEFAULT 'never'",
+        'ends_on'             => 'DATE NULL',
+        'max_occurrences'     => 'INT NULL',
+        // Starts at 1: the task the series was created from is its first
+        // occurrence, so "after 6" produces six tasks in total and not seven.
+        'occurrences_created' => 'INT NOT NULL DEFAULT 1',
+        'copy_description'    => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'copy_subtasks'       => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'copy_assignee'       => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'copy_tags'           => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'copy_links'          => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'copy_attachments'    => 'TINYINT(1) NOT NULL DEFAULT 0',
+        // schedule mode only: the date the worker should next produce one for.
+        'next_due_date'       => 'DATE NULL',
+        'is_active'           => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'created_by_id'       => 'INT NULL',
+        'created_datetime'    => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'    => 'DATETIME NULL',
     ],
 
     // Time actually SPENT on a task, as many sessions as it took (GH #112).

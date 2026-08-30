@@ -3988,6 +3988,11 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     `work_start_datetime` DATETIME NULL,             -- naive wall clock, like a ticket's scheduled work
     `work_end_datetime`   DATETIME NULL,
     `work_all_day`        TINYINT(1) NOT NULL DEFAULT 0,
+    -- Recurring tasks (#94). recurrence_id names the rule that made this
+    -- occurrence; recurrence_master_id points at the first task of the series.
+    -- The constraints are added after task_recurrences is created, below.
+    `recurrence_id`        INT NULL,
+    `recurrence_master_id` INT NULL,
     `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_tasks_status_id` (`status_id`),
@@ -4004,6 +4009,49 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     CONSTRAINT `fk_tasks_status` FOREIGN KEY (`status_id`) REFERENCES `task_statuses` (`id`),
     CONSTRAINT `fk_tasks_priority` FOREIGN KEY (`priority_id`) REFERENCES `task_priorities` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Recurring tasks (#94). One row per SERIES, not per occurrence and not a
+-- template: the task a series was created from IS its first occurrence, so
+-- nothing appears in a list, count or report that is not real work.
+CREATE TABLE IF NOT EXISTS `task_recurrences` (
+    `id`                  INT NOT NULL AUTO_INCREMENT,
+    -- completion = count from the day it was finished (what Planner does, and
+    -- what people mean by "monthly"). schedule = fixed dates whether or not the
+    -- last one was done, which is what a compliance review needs.
+    `mode`                VARCHAR(12) NOT NULL DEFAULT 'completion',
+    `freq`                VARCHAR(10) NOT NULL DEFAULT 'weekly',
+    `interval_n`          INT NOT NULL DEFAULT 1,
+    `weekdays`            VARCHAR(20) NULL,
+    `month_mode`          VARCHAR(4) NULL,
+    `day_of_month`        INT NULL,
+    `nth`                 INT NULL,
+    `nth_weekday`         INT NULL,
+    `month_of_year`       INT NULL,
+    `ends_mode`           VARCHAR(12) NOT NULL DEFAULT 'never',
+    `ends_on`             DATE NULL,
+    `max_occurrences`     INT NULL,
+    `occurrences_created` INT NOT NULL DEFAULT 1,
+    `copy_description`    TINYINT(1) NOT NULL DEFAULT 1,
+    `copy_subtasks`       TINYINT(1) NOT NULL DEFAULT 1,
+    `copy_assignee`       TINYINT(1) NOT NULL DEFAULT 1,
+    `copy_tags`           TINYINT(1) NOT NULL DEFAULT 1,
+    `copy_links`          TINYINT(1) NOT NULL DEFAULT 0,
+    `copy_attachments`    TINYINT(1) NOT NULL DEFAULT 0,
+    `next_due_date`       DATE NULL,
+    `is_active`           TINYINT(1) NOT NULL DEFAULT 1,
+    `created_by_id`       INT NULL,
+    `created_datetime`    DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime`    DATETIME NULL,
+    PRIMARY KEY (`id`),
+    KEY `ix_task_recurrences_due` (`is_active`, `next_due_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Added after task_recurrences exists. Both SET NULL, deliberately: deleting the
+-- rule stops the series repeating, and deleting the first task must not take the
+-- work recorded on later occurrences with it.
+ALTER TABLE `tasks`
+    ADD CONSTRAINT `fk_tasks_recurrence` FOREIGN KEY (`recurrence_id`) REFERENCES `task_recurrences` (`id`) ON DELETE SET NULL,
+    ADD CONSTRAINT `fk_tasks_recurrence_master` FOREIGN KEY (`recurrence_master_id`) REFERENCES `tasks` (`id`) ON DELETE SET NULL;
 
 -- Time actually spent on a task, as many sessions as it took (GH #112).
 -- Mirrors ticket_time_entries column for column: it is the same idea about a
