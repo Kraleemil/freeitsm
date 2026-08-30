@@ -817,11 +817,19 @@ $translationNamespaces = ['common', 'service-status'];
                         <td><span class="incident-status" ${statusStyle}>${escapeHtml(inc.status)}</span></td>
                         <td><div class="incident-services-list">${svcs || `<span style="color:var(--text-dim, #999)">${escapeHtml(window.t('service-status.board.none'))}</span>`}</div></td>
                         <td><span class="incident-date">${dateStr}</span></td>
-                        <td class="incident-actions">
+                        <?php /* ⚠️ RESOLVE FIRST, then edit, then delete (Ed).
+                                 The column is right-aligned and Resolve is the
+                                 only button that is sometimes absent, so it has
+                                 to be the leftmost one: anything to its left
+                                 would shift by a button's width on a resolved
+                                 incident, which is exactly what happened when
+                                 Edit was first. Edit and Delete now sit in the
+                                 same place on every row, resolved or not. */ ?>
+                        <td class="incident-actions">${resolveBtn}
                             <button type="button" class="action-btn" title="${escapeHtml(window.t('service-status.actions.edit'))}"
                                     onclick="editIncident(${inc.id})">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            </button>${resolveBtn}
+                            </button>
                             <button type="button" class="action-btn action-btn-danger" title="${escapeHtml(window.t('service-status.actions.delete'))}"
                                     onclick="deleteIncidentById(${inc.id})">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
