@@ -109,6 +109,11 @@ class ServiceStatusService
         // Default Investigating (like save_incident.php); by name or id.
         $status  = self::resolveIncidentStatus($conn, $in) ?? self::resolveIncidentStatus($conn, ['status' => 'Investigating']);
         $comment = trim((string)($in['comment'] ?? '')) ?: null;
+        // Discussion #99: an update is INTERNAL unless it is explicitly marked
+        // otherwise, matching ticket_notes. Defaulting the other way would mean
+        // a caller that has never heard of this - the REST API, a workflow, an
+        // older page - silently publishing to the portal.
+        $isInternal = array_key_exists('is_internal', $in) ? (bool)$in['is_internal'] : true;
         $links   = self::validateIncidentServices($conn, (isset($in['services']) && is_array($in['services'])) ? $in['services'] : []);
 
         $conn->beginTransaction();
@@ -121,7 +126,7 @@ class ServiceStatusService
             self::replaceIncidentServices($conn, $incidentId, $links);
             // The opening snapshot. Written even for an incident nobody ever edits,
             // so the reader never has to special-case "one update or none".
-            self::recordIncidentUpdate($conn, $ctx, $incidentId, $status[0], $comment, $links);
+            self::recordIncidentUpdate($conn, $ctx, $incidentId, $status[0], $comment, $links, $isInternal);
             $conn->commit();
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -149,6 +154,11 @@ class ServiceStatusService
         $statusId   = $status !== null ? $status[0] : ($current['status_id'] !== null ? (int)$current['status_id'] : null);
         $isResolved = $status !== null ? (bool)$status[2] : (bool)$current['status_is_resolved'];
         $comment    = array_key_exists('comment', $in) ? (trim((string)$in['comment']) ?: null) : $current['comment'];
+        // Discussion #99: an update is INTERNAL unless it is explicitly marked
+        // otherwise, matching ticket_notes. Defaulting the other way would mean
+        // a caller that has never heard of this - the REST API, a workflow, an
+        // older page - silently publishing to the portal.
+        $isInternal = array_key_exists('is_internal', $in) ? (bool)$in['is_internal'] : true;
 
         $links = (isset($in['services']) && is_array($in['services'])) ? self::validateIncidentServices($conn, $in['services']) : null;
 
@@ -176,7 +186,7 @@ class ServiceStatusService
             // recordIncidentUpdate() then snapshots the CURRENT links, so the
             // timeline stays continuous through a status-only or comment-only
             // change rather than gaining a hole where nothing was said.
-            self::recordIncidentUpdate($conn, $ctx, $id, $statusId, $comment, $links);
+            self::recordIncidentUpdate($conn, $ctx, $id, $statusId, $comment, $links, $isInternal);
             $conn->commit();
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
@@ -313,7 +323,7 @@ class ServiceStatusService
      * @param array|null $links [[serviceId, impactId], …] — null means "unchanged",
      *                          in which case the current links are snapshotted.
      */
-    private static function recordIncidentUpdate(PDO $conn, ActorContext $ctx, int $incidentId, ?int $statusId, ?string $comment, ?array $links): void
+    private static function recordIncidentUpdate(PDO $conn, ActorContext $ctx, int $incidentId, ?int $statusId, ?string $comment, ?array $links, bool $isInternal = true): void
     {
         try {
             if ($links === null) {
@@ -326,9 +336,9 @@ class ServiceStatusService
             }
 
             $conn->prepare(
-                "INSERT INTO status_incident_updates (incident_id, status_id, comment, created_by_id, created_datetime)
-                 VALUES (?, ?, ?, ?, UTC_TIMESTAMP())"
-            )->execute([$incidentId, $statusId, $comment, $ctx->actorId]);
+                "INSERT INTO status_incident_updates (incident_id, status_id, comment, is_internal, created_by_id, created_datetime)
+                 VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())"
+            )->execute([$incidentId, $statusId, $comment, $isInternal ? 1 : 0, $ctx->actorId]);
             $updateId = (int)$conn->lastInsertId();
 
             if ($links) {

@@ -5295,6 +5295,10 @@ CREATE TABLE IF NOT EXISTS `status_incident_updates` (
     `incident_id`       INT NOT NULL,
     `status_id`         INT NULL,
     `comment`           LONGTEXT NULL,
+    -- Internal by default (#99). An update written before this column
+    -- existed becomes internal, so an upgrade can never retroactively
+    -- publish troubleshooting notes to the self-service portal.
+    `is_internal` TINYINT(1) NOT NULL DEFAULT 1,
     `created_by_id`     INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),

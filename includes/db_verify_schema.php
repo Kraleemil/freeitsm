@@ -3612,6 +3612,10 @@ return [
         'incident_id'       => 'INT NOT NULL',
         'status_id'         => 'INT NULL',
         'comment'           => 'LONGTEXT NULL',
+        // DEFAULT 1 (#99): rows written before this column existed become
+        // internal, so Database Verification cannot publish old
+        // troubleshooting notes to the portal.
+        'is_internal'       => 'TINYINT(1) NOT NULL DEFAULT 1',
         'created_by_id'     => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
     ],
