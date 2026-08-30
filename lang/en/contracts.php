@@ -131,6 +131,18 @@ return [
         'terms_detail'              => 'Contract terms detail',
         'no_content'                => 'No content',
         'related_tasks'             => 'Related tasks',
+
+        // Equipment covered by this contract (#106)
+        'linked_assets'                => 'Equipment',
+        'add_asset'                    => 'Add',
+        'no_linked_assets'             => 'No equipment is linked to this contract.',
+        'assets_load_failed'           => 'Could not load the linked equipment.',
+        'asset_reference_placeholder'  => 'Reference',
+        'unlink_asset'                 => 'Remove',
+        'unlink_asset_message'         => 'This removes the equipment from this contract. The equipment itself is not deleted and stays in Asset Management.',
+        'asset_picker_title'           => 'Add equipment to this contract',
+        'asset_search_placeholder'     => 'Search by name, model, serial, asset tag or location',
+        'no_assets_found'              => 'Nothing matched. Try a model, a serial number or a location.',
         'related_events'            => 'Related calendar events',
         'no_related_tasks'          => 'No related tasks',
         'no_related_events'         => 'No related events',

@@ -202,6 +202,15 @@ return [
         'tab_software'      => 'Software',
         'tab_tickets'       => 'Tickets',
 
+        // Contracts covering this asset (#106)
+        'tab_contracts'                => 'Contracts',
+        'no_contracts'                 => 'This equipment is not on any contract.',
+        'contracts_load_failed'        => 'Could not load contracts.',
+        'contracts_no_access'          => 'You do not have access to the Contracts module.',
+        'contract_ends'                => 'Ends',
+        'contract_notice_by'           => 'Notice by',
+        'contract_no_end'              => 'No end date',
+
         // Editing the four fields that used to be read-only (#1143).
         'saved'             => 'Saved.',
         'save_failed'       => 'Could not save that.',

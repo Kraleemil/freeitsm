@@ -223,6 +223,43 @@ if (!$contract_id) {
         .related-pill.high, .related-pill.urgent { background: #fee2e2; color: #991b1b; }
         .related-cat-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
 
+        /* Equipment covered by this contract (discussion #106). */
+        .related-section h3 { display: flex; align-items: center; justify-content: space-between; }
+        .related-add {
+            border: none; background: none; cursor: pointer; padding: 0;
+            font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0;
+            text-transform: none; color: var(--con-accent, #f59e0b);
+        }
+        .related-add:hover { text-decoration: underline; }
+        /* The name takes the room, the note takes what is left, and the meta
+           gets out of the way first - a location is the least useful thing on
+           the row once you already know which contract you are looking at. */
+        .related-item--asset > a { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .related-item--asset > .meta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .asset-reference {
+            flex: 1 1 120px; min-width: 90px; margin-left: auto;
+            padding: 4px 8px; font-size: 12px; font-family: inherit;
+            border: 1px solid var(--border, #ddd); border-radius: 4px;
+            background: var(--surface, #fff); color: var(--text, #333);
+        }
+        .asset-reference:focus { outline: none; border-color: var(--con-accent, #f59e0b); }
+        .related-remove {
+            flex-shrink: 0; width: 22px; height: 22px; line-height: 1;
+            border: none; background: none; cursor: pointer;
+            font-size: 18px; color: var(--text-faint, #bbb); border-radius: 4px;
+        }
+        .related-remove:hover { background: var(--danger-bg, #fee2e2); color: var(--danger-text, #991b1b); }
+
+        .asset-pick-results { max-height: 320px; overflow-y: auto; }
+        .asset-pick {
+            display: block; width: 100%; text-align: left; cursor: pointer;
+            padding: 9px 10px; border: none; border-radius: 6px;
+            background: none; font: inherit; color: var(--text, #333);
+        }
+        .asset-pick:hover { background: var(--surface-hover, #f5f5f5); }
+        .asset-pick-name { display: block; font-size: 13px; font-weight: 500; }
+        .asset-pick-meta { display: block; font-size: 12px; color: var(--text-muted, #666); }
+
         /* Modal (namespaced to avoid clash with .modal in inbox.css) */
         .cv-modal-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,0.45);
@@ -349,6 +386,7 @@ if (!$contract_id) {
     <script>
         const API_BASE = '../api/contracts/';
         const TASKS_API = '../api/tasks/';
+        const CONTRACTS_API = '../api/contracts/';
         const CALENDAR_API = '../api/calendar/';
         const contractId = <?php echo json_encode($contract_id); ?>;
         let currentContract = null;
@@ -503,6 +541,13 @@ if (!$contract_id) {
                     </div>
                 </div>
                 <div class="related-list">
+                    <div class="related-section" id="relatedAssetsSection">
+                        <h3>
+                            ${escapeHtml(window.t('contracts.detail.linked_assets'))}
+                            <button type="button" class="related-add" onclick="openAssetPicker()">${escapeHtml(window.t('contracts.detail.add_asset'))}</button>
+                        </h3>
+                        <div id="relatedAssetsList" class="related-empty">${escapeHtml(window.t('common.loading'))}</div>
+                    </div>
                     <div class="related-section" id="relatedTasksSection">
                         <h3>${escapeHtml(window.t('contracts.detail.related_tasks'))}</h3>
                         <div id="relatedTasksList" class="related-empty">${escapeHtml(window.t('common.loading'))}</div>
@@ -616,8 +661,157 @@ if (!$contract_id) {
 
         // Related items
         async function loadRelatedItems() {
+            loadRelatedAssets();
             loadRelatedTasks();
             loadRelatedEvents();
+        }
+
+        // ── Equipment covered by this contract (discussion #106) ─────────────
+        //
+        // ⚠️ This list is filtered on the server to the companies the reader can
+        // reach, and it deliberately does NOT report how many were withheld. A
+        // count of what you cannot see is a leak of its own.
+        async function loadRelatedAssets() {
+            const list = document.getElementById('relatedAssetsList');
+            try {
+                const resp = await fetch(CONTRACTS_API + 'get_contract_assets.php?contract_id=' + contractId);
+                const data = await resp.json();
+                if (!data.success) {
+                    list.innerHTML = '<div class="related-empty">' + escapeHtml(window.t('contracts.detail.assets_load_failed')) + '</div>';
+                    return;
+                }
+                list.className = '';
+                if (!data.assets.length) {
+                    list.innerHTML = '<div class="related-empty">' + escapeHtml(window.t('contracts.detail.no_linked_assets')) + '</div>';
+                    return;
+                }
+                list.innerHTML = data.assets.map(a => `
+                    <div class="related-item related-item--asset">
+                        <a href="../asset-management/index.php?asset=${a.asset_id}">${escapeHtml(assetLabel(a))}</a>
+                        <span class="meta">
+                            ${a.type_name ? escapeHtml(a.type_name) : ''}
+                            ${a.type_name && a.location_name ? '<span class="meta-sep">•</span>' : ''}
+                            ${a.location_name ? escapeHtml(a.location_name) : ''}
+                        </span>
+                        <input type="text" class="asset-reference" value="${escapeHtml(a.reference || '')}"
+                               maxlength="190"
+                               placeholder="${escapeHtml(window.t('contracts.detail.asset_reference_placeholder'))}"
+                               onchange="saveAssetReference(${a.link_id}, this.value)">
+                        <button type="button" class="related-remove" title="${escapeHtml(window.t('contracts.detail.unlink_asset'))}"
+                                onclick="unlinkAsset(${a.link_id})">&times;</button>
+                    </div>`).join('');
+            } catch (e) {
+                list.innerHTML = '<div class="related-empty">' + escapeHtml(window.t('contracts.detail.assets_load_failed')) + '</div>';
+            }
+        }
+
+        /**
+         * What to call a piece of equipment.
+         *
+         * A hostname is the usual answer and a SIM card does not have one, so
+         * the fallbacks matter: an asset tag, a serial, or the make and model.
+         * Falling through to a bare id would be a row nobody can identify.
+         */
+        function assetLabel(a) {
+            return a.hostname
+                || a.asset_tag
+                || a.service_tag
+                || [a.manufacturer, a.model].filter(Boolean).join(' ')
+                || ('#' + a.asset_id);
+        }
+
+        async function saveAssetReference(linkId, value) {
+            try {
+                await fetch(CONTRACTS_API + 'save_contract_asset.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ link_id: linkId, reference: value })
+                });
+            } catch (e) { /* the field keeps what was typed; the next load corrects it */ }
+        }
+
+        async function unlinkAsset(linkId) {
+            // Says what it does. "Remove" next to a piece of equipment reads as
+            // "delete the equipment" to enough people to be worth a sentence.
+            const okToGo = typeof window.showConfirm === 'function'
+                ? await window.showConfirm({
+                      title: window.t('contracts.detail.unlink_asset'),
+                      message: window.t('contracts.detail.unlink_asset_message'),
+                      okLabel: window.t('contracts.detail.unlink_asset'), okClass: 'danger'
+                  })
+                : confirm(window.t('contracts.detail.unlink_asset_message'));
+            if (!okToGo) return;
+
+            try {
+                const resp = await fetch(CONTRACTS_API + 'delete_contract_asset.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ link_id: linkId })
+                });
+                const data = await resp.json();
+                if (!data.success) { alert(data.error || window.t('contracts.detail.assets_load_failed')); return; }
+                loadRelatedAssets();
+            } catch (e) {
+                alert(window.t('contracts.detail.assets_load_failed'));
+            }
+        }
+
+        // ── The picker ───────────────────────────────────────────────────────
+        let assetPickerTimer = null;
+
+        function openAssetPicker() {
+            document.getElementById('assetPickerModal').classList.add('active');
+            const box = document.getElementById('assetPickerSearch');
+            box.value = '';
+            box.focus();
+            searchLinkableAssets();
+        }
+
+        function closeAssetPicker() {
+            document.getElementById('assetPickerModal').classList.remove('active');
+        }
+
+        function assetPickerInput() {
+            clearTimeout(assetPickerTimer);
+            assetPickerTimer = setTimeout(searchLinkableAssets, 200);
+        }
+
+        async function searchLinkableAssets() {
+            const results = document.getElementById('assetPickerResults');
+            const q = document.getElementById('assetPickerSearch').value.trim();
+            try {
+                const resp = await fetch(CONTRACTS_API + 'search_contract_assets.php?contract_id=' + contractId
+                                         + '&q=' + encodeURIComponent(q));
+                const data = await resp.json();
+                if (!data.success || !data.assets.length) {
+                    results.innerHTML = '<div class="related-empty">' + escapeHtml(window.t('contracts.detail.no_assets_found')) + '</div>';
+                    return;
+                }
+                results.innerHTML = data.assets.map(a => `
+                    <button type="button" class="asset-pick" onclick="linkAsset(${a.asset_id})">
+                        <span class="asset-pick-name">${escapeHtml(assetLabel(a))}</span>
+                        <span class="asset-pick-meta">
+                            ${a.type_name ? escapeHtml(a.type_name) : ''}
+                            ${a.type_name && a.location_name ? ' • ' : ''}
+                            ${a.location_name ? escapeHtml(a.location_name) : ''}
+                        </span>
+                    </button>`).join('');
+            } catch (e) {
+                results.innerHTML = '<div class="related-empty">' + escapeHtml(window.t('contracts.detail.assets_load_failed')) + '</div>';
+            }
+        }
+
+        async function linkAsset(assetId) {
+            try {
+                const resp = await fetch(CONTRACTS_API + 'save_contract_asset.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contract_id: contractId, asset_id: assetId })
+                });
+                const data = await resp.json();
+                if (!data.success) { alert(data.error || window.t('contracts.detail.assets_load_failed')); return; }
+                closeAssetPicker();
+                loadRelatedAssets();
+            } catch (e) {
+                alert(window.t('contracts.detail.assets_load_failed'));
+            }
         }
 
         async function loadRelatedTasks() {
@@ -858,6 +1052,26 @@ if (!$contract_id) {
             }
         }
     </script>
+
+    <!-- Link equipment to this contract (discussion #106) -->
+    <div class="cv-modal-overlay" id="assetPickerModal">
+        <div class="cv-modal">
+            <div class="cv-modal-header">
+                <h3><?php echo htmlspecialchars(t('contracts.detail.asset_picker_title')); ?></h3>
+            </div>
+            <div class="cv-modal-body">
+                <div class="form-group">
+                    <input type="text" id="assetPickerSearch" autocomplete="off"
+                           oninput="assetPickerInput()"
+                           placeholder="<?php echo htmlspecialchars(t('contracts.detail.asset_search_placeholder')); ?>">
+                </div>
+                <div id="assetPickerResults" class="asset-pick-results"></div>
+            </div>
+            <div class="cv-modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeAssetPicker()"><?php echo htmlspecialchars(t('common.close')); ?></button>
+            </div>
+        </div>
+    </div>
 
     <!-- Create Task Modal -->
     <div class="cv-modal-overlay" id="taskModal">

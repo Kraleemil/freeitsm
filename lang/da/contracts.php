@@ -113,6 +113,18 @@ return [
         'terms_detail' => 'Kontraktvilkår i detaljer',
         'no_content' => 'Intet indhold',
         'related_tasks' => 'Relaterede opgaver',
+
+        // Equipment covered by this contract (#106)
+        'linked_assets'                => 'Udstyr',
+        'add_asset'                    => 'Tilføj',
+        'no_linked_assets'             => 'Der er ikke knyttet udstyr til denne kontrakt.',
+        'assets_load_failed'           => 'Det tilknyttede udstyr kunne ikke indlæses.',
+        'asset_reference_placeholder'  => 'Reference',
+        'unlink_asset'                 => 'Fjern',
+        'unlink_asset_message'         => 'Dette fjerner udstyret fra denne kontrakt. Selve udstyret slettes ikke og forbliver i Udstyrsstyring.',
+        'asset_picker_title'           => 'Tilføj udstyr til denne kontrakt',
+        'asset_search_placeholder'     => 'Søg efter navn, model, serienummer, aktivmærke eller placering',
+        'no_assets_found'              => 'Intet matchede. Prøv en model, et serienummer eller en placering.',
         'related_events' => 'Relaterede kalenderbegivenheder',
         'no_related_tasks' => 'Ingen relaterede opgaver',
         'no_related_events' => 'Ingen relaterede begivenheder',

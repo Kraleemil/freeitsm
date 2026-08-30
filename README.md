@@ -83,7 +83,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | [Reporting](https://github.com/edmozley/freeitsm/wiki/Reporting) | System logs, audit trails, and an Intune device dashboard with drill-down |
 | [Software](https://github.com/edmozley/freeitsm/wiki/Software) | Software inventory from an agent script, plus licence management |
 | [Forms](https://github.com/edmozley/freeitsm/wiki/Forms) | Dynamic form builder with AI assist, section headings, conditional questions, versioning and submissions reporting |
-| [Contracts](https://github.com/edmozley/freeitsm/wiki/Contracts) | Supplier and contract lifecycle, plus an AI-powered RFP Builder |
+| [Contracts](https://github.com/edmozley/freeitsm/wiki/Contracts) | Supplier and contract lifecycle, plus an AI-powered RFP Builder, and **equipment covered by a contract** &mdash; link phones, SIMs, routers or hardware to the agreement that covers them, visible from both the contract and the equipment |
 | [Service Status](https://github.com/edmozley/freeitsm/wiki/Service-Status) | Service health dashboard driven by incident tracking |
 | [War Room](https://github.com/edmozley/freeitsm/wiki/War-Room) | Chat on your own server for when Teams, Slack or the internet are down — channels, direct messages, search, attachments, and an AI situation report that drafts the update to the business |
 | [LMS](https://github.com/edmozley/freeitsm/wiki/LMS) | Author courses in-app (with AI) or upload SCORM; assign, take and track them |

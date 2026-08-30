@@ -320,6 +320,8 @@ return [
     ['cmdb_object_relationships', 'ix_cmdb_or_to_object_id', 'key', '(`to_object_id`)'],
     ['ticket_cmdb_objects', 'uq_ticket_cmdb_obj', 'unique', '(`ticket_id`,`cmdb_object_id`)'],
     ['ticket_cmdb_objects', 'ix_tco_cmdb_object_id', 'key', '(`cmdb_object_id`)'],
+    ['contract_assets', 'uq_contract_asset', 'unique', '(`contract_id`,`asset_id`)'],
+    ['contract_assets', 'ix_ca_asset_id', 'key', '(`asset_id`)'],
     ['ticket_assets', 'uq_ticket_asset', 'unique', '(`ticket_id`,`asset_id`)'],
     ['ticket_assets', 'ix_ta_asset_id', 'key', '(`asset_id`)'],
     ['network_diagrams', 'ix_net_diag_parent', 'key', '(`parent_diagram_id`)'],

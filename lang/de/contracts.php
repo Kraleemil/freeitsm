@@ -110,6 +110,18 @@ return [
         'terms_detail'                 => 'Vertragsbedingungen im Detail',
         'no_content'                   => 'Kein Inhalt',
         'related_tasks'                => 'Zugehörige Aufgaben',
+
+        // Equipment covered by this contract (#106)
+        'linked_assets'                => 'Geräte',
+        'add_asset'                    => 'Hinzufügen',
+        'no_linked_assets'             => 'Mit diesem Vertrag sind keine Geräte verknüpft.',
+        'assets_load_failed'           => 'Die verknüpften Geräte konnten nicht geladen werden.',
+        'asset_reference_placeholder'  => 'Referenz',
+        'unlink_asset'                 => 'Entfernen',
+        'unlink_asset_message'         => 'Damit wird das Gerät aus diesem Vertrag entfernt. Das Gerät selbst wird nicht gelöscht und bleibt in der Geräteverwaltung.',
+        'asset_picker_title'           => 'Gerät zu diesem Vertrag hinzufügen',
+        'asset_search_placeholder'     => 'Nach Name, Modell, Seriennummer, Inventarnummer oder Standort suchen',
+        'no_assets_found'              => 'Keine Treffer. Versuchen Sie ein Modell, eine Seriennummer oder einen Standort.',
         'related_events'               => 'Zugehörige Kalendertermine',
         'no_related_tasks'             => 'Keine zugehörigen Aufgaben',
         'no_related_events'            => 'Keine zugehörigen Termine',

@@ -3754,6 +3754,17 @@ return [
     // Tickets ↔ assets (discussion #57). Two nullable creator columns because a
     // link can be made by an analyst or by a portal user, and they are different
     // tables. See freeitsm.sql for the full reasoning.
+    // Assets covered by a contract (#106). `reference` is the link's own text -
+    // a phone number, a line ID - because it describes the asset's place in
+    // THIS contract rather than the asset itself.
+    'contract_assets' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'contract_id'      => 'INT NOT NULL',
+        'asset_id'         => 'INT NOT NULL',
+        'reference'        => 'VARCHAR(190) NULL',
+        'linked_by_id'     => 'INT NULL',
+        'created_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
     'ticket_assets' => [
         'id'                    => 'INT NOT NULL AUTO_INCREMENT',
         'ticket_id'             => 'INT NOT NULL',

@@ -5512,6 +5512,33 @@ CREATE TABLE IF NOT EXISTS `ticket_cmdb_objects` (
 -- which carry their own, and a link may only ever be made between two rows in
 -- the same company. That is enforced in application code, as it is for
 -- ticket_cmdb_objects.
+-- Assets covered by a contract (discussion #106).
+--
+-- No tenant_id, for the same reason ticket_assets has none: the company comes
+-- from the asset, which carries its own. Contracts are NOT company-scoped at
+-- all today, so the asset side is the only side that can answer "whose is
+-- this?" - which is exactly why every list of linked assets must be filtered to
+-- the companies the reader can reach, and why the write re-checks rather than
+-- trusting the list it was picked from.
+--
+-- `reference` is the link's own free text: the phone number on a SIM, a line
+-- ID, a seat number. It belongs on the LINK rather than the asset because it
+-- describes the asset's place in this contract, and the same handset moved to a
+-- different agreement keeps the handset and loses the line.
+CREATE TABLE IF NOT EXISTS `contract_assets` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `contract_id`      INT NOT NULL,
+    `asset_id`         INT NOT NULL,
+    `reference`        VARCHAR(190) NULL,
+    `linked_by_id`     INT NULL,
+    `created_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_contract_asset` (`contract_id`, `asset_id`),
+    KEY `ix_ca_asset_id` (`asset_id`),
+    CONSTRAINT `fk_ca_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ca_asset`    FOREIGN KEY (`asset_id`)    REFERENCES `assets` (`id`)    ON DELETE CASCADE,
+    CONSTRAINT `fk_ca_analyst`  FOREIGN KEY (`linked_by_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS `ticket_assets` (
     `id`                    INT NOT NULL AUTO_INCREMENT,
     `ticket_id`             INT NOT NULL,

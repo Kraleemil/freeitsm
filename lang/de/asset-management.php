@@ -86,6 +86,15 @@ return [
         'tab_devices'             => 'Geräte',
         'tab_software'            => 'Software',
         'tab_tickets'             => 'Tickets',
+
+        // Contracts covering this asset (#106)
+        'tab_contracts'                => 'Verträge',
+        'no_contracts'                 => 'Dieses Gerät gehört zu keinem Vertrag.',
+        'contracts_load_failed'        => 'Verträge konnten nicht geladen werden.',
+        'contracts_no_access'          => 'Sie haben keinen Zugriff auf das Modul Verträge.',
+        'contract_ends'                => 'Endet',
+        'contract_notice_by'           => 'Kündigung bis',
+        'contract_no_end'              => 'Kein Enddatum',
         'saved'                   => 'Gespeichert.',
         'save_failed'             => 'Konnte nicht gespeichert werden.',
         'name_required'           => 'Ein Asset benötigt einen Namen.',

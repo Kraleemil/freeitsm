@@ -174,6 +174,15 @@ return [
         'tab_devices' => 'Enheder',
         'tab_software' => 'Software',
         'tab_tickets' => 'Sager',
+
+        // Contracts covering this asset (#106)
+        'tab_contracts'                => 'Kontrakter',
+        'no_contracts'                 => 'Dette udstyr er ikke på nogen kontrakt.',
+        'contracts_load_failed'        => 'Kontrakter kunne ikke indlæses.',
+        'contracts_no_access'          => 'Du har ikke adgang til modulet Kontrakter.',
+        'contract_ends'                => 'Slutter',
+        'contract_notice_by'           => 'Opsigelse senest',
+        'contract_no_end'              => 'Ingen slutdato',
         'saved' => 'Gemt.',
         'save_failed' => 'Kunne ikke gemme det.',
         'name_required' => 'Et aktiv skal have et navn.',

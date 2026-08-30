@@ -964,6 +964,32 @@ $translationNamespaces = ['common', 'asset-management'];
             font-size: 13px;
         }
         .asset-ticket-row:hover { background-color: var(--surface-hover, #f8f9fa); }
+
+        /* Contracts covering this asset (#106). Same shape as the ticket rows
+           above, deliberately: two lists in one tab strip that look different
+           read as two different kinds of thing. */
+        .asset-contract-row {
+            display: grid;
+            grid-template-columns: minmax(90px, auto) 1fr auto auto;
+            gap: 12px;
+            align-items: center;
+            padding: 9px 16px;
+            border-bottom: 1px solid var(--border-soft, #f0f0f0);
+            text-decoration: none;
+            color: inherit;
+            font-size: 13px;
+        }
+        .asset-contract-row:hover { background-color: var(--surface-hover, #f8f9fa); }
+        .asset-contract-ref { color: var(--text-dim, #6b7280); font-family: monospace; font-size: 12px; }
+        .asset-contract-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* The link's own note - a phone number, a line ID - reads as a detail of
+           the title rather than a field of its own. */
+        .asset-contract-title em { color: var(--text-muted, #6b7280); font-style: normal; font-size: 12px; }
+        .asset-contract-meta { color: var(--text-muted, #6b7280); font-size: 12px; }
+        .asset-contract-when { color: var(--text-muted, #6b7280); font-size: 12px; text-align: right; }
+        /* The notice date is the one people miss, so it gets its own line and
+           the warning colour rather than sitting in the run of grey. */
+        .asset-contract-notice { display: block; color: var(--warning-text, #92400e); }
         .asset-ticket-ref { color: var(--text-dim, #6b7280); font-family: monospace; font-size: 12px; }
         .asset-ticket-subject {
             color: var(--text, #111827);
@@ -986,6 +1012,12 @@ $translationNamespaces = ['common', 'asset-management'];
                you are actually scanning for on a phone. */
             .asset-ticket-row { grid-template-columns: 1fr auto; }
             .asset-ticket-ref, .asset-ticket-when { display: none; }
+
+            /* The contract rows lose the reference and the supplier, but KEEP
+               the dates: on a contract, when it ends and when notice is due is
+               the whole reason for looking. */
+            .asset-contract-row { grid-template-columns: 1fr auto; }
+            .asset-contract-ref, .asset-contract-meta { display: none; }
         }
 
         /* Detail Tabs */
@@ -1747,6 +1779,7 @@ $translationNamespaces = ['common', 'asset-management'];
                         <button class="detail-tab" onclick="switchDetailTab('devices')" data-dtab="devices">${window.t('asset-management.detail.tab_devices')} <span class="tab-count" id="devicesCountBadge">...</span></button>
                         <button class="detail-tab" onclick="switchDetailTab('software')" data-dtab="software">${window.t('asset-management.detail.tab_software')} <span class="tab-count" id="softwareCountBadge">...</span></button>
                         <button class="detail-tab" onclick="switchDetailTab('tickets')" data-dtab="tickets">${window.t('asset-management.detail.tab_tickets')} <span class="tab-count" id="ticketsCountBadge">...</span></button>
+                        <button class="detail-tab" onclick="switchDetailTab('contracts')" data-dtab="contracts">${window.t('asset-management.detail.tab_contracts')} <span class="tab-count" id="contractsCountBadge">...</span></button>
                         <button class="detail-tab" onclick="switchDetailTab('documents')" data-dtab="documents">${window.t('common.documents.heading')}</button>
                     </div>
                 </div>
@@ -1914,6 +1947,11 @@ $translationNamespaces = ['common', 'asset-management'];
                             <div class="loading"><div class="spinner"></div></div>
                         </div>
                     </div>
+                    <div class="detail-tab-panel detail-tab-panel--scroll" id="contractsPanel" data-dtab-panel="contracts">
+                        <div class="asset-contracts-list" id="assetContractsList">
+                            <div class="loading"><div class="spinner"></div></div>
+                        </div>
+                    </div>
                     <div class="detail-tab-panel detail-tab-panel--scroll" id="documentsPanel" data-dtab-panel="documents">
                         <div id="assetDocuments"></div>
                     </div>
@@ -1927,6 +1965,7 @@ $translationNamespaces = ['common', 'asset-management'];
             loadInstalledSoftware(assetId);
             loadIntuneDevice(assetId);
             loadAssetTickets(assetId);
+            loadAssetContracts(assetId);
             loadCustomFields(assetId);
 
             // ⚠️ MOUNTED, not re-pointed. This detail pane rebuilds its whole DOM
@@ -1951,6 +1990,64 @@ $translationNamespaces = ['common', 'asset-management'];
          * closed at 20 and returns the true total so a long-suffering monitor
          * doesn't render five years of rows.
          */
+        /**
+         * Contracts covering this asset (discussion #106).
+         *
+         * The half of the linking that pays for it: standing on a handset and
+         * asking what agreement it is on, when it ends, and by when you have to
+         * give notice. The notice date is the one people actually miss, so it is
+         * shown on the row rather than left on the contract page.
+         *
+         * ⚠️ An analyst without the Contracts module gets a sentence saying so,
+         * not an empty list. "No contracts" and "you may not see contracts" are
+         * different answers and reading one as the other is how somebody
+         * concludes a contract was never set up.
+         */
+        async function loadAssetContracts(assetId) {
+            const list  = document.getElementById('assetContractsList');
+            const badge = document.getElementById('contractsCountBadge');
+            if (!list) return;
+            try {
+                const response = await fetch(`../api/assets/get_asset_contracts.php?asset_id=${assetId}`);
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || 'failed');
+
+                if (!data.permitted) {
+                    if (badge) badge.textContent = '';
+                    list.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.contracts_no_access'))}</div>`;
+                    return;
+                }
+
+                const rows = data.contracts || [];
+                if (badge) badge.textContent = rows.length;
+
+                if (!rows.length) {
+                    list.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.no_contracts'))}</div>`;
+                    return;
+                }
+
+                list.innerHTML = rows.map(c => {
+                    const supplier = c.supplier_trading_name || c.supplier_name || '';
+                    const ends = c.contract_end
+                        ? `${escapeHtml(window.t('asset-management.detail.contract_ends'))} ${escapeHtml(c.contract_end)}`
+                        : escapeHtml(window.t('asset-management.detail.contract_no_end'));
+                    const notice = c.notice_date
+                        ? `<span class="asset-contract-notice">${escapeHtml(window.t('asset-management.detail.contract_notice_by'))} ${escapeHtml(c.notice_date)}</span>`
+                        : '';
+                    return `
+                    <a class="asset-contract-row" href="../contracts/view.php?id=${c.contract_id}">
+                        <span class="asset-contract-ref">${escapeHtml(c.contract_number || '')}</span>
+                        <span class="asset-contract-title">${escapeHtml(c.title || '')}${c.reference ? ` <em>${escapeHtml(c.reference)}</em>` : ''}</span>
+                        <span class="asset-contract-meta">${escapeHtml(supplier)}</span>
+                        <span class="asset-contract-when">${ends}${notice}</span>
+                    </a>`;
+                }).join('');
+            } catch (e) {
+                if (badge) badge.textContent = '0';
+                list.innerHTML = `<div class="asset-tickets-empty">${escapeHtml(window.t('asset-management.detail.contracts_load_failed'))}</div>`;
+            }
+        }
+
         async function loadAssetTickets(assetId) {
             const list  = document.getElementById('assetTicketsList');
             const badge = document.getElementById('ticketsCountBadge');
