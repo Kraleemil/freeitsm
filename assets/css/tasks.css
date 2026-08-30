@@ -1868,3 +1868,23 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/* Text-style buttons in the Repeats section. Defined HERE rather than reaching
+   for a .btn-link — no such class exists anywhere in the product, so using it
+   left these as default browser buttons. */
+.recur-link {
+    padding: 2px 4px;
+    border: none;
+    background: none;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--tsk-accent, #7c3aed);
+    cursor: pointer;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.recur-link:hover { background: var(--surface-hover, #f0f0f0); text-decoration: underline; }
+.recur-link.recur-stop { color: var(--danger-text, #b42318); }
+/* .btn gives padding and radius; .btn-primary only sets the colours, so the two
+   are always used together. */
+.recur-actions .btn { padding: 7px 16px; font-size: 13px; }

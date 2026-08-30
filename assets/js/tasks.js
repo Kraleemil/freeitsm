@@ -81,6 +81,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const input = document.getElementById('newSubtaskInput');
             if (input) { input.scrollIntoView({ block: 'center' }); input.focus(); }
         }),
+        // Open the task with its Repeats editor already showing (#94), so the
+        // menu is a shortcut to the one editor rather than a second copy of it.
+        onSetRepeat: id => openDetailPanel(id).then(() => {
+            const ed = document.getElementById('recurEditor');
+            if (ed && ed.style.display === 'none') toggleRecurrenceEditor();
+            const sec = document.getElementById('recurSection');
+            if (sec) sec.scrollIntoView({ block: 'center' });
+        }),
     });
     document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
@@ -933,6 +941,14 @@ async function openDetailPanel(taskId) {
         panel.classList.toggle('as-modal', taskViewIsModal());
         paintViewToggle();
         renderDetailPanel(data.task);
+        // Back to the top on every open (Ed). Clicking a subtask replaces the
+        // panel's contents but not its scroll position, so you arrived at the
+        // NEW task already scrolled down to where the subtask list was on the
+        // old one - past its title, and past the "Subtask of" line that says
+        // what you are now looking at.
+        const body = panel.querySelector('.detail-panel-body') || panel;
+        if (body) body.scrollTop = 0;
+        panel.scrollTop = 0;
         panel.classList.add('open');
         document.getElementById('detailOverlay').classList.add('open');
     } catch (e) { console.error(e); }
@@ -1648,7 +1664,7 @@ function renderRecurrenceSection(task) {
             </h4>
             <div class="recur-summary" id="recurSummary">
                 <span>${on ? esc(describeRecurrence(r)) : esc(window.t('tasks.recur.none'))}</span>
-                <button type="button" class="btn-link" onclick="toggleRecurrenceEditor()">
+                <button type="button" class="recur-link" onclick="toggleRecurrenceEditor()">
                     ${esc(window.t(on ? 'tasks.recur.change' : 'tasks.recur.set_up'))}
                 </button>
             </div>
@@ -1802,8 +1818,8 @@ function renderRecurrenceEditor(r) {
         </div>
       </div>
       <div class="recur-actions">
-        <button type="button" class="btn-primary" onclick="saveRecurrence()">${esc(window.t('common.save'))}</button>
-        ${r && Number(r.is_active) ? `<button type="button" class="btn-link recur-stop" onclick="stopRecurrence()">${T('stop')}</button>` : ''}
+        <button type="button" class="btn btn-primary" onclick="saveRecurrence()">${esc(window.t('common.save'))}</button>
+        ${r && Number(r.is_active) ? `<button type="button" class="recur-link recur-stop" onclick="stopRecurrence()">${T('stop')}</button>` : ''}
       </div>`;
 }
 

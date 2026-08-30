@@ -129,6 +129,8 @@ return [
         'change_status'  => 'Change status',
         'change_priority'=> 'Change priority',
         'create_subtask' => 'Create subtask',
+        'set_repeat'      => 'Set up a repeat',
+        'change_repeat'   => 'Change the repeat',
         'open'            => 'Open',
         'assign_me'       => 'Assign to me',
         'due_date'        => 'Due date',

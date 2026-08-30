@@ -115,6 +115,8 @@ return [
         'change_status' => 'Skift status',
         'change_priority' => 'Skift prioritet',
         'create_subtask' => 'Opret delopgave',
+        'set_repeat' => 'Opsæt gentagelse',
+        'change_repeat' => 'Redigér gentagelsen',
         'open' => 'Åbn',
         'assign_me' => 'Tildel til mig',
         'due_date' => 'Frist',

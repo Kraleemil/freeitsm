@@ -157,6 +157,17 @@
         // switched time off for this kind of task (GH #112).
         const lt = document.getElementById('ctxLogTime');
         if (lt) lt.style.display = (cfg.timeAllowedFor && cfg.timeAllowedFor(task)) ? '' : 'none';
+
+        // Repeats (#94). Hidden on a subtask rather than shown and refused: the
+        // series belongs to the piece of work, not a step inside it, and the API
+        // rejects it too. The label says which way it will go, so a task that
+        // already repeats offers to change it rather than to set it up again.
+        const rp = document.getElementById('ctxRepeat');
+        if (rp) {
+            rp.style.display = task.parent_task_id ? 'none' : '';
+            const rl = rp.querySelector('.ctx-item-label');
+            if (rl) rl.textContent = T(task.recurrence_id ? 'context.change_repeat' : 'context.set_repeat');
+        }
     }
 
     function onMenuClick(e) {
@@ -181,6 +192,14 @@
         if (e.target.closest('[data-action="open"]')) {
             closeCtx();
             if (id && cfg.onOpen) cfg.onOpen(id);
+            return;
+        }
+        // Repeats (#94). Opens the task with its Repeats editor already open,
+        // rather than duplicating the editor into the menu: every option lives
+        // in one place, and the menu is the shortcut to it.
+        if (e.target.closest('[data-action="repeat"]')) {
+            closeCtx();
+            if (id && cfg.onSetRepeat) cfg.onSetRepeat(id);
             return;
         }
         if (e.target.closest('[data-action="assign-me"]')) {

@@ -113,6 +113,8 @@ return [
         'change_status'   => 'Status ändern',
         'change_priority' => 'Priorität ändern',
         'create_subtask'  => 'Teilaufgabe erstellen',
+        'set_repeat' => 'Wiederholung einrichten',
+        'change_repeat' => 'Wiederholung ändern',
         'open'            => 'Öffnen',
         'assign_me'       => 'Mir zuweisen',
         'due_date'        => 'Fällig am',

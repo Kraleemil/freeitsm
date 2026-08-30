@@ -41,7 +41,7 @@ $translationNamespaces = ['common', 'tasks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('tasks.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/tasks.css?v=25">
+    <link rel="stylesheet" href="../assets/css/tasks.css?v=26">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -215,6 +215,12 @@ $translationNamespaces = ['common', 'tasks'];
         <div class="ctx-item" data-action="subtask">
             <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.create_subtask')); ?></span>
         </div>
+        <?php /* Repeats (#94). Hidden for a subtask by the menu's own code — the
+                 series belongs to the piece of work, not a step inside it, and the
+                 API refuses it too. */ ?>
+        <div class="ctx-item" data-action="repeat" id="ctxRepeat">
+            <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.set_repeat')); ?></span>
+        </div>
         <div class="ctx-sep"></div>
         <div class="ctx-item" data-action="copylink">
             <span class="ctx-item-label"><?php echo htmlspecialchars(t('tasks.context.copy_link')); ?></span>
@@ -229,8 +235,8 @@ $translationNamespaces = ['common', 'tasks'];
     window.APP_BASE = '<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>';
     window.TASK_DETAIL_VIEW = <?php echo json_encode($taskDetailView); ?>;</script>
     <script src="../assets/js/tasks-priority.js?v=1"></script>
-    <script src="../assets/js/tasks-ctx-menu.js?v=2"></script>
-    <script src="../assets/js/tasks.js?v=30"></script>
+    <script src="../assets/js/tasks-ctx-menu.js?v=3"></script>
+    <script src="../assets/js/tasks.js?v=31"></script>
     <script src="../assets/js/mobile.js?v=33"></script>
 </body>
 </html>
