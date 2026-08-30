@@ -285,6 +285,10 @@ return [
         'kb_li3'             => 'Click an article to read it. You can link straight to one, so it is easy to share with a colleague.',
         'kb_p2'              => 'You will also see suggestions <em>while you are raising a ticket</em>: start typing the subject and any matching guides appear underneath it. Reading one costs you nothing, and if it solves the problem you can simply close the page — nothing is submitted until you press Submit.',
         'kb_tip'             => '<strong>Nothing showing?</strong> Either your search found no match, or your IT team has not published any guides yet. Raise a ticket as normal and they will help you directly.',
+        'st_title'   => 'Knowing whether something is down',
+        'st_p1'      => 'The home page shows the services we run and whether each one is healthy. If something is having problems, it is listed there with what is wrong &mdash; so it is worth a glance before raising a ticket about it.',
+        'st_p2'      => 'When we are working on a problem, you may also see the incident itself under <strong>What is happening</strong>, with the services it affects. Choose <strong>Show updates</strong> to read what we have posted about it: what we found, what we are doing, and when it was fixed, in the order it happened.',
+        'st_tip'     => 'A problem stays listed for a short while after it is fixed, marked as resolved, so if something went wrong for you this morning you can still see that it has been dealt with.',
 
         'cat_title'          => 'Requesting something',
         'cat_p1'             => 'Some things are not a fault at all — a new starter, a laptop, access to a system. Those have their own forms so the IT team get everything they need first time, instead of a conversation to fill in the gaps.',

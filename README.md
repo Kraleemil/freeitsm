@@ -84,7 +84,7 @@ Then open [http://localhost:8080/setup/](http://localhost:8080/setup/) to verify
 | [Software](https://github.com/edmozley/freeitsm/wiki/Software) | Software inventory from an agent script, plus licence management |
 | [Forms](https://github.com/edmozley/freeitsm/wiki/Forms) | Dynamic form builder with AI assist, section headings, conditional questions, versioning and submissions reporting |
 | [Contracts](https://github.com/edmozley/freeitsm/wiki/Contracts) | Supplier and contract lifecycle, plus an AI-powered RFP Builder, and **equipment covered by a contract** &mdash; link phones, SIMs, routers or hardware to the agreement that covers them, visible from both the contract and the equipment, with an **equipment report** you can print, download as CSV or email |
-| [Service Status](https://github.com/edmozley/freeitsm/wiki/Service-Status) | Service health dashboard driven by incident tracking |
+| [Service Status](https://github.com/edmozley/freeitsm/wiki/Service-Status) | Service health dashboard driven by incident tracking, plus **internal notes and external updates** on an incident &mdash; publish a timeline to the self-service portal while keeping troubleshooting private |
 | [War Room](https://github.com/edmozley/freeitsm/wiki/War-Room) | Chat on your own server for when Teams, Slack or the internet are down — channels, direct messages, search, attachments, and an AI situation report that drafts the update to the business |
 | [LMS](https://github.com/edmozley/freeitsm/wiki/LMS) | Author courses in-app (with AI) or upload SCORM; assign, take and track them |
 | [Process Mapper](https://github.com/edmozley/freeitsm/wiki/Process-Mapper) | Flowchart builder with swimlanes, custom step types and Mermaid export |

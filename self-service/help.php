@@ -86,7 +86,7 @@ CSS;
 // is a key rather than a title.
 // Page order, which is also the order we'd like people to try things: look for
 // an answer BEFORE raising a ticket, and request-something right after it.
-$helpNav = ['s1', 's2', 'kb', 's3', 'cat', 's4', 's5', 's6', 's7'];
+$helpNav = ['s1', 's2', 'kb', 'st', 's3', 'cat', 's4', 's5', 's6', 's7'];
 
 // A section's number is its position in that list, worked out here rather than
 // typed into the heading. Two sections used to carry an empty number because
@@ -158,6 +158,16 @@ require __DIR__ . '/includes/header.php';
             </ol>
             <p><?php echo t('self-service.help.kb_p2'); ?></p>
             <div class="help-note"><?php echo t('self-service.help.kb_tip'); ?></div>
+        </div>
+
+        <div class="help-section" id="st">
+            <div class="help-section-header">
+                <span class="help-section-num"><?php echo $secNum('st'); ?></span>
+                <div><h3><?php echo htmlspecialchars(t('self-service.help.st_title')); ?></h3></div>
+            </div>
+            <p><?php echo t('self-service.help.st_p1'); ?></p>
+            <p><?php echo t('self-service.help.st_p2'); ?></p>
+            <div class="help-note"><?php echo t('self-service.help.st_tip'); ?></div>
         </div>
 
         <!-- 3. Raising a ticket -->
