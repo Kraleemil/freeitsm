@@ -598,7 +598,26 @@ document.getElementById('auSearch').addEventListener('input', function () {
     searchTimer = setTimeout(() => loadPeople(v), 250);
 });
 
+/**
+ * Deep link: ?user_id=N opens straight to that person (Ed, alongside #85).
+ *
+ * ⚠️ ONE spelling. The asset page accepts both ?asset_id= and ?asset= only
+ * because the second was already in the wild; its own comment says a reader
+ * that quietly takes both spellings is how the two drifted apart. Nothing
+ * links here yet, so there is nothing to be tolerant of — `user_id` and
+ * nothing else.
+ *
+ * ⚠️ selectPerson() is called WITHOUT waiting for the list, and deliberately.
+ * It fetches the whole person itself, so it works for somebody who is not in
+ * the current scope at all — a leaver, say, whom the default "current" filter
+ * hides. Gating it on the list would make exactly those links dead.
+ */
 loadPeople('');
+
+(function () {
+    var n = parseInt(new URLSearchParams(window.location.search).get('user_id') || '', 10);
+    if (n > 0) selectPerson(n);
+})();
 </script>
 </body>
 </html>

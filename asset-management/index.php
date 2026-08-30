@@ -251,6 +251,14 @@ $translationNamespaces = ['common', 'asset-management'];
             color: var(--text, #333);
             font-size: 14px;
         }
+        /* The holder's name links to their record. It inherits the weight and
+           size above and only takes the accent colour, so the panel does not
+           suddenly read as a row of links. */
+        .user-name-link {
+            color: var(--accent, #0078d4);
+            text-decoration: none;
+        }
+        .user-name-link:hover { text-decoration: underline; }
 
         .asset-assigned-info .user-email {
             color: var(--text-muted, #666);
@@ -2570,8 +2578,12 @@ $translationNamespaces = ['common', 'asset-management'];
 
                     if (user) {
                         currentAssignedUserId = user.user_id;
+                        // The holder's name is a link to their record (Ed). The
+                        // journey already worked the other way round after #85;
+                        // this is the return leg, so "who has this?" and "what
+                        // do they have?" are each one click from the other.
                         infoSpan.innerHTML = `
-                            <span class="user-name">${escapeHtml(user.display_name || window.t('asset-management.common.unknown'))}</span>
+                            <span class="user-name"><a class="user-name-link" href="users.php?user_id=${user.user_id}">${escapeHtml(user.display_name || window.t('asset-management.common.unknown'))}</a></span>
                             <span class="user-email">${escapeHtml(user.email || '')}</span>
                             <span class="user-assigned-date">${window.t('asset-management.detail.assigned_on', { date: formatDate(user.assigned_datetime) })}</span>
                             ${user.expected_return_date ? `<span class="user-assigned-date">${window.t('asset-management.detail.due_back', { date: escapeHtml(user.expected_return_date) })}</span>` : ''}
