@@ -593,7 +593,7 @@ return [
         'panel_cmdb' => 'CMDB',
         'panel_change_management' => 'Ændringsstyring',
         'panel_asset_management' => 'Aktivstyring',
-        'panel_system_wiki' => 'System-wiki',
+        'panel_system_wiki' => 'System Wiki',
         'multiselect_heading' => 'Valg af flere sager',
         'multiselect_desc' => 'I sagsindbakken kan du vælge flere sager på én gang — Ctrl+klik for at vælge dem enkeltvis, Shift+klik for en blok. Dette afgør, hvad skærmen viser, mens mere end én er valgt.',
         'multiselect_summary' => 'Oversigtspanel',
@@ -1096,7 +1096,7 @@ return [
         'step_domain_freemail' => '{domain} er en offentlig e-mailudbyder, som aldrig registreres til en virksomhed — så det kan ikke matche her og går til triage.',
         'step_domain_nomatch' => 'Ingen virksomhed har registreret {domain}.',
         'step_domain_nodomain' => 'Intet afsenderdomæne blev angivet, så der er intet at matche.',
-        'step_triage' => 'Triage-kø',
+        'step_triage' => 'Triagekø',
         'step_triage_detail' => 'Intet matchede, så sagen efterlades uden virksomhed og venter i triage-køen på at blive journaliseret manuelt. Intet går tabt.',
     ],
 ];
