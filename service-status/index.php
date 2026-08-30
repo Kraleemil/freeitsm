@@ -67,8 +67,23 @@ $translationNamespaces = ['common', 'service-status'];
 
 
         /* Incident update thread (discussion #59, phase 2) */
-        .inc-updates-toggle { margin-left: 10px; background: none; border: none; padding: 0;
-            color: var(--ss-accent, #10b981); font-size: 11px; cursor: pointer; text-decoration: underline; }
+        /* An icon in its own narrow column, so every toggle sits at the same
+           x down the page. It was a text link after the title, which put it
+           wherever that title happened to end (Ed). */
+        .inc-upd-col { width: 1%; white-space: nowrap; text-align: center; }
+        .inc-updates-toggle {
+            background: none; border: 1px solid transparent; cursor: pointer;
+            padding: 5px; border-radius: 4px; line-height: 0;
+            color: var(--text-faint, #9ca3af);
+        }
+        .inc-updates-toggle svg { width: 15px; height: 15px; }
+        .inc-updates-toggle:hover { background: var(--surface-hover, #f0f0f0); color: var(--ss-accent, #10b981); }
+        /* Open reads as pressed, since the icon can no longer say "Hide". */
+        .inc-updates-toggle.is-open {
+            color: var(--ss-accent, #10b981);
+            border-color: var(--ss-accent, #10b981);
+            background: var(--ss-accent-soft, transparent);
+        }
         .inc-updates-row[hidden] { display: none !important; }
         .inc-updates { padding: 4px 0 8px; }
         .inc-update { padding: 8px 0; border-top: 1px solid var(--border-soft, #f1f5f9); }
@@ -449,6 +464,15 @@ $translationNamespaces = ['common', 'service-status'];
                 <thead>
                     <tr>
                         <th><?php echo htmlspecialchars(t('service-status.board.col_title')); ?></th>
+                        <?php /* ⚠️ Its OWN column, not tacked onto the title (Ed).
+                                 As a link after the title it sat wherever that
+                                 title happened to end, so the toggles staggered
+                                 down the page. Turning it into an icon in the
+                                 same cell would have made a smaller mess in the
+                                 same places; a fixed narrow column is what
+                                 actually lines them up. Header left empty: a
+                                 heading over one icon is noise. */ ?>
+                        <th class="inc-upd-col"></th>
                         <th><?php echo htmlspecialchars(t('service-status.board.col_status')); ?></th>
                         <th><?php echo htmlspecialchars(t('service-status.board.col_affected')); ?></th>
                         <th><?php echo htmlspecialchars(t('service-status.board.col_updated')); ?></th>
@@ -812,7 +836,12 @@ $translationNamespaces = ['common', 'service-status'];
                     <tr class="${isResolved ? 'resolved' : ''}" oncontextmenu="return openIncidentContextMenu(event, ${inc.id});">
                         <td>
                             <span class="incident-title" onclick="editIncident(${inc.id})">${escapeHtml(inc.title)}</span>
-                            <button type="button" class="inc-updates-toggle" onclick="toggleIncidentUpdates(${inc.id}, this)">${escapeHtml(window.t('service-status.board.updates_show'))}</button>
+                        </td>
+                        <td class="inc-upd-col">
+                            <button type="button" class="inc-updates-toggle" title="${escapeHtml(window.t('service-status.board.updates_show'))}"
+                                    onclick="toggleIncidentUpdates(${inc.id}, this)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                            </button>
                         </td>
                         <td><span class="incident-status" ${statusStyle}>${escapeHtml(inc.status)}</span></td>
                         <td><div class="incident-services-list">${svcs || `<span style="color:var(--text-dim, #999)">${escapeHtml(window.t('service-status.board.none'))}</span>`}</div></td>
@@ -837,7 +866,7 @@ $translationNamespaces = ['common', 'service-status'];
                         </td>
                     </tr>
                     <tr class="inc-updates-row" id="incUpdatesRow${inc.id}" hidden>
-                        <td colspan="5"><div class="inc-updates" id="incUpdates${inc.id}"></div></td>
+                        <td colspan="6"><div class="inc-updates" id="incUpdates${inc.id}"></div></td>
                     </tr>
                 `;
             }).join('');
@@ -889,12 +918,16 @@ $translationNamespaces = ['common', 'service-status'];
             if (!row.hidden) {
                 row.hidden = true;
                 openUpdateThreads.delete(Number(incidentId));
-                btn.textContent = window.t('service-status.board.updates_show');
+                // ⚠️ NOT textContent — that would wipe the icon out of the
+                // button. The state lives in the tooltip and a class.
+                btn.title = window.t('service-status.board.updates_show');
+                btn.classList.remove('is-open');
                 return;
             }
             openUpdateThreads.add(Number(incidentId));
             row.hidden = false;
-            btn.textContent = window.t('service-status.board.updates_hide');
+            btn.title = window.t('service-status.board.updates_hide');
+            btn.classList.add('is-open');
             box.innerHTML = `<div class="svc-history-loading">${escapeHtml(window.t('service-status.board.history_loading'))}</div>`;
             try {
                 const res = await fetch(API_BASE + 'get_incident_updates.php?incident_id=' + incidentId);
