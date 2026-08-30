@@ -507,6 +507,8 @@ return [
         'sound_knock'              => 'Klopfen',
         'sound_play'               => 'Abspielen',
         'sound_note'               => 'Ihr Browser spielt erst dann einen Ton ab, wenn Sie irgendwo auf die Seite geklickt haben; die erste Benachrichtigung nach dem Öffnen eines Tabs kann daher stumm bleiben. Für Benachrichtigungen, die beim Öffnen des Tabs bereits vorlagen, ist nichts zu hören.',
+        'cal_subtasks_heading' => 'Unteraufgaben im Aufgabenkalender',
+        'cal_subtasks_desc' => 'Ob der Kalender Unteraufgaben zusammen mit Aufgaben anzeigt. Der Kalender hat dieselbe Einstellung in der Seitenleiste, und beide bleiben synchron.',
         'task_view_heading' => 'Aufgaben öffnen',
         'task_view_desc'    => 'Ob eine Aufgabe im Bereich neben der Tafel geöffnet wird oder in einem großen Fenster mit Platz für Beschreibung und Kommentare.',
         'task_view_panel'   => 'Im Seitenbereich',

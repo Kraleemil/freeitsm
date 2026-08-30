@@ -535,6 +535,8 @@ return [
         'sound_knock' => 'Bank',
         'sound_play' => 'Afspil',
         'sound_note' => 'Din browser afspiller ikke en lyd, før du har klikket et sted på siden, så den første notifikation efter at have åbnet en fane kan være lydløs. Der høres intet for notifikationer, der allerede ventede, da du åbnede fanen.',
+        'cal_subtasks_heading' => 'Delopgaver i opgavekalenderen',
+        'cal_subtasks_desc' => 'Om kalenderen viser delopgaver sammen med opgaver. Kalenderen har den samme indstilling i sidepanelet, og de to følges ad.',
         'task_view_heading' => 'Åbning af en opgave',
         'task_view_desc' => 'Om en opgave åbner i panelet i siden af tavlen, eller i et stort vindue med plads til beskrivelse og kommentarer.',
         'task_view_panel' => 'I sidepanelet',

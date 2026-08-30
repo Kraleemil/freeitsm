@@ -683,6 +683,8 @@ return [
         'sound_note'    => 'Your browser will not play a sound until you have clicked somewhere on the page, so the first notification after opening a tab may be silent. Nothing is heard for notifications that were already waiting when you opened the tab.',
 
         // Start page (discussion #63). The override for the install-wide setting.
+        'cal_subtasks_heading' => 'Subtasks on the task calendar',
+        'cal_subtasks_desc'    => 'Whether the calendar shows subtasks alongside tasks. The calendar has the same control in its sidebar, and the two stay in step.',
         'task_view_heading' => 'Opening a task',
         'task_view_desc'    => 'Whether a task opens in the panel at the side of the board, or in a large window with room for the description and comments.',
         'task_view_panel'   => 'In the side panel',

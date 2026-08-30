@@ -46,6 +46,10 @@ $prefDefaults = [
     // preference — the drawer keeps the board visible behind it, the modal gives
     // the description and comments room to breathe.
     'tasks_detail_view'          => 'panel',
+    // Whether the task calendar shows subtasks as well as tasks (#90). Written
+    // from two places that must agree: here, and the calendar's own Show
+    // control. '' is parent tasks only, which is what the calendar always did.
+    'tasks_calendar_subtasks'    => '',
     // Left-panel visibility — one key per module that has a left panel.
     // Each module's header reads its key; module settings pages (where one
     // exists) edit the same key. Surfaced together below.
@@ -467,6 +471,21 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
                     <option value="modal" <?php echo $prefs['tasks_detail_view'] === 'modal' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('system.preferences.task_view_modal')); ?></option>
                 </select>
                 <span class="pref-saving-hint" id="taskViewSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
+            </div>
+
+            <!-- Subtasks on the task calendar (#90). The calendar's own Show control
+                 writes the same preference, so the two stay in step; this is here
+                 because that is where somebody looks for a setting they half
+                 remember changing, and its neighbour above already is. -->
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('system.preferences.cal_subtasks_heading')); ?></h3>
+                <p><?php echo htmlspecialchars(t('system.preferences.cal_subtasks_desc')); ?></p>
+                <select id="calSubtaskSelect" class="pref-language-select">
+                    <option value=""     <?php echo $prefs['tasks_calendar_subtasks'] === ''     ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('tasks.filter.parents_only')); ?></option>
+                    <option value="both" <?php echo $prefs['tasks_calendar_subtasks'] === 'both' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('tasks.filter.parents_and_subtasks')); ?></option>
+                    <option value="only" <?php echo $prefs['tasks_calendar_subtasks'] === 'only' ? 'selected' : ''; ?>><?php echo htmlspecialchars(t('tasks.filter.subtasks_only')); ?></option>
+                </select>
+                <span class="pref-saving-hint" id="calSubtaskSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
             </div>
 
             <div class="pref-section">
@@ -892,6 +911,17 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
                 taskViewHint.classList.add('show');
                 await savePref('tasks_detail_view', taskViewSelect.value);
                 setTimeout(() => taskViewHint.classList.remove('show'), 1200);
+            });
+        }
+
+        // ===== Subtasks on the task calendar (tasks_calendar_subtasks) =====
+        const calSubtaskSelect = document.getElementById('calSubtaskSelect');
+        const calSubtaskHint   = document.getElementById('calSubtaskSavingHint');
+        if (calSubtaskSelect) {
+            calSubtaskSelect.addEventListener('change', async function() {
+                calSubtaskHint.classList.add('show');
+                await savePref('tasks_calendar_subtasks', calSubtaskSelect.value);
+                setTimeout(() => calSubtaskHint.classList.remove('show'), 1200);
             });
         }
 
