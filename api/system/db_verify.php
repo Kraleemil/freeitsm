@@ -2337,6 +2337,8 @@ try {
         // the attachment it came from has gone.
         ['attachment_text',             'fk_attachment_text_attachment', "ALTER TABLE attachment_text ADD CONSTRAINT fk_attachment_text_attachment FOREIGN KEY (attachment_id) REFERENCES email_attachments (id) ON DELETE CASCADE"],
         // Tickets ↔ assets (#57)
+        ['table_views',                 'fk_tv_owner',             "ALTER TABLE table_views ADD CONSTRAINT fk_tv_owner FOREIGN KEY (owner_id) REFERENCES analysts (id) ON DELETE SET NULL"],
+        ['table_views',                 'fk_tv_team',              "ALTER TABLE table_views ADD CONSTRAINT fk_tv_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE SET NULL"],
         ['contract_assets',             'fk_ca_contract',          "ALTER TABLE contract_assets ADD CONSTRAINT fk_ca_contract FOREIGN KEY (contract_id) REFERENCES contracts (id) ON DELETE CASCADE"],
         ['contract_assets',             'fk_ca_asset',             "ALTER TABLE contract_assets ADD CONSTRAINT fk_ca_asset FOREIGN KEY (asset_id) REFERENCES assets (id) ON DELETE CASCADE"],
         ['contract_assets',             'fk_ca_analyst',           "ALTER TABLE contract_assets ADD CONSTRAINT fk_ca_analyst FOREIGN KEY (linked_by_id) REFERENCES analysts (id) ON DELETE SET NULL"],

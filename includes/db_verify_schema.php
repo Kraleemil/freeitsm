@@ -3765,6 +3765,22 @@ return [
         'linked_by_id'     => 'INT NULL',
         'created_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
     ],
+    // Saved table views (#96). `config` is the data-table engine's own state as
+    // JSON - columns, order, sort, filters. Opaque here on purpose: a column per
+    // setting would need a migration every time the engine gained one.
+    'table_views' => [
+        'id'                 => 'INT NOT NULL AUTO_INCREMENT',
+        'table_key'          => 'VARCHAR(32) NOT NULL',
+        'name'               => 'VARCHAR(120) NOT NULL',
+        'description'        => 'VARCHAR(500) NULL',
+        'owner_id'           => 'INT NULL',
+        'visibility'         => "VARCHAR(10) NOT NULL DEFAULT 'private'",
+        'team_id'            => 'INT NULL',
+        'config'             => 'MEDIUMTEXT NOT NULL',
+        'created_datetime'   => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'updated_datetime'   => 'DATETIME NULL',
+        'last_used_datetime' => 'DATETIME NULL',
+    ],
     'ticket_assets' => [
         'id'                    => 'INT NOT NULL AUTO_INCREMENT',
         'ticket_id'             => 'INT NOT NULL',

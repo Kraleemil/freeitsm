@@ -5539,6 +5539,44 @@ CREATE TABLE IF NOT EXISTS `contract_assets` (
     CONSTRAINT `fk_ca_asset`    FOREIGN KEY (`asset_id`)    REFERENCES `assets` (`id`)    ON DELETE CASCADE,
     CONSTRAINT `fk_ca_analyst`  FOREIGN KEY (`linked_by_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Saved table views (discussion #96).
+--
+-- One row per saved view, for ANY table that runs the shared data-table engine
+-- (assets/js/data-table.js). `table_key` names which — 'assets', 'tasks',
+-- 'calendar', 'changes' — so a view saved on the asset table can never appear on
+-- the tasks table.
+--
+-- `config` is the engine's own state as JSON: which columns are visible and in
+-- what order, the sort, and the per-column filters. Deliberately opaque to the
+-- database: the engine owns that shape and a column per setting would need a
+-- migration every time it gained one.
+--
+-- No tenant_id. A view is a way of LOOKING at rows, not the rows themselves; its
+-- filters are applied to whatever the reader was already allowed to see, so a
+-- shared view cannot expose another company's assets.
+--
+-- owner_id is SET NULL rather than CASCADE, so a team or public view survives
+-- the person who wrote it leaving. A private view with no owner then matches
+-- nobody, which is harmless - it is unreachable rather than exposed.
+CREATE TABLE IF NOT EXISTS `table_views` (
+    `id`               INT NOT NULL AUTO_INCREMENT,
+    `table_key`        VARCHAR(32) NOT NULL,
+    `name`             VARCHAR(120) NOT NULL,
+    `description`      VARCHAR(500) NULL,
+    `owner_id`         INT NULL,
+    `visibility`       VARCHAR(10) NOT NULL DEFAULT 'private',
+    `team_id`          INT NULL,
+    `config`           MEDIUMTEXT NOT NULL,
+    `created_datetime` DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_datetime` DATETIME NULL,
+    `last_used_datetime` DATETIME NULL,
+    PRIMARY KEY (`id`),
+    KEY `ix_tv_table_key` (`table_key`),
+    KEY `ix_tv_owner` (`owner_id`),
+    KEY `ix_tv_team` (`team_id`),
+    CONSTRAINT `fk_tv_owner` FOREIGN KEY (`owner_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL,
+    CONSTRAINT `fk_tv_team`  FOREIGN KEY (`team_id`)  REFERENCES `teams` (`id`)    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS `ticket_assets` (
     `id`                    INT NOT NULL AUTO_INCREMENT,
     `ticket_id`             INT NOT NULL,
