@@ -321,12 +321,28 @@ async function selectPerson(id) {
     }
 }
 
+/**
+ * What to call a piece of equipment (discussion #85).
+ *
+ * ⚠️ The fallbacks matter. This column used to print the hostname or an em
+ * dash, so a device with no hostname — a monitor, a docking station, a phone —
+ * had no name at all, and "make the asset name clickable" would have given it
+ * a link with nothing to click. Same order as the contract and ticket pickers.
+ */
+function assetLabel(a) {
+    return a.hostname
+        || a.asset_tag
+        || a.service_tag
+        || [a.manufacturer, a.model].filter(Boolean).join(' ')
+        || ('#' + a.id);
+}
+
 function renderDetail(user, assets) {
     const panel = document.getElementById('auDetail');
     const rows = assets.length ? assets.map(a => `
         <tr>
             <td>${a.asset_type ? '<span class="au-type-pill">' + esc(a.asset_type) + '</span>' : '—'}</td>
-            <td><strong>${esc(a.hostname || '—')}</strong></td>
+            <td><strong><a class="au-link" href="index.php?asset_id=${a.id}">${esc(assetLabel(a))}</a></strong></td>
             <td>${esc([a.manufacturer, a.model].filter(Boolean).join(' ') || '—')}</td>
             <td class="au-mono">${esc(a.service_tag || '—')}</td>
             <td class="au-mono">${esc(a.asset_tag || '—')}</td>
