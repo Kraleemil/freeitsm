@@ -31,6 +31,10 @@ let teams = [];
 let spanMode = 'deadline';
 let surfaceTags = false;
 
+// The repeat mark (#94). Deliberately the same shape the detail panel uses, so a
+// reader does not have to learn two. White because it sits on the coloured chip.
+const CAL_ICON_RECUR = '<svg class="recur-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>';
+
 // Locale for date formatting — matches the page's i18n locale
 
 // ── Init ───────────────────────────────────────────────────────────
@@ -366,10 +370,10 @@ function renderDay() {
         // In the day list there is room to say which task a subtask belongs to,
         // so it says it rather than relying on a tooltip (#90).
         if (t.parent_task_id && t.parent_title) meta.unshift(esc(t.parent_title));
-        return `<div class="cal-day-task${done ? ' cal-day-task-done' : ''}${t.parent_task_id ? ' cal-day-task-subtask' : ''}" onclick="openTask(${t.id})">
+        return `<div class="cal-day-task${done ? ' cal-day-task-done' : ''}${t.parent_task_id ? ' cal-day-task-subtask' : ''}${t.recurrence_id ? ' cal-day-task-recur' : ''}" onclick="openTask(${t.id})">
             <span class="cal-day-task-dot" style="background:${esc(colour)}"></span>
             <div class="cal-day-task-body">
-                <div class="cal-day-task-title">${esc(t.title)}</div>
+                <div class="cal-day-task-title">${t.recurrence_id ? CAL_ICON_RECUR : ''}${esc(t.title)}</div>
                 ${meta.length ? `<div class="cal-day-task-meta">${meta.join(' · ')}</div>` : ''}
             </div>
             ${tagDots}
@@ -388,6 +392,9 @@ function renderBars(iv) {
     // A subtask carries its parent's name in the tooltip: on a month grid the
     // title alone ("Rack it") rarely says which piece of work it belongs to (#90).
     const isSub = !!t.parent_task_id;
+    // A task that is one of a repeating series carries the same mark here as in
+    // the detail panel (#94). One shape wherever it appears.
+    const isRecur = !!t.recurrence_id;
     const tip = esc(t.title + (isSub && t.parent_title ? ' (' + t.parent_title + ')' : '') +
         (t.analyst_name ? ' · ' + t.analyst_name : '') +
         ' · ' + (iv.p.start !== iv.p.end ? fmt(iv.p.start) + ' → ' + fmt(iv.p.end) : fmt(iv.p.end)));
@@ -400,10 +407,10 @@ function renderBars(iv) {
     const make = (col, span, extraCls) => {
         const left = `calc(${col} / 7 * 100% + 3px)`;
         const width = `calc(${span} / 7 * 100% - 6px)`;
-        return `<div class="cal-bar ${extraCls}${done ? ' cal-bar-done' : ''}${isSub ? ' cal-bar-subtask' : ''}"
+        return `<div class="cal-bar ${extraCls}${done ? ' cal-bar-done' : ''}${isSub ? ' cal-bar-subtask' : ''}${isRecur ? ' cal-bar-recur' : ''}"
             style="left:${left};width:${width};top:${top}px;background:${colour}"
             title="${tip}" onclick="openTask(${t.id})">
-            <span class="cal-bar-label">${title}</span>${tagDots}</div>`;
+            <span class="cal-bar-label">${isRecur ? CAL_ICON_RECUR : ''}${title}</span>${tagDots}</div>`;
     };
 
     if (spanMode === 'span') {

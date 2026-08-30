@@ -102,6 +102,8 @@ try {
                    -- Needed by any caller that opts into subtasks, to tell the two
                    -- apart and to name the parent a subtask belongs to (#90).
                    t.parent_task_id, pt.title AS parent_title,
+                   -- So the calendar can mark an occurrence of a repeating task (#94).
+                   t.recurrence_id, t.recurrence_master_id,
                    t.created_by_id, t.created_datetime, t.updated_datetime,
                    t.completed_datetime,
                    a.full_name AS analyst_name,

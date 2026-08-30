@@ -957,6 +957,18 @@ function renderDetailPanel(task) {
     ).join('');
 
     body.innerHTML = `
+        <!-- What this is a subtask OF (Ed). It used to sit below the fields with
+             no styling and no words - a back-chevron and a title, which says
+             where the link goes but never says what the relationship is. It
+             belongs at the top, because "this is part of something bigger" is
+             context you need before you read anything else on the panel. -->
+        ${task.parent_task ? `
+        <button type="button" class="subtask-of" onclick="openDetailPanel(${task.parent_task.id})">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            <span class="subtask-of-label">${esc(window.t('tasks.detail.subtask_of'))}</span>
+            <span class="subtask-of-title">${esc(task.parent_task.title)}</span>
+        </button>` : ''}
+
         <div class="detail-field">
             <input class="detail-title-input" id="detailTitle" value="${esc(task.title)}" onchange="saveField('title', this.value)">
         </div>
@@ -1044,6 +1056,9 @@ function renderDetailPanel(task) {
             <div id="descriptionEditor">${task.description || ''}</div>
         </div>
 
+        <!-- Repeats (#94) -->
+        ${renderRecurrenceSection(task)}
+
         <!-- Links -->
         <div class="link-section">
             <h4>${esc(window.t('tasks.detail.links'))}</h4>
@@ -1063,14 +1078,6 @@ function renderDetailPanel(task) {
             </div>` : ''}
         </div>
 
-        <!-- Parent breadcrumb (if subtask) -->
-        ${task.parent_task ? `
-        <div class="parent-breadcrumb">
-            <a href="#" onclick="openDetailPanel(${task.parent_task.id}); return false;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                ${esc(task.parent_task.title)}
-            </a>
-        </div>` : ''}
 
         <!-- Subtasks -->
         ${!task.parent_task_id ? `
@@ -1136,7 +1143,7 @@ function renderDetailPanel(task) {
                 `).join('')}
             </div>
             <div class="comment-add">
-                <textarea id="newCommentInput" placeholder="${escAttr(window.t('tasks.detail.add_comment'))}" rows="2"></textarea>
+                <textarea id="newCommentInput" placeholder="${escAttr(window.t('tasks.detail.add_comment'))}" rows="3"></textarea>
                 <button onclick="addComment()">${esc(window.t('tasks.detail.post'))}</button>
             </div>
         </div>
@@ -1593,6 +1600,276 @@ async function toggleSubtask(id) {
         showToast(window.t('tasks.toast.subtask_toggle_failed'), 'error');
         if (selectedTaskId) openDetailPanel(selectedTaskId);
     }
+}
+
+// ── Repeats (#94) ───────────────────────────────────────────────────────────
+//
+// A recurrence is a SERIES: the rule lives once, every occurrence points at it,
+// and every occurrence points at the first task so a reader can get back to
+// where it started. This section shows, in order of what people actually want
+// to know: is this one of a series, which one, where did it start, and what is
+// the rule.
+//
+// A SUBTASK never offers this. The series belongs to the piece of work, not a
+// step inside it - the API refuses it too, this just does not tempt anyone.
+
+const RECUR_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7];
+
+// The repeat mark. Used in the panel and on the calendar, so it is one shape
+// wherever it appears - a reader should not have to learn two.
+const ICON_RECUR = '<svg class="recur-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>';
+
+function renderRecurrenceSection(task) {
+    if (task.parent_task_id) return '';
+    const r  = task.recurrence;
+    const on = !!(r && Number(r.is_active));
+
+    // "3 of 12", or just "3" when the series has no end.
+    let position = '';
+    if (on && task.recurrence_position) {
+        position = r.ends_mode === 'after_count' && r.max_occurrences
+            ? window.t('tasks.recur.position_of', { n: task.recurrence_position, total: r.max_occurrences })
+            : window.t('tasks.recur.position', { n: task.recurrence_position });
+    }
+
+    // The way back to the original. Only shown on a LATER occurrence - on the
+    // first one it would be a link to the thing you are already looking at.
+    const master = task.recurrence_master
+        ? `<button type="button" class="recur-master-link" onclick="openDetailPanel(${task.recurrence_master.id})">
+               ${ICON_RECUR}<span>${esc(window.t('tasks.recur.open_master'))}: ${esc(task.recurrence_master.title)}</span>
+           </button>`
+        : '';
+
+    return `
+        <div class="recur-section" id="recurSection">
+            <h4>
+                ${esc(window.t('tasks.recur.heading'))}
+                ${on ? `<span class="recur-badge">${ICON_RECUR}${esc(position)}</span>` : ''}
+            </h4>
+            <div class="recur-summary" id="recurSummary">
+                <span>${on ? esc(describeRecurrence(r)) : esc(window.t('tasks.recur.none'))}</span>
+                <button type="button" class="btn-link" onclick="toggleRecurrenceEditor()">
+                    ${esc(window.t(on ? 'tasks.recur.change' : 'tasks.recur.set_up'))}
+                </button>
+            </div>
+            ${master}
+            <div class="recur-editor" id="recurEditor" style="display:none">${renderRecurrenceEditor(r)}</div>
+        </div>`;
+}
+
+/** One sentence describing a rule, built from the same parts the editor sets. */
+function describeRecurrence(r) {
+    if (!r) return window.t('tasks.recur.none');
+    const n = Number(r.interval_n) || 1;
+    const T = (k, p) => window.t('tasks.recur.' + k, p);
+
+    let what;
+    if (r.freq === 'daily')  what = n === 1 ? T('every_day')   : T('every_n_days',   { n });
+    else if (r.freq === 'weekly') {
+        const days = String(r.weekdays || '').split(',').filter(Boolean)
+            .map(d => window.t('common.calendar.weekdays_short.' + ['', 'monday','tuesday','wednesday','thursday','friday','saturday','sunday'][Number(d)]))
+            .join(', ');
+        what = (n === 1 ? T('every_week') : T('every_n_weeks', { n })) + (days ? ' — ' + days : '');
+    }
+    else if (r.freq === 'monthly' || r.freq === 'yearly') {
+        const base = r.freq === 'monthly'
+            ? (n === 1 ? T('every_month') : T('every_n_months', { n }))
+            : (n === 1 ? T('every_year')  : T('every_n_years',  { n }));
+        let on;
+        if (r.month_mode === 'nth') {
+            const ord = Number(r.nth) === -1 ? T('ord_last') : T('ord_' + r.nth);
+            const wd  = window.t('common.calendar.weekdays.' + ['', 'monday','tuesday','wednesday','thursday','friday','saturday','sunday'][Number(r.nth_weekday)]);
+            on = T('on_nth_weekday', { ord, weekday: wd });
+        } else if (Number(r.day_of_month) === -1) {
+            on = T('on_last_day');
+        } else if (r.day_of_month) {
+            on = T('on_day', { day: r.day_of_month });
+        }
+        what = base + (on ? ' — ' + on : '');
+    } else {
+        what = '';
+    }
+
+    let ends = '';
+    if (r.ends_mode === 'on_date' && r.ends_on)          ends = ' · ' + T('until', { date: r.ends_on });
+    else if (r.ends_mode === 'after_count' && r.max_occurrences) ends = ' · ' + T('for_n', { n: r.max_occurrences });
+
+    const mode = ' · ' + T(r.mode === 'schedule' ? 'mode_schedule_short' : 'mode_completion_short');
+    return what + ends + mode;
+}
+
+function toggleRecurrenceEditor() {
+    const el = document.getElementById('recurEditor');
+    if (!el) return;
+    const opening = el.style.display === 'none';
+    el.style.display = opening ? '' : 'none';
+    // The editor is built with every row present and hidden afterwards, so the
+    // first paint has to run the same pass a change does - otherwise it opens
+    // showing weekday boxes on a monthly rule.
+    if (opening) recurEditorRefresh();
+}
+
+/** The editor. Only the rows that apply to the chosen frequency are shown. */
+function renderRecurrenceEditor(r) {
+    const T = k => esc(window.t('tasks.recur.' + k));
+    const v = Object.assign({
+        mode: 'completion', freq: 'weekly', interval_n: 1, weekdays: '',
+        month_mode: 'dom', day_of_month: '', nth: 1, nth_weekday: 1, month_of_year: '',
+        ends_mode: 'never', ends_on: '', max_occurrences: '',
+        copy_description: 1, copy_subtasks: 1, copy_assignee: 1, copy_tags: 1,
+        copy_links: 0, copy_attachments: 0,
+    }, r || {});
+    const sel = (a, b) => String(a) === String(b) ? 'selected' : '';
+    const chk = x => Number(x) ? 'checked' : '';
+    const days = String(v.weekdays || '').split(',').filter(Boolean).map(Number);
+    const wdName = i => window.t('common.calendar.weekdays_short.' + ['', 'monday','tuesday','wednesday','thursday','friday','saturday','sunday'][i]);
+
+    return `
+      <div class="recur-grid">
+        <label>${T('mode')}</label>
+        <select id="recMode" class="detail-input">
+            <option value="completion" ${sel(v.mode,'completion')}>${T('mode_completion')}</option>
+            <option value="schedule"   ${sel(v.mode,'schedule')}>${T('mode_schedule')}</option>
+        </select>
+
+        <label>${T('repeats')}</label>
+        <div class="recur-inline">
+            <select id="recFreq" class="detail-input" onchange="recurEditorRefresh()">
+                <option value="daily"   ${sel(v.freq,'daily')}>${T('freq_daily')}</option>
+                <option value="weekly"  ${sel(v.freq,'weekly')}>${T('freq_weekly')}</option>
+                <option value="monthly" ${sel(v.freq,'monthly')}>${T('freq_monthly')}</option>
+                <option value="yearly"  ${sel(v.freq,'yearly')}>${T('freq_yearly')}</option>
+            </select>
+            <span>${T('every')}</span>
+            <input type="number" id="recInterval" class="detail-input recur-n" min="1" max="365" value="${esc(v.interval_n)}">
+        </div>
+
+        <label class="recur-weekly">${T('on_days')}</label>
+        <div class="recur-weekly recur-days">
+            ${RECUR_WEEKDAYS.map(i => `
+                <label class="recur-day">
+                    <input type="checkbox" class="recDay" value="${i}" ${days.includes(i) ? 'checked' : ''}>
+                    <span>${esc(wdName(i))}</span>
+                </label>`).join('')}
+        </div>
+
+        <label class="recur-monthly">${T('on_the')}</label>
+        <div class="recur-monthly recur-inline">
+            <select id="recMonthMode" class="detail-input" onchange="recurEditorRefresh()">
+                <option value="dom" ${sel(v.month_mode,'dom')}>${T('by_day_number')}</option>
+                <option value="nth" ${sel(v.month_mode,'nth')}>${T('by_weekday')}</option>
+            </select>
+            <span class="recur-dom">
+                <input type="number" id="recDom" class="detail-input recur-n" min="-1" max="31" value="${esc(v.day_of_month)}">
+                <small>${T('day_hint')}</small>
+            </span>
+            <span class="recur-nth">
+                <select id="recNth" class="detail-input">
+                    ${[1,2,3,4,5].map(i => `<option value="${i}" ${sel(v.nth,i)}>${T('ord_' + i)}</option>`).join('')}
+                    <option value="-1" ${sel(v.nth,-1)}>${T('ord_last')}</option>
+                </select>
+                <select id="recNthWd" class="detail-input">
+                    ${RECUR_WEEKDAYS.map(i => `<option value="${i}" ${sel(v.nth_weekday,i)}>${esc(wdName(i))}</option>`).join('')}
+                </select>
+            </span>
+        </div>
+
+        <label class="recur-yearly">${T('in_month')}</label>
+        <div class="recur-yearly">
+            <select id="recMonth" class="detail-input">
+                <option value="">${T('same_month')}</option>
+                ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}" ${sel(v.month_of_year,m)}>${esc(window.t('common.calendar.months.' + ['','january','february','march','april','may','june','july','august','september','october','november','december'][m]))}</option>`).join('')}
+            </select>
+        </div>
+
+        <label>${T('ends')}</label>
+        <div class="recur-inline">
+            <select id="recEnds" class="detail-input" onchange="recurEditorRefresh()">
+                <option value="never"       ${sel(v.ends_mode,'never')}>${T('ends_never')}</option>
+                <option value="on_date"     ${sel(v.ends_mode,'on_date')}>${T('ends_on_date')}</option>
+                <option value="after_count" ${sel(v.ends_mode,'after_count')}>${T('ends_after')}</option>
+            </select>
+            <input type="date"   id="recEndsOn" class="detail-input recur-ends-date"  value="${esc(v.ends_on || '')}">
+            <input type="number" id="recMax"    class="detail-input recur-n recur-ends-count" min="1" max="1000" value="${esc(v.max_occurrences || '')}">
+        </div>
+
+        <label>${T('carry_over')}</label>
+        <div class="recur-copy">
+            ${[['copy_description','carry_description'],['copy_subtasks','carry_subtasks'],
+               ['copy_assignee','carry_assignee'],['copy_tags','carry_tags'],
+               ['copy_links','carry_links'],['copy_attachments','carry_attachments']]
+              .map(([k, label]) => `<label class="recur-day"><input type="checkbox" id="rec_${k}" ${chk(v[k])}><span>${T(label)}</span></label>`).join('')}
+        </div>
+      </div>
+      <div class="recur-actions">
+        <button type="button" class="btn-primary" onclick="saveRecurrence()">${esc(window.t('common.save'))}</button>
+        ${r && Number(r.is_active) ? `<button type="button" class="btn-link recur-stop" onclick="stopRecurrence()">${T('stop')}</button>` : ''}
+      </div>`;
+}
+
+/** Show only the rows the chosen frequency and ending actually use. */
+function recurEditorRefresh() {
+    const root = document.getElementById('recurEditor');
+    if (!root) return;
+    const freq = (document.getElementById('recFreq') || {}).value || 'weekly';
+    const mm   = (document.getElementById('recMonthMode') || {}).value || 'dom';
+    const ends = (document.getElementById('recEnds') || {}).value || 'never';
+    const show = (sel, on) => root.querySelectorAll(sel).forEach(el => el.style.display = on ? '' : 'none');
+
+    show('.recur-weekly',  freq === 'weekly');
+    show('.recur-monthly', freq === 'monthly' || freq === 'yearly');
+    show('.recur-yearly',  freq === 'yearly');
+    show('.recur-dom',     mm === 'dom');
+    show('.recur-nth',     mm === 'nth');
+    show('.recur-ends-date',  ends === 'on_date');
+    show('.recur-ends-count', ends === 'after_count');
+}
+
+async function saveRecurrence() {
+    if (!selectedTaskId) return;
+    const val = id => (document.getElementById(id) || {}).value;
+    const on  = id => !!(document.getElementById(id) || {}).checked;
+    const payload = {
+        task_id: selectedTaskId,
+        mode: val('recMode'), freq: val('recFreq'),
+        interval_n: parseInt(val('recInterval'), 10) || 1,
+        weekdays: Array.from(document.querySelectorAll('.recDay:checked')).map(el => el.value).join(','),
+        month_mode: val('recMonthMode'),
+        day_of_month: val('recDom'), nth: val('recNth'), nth_weekday: val('recNthWd'),
+        month_of_year: val('recMonth'),
+        ends_mode: val('recEnds'), ends_on: val('recEndsOn'), max_occurrences: val('recMax'),
+        copy_description: on('rec_copy_description'), copy_subtasks: on('rec_copy_subtasks'),
+        copy_assignee: on('rec_copy_assignee'), copy_tags: on('rec_copy_tags'),
+        copy_links: on('rec_copy_links'), copy_attachments: on('rec_copy_attachments'),
+    };
+    try {
+        const d = await fetch(API_BASE + 'save_recurrence.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        }).then(r => r.json());
+        if (!d.success) { showToast(d.error || window.t('tasks.toast.save_failed'), 'error'); return; }
+        showToast(window.t('tasks.recur.saved'), 'success');
+        openDetailPanel(selectedTaskId);
+    } catch (e) { showToast(window.t('tasks.toast.save_failed'), 'error'); }
+}
+
+async function stopRecurrence() {
+    if (!selectedTaskId) return;
+    // Says plainly what it does and does not do. "Stop" next to a list of tasks
+    // reads as "delete them" to enough people to be worth a sentence.
+    if (!(await showConfirm({
+        title: window.t('tasks.recur.stop_title'),
+        message: window.t('tasks.recur.stop_message'),
+        okLabel: window.t('tasks.recur.stop'), okClass: 'danger',
+    }))) return;
+    try {
+        const d = await fetch(API_BASE + 'save_recurrence.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: selectedTaskId, off: true }),
+        }).then(r => r.json());
+        if (!d.success) { showToast(d.error || window.t('tasks.toast.save_failed'), 'error'); return; }
+        openDetailPanel(selectedTaskId);
+    } catch (e) { showToast(window.t('tasks.toast.save_failed'), 'error'); }
 }
 
 /**

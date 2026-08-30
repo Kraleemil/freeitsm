@@ -1038,13 +1038,20 @@ body {
 .comment-time { font-size: 11px; color: var(--text-dim, #999); }
 .comment-body { font-size: 13px; color: var(--text, #333); line-height: 1.5; white-space: pre-wrap; }
 
+/* The box gets the full width and Post sits under it, on the right (Ed).
+   Side by side, the textarea lost roughly a quarter of the panel to a button
+   that is only pressed once, and a comment worth writing is usually longer
+   than the two lines that left room for. */
 .comment-add {
     display: flex;
+    flex-direction: column;
+    align-items: flex-end;
     gap: 8px;
 }
 
 .comment-add textarea {
-    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
     padding: 8px 10px;
     border: 1px solid var(--border, #ddd);
     border-radius: 6px;
@@ -1754,4 +1761,110 @@ body {
 .cal-day-task-subtask {
     border-left: 2px dashed var(--border, #ddd);
     padding-left: 8px;
+}
+
+/* Recurring tasks (#94) */
+.recur-section { margin-top: 20px; }
+.recur-section h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-muted, #888);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 8px;
+}
+.recur-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--tsk-accent-soft, #efe9fd);
+    color: var(--tsk-accent, #7c3aed);
+}
+.recur-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text, #333);
+}
+.recur-master-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 6px 8px;
+    width: 100%;
+    text-align: left;
+    font-size: 12px;
+    border: 1px dashed var(--border, #ddd);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--tsk-accent, #7c3aed);
+    cursor: pointer;
+}
+.recur-master-link:hover { background: var(--surface-alt, #faf8ff); }
+.recur-editor { margin-top: 12px; }
+.recur-grid {
+    display: grid;
+    grid-template-columns: 108px 1fr;
+    gap: 10px 12px;
+    align-items: center;
+    font-size: 13px;
+}
+.recur-grid > label { color: var(--text-muted, #888); font-size: 12px; }
+.recur-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.recur-inline > span { color: var(--text-muted, #888); font-size: 12px; }
+.recur-n { width: 74px; }
+.recur-days, .recur-copy { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.recur-day {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text, #333);
+}
+.recur-day input { margin: 0; }
+.recur-dom small { display: block; color: var(--text-muted, #888); font-size: 11px; }
+.recur-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.recur-stop { color: var(--danger-text, #b42318); }
+.recur-icon { flex-shrink: 0; }
+
+/* On the calendar: a task that is one of a repeating series (#94). */
+.cal-bar-recur .recur-icon,
+.cal-day-task-recur .recur-icon { opacity: .9; margin-right: 3px; vertical-align: -2px; }
+
+/* "Subtask of ..." at the top of the detail panel (Ed). The old version had no
+   styling at all and sat below the fields, so it read as a stray link rather
+   than as the context it is. */
+.subtask-of {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    margin: 0 0 12px;
+    padding: 7px 10px;
+    text-align: left;
+    font-size: 12px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    background: var(--surface-alt, #f7f7f9);
+    color: var(--text, #333);
+    cursor: pointer;
+}
+.subtask-of:hover { border-color: var(--tsk-accent, #7c3aed); }
+.subtask-of svg { flex-shrink: 0; color: var(--text-muted, #888); }
+.subtask-of-label { color: var(--text-muted, #888); flex-shrink: 0; }
+.subtask-of-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
