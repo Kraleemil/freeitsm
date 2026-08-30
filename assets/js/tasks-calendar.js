@@ -19,7 +19,10 @@ let currentFilter = 'my';
 let currentFilterTeamId = null;
 let currentFilterAnalystId = null;
 // '' parent tasks only (the default, as before), 'both', or 'only' (#90).
-let currentSubtaskScope = '';
+// Seeded from the stored preference, which the page renders into the markup so
+// the select is already right on arrival rather than correcting itself after a
+// fetch. Falls back to the old behaviour if the page did not publish one.
+let currentSubtaskScope = window.CAL_SUBTASK_SCOPE || '';
 let tasks = [];
 let statuses = [];
 let priorities = [];
@@ -107,6 +110,15 @@ async function loadTasks() {
 function setSubtaskScope(scope) {
     currentSubtaskScope = scope;
     loadTasks();
+    // Remember it. The calendar redraws either way, so the save is deliberately
+    // not awaited and a failure is silent: this is a view preference, and
+    // interrupting someone with a toast because a preference did not persist
+    // would be worse than quietly showing them the default next time.
+    fetch('../../api/system/set_user_preference.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'tasks_calendar_subtasks', value: scope })
+    }).catch(() => {});
 }
 
 function setFilter(filter) {

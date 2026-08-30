@@ -8,6 +8,23 @@ require_once '../../includes/functions.php';
 require_once '../../includes/i18n.php';
 require_once '../../includes/theme.php';
 require_once '../../includes/timezone.php';
+// Whether this analyst wants subtasks on the calendar (#90). Read here and
+// published to the page rather than fetched, the same way the board reads
+// tasks_detail_view: the select must render already showing the right choice,
+// or it flickers to the stored value a moment after the page settles.
+$calSubtaskScope = '';
+try {
+    $__p = connectToDatabase()->prepare(
+        "SELECT preference_value FROM user_preferences
+         WHERE analyst_id = ? AND preference_key = 'tasks_calendar_subtasks'"
+    );
+    $__p->execute([(int) ($_SESSION['analyst_id'] ?? 0)]);
+    $__v = (string) $__p->fetchColumn();
+    if ($__v === 'both' || $__v === 'only') { $calSubtaskScope = $__v; }
+} catch (Throwable $e) {
+    // Un-migrated install, or no preferences row: parent tasks only, as before.
+}
+
 I18n::initFromSession();
 Tz::init();
 
@@ -58,9 +75,9 @@ $translationNamespaces = ['common', 'tasks'];
             <div class="sidebar-section">
                 <div class="sidebar-label"><?php echo htmlspecialchars(t('tasks.sidebar.show')); ?></div>
                 <select id="subtaskFilter" class="sidebar-select" onchange="setSubtaskScope(this.value)">
-                    <option value=""><?php echo htmlspecialchars(t('tasks.filter.parents_only')); ?></option>
-                    <option value="both"><?php echo htmlspecialchars(t('tasks.filter.parents_and_subtasks')); ?></option>
-                    <option value="only"><?php echo htmlspecialchars(t('tasks.filter.subtasks_only')); ?></option>
+                    <option value=""<?php echo $calSubtaskScope === ''     ? ' selected' : ''; ?>><?php echo htmlspecialchars(t('tasks.filter.parents_only')); ?></option>
+                    <option value="both"<?php echo $calSubtaskScope === 'both' ? ' selected' : ''; ?>><?php echo htmlspecialchars(t('tasks.filter.parents_and_subtasks')); ?></option>
+                    <option value="only"<?php echo $calSubtaskScope === 'only' ? ' selected' : ''; ?>><?php echo htmlspecialchars(t('tasks.filter.subtasks_only')); ?></option>
                 </select>
             </div>
 
@@ -126,9 +143,13 @@ $translationNamespaces = ['common', 'tasks'];
         </div>
     </div>
 
-    <script>window.API_BASE = '../../api/tasks/';</script>
+    <script>
+        window.API_BASE = '../../api/tasks/';
+        // The stored choice, rendered server-side so the select is already correct.
+        window.CAL_SUBTASK_SCOPE = <?php echo json_encode($calSubtaskScope); ?>;
+    </script>
     <script src="../../assets/js/tasks-quick-panel.js?v=1"></script>
-    <script src="../../assets/js/tasks-calendar.js?v=9"></script>
+    <script src="../../assets/js/tasks-calendar.js?v=10"></script>
     <script src="../../assets/js/mobile.js?v=33"></script>
 </body>
 </html>
