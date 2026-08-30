@@ -41,7 +41,19 @@ try {
     // "Unknown column" on an install that has pulled the update but not yet run
     // it — the same trap the snooze columns had to dodge in the ticket list.
     require_once '../../includes/asset_labels.php';
-    $tagCol = assetLabelsSchemaReady($conn) ? "a.asset_tag," : "NULL AS asset_tag,";
+    $tagsReady = assetLabelsSchemaReady($conn);
+    $tagCol = $tagsReady ? "a.asset_tag," : "NULL AS asset_tag,";
+
+    // The search reaches into locations and contracts, both of which may be
+    // absent on an install that has not run Database Verification since the
+    // update — same trap as the tag column above.
+    $tableCheckFor = function (string $name) use ($conn): bool {
+        $q = $conn->prepare("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?");
+        $q->execute([DB_NAME, $name]);
+        return (int)$q->fetchColumn() > 0;
+    };
+    $locationTableExists       = $tableCheckFor('asset_locations');
+    $contractAssetsTableExists = $tableCheckFor('contract_assets') && $tableCheckFor('contracts');
 
     // Build query with optional search
     if ($tableExists) {
@@ -136,8 +148,44 @@ try {
 
     $sql .= " WHERE 1=1";
     if (!empty($search)) {
-        $sql .= " AND a.hostname LIKE ?";
-        $params[] = '%' . $search . '%';
+        // Until now this matched HOSTNAME and nothing else, which is thin for an
+        // estate of any size and useless for anything without one — a SIM card,
+        // a meeting-room television, a monitor. It now matches the things people
+        // actually have to hand, and the contract an item is on, which is what
+        // discussion #106 asked for as "search assets by contract": type a
+        // contract number and the list becomes that contract's equipment.
+        //
+        // ⚠️ BRACKETED. An unbracketed `AND a OR b OR c` would bind the company
+        // filter that follows to the LAST branch only, so every other branch
+        // would return assets from every company. That exact mistake has been
+        // made in this codebase before.
+        //
+        // EXISTS rather than JOIN, deliberately: a join to contract_assets would
+        // multiply a row by the number of contracts an asset is on, and this
+        // query's GROUP BY would then be load-bearing in a way it is not today.
+        $like  = '%' . $search . '%';
+        $terms = ['a.hostname LIKE ?', 'a.manufacturer LIKE ?', 'a.model LIKE ?', 'a.service_tag LIKE ?'];
+        $args  = [$like, $like, $like, $like];
+
+        if ($tagsReady) {
+            $terms[] = 'a.asset_tag LIKE ?';
+            $args[]  = $like;
+        }
+        if ($locationTableExists) {
+            $terms[] = 'EXISTS (SELECT 1 FROM asset_locations l WHERE l.id = a.location_id AND l.name LIKE ?)';
+            $args[]  = $like;
+        }
+        if ($contractAssetsTableExists) {
+            $terms[] = 'EXISTS (SELECT 1 FROM contract_assets ca
+                                  JOIN contracts c ON c.id = ca.contract_id
+                                 WHERE ca.asset_id = a.id
+                                   AND (c.contract_number LIKE ? OR c.title LIKE ?))';
+            $args[]  = $like;
+            $args[]  = $like;
+        }
+
+        $sql   .= ' AND (' . implode(' OR ', $terms) . ')';
+        $params = array_merge($params, $args);
     }
     $sql .= $tenantSql;
     $params = array_merge($params, $tenantParams);

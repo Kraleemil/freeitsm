@@ -147,7 +147,7 @@ return [
         'inactive' => 'Inaktiv',
     ],
     'list' => [
-        'search_placeholder' => 'Søg på hostnavn...',
+        'search_placeholder' => 'Søg efter navn, serienr., mærke, placering eller kontrakt...',
         'no_assets' => 'Ingen aktiver fundet',
         'count' => '{count} aktiver',
         'n_selected' => '{count} valgt',

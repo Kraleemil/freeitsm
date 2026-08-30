@@ -171,7 +171,7 @@ return [
 
     // Split-pane left list
     'list' => [
-        'search_placeholder' => 'Search by hostname...',
+        'search_placeholder' => 'Search name, serial, tag, location or contract...',
         'no_assets'          => 'No assets found',
         'count'              => '{count} assets',
         // Picking several for a batch of labels (#935)

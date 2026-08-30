@@ -64,7 +64,7 @@ return [
         'print_labels'       => 'Etiketten drucken',
         'assign_tags'        => 'Inventarnummern zuweisen',
         'scan'               => 'Scannen',
-        'search_placeholder' => 'Nach Hostname suchen...',
+        'search_placeholder' => 'Nach Name, Seriennr., Inventarnr., Standort oder Vertrag suchen...',
         'no_assets'          => 'Keine Assets gefunden',
         'count'              => '{count} Assets',
         'add_asset'          => 'Hinzufügen',
