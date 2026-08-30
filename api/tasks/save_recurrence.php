@@ -34,13 +34,6 @@ if ($taskId <= 0) {
     exit;
 }
 
-/** Keep a value inside a range, or null. */
-function recInt($v, int $min, int $max): ?int {
-    if ($v === null || $v === '') return null;
-    $n = (int)$v;
-    return max($min, min($max, $n));
-}
-
 try {
     $conn = connectToDatabase();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -71,39 +64,11 @@ try {
     }
 
     // ---- Validate ---------------------------------------------------------
-    $mode = in_array(($in['mode'] ?? ''), ['completion', 'schedule'], true) ? $in['mode'] : 'completion';
-    $freq = in_array(($in['freq'] ?? ''), ['daily', 'weekly', 'monthly', 'yearly'], true) ? $in['freq'] : 'weekly';
-    $monthMode = in_array(($in['month_mode'] ?? ''), ['dom', 'nth'], true) ? $in['month_mode'] : 'dom';
-    $endsMode  = in_array(($in['ends_mode'] ?? ''), ['never', 'on_date', 'after_count'], true) ? $in['ends_mode'] : 'never';
-
-    // Weekly days arrive as an array or a CSV; either way only ISO 1-7 survive.
-    $weekdays = $in['weekdays'] ?? '';
-    if (is_array($weekdays)) $weekdays = implode(',', $weekdays);
-    $weekdays = implode(',', array_filter(array_map('intval', explode(',', (string)$weekdays)),
-        fn($n) => $n >= 1 && $n <= 7));
-
-    $rule = [
-        'mode'            => $mode,
-        'freq'            => $freq,
-        'interval_n'      => max(1, min(365, (int)($in['interval_n'] ?? 1))),
-        'weekdays'        => $weekdays !== '' ? $weekdays : null,
-        'month_mode'      => in_array($freq, ['monthly', 'yearly'], true) ? $monthMode : null,
-        // -1 is meaningful (the last day of the month), so the floor is -1.
-        'day_of_month'    => recInt($in['day_of_month'] ?? null, -1, 31),
-        'nth'             => recInt($in['nth'] ?? null, -1, 5),
-        'nth_weekday'     => recInt($in['nth_weekday'] ?? null, 1, 7),
-        'month_of_year'   => recInt($in['month_of_year'] ?? null, 1, 12),
-        'ends_mode'       => $endsMode,
-        'ends_on'         => $endsMode === 'on_date' && !empty($in['ends_on'])
-                                ? substr((string)$in['ends_on'], 0, 10) : null,
-        'max_occurrences' => $endsMode === 'after_count' ? recInt($in['max_occurrences'] ?? null, 1, 1000) : null,
-        'copy_description' => !empty($in['copy_description']) ? 1 : 0,
-        'copy_subtasks'    => !empty($in['copy_subtasks'])    ? 1 : 0,
-        'copy_assignee'    => !empty($in['copy_assignee'])    ? 1 : 0,
-        'copy_tags'        => !empty($in['copy_tags'])        ? 1 : 0,
-        'copy_links'       => !empty($in['copy_links'])       ? 1 : 0,
-        'copy_attachments' => !empty($in['copy_attachments']) ? 1 : 0,
-    ];
+    // Shared with the preview endpoint. Two places sanitising the same input
+    // differently is how a preview ends up showing dates the worker will not
+    // produce, so there is exactly one home for it.
+    $rule = TaskRecurrence::ruleFromInput($in);
+    $mode = $rule['mode'];
 
     // A rule that cannot produce a date is refused HERE rather than saved and
     // found to be inert later. The engine is the authority on that, so ask it.

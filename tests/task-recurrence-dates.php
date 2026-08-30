@@ -139,5 +139,69 @@ is_('British Summer Time does not shift it a day early',
 is_('a gap spanning the clock change is still the same number of days',
     TaskRecurrence::startForDue($span('2026-03-22', '2026-04-05'), '2026-05-03'), '2026-04-19');
 
+// ── Previewing a rule before committing to it ────────────────────────────────
+//
+// Ed's idea: show every date the current settings would produce, so "every
+// second Tuesday of the month, 5 times" does not have to be saved and waited
+// on to find out what it means. The list must come from the same engine the
+// worker uses, so these check the two agree about where a series stops.
+echo "\nPreviewing a rule:\n";
+$prevDates = function (array $rule, array $task, int $limit = 25): string {
+    $p = TaskRecurrence::previewRule($rule, $task, $limit);
+    return implode(' ', array_column($p['occurrences'], 'due_date')) . ($p['truncated'] ? ' …' : '');
+};
+$weeklyMon = ['mode'=>'schedule','freq'=>'weekly','interval_n'=>1,'weekdays'=>'1',
+              'ends_mode'=>'after_count','max_occurrences'=>5];
+$aaa = ['due_date'=>'2026-08-28','start_date'=>'2026-08-24'];
+
+is_('the task itself is occurrence 1, then four more',
+    $prevDates($weeklyMon, $aaa),
+    '2026-08-28 2026-08-31 2026-09-07 2026-09-14 2026-09-21');
+is_('and the fifth is the last - the count includes the task',
+    count(TaskRecurrence::previewRule($weeklyMon, $aaa)['occurrences']), 5);
+is_('each one carries the span of the task it came from',
+    TaskRecurrence::previewRule($weeklyMon, $aaa)['occurrences'][1]['start_date'], '2026-08-27');
+
+// A repeat that fires on completion has no dates to list: the next one is
+// counted from the day somebody finishes, which has not happened.
+is_('a completion-mode repeat previews only the task in front of you',
+    $prevDates(['mode'=>'completion','freq'=>'daily','interval_n'=>30], $aaa), '2026-08-28');
+
+// An endless series has to stop somewhere, and must SAY it stopped.
+$endless = ['mode'=>'schedule','freq'=>'daily','interval_n'=>1,'ends_mode'=>'never'];
+is_('an endless series is capped and flagged as truncated',
+    $prevDates($endless, $aaa, 4), '2026-08-28 2026-08-29 2026-08-30 2026-08-31 …');
+
+// The end date is the worker's rule, not a second opinion.
+is_('an end date stops the list where the worker would stop',
+    $prevDates(['mode'=>'schedule','freq'=>'weekly','interval_n'=>1,'weekdays'=>'1',
+                'ends_mode'=>'on_date','ends_on'=>'2026-09-08'], $aaa),
+    '2026-08-28 2026-08-31 2026-09-07');
+
+// Settings that produce nothing give one entry - the task - which is what the
+// screen turns into "these settings do not produce another occurrence".
+is_('a rule that has already ended previews nothing further',
+    $prevDates(['mode'=>'schedule','freq'=>'weekly','interval_n'=>1,'weekdays'=>'1',
+                'ends_mode'=>'on_date','ends_on'=>'2026-08-29'], $aaa), '2026-08-28');
+
+// ── Sanitising what the browser sends ────────────────────────────────────────
+// One home, shared by saving and previewing. Two sanitisers would let a preview
+// show dates the worker never produces.
+echo "\nSanitising rule input:\n";
+is_('an unknown mode falls back to completion',
+    TaskRecurrence::ruleFromInput(['mode'=>'whenever'])['mode'], 'completion');
+is_('an unknown frequency falls back to weekly',
+    TaskRecurrence::ruleFromInput(['freq'=>'fortnightly'])['freq'], 'weekly');
+is_('junk weekdays are dropped, valid ones kept',
+    TaskRecurrence::ruleFromInput(['weekdays'=>'0,1,9,5,x'])['weekdays'], '1,5');
+is_('weekdays may arrive as an array',
+    TaskRecurrence::ruleFromInput(['weekdays'=>[2,3]])['weekdays'], '2,3');
+is_('the last day of the month survives as -1',
+    TaskRecurrence::ruleFromInput(['day_of_month'=>-1])['day_of_month'], -1);
+is_('an absurd interval is clamped, not accepted',
+    TaskRecurrence::ruleFromInput(['interval_n'=>99999])['interval_n'], 365);
+is_('an end date is ignored unless the ending asks for one',
+    TaskRecurrence::ruleFromInput(['ends_mode'=>'never','ends_on'=>'2026-12-31'])['ends_on'], null);
+
 echo "\n" . str_repeat('=', 78) . "\n  {$pass} passed, {$fail} failed\n\n";
 exit($fail === 0 ? 0 : 1);

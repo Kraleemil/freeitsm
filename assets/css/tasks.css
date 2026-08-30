@@ -1816,10 +1816,21 @@ body {
     display: grid;
     grid-template-columns: 108px 1fr;
     gap: 10px 12px;
-    align-items: center;
+    /* Top-aligned, not centred (Ed). Several of these controls are two rows
+       tall — the weekday boxes, the carry-over boxes, the frequency and its
+       "every N" — and a centred label floated into the gap between the two
+       rows, pointing at neither of them. */
+    align-items: start;
     font-size: 13px;
 }
-.recur-grid > label { color: var(--text-muted, #888); font-size: 12px; }
+/* Nudged down to sit level with the FIRST line of text in the control beside
+   it, rather than with the top edge of its border: a select carries 1px of
+   border and 8px of padding above its text. */
+.recur-grid > label { color: var(--text-muted, #888); font-size: 12px; padding-top: 9px; }
+/* Checkbox groups have no border or padding of their own, so they need the
+   opposite correction to line up with the same label. */
+.recur-grid > .recur-days,
+.recur-grid > .recur-copy { padding-top: 9px; }
 .recur-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .recur-inline > span { color: var(--text-muted, #888); font-size: 12px; }
 .recur-n { width: 74px; }
@@ -1903,4 +1914,94 @@ body {
     background: transparent !important;
     border: 2px dashed var(--text-muted, #888);
     box-sizing: border-box;
+}
+
+/* Repeat preview (Ed's idea): every date the current settings would produce,
+   shown before committing to them. The overlay uses the shared .modal-overlay /
+   .modal-box shape from inbox.css, which the Tasks pages already load. */
+/* ⚠️ Everything the box needs is HERE. .modal-overlay comes from inbox.css,
+   which the Tasks pages load, but .modal-box does NOT exist in any stylesheet
+   they load - it lives in change-management.css and integrations.css. Leaning
+   on it gave a modal with NO background at all, which a headless computed-style
+   check caught (rgba(0,0,0,0)) and reading the markup never would. */
+.recur-prev-box {
+    background: var(--surface, #fff);
+    color: var(--text, #333);
+    border-radius: 10px;
+    box-shadow: 0 10px 40px var(--shadow, rgba(0,0,0,.3));
+    max-width: 460px;
+    width: 90%;
+    padding: 22px 24px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+.recur-prev-box h3 { font-size: 16px; margin: 0 0 4px; color: var(--text, #333); }
+.recur-prev-sub {
+    font-size: 13px;
+    color: var(--text-muted, #666);
+    margin: -6px 0 14px;
+}
+.recur-prev-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.recur-prev-table th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--text-faint, #999);
+    font-weight: 600;
+    padding: 0 8px 6px 0;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.recur-prev-table td {
+    padding: 7px 8px 7px 0;
+    border-bottom: 1px solid var(--border-soft, #f1f1f1);
+    color: var(--text, #333);
+    white-space: nowrap;
+}
+.recur-prev-table tr:last-child td { border-bottom: none; }
+.recur-prev-n {
+    color: var(--text-faint, #999);
+    font-variant-numeric: tabular-nums;
+    width: 22px;
+}
+/* The span is the quieter half: a task with no start date leaves it blank, and
+   a blank column should not look like something failed to load. */
+.recur-prev-span { color: var(--text-muted, #666); }
+.recur-prev-marks { width: 1%; text-align: right; }
+.recur-prev-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: var(--surface-3, #f0f0f0);
+    color: var(--text-muted, #666);
+}
+.recur-prev-tag-made {
+    background: var(--tsk-accent-soft, #eef2ff);
+    color: var(--tsk-accent, #4f46e5);
+}
+.recur-prev-made td { background: var(--surface-2, #fafafa); }
+.recur-prev-note {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-muted, #666);
+    margin: 12px 0 0;
+}
+.recur-prev-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 18px;
+}
+/* A repeat that produces nothing is the most useful thing a preview can tell
+   you, so it is not styled as quiet supporting text. */
+.recur-prev-warn {
+    background: var(--warning-bg, #fff8e6);
+    border: 1px solid var(--warning-border, #f5d98a);
+    color: var(--warning-text, #7a5b00);
+    padding: 9px 11px;
+    border-radius: 6px;
 }

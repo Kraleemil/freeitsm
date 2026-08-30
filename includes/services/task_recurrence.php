@@ -453,6 +453,120 @@ class TaskRecurrence
     }
 
     /** The most recent task in a series - the one a new occurrence is copied from. */
+    /** Keep a value inside a range, or null. */
+    private static function clampInt($v, int $min, int $max): ?int
+    {
+        if ($v === null || $v === '') return null;
+        return max($min, min($max, (int)$v));
+    }
+
+    /**
+     * Build a rule from whatever the browser sent, discarding anything invalid.
+     *
+     * ⚠️ ONE home, because two endpoints read this shape: saving a rule, and
+     * previewing one that has not been saved yet. A preview built from
+     * differently-sanitised input would show dates the worker will not produce,
+     * and a preview that lies is worse than no preview at all.
+     */
+    public static function ruleFromInput(array $in): array
+    {
+        $mode      = in_array(($in['mode'] ?? ''), ['completion', 'schedule'], true) ? $in['mode'] : 'completion';
+        $freq      = in_array(($in['freq'] ?? ''), ['daily', 'weekly', 'monthly', 'yearly'], true) ? $in['freq'] : 'weekly';
+        $monthMode = in_array(($in['month_mode'] ?? ''), ['dom', 'nth'], true) ? $in['month_mode'] : 'dom';
+        $endsMode  = in_array(($in['ends_mode'] ?? ''), ['never', 'on_date', 'after_count'], true) ? $in['ends_mode'] : 'never';
+
+        // Weekly days arrive as an array or a CSV; either way only ISO 1-7 survive.
+        $weekdays = $in['weekdays'] ?? '';
+        if (is_array($weekdays)) $weekdays = implode(',', $weekdays);
+        $weekdays = implode(',', array_filter(array_map('intval', explode(',', (string)$weekdays)),
+            fn($n) => $n >= 1 && $n <= 7));
+
+        return [
+            'mode'            => $mode,
+            'freq'            => $freq,
+            'interval_n'      => max(1, min(365, (int)($in['interval_n'] ?? 1))),
+            'weekdays'        => $weekdays !== '' ? $weekdays : null,
+            'month_mode'      => in_array($freq, ['monthly', 'yearly'], true) ? $monthMode : null,
+            // -1 is meaningful (the last day of the month), so the floor is -1.
+            'day_of_month'    => self::clampInt($in['day_of_month'] ?? null, -1, 31),
+            'nth'             => self::clampInt($in['nth'] ?? null, -1, 5),
+            'nth_weekday'     => self::clampInt($in['nth_weekday'] ?? null, 1, 7),
+            'month_of_year'   => self::clampInt($in['month_of_year'] ?? null, 1, 12),
+            'ends_mode'       => $endsMode,
+            'ends_on'         => $endsMode === 'on_date' && !empty($in['ends_on'])
+                                    ? substr((string)$in['ends_on'], 0, 10) : null,
+            'max_occurrences' => $endsMode === 'after_count'
+                                    ? self::clampInt($in['max_occurrences'] ?? null, 1, 1000) : null,
+            'copy_description' => !empty($in['copy_description']) ? 1 : 0,
+            'copy_subtasks'    => !empty($in['copy_subtasks'])    ? 1 : 0,
+            'copy_assignee'    => !empty($in['copy_assignee'])    ? 1 : 0,
+            'copy_tags'        => !empty($in['copy_tags'])        ? 1 : 0,
+            'copy_links'       => !empty($in['copy_links'])       ? 1 : 0,
+            'copy_attachments' => !empty($in['copy_attachments']) ? 1 : 0,
+        ];
+    }
+
+    /**
+     * Every date a rule will produce, for showing somebody BEFORE they commit.
+     *
+     * "Every second Tuesday of the month, 5 times" is not a sentence most people
+     * can turn into dates in their head, and until they can, the only way to
+     * find out what a repeat does is to save it and wait. So this walks the rule
+     * with the same engine the worker uses and hands back the list.
+     *
+     * Occurrence 1 is the task in front of you, which is why it carries the
+     * task's own dates rather than computed ones — the series is seeded from its
+     * due date and it counts towards "5 times".
+     *
+     * ⚠️ A repeat set to fire AFTER COMPLETION gets one entry and no more. Its
+     * next date is counted from the day somebody actually finishes, which has
+     * not happened, so a list would be a guess dressed up as a schedule. The
+     * caller is told the mode and says so in words instead.
+     */
+    public static function previewRule(array $rule, array $task, int $limit = 25): array
+    {
+        $anchor = !empty($task['due_date']) ? substr((string)$task['due_date'], 0, 10) : gmdate('Y-m-d');
+
+        $out = [[
+            'n'          => 1,
+            'due_date'   => $anchor,
+            'start_date' => !empty($task['start_date']) ? substr((string)$task['start_date'], 0, 10) : null,
+            'first'      => true,
+        ]];
+
+        if (($rule['mode'] ?? 'completion') !== 'schedule') {
+            return ['occurrences' => $out, 'truncated' => false];
+        }
+
+        $due = $anchor;
+        $n   = 1;
+        $truncated = false;
+
+        while (true) {
+            $next = self::nextDate($rule, $due);
+            if ($next === null || $next === $due) break;
+
+            // The same accounting the worker uses, so the list stops where the
+            // series will actually stop.
+            $probe = $rule;
+            $probe['occurrences_created'] = $n;
+            if (self::isExhausted($probe, $next)) break;
+
+            if ($n >= $limit) { $truncated = true; break; }
+
+            $n++;
+            $out[] = [
+                'n'          => $n,
+                'due_date'   => $next,
+                'start_date' => self::startForDue($task, $next),
+                'first'      => false,
+            ];
+            $due = $next;
+        }
+
+        return ['occurrences' => $out, 'truncated' => $truncated];
+    }
+
     /**
      * The day work on an occurrence due $due can BEGIN.
      *

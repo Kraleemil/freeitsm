@@ -1819,6 +1819,7 @@ function renderRecurrenceEditor(r) {
       </div>
       <div class="recur-actions">
         <button type="button" class="btn btn-primary" onclick="saveRecurrence()">${esc(window.t('common.save'))}</button>
+        <button type="button" class="btn btn-secondary" onclick="previewRecurrence()">${esc(T('preview'))}</button>
         ${r && Number(r.is_active) ? `<button type="button" class="recur-link recur-stop" onclick="stopRecurrence()">${T('stop')}</button>` : ''}
       </div>`;
 }
@@ -1841,11 +1842,17 @@ function recurEditorRefresh() {
     show('.recur-ends-count', ends === 'after_count');
 }
 
-async function saveRecurrence() {
-    if (!selectedTaskId) return;
+/**
+ * The editor's current settings, as the API wants them.
+ *
+ * Shared by Save and Preview, so the dates previewed are produced from exactly
+ * the same values that would be saved. Reading the form twice, in two places,
+ * is how a preview quietly stops describing the thing it is previewing.
+ */
+function recurrenceFormPayload() {
     const val = id => (document.getElementById(id) || {}).value;
     const on  = id => !!(document.getElementById(id) || {}).checked;
-    const payload = {
+    return {
         task_id: selectedTaskId,
         mode: val('recMode'), freq: val('recFreq'),
         interval_n: parseInt(val('recInterval'), 10) || 1,
@@ -1858,6 +1865,96 @@ async function saveRecurrence() {
         copy_assignee: on('rec_copy_assignee'), copy_tags: on('rec_copy_tags'),
         copy_links: on('rec_copy_links'), copy_attachments: on('rec_copy_attachments'),
     };
+}
+
+/**
+ * Show the dates the current settings would produce, before committing to them
+ * (Ed's idea). "Every second Tuesday of the month, 5 times" is not something
+ * most people can turn into dates in their head, and without this the only way
+ * to find out what a repeat does is to save it and wait.
+ *
+ * ⚠️ The dates come from the SERVER, from the same engine the cron runs.
+ * Working them out here would be faster and would drift, and a preview that
+ * disagrees with what actually happens is worse than no preview.
+ */
+async function previewRecurrence() {
+    if (!selectedTaskId) return;
+    try {
+        const d = await fetch(API_BASE + 'recurrence_preview.php', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(recurrenceFormPayload()),
+        }).then(r => r.json());
+        if (!d.success) { showToast(d.error || window.t('tasks.toast.save_failed'), 'error'); return; }
+        showRecurrencePreview(d);
+    } catch (e) { showToast(window.t('tasks.toast.save_failed'), 'error'); }
+}
+
+function showRecurrencePreview(d) {
+    const T = (k, p) => window.t('tasks.recur.' + k, p);
+    closeRecurrencePreview();
+
+    const rows = (d.occurrences || []).map(o => {
+        const marks = [];
+        if (o.first)  marks.push(`<span class="recur-prev-tag">${esc(T('preview_this_task'))}</span>`);
+        if (o.exists) marks.push(`<span class="recur-prev-tag recur-prev-tag-made">${esc(T('preview_created'))}</span>`);
+        // Plain calendar dates, so they are formatted naively — converting them
+        // to a display timezone would move somebody's due date by a day.
+        const due   = fmtNaiveDate(o.due_date);
+        const start = o.start_date ? fmtNaiveDate(o.start_date) : '';
+        return `
+            <tr${o.exists ? ' class="recur-prev-made"' : ''}>
+                <td class="recur-prev-n">${o.n}</td>
+                <td class="recur-prev-span">${esc(start)}</td>
+                <td>${esc(due)}</td>
+                <td class="recur-prev-marks">${marks.join(' ')}</td>
+            </tr>`;
+    }).join('');
+
+    // A repeat that fires on completion has no dates to list: its next one is
+    // counted from the day somebody actually finishes, which has not happened.
+    // Saying so is honest; listing guesses would not be.
+    const body = d.mode === 'schedule'
+        ? `<table class="recur-prev-table">
+             <thead><tr>
+               <th></th>
+               <th>${esc(T('preview_starts'))}</th>
+               <th>${esc(T('preview_due'))}</th>
+               <th></th>
+             </tr></thead>
+             <tbody>${rows}</tbody>
+           </table>
+           ${d.truncated ? `<p class="recur-prev-note">${esc(T('preview_truncated', { n: (d.occurrences || []).length }))}</p>` : ''}
+           ${(d.occurrences || []).length < 2 ? `<p class="recur-prev-note recur-prev-warn">${esc(T('preview_none'))}</p>` : ''}`
+        : `<p class="recur-prev-note">${esc(T('preview_completion_mode'))}</p>`;
+
+    const el = document.createElement('div');
+    el.className = 'modal-overlay recur-prev-overlay';
+    el.id = 'recurPreviewOverlay';
+    el.onclick = closeRecurrencePreview;
+    el.innerHTML = `
+        <div class="modal-box recur-prev-box" onclick="event.stopPropagation()">
+            <h3>${esc(T('preview_heading'))}</h3>
+            <p class="recur-prev-sub">${esc(d.title || '')}</p>
+            ${body}
+            <div class="recur-prev-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeRecurrencePreview()">${esc(window.t('common.close'))}</button>
+            </div>
+        </div>`;
+    document.body.appendChild(el);
+    document.addEventListener('keydown', recurPreviewEsc);
+}
+
+function recurPreviewEsc(e) { if (e.key === 'Escape') closeRecurrencePreview(); }
+
+function closeRecurrencePreview() {
+    const el = document.getElementById('recurPreviewOverlay');
+    if (el) el.remove();
+    document.removeEventListener('keydown', recurPreviewEsc);
+}
+
+async function saveRecurrence() {
+    if (!selectedTaskId) return;
+    const payload = recurrenceFormPayload();
     try {
         const d = await fetch(API_BASE + 'save_recurrence.php', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
