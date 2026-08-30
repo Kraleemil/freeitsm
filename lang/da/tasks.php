@@ -288,7 +288,7 @@ return [
     'help' => [
         'page_title' => 'Service Desk - Opgaveguide',
         'guide' => 'Guide',
-        'nav_overview' => 'Overblik',
+        'nav_overview' => 'Oversigt',
         'nav_board' => 'Tavlen',
         'nav_list' => 'Listevisning',
         'nav_calendar' => 'Kalendervisning',
@@ -300,7 +300,7 @@ return [
         'nav_tips' => 'Hurtige tips',
         'hero_title' => 'Guide til Opgaver-modulet',
         'hero_subtitle' => 'Planlæg, tildel og følg internt arbejde på en Kanban-tavle &mdash; med kalender, tidslinje, mærker og statusinddelte kolonner.',
-        'overview_heading' => 'Overblik',
+        'overview_heading' => 'Oversigt',
         'overview_intro' => 'Opgaver-modulet er en let arbejdstracker til dit service desk-team. Brug det til de opgaver, der ikke er sager &mdash; projektarbejde, internt administrativt arbejde, tilbagevendende opgaver, opfølgninger &mdash; og se dem som en Kanban-tavle, en sorterbar liste, en kalender, en tidslinje i Gantt-stil eller et fuldskærms-regneark, der kan redigeres. Opgaver kan knyttes til sager og ændringer, have mærker og deles op i delopgaver.',
         'overview_card1_title' => 'Tavle',
         'overview_card1_desc' => 'En Kanban-tavle med én kolonne pr. status. Træk kort mellem kolonner for at skifte status, træk kolonneoverskrifter for at omarrangere, og hurtigtilføj opgaver direkte i en kolonne.',

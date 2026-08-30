@@ -286,7 +286,7 @@ return [
     'help' => [
         'page_title' => 'FreeITSM — LMS-guide',
         'nav_label' => 'Guide',
-        'nav_overview' => 'Overblik',
+        'nav_overview' => 'Oversigt',
         'nav_authoring' => 'Skriv dit eget kursus',
         'nav_uploading' => 'Upload et kursus',
         'nav_groups' => 'Læringsgrupper',
@@ -314,7 +314,7 @@ return [
         'authoring_ai4_body' => 'Hvert udkast lander i editoren, så du kan læse og ændre det, og det gemmes med de samme kontroller som en håndskrevet lektion gennemgår. Intet når frem til en kursist, som du ikke har set. Konfigurér en udbyder på fanen Indstillinger; uden en skriver du bare selv.',
         'hero_title' => 'LMS-guide',
         'hero_sub' => 'Upload SCORM-pakker, gruppér dine medarbejdere, tildel undervisning, og følg alle kursisters fremskridt — lige ved siden af resten af service desk.',
-        'overview_heading' => 'Overblik',
+        'overview_heading' => 'Oversigt',
         'overview_intro' => 'LMS-modulet er en fuld SCORM-afspiller og -tracker, indbygget i service desk. Læg en vilkårlig SCORM 1.1-, 1.2- eller 2004-pakke ind, organisér dine medarbejdere i læringsgrupper, tildel kurser med valgfri frister, og se fremskridt komme ind, mens folk arbejder sig gennem indholdet. Ingen ekstern LMS, ingen betalt integration, ingen separat login.',
         'flow_upload' => 'Upload SCORM',
         'flow_groups' => 'Opret grupper',

@@ -451,7 +451,7 @@ Fordi de to lister betyder det modsatte, ryddes de {people}, der er angivet nu.'
     ],
     'help' => [
         'guide' => 'Vejledning',
-        'nav_overview' => 'Overblik',
+        'nav_overview' => 'Oversigt',
         'nav_writing' => 'Skriv artikler',
         'nav_review' => 'Gennemgangsforløb',
         'nav_ask_ai' => 'Spørg AI',
@@ -531,7 +531,7 @@ Fordi de to lister betyder det modsatte, ryddes de {people}, der er angivet nu.'
         'perms_admin_tip' => 'En begrænset mappe uden nogen på sin liste er ikke i stykker og er ikke en fejl, som FreeITSM vil rette for dig &mdash; den betyder præcis det, den siger. Hvis du havde tænkt dig at dele den, skal du sætte nogen på listen; vinduet fortæller dig tydeligt, når du har skabt sådan en.',
         'hero_title' => 'Vejledning til videnbasen',
         'hero_subtitle' => 'Opret, gennemgå og del videnartikler, så dit team altid har de svar, det har brug for.',
-        'overview_heading' => 'Overblik',
+        'overview_heading' => 'Oversigt',
         'overview_intro' => 'Modulet Viden er dit teams centrale opbevaringssted for dokumentation, guides, fejlfindingstrin og institutionel viden. I stedet for at svarene lever i en persons hoved eller er begravet i e-mailtråde, ligger de her — søgbare, versionsstyrede og tilgængelige for alle. Velholdte videnartikler reducerer antallet af sager, fremskynder løsningstider og hjælper nye teammedlemmer med at komme hurtigere op i fart.',
         'overview_card1_title' => 'Artikler',
         'overview_card1_desc' => 'Skriv formaterede artikler med en fuldt udstyret editor. Tilføj overskrifter, lister, tabeller, kodeblokke, billeder og mere. Hver artikel understøtter tags, ejerskab og planlagte gennemgangsdatoer, der holder indholdet friskt.',

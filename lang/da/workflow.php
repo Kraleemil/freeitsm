@@ -229,7 +229,7 @@ return [
         'iterate_hint' => 'Tip: når du har en arbejdsgang på lærredet, viderebygger AI\'en på den. Prøv "gør, at den kun matcher Økonomi, ikke alle afdelinger" eller "tilføj en handling, der også logger sagens id".',
         'explanation_label' => 'Hvad jeg byggede',
         'preview_label' => 'Foreslået arbejdsgang',
-        'warnings_label' => 'Bemærkninger',
+        'warnings_label' => 'Noter',
         'only_log_message' => 'Kun log_message-handlingen er implementeret i dag; AI\'en vil læne sig op ad den som en pladsholder for ikke-implementerede handlinger (f.eks. "send e-mail" → log_message, der dokumenterer hensigten).',
     ],
     'help' => [

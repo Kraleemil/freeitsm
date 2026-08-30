@@ -50,7 +50,7 @@ return [
         'type_contact' => 'kontakt',
     ],
     'list' => [
-        'overview' => 'Overblik',
+        'overview' => 'Oversigt',
         'expiring_90d' => 'Udløber (90 dage)',
         'quick_links' => 'Genveje',
         'new_contract' => 'Ny kontrakt',
@@ -315,7 +315,7 @@ return [
     'help' => [
         'page_title' => 'Service Desk - Kontraktguide',
         'guide' => 'Guide',
-        'nav_overview' => 'Overblik',
+        'nav_overview' => 'Oversigt',
         'nav_managing' => 'Håndtering af kontrakter',
         'nav_terms' => 'Kontraktvilkår',
         'nav_suppliers' => 'Leverandører',
@@ -440,7 +440,7 @@ Dette fjerner permanent alle dokumenter, krav, scorer og historik for denne RFP.
             'page_title' => 'Service Desk - Hjælp til RFP Builder',
             'heading' => 'RFP Builder — brugervejledning',
             'nav_getting_started' => 'Kom i gang',
-            'nav_overview' => 'Overblik',
+            'nav_overview' => 'Oversigt',
             'nav_workflow' => 'Arbejdsgang i seks faser',
             'nav_cost' => 'Forventet tid og pris',
             'nav_phases' => 'Faserne',
@@ -597,7 +597,7 @@ Dette fjerner permanent alle dokumenter, krav, scorer og historik for denne RFP.
             'cta_add_suppliers' => 'Tilføj leverandører først',
         ],
         'suppliers' => [
-            'overview' => 'Overblik',
+            'overview' => 'Oversigt',
             'add_supplier' => 'Tilføj leverandør',
             'tab_existing' => 'Vælg eksisterende',
             'tab_new' => 'Opret potentiel',
