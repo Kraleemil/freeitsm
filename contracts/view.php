@@ -422,6 +422,22 @@ if (!$contract_id) {
                     renderContract(data.contract);
                     loadAndRenderContractTerms();
                     loadRelatedItems();
+
+                    // The Edit page signposts here with #equipment. This page
+                    // builds its body in JavaScript, so by the time the section
+                    // exists the browser has long since given up trying to scroll
+                    // to it — a fragment link would open the page at the top and
+                    // look like the signpost was wrong. Do it ourselves.
+                    if (window.location.hash === '#equipment') {
+                        const target = document.getElementById('equipment');
+                        // Instant, not smooth: this stands in for what a fragment
+                        // link does natively, and that is a jump. A smooth scroll
+                        // here also could not be verified — it does not complete
+                        // under a headless browser's virtual clock, so the check
+                        // that this works at all would have had to be taken on
+                        // trust.
+                        if (target) target.scrollIntoView();
+                    }
                 } else {
                     document.getElementById('contractCard').innerHTML =
                         '<div class="loading" style="color:#d13438;">' + escapeHtml(window.t('contracts.detail.error_prefix')) + ' ' + escapeHtml(data.error) + '</div>';
@@ -541,7 +557,7 @@ if (!$contract_id) {
                     </div>
                 </div>
                 <div class="related-list">
-                    <div class="related-section" id="relatedAssetsSection">
+                    <div class="related-section" id="equipment">
                         <h3>
                             ${escapeHtml(window.t('contracts.detail.linked_assets'))}
                             <button type="button" class="related-add" onclick="openAssetPicker()">${escapeHtml(window.t('contracts.detail.add_asset'))}</button>

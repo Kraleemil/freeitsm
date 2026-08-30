@@ -175,6 +175,8 @@ return [
         'contract_value_ph' => 'fx 10000.00',
         'currency' => 'Valuta',
         'section_documents' => 'Dokumenter',
+        'equipment_signpost'       => 'Det udstyr, denne kontrakt dækker, håndteres på kontraktens egen side sammen med dens opgaver og kalenderposter.',
+        'equipment_signpost_link'  => 'Åbn denne kontrakt',
         'dms_link_contract' => 'DMS-link (kontrakt)',
         'dms_link_dpia' => 'DMS-link (DPIA)',
         'no_term_tabs' => 'Der er ikke konfigureret nogen faneblade til kontraktvilkår.',

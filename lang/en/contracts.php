@@ -196,6 +196,8 @@ return [
         'contract_value_ph'    => 'e.g. 10000.00',
         'currency'             => 'Currency',
         'section_documents'    => 'Documents',
+        'equipment_signpost'       => 'The equipment covered by this contract is managed on the contract&rsquo;s own page, alongside its tasks and calendar entries.',
+        'equipment_signpost_link'  => 'Open this contract',
         'dms_link_contract'    => 'DMS link (contract)',
         'dms_link_dpia'        => 'DMS link (DPIA)',
         'no_term_tabs'         => 'No contract terms tabs configured.',

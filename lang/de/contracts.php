@@ -172,6 +172,8 @@ return [
         'contract_value_ph'     => 'z. B. 10000,00',
         'currency'              => 'Währung',
         'section_documents'     => 'Dokumente',
+        'equipment_signpost'       => 'Die von diesem Vertrag abgedeckten Geräte werden auf der Vertragsseite selbst verwaltet, zusammen mit dessen Aufgaben und Kalendereinträgen.',
+        'equipment_signpost_link'  => 'Diesen Vertrag öffnen',
         'dms_link_contract'     => 'DMS-Link (Vertrag)',
         'dms_link_dpia'         => 'DMS-Link (DSFA)',
         'no_term_tabs'          => 'Keine Tabs für Vertragsbedingungen konfiguriert.',

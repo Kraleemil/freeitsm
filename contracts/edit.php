@@ -358,6 +358,25 @@ $contract_id = $_GET['id'] ?? null;
                     renderDocumentsPanel('contract', (int) $contract_id, '../');
                     ?>
 
+                    <?php
+                    // Equipment lives on view.php with the other related sections
+                    // (tasks, calendar events), not here. Ed went looking for it on
+                    // this page, which is what anybody wanting to CHANGE something
+                    // about a contract will do — so rather than explain the
+                    // convention, point at it. A signpost, not a second copy of the
+                    // panel: two screens managing the same links is how two screens
+                    // end up disagreeing.
+                    //
+                    // Only on a saved contract. A new one has no id, so there is
+                    // nothing to link equipment to yet and nowhere to send them.
+                    if ($contract_id): ?>
+                        <div class="form-section"><?php echo htmlspecialchars(t('contracts.detail.linked_assets')); ?></div>
+                        <p class="form-hint">
+                            <?php echo t('contracts.edit.equipment_signpost'); ?>
+                            <a href="view.php?id=<?php echo (int) $contract_id; ?>#equipment"><?php echo htmlspecialchars(t('contracts.edit.equipment_signpost_link')); ?></a>
+                        </p>
+                    <?php endif; ?>
+
                     <div class="form-section"><?php echo htmlspecialchars(t('contracts.detail.section_terms')); ?></div>
                     <div class="form-row">
                         <div class="form-group">
