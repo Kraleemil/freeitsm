@@ -34,7 +34,12 @@ try {
     // a failure, because the incident itself is perfectly valid.
     try {
         $stmt = $conn->prepare(
-            "SELECT u.id, u.created_datetime, u.comment,
+            // ⚠️ This is the ANALYST view, so it returns both kinds and says
+            // which is which. The portal has its own reader
+            // (includes/service_status_portal.php) that filters to external —
+            // filtering here instead would hide internal notes from the people
+            // who wrote them.
+            "SELECT u.id, u.created_datetime, u.comment, u.is_internal,
                     sst.name AS status, sst.colour AS status_colour,
                     a.full_name AS author
                FROM status_incident_updates u

@@ -79,6 +79,25 @@ $translationNamespaces = ['common', 'service-status'];
         .inc-update-comment { font-size: 13px; margin-bottom: 6px; }
         .inc-update-clear { font-size: 11px; color: var(--text-dim, #9ca3af); font-style: italic; }
 
+        /* Internal vs external on an update (#99). */
+        .inc-visibility { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+        .inc-vis-choice { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+        .inc-vis-hint { flex-basis: 100%; font-size: 12px; line-height: 1.45; color: var(--text-muted, #6b7280); }
+        /* Amber when it really will be published, grey when it will not. The
+           colour is the fastest way to see which of the two you are about to do. */
+        .inc-vis-hint.is-live { color: var(--warning-text, #92400e); }
+        .inc-vis-hint.is-off  { color: var(--text-dim, #9ca3af); }
+
+        /* The badge on each update in the thread, so the two are distinguishable
+           at a glance rather than only in the dialog that wrote them. */
+        .inc-update-vis {
+            font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+            background: var(--surface-3, #eee); color: var(--text-muted, #666);
+        }
+        .inc-update-vis.is-external {
+            background: var(--warning-bg, #fef3c7); color: var(--warning-text, #92400e);
+        }
+
         /* ─── Service history + uptime (discussion #59) ────────────────────── */
         /* ⚠️ The badge and the History link have to line up ACROSS cards, and two
            separate things stopped them.
@@ -472,6 +491,25 @@ $translationNamespaces = ['common', 'service-status'];
                 <div class="form-group">
                     <label for="incidentComment"><?php echo htmlspecialchars(t('service-status.modal.comment')); ?></label>
                     <textarea id="incidentComment" placeholder="<?php echo htmlspecialchars(t('service-status.modal.comment_placeholder')); ?>"></textarea>
+
+                    <?php /* Discussion #99. Internal is FIRST and checked by
+                             default: the safe answer should be the one you get
+                             by not thinking about it, and publishing is the
+                             deliberate act. The hint under it changes to say
+                             what will actually happen, because "external" on
+                             its own does not tell you the portal is switched
+                             off. */ ?>
+                    <div class="inc-visibility">
+                        <label class="inc-vis-choice">
+                            <input type="radio" name="incVisibility" value="internal" checked onchange="syncVisibilityHint()">
+                            <span><?php echo htmlspecialchars(t('service-status.modal.vis_internal')); ?></span>
+                        </label>
+                        <label class="inc-vis-choice">
+                            <input type="radio" name="incVisibility" value="external" onchange="syncVisibilityHint()">
+                            <span><?php echo htmlspecialchars(t('service-status.modal.vis_external')); ?></span>
+                        </label>
+                        <div class="inc-vis-hint" id="incVisHint"></div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label><?php echo htmlspecialchars(t('service-status.modal.affected_services')); ?></label>
@@ -493,6 +531,16 @@ $translationNamespaces = ['common', 'service-status'];
         let dashboardData = { services: [], incidents: [] };
         // Loaded from new lookup endpoints — drives dropdowns and badge colours
         let incidentStatuses = [];   // [{id, name, colour, is_resolved, is_default}]
+        /* Whether the portal is actually publishing (#99). Rendered with the page
+           rather than fetched: it only changes when an administrator changes it,
+           and the dialog needs it the instant it opens to say what "external"
+           will really do. */
+        const portalShowsUpdates = <?php
+            require_once '../includes/service_status_portal.php';
+            $ssPortalOn = false;
+            try { $ssPortalOn = ssPortalUpdatesEnabled(connectToDatabase()); } catch (Throwable $e) { $ssPortalOn = false; }
+            echo $ssPortalOn ? 'true' : 'false';
+        ?>;
         let impactLevels = [];       // [{id, name, colour, severity_order, is_default}]
 
         const statusByName = (name) => incidentStatuses.find(s => s.name === name);
@@ -772,6 +820,9 @@ $translationNamespaces = ['common', 'service-status'];
                             <span class="inc-update-when">${escapeHtml(formatDate(u.created_datetime))}</span>
                             ${u.status ? `<span class="incident-status"${u.status_colour ? ` style="background:${u.status_colour};color:#fff;"` : ''}>${escapeHtml(u.status)}</span>` : ''}
                             ${u.author ? `<span class="inc-update-who">${escapeHtml(u.author)}</span>` : ''}
+                            ${Number(u.is_internal) === 0
+                                ? `<span class="inc-update-vis is-external">${escapeHtml(window.t('service-status.modal.vis_external'))}</span>`
+                                : `<span class="inc-update-vis">${escapeHtml(window.t('service-status.modal.vis_internal'))}</span>`}
                         </div>
                         ${u.comment ? `<div class="inc-update-comment">${escapeHtml(u.comment)}</div>` : ''}
                         ${tags ? `<div class="incident-services-list">${tags}</div>` : `<div class="inc-update-clear">${escapeHtml(window.t('service-status.board.updates_all_clear'))}</div>`}
@@ -807,6 +858,7 @@ $translationNamespaces = ['common', 'service-status'];
             document.getElementById('incidentComment').value = '';
             document.getElementById('affectedServices').innerHTML = '';
             document.getElementById('deleteIncidentBtn').style.display = 'none';
+            resetVisibility();
             addServiceRow();
             document.getElementById('incidentModal').classList.add('active');
         }
@@ -821,6 +873,7 @@ $translationNamespaces = ['common', 'service-status'];
             document.getElementById('incidentStatus').value = inc.status;
             document.getElementById('incidentComment').value = inc.comment || '';
             document.getElementById('deleteIncidentBtn').style.display = 'inline-flex';
+            resetVisibility();
 
             const container = document.getElementById('affectedServices');
             container.innerHTML = '';
@@ -908,6 +961,10 @@ $translationNamespaces = ['common', 'service-status'];
                 title: document.getElementById('incidentTitle').value,
                 status: document.getElementById('incidentStatus').value,
                 comment: document.getElementById('incidentComment').value,
+                // #99. Sent explicitly rather than left to the server's default,
+                // so the screen and the stored row cannot disagree about which
+                // one the analyst picked.
+                is_internal: (document.querySelector('input[name="incVisibility"]:checked') || {}).value !== 'external',
                 services: services
             };
 
@@ -968,6 +1025,43 @@ $translationNamespaces = ['common', 'service-status'];
             } catch (error) {
                 showToast(window.t('service-status.toast.delete_incident_failed'), 'error');
             }
+        }
+
+        /**
+         * Say what marking an update external will actually do (#99).
+         *
+         * ⚠️ "External" alone is a half-truth while the portal switch is off —
+         * the update is marked, and nobody outside sees it. Telling somebody
+         * their message is going to customers when it is not is how a status
+         * page ends up trusted for something it is not doing.
+         */
+        function syncVisibilityHint() {
+            const hint = document.getElementById('incVisHint');
+            if (!hint) return;
+            const external = (document.querySelector('input[name="incVisibility"]:checked') || {}).value === 'external';
+            if (!external) {
+                hint.textContent = window.t('service-status.modal.vis_internal_hint');
+                hint.className = 'inc-vis-hint';
+                return;
+            }
+            hint.textContent = window.t(portalShowsUpdates
+                ? 'service-status.modal.vis_external_hint'
+                : 'service-status.modal.vis_external_hint_off');
+            hint.className = 'inc-vis-hint' + (portalShowsUpdates ? ' is-live' : ' is-off');
+        }
+
+        /**
+         * Put the visibility choice back to INTERNAL every time the dialog
+         * opens, whether for a new incident or an existing one.
+         *
+         * ⚠️ It is not remembered from last time. Each update is its own
+         * decision, and a sticky control would let somebody publish because of
+         * a choice they made an hour ago on a different incident.
+         */
+        function resetVisibility() {
+            const internal = document.querySelector('input[name="incVisibility"][value="internal"]');
+            if (internal) internal.checked = true;
+            syncVisibilityHint();
         }
 
         /**
