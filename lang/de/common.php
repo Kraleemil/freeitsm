@@ -157,6 +157,7 @@ return [
         'change_password' => 'Passwort ändern',
         'mfa'             => 'Multi-Faktor-Auth.',
         'trusted_device'  => 'Vertrauenswürdiges Gerät',
+        'portal'          => 'Self-Service-Portal',
         'logout'          => 'Abmelden',
         'logout_confirm'  => 'Möchten Sie sich wirklich abmelden?',
         'badge_off'       => 'Aus',
