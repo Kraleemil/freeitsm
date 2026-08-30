@@ -8,6 +8,54 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/ldap.php';
 require_once __DIR__ . '/../includes/landing.php';   // re-issue the landing cookie on login (#63)
 
+/**
+ * Translations, behind a guard.
+ *
+ * This page is the one screen where a fatal locks every analyst out of the
+ * product, so i18n is loaded defensively rather than with a bare require: if
+ * the locale files are missing or unreadable, tr() below falls back to the
+ * English passed at the call site and the page still renders and still signs
+ * people in. Nobody is logged in yet, so the language comes from the browser's
+ * Accept-Language header rather than from a stored preference.
+ */
+$i18nReady = false;
+try {
+    if (is_file(__DIR__ . '/../includes/i18n.php')) {
+        require_once __DIR__ . '/../includes/i18n.php';
+        I18n::initFromSession();
+        $i18nReady = class_exists('I18n');
+        // Nobody is signed in here, so the language comes from Accept-Language.
+        // That makes this page's body vary by a request header, and a proxy or
+        // CDN in front of FreeITSM would otherwise be entitled to serve one
+        // visitor's language to the next.
+        if (!headers_sent()) header('Vary: Accept-Language');
+    }
+} catch (Throwable $e) {
+    $i18nReady = false;   // English it is
+}
+
+/**
+ * Translate, with the English as the last line of defence.
+ *
+ * Every call passes the English text it replaces, so a missing key, a broken
+ * locale file or an i18n load failure all degrade to exactly what this page
+ * showed before it was translated.
+ */
+function tr(string $key, string $english, array $params = []): string {
+    global $i18nReady;
+    if ($i18nReady) {
+        try {
+            $out = I18n::t('auth.' . $key, $params);
+            // I18n::t() returns the key itself when it cannot resolve one.
+            if ($out !== '' && $out !== 'auth.' . $key) return $out;
+        } catch (Throwable $e) {
+            // fall through to English
+        }
+    }
+    foreach ($params as $k => $v) $english = str_replace('{' . $k . '}', (string)$v, $english);
+    return $english;
+}
+
 // An SSO sign-in attempt that failed bounces back here with a message.
 $sso_error = $_SESSION['sso_error'] ?? null;
 unset($_SESSION['sso_error']);
@@ -168,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if (empty($username) || empty($password)) {
-        $error = 'Please enter both username and password';
+        $error = tr('err_missing', 'Please enter both username and password');
     } else {
         try {
             // Connect to database
@@ -184,9 +232,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ip_banned = true;
                 if ($banMinutes >= 60) {
                     $hours = floor($banMinutes / 60);
-                    $error = 'Too many failed attempts. Try again in ' . $hours . ' hour' . ($hours > 1 ? 's' : '') . '.';
+                    $error = $hours > 1
+                        ? tr('err_throttled_hours_many', 'Too many failed attempts. Try again in {n} hours.', ['n' => $hours])
+                        : tr('err_throttled_hours_one', 'Too many failed attempts. Try again in 1 hour.');
                 } else {
-                    $error = 'Too many failed attempts. Try again in ' . $banMinutes . ' minute' . ($banMinutes !== 1 ? 's' : '') . '.';
+                    $error = $banMinutes !== 1
+                        ? tr('err_throttled_minutes_many', 'Too many failed attempts. Try again in {n} minutes.', ['n' => $banMinutes])
+                        : tr('err_throttled_minutes_one', 'Too many failed attempts. Try again in 1 minute.');
                 }
                 logLoginAttempt($conn, null, $username, false);
                 throw new Exception('__ip_banned__');
@@ -217,7 +269,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $remaining = $now->diff($lockedUntil);
                     $mins = $remaining->i + ($remaining->h * 60);
                     if ($mins < 1) $mins = 1;
-                    $error = 'Account locked. Try again in ' . $mins . ' minute' . ($mins !== 1 ? 's' : '') . '.';
+                    $error = $mins !== 1
+                        ? tr('err_locked_many', 'Account locked. Try again in {n} minutes.', ['n' => $mins])
+                        : tr('err_locked_one', 'Account locked. Try again in 1 minute.');
                     logLoginAttempt($conn, $analyst['id'], $username, false);
                     recordIpAttempt($conn, $clientIp);
                 } else {
@@ -254,7 +308,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($assigned && (int)$assigned['enabled'] === 1) {
                         $ldapCandidates = [$assigned];
                     } else {
-                        $error = 'This account signs in with single sign-on. Please use the sign-in button above.';
+                        $error = tr('err_sso_account', 'This account signs in with single sign-on. Please use the sign-in button above.');
                     }
 
                 } elseif ($analyst) {
@@ -280,8 +334,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($role !== 'analyst') {
                     $error = ($role === 'user')
                         // Correct credentials, wrong portal: point them somewhere useful.
-                        ? 'Your account does not have analyst access. Please use the self-service portal.'
-                        : 'Your account is not a member of a group that grants access to FreeITSM.';
+                        ? tr('err_not_analyst', 'Your account does not have analyst access. Please use the self-service portal.')
+                        : tr('err_no_group', 'Your account is not a member of a group that grants access to FreeITSM.');
                     logLoginAttempt($conn, null, $username, false);
                     break;
                 }
@@ -424,7 +478,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 logLoginAttempt($conn, $analyst ? $analyst['id'] : null, $username, false);
-                $error = 'Invalid username or password';
+                $error = tr('err_invalid', 'Invalid username or password');
 
                 // Track IP for non-existent accounts (brute force enumeration)
                 if (!$analyst) {
@@ -434,7 +488,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         } catch (Exception $e) {
             if ($e->getMessage() !== '__ip_banned__') {
-                $error = 'Login error: ' . $e->getMessage();
+                $error = tr('err_exception', 'Login error: {message}', ['message' => $e->getMessage()]);
             }
         }
     }
@@ -446,7 +500,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="icon" type="image/svg+xml" href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Service Desk Login</title>
+    <title><?php echo htmlspecialchars(tr('browser_title', 'Service Desk Login')); ?></title>
     <style>
         * {
             margin: 0;
@@ -682,9 +736,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="login-header">
             <img src="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>assets/images/CompanyLogo.png" alt="Company Logo">
             <?php if ($mfa_required): ?>
-                <h1>Verification</h1>
+                <h1><?php echo htmlspecialchars(tr('mfa_heading', 'Verification')); ?></h1>
             <?php else: ?>
-                <h1>ITSM Login</h1>
+                <h1><?php echo htmlspecialchars(tr('heading', 'ITSM Login')); ?></h1>
             <?php endif; ?>
         </div>
 
@@ -695,13 +749,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                 </svg>
             </div>
-            <p class="mfa-subtitle">Enter the 6-digit code from your authenticator app</p>
+            <p class="mfa-subtitle"><?php echo htmlspecialchars(tr('mfa_prompt', 'Enter the 6-digit code from your authenticator app')); ?></p>
             <div id="mfaError" class="mfa-error"></div>
             <div class="form-group">
                 <input type="text" id="otpCode" class="otp-input-field" maxlength="6" inputmode="numeric" autocomplete="one-time-code" autofocus placeholder="------">
             </div>
-            <button type="button" class="login-button" id="verifyBtn" onclick="verifyOtp()">Verify</button>
-            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php?cancel_mfa=1" class="mfa-cancel">Cancel and return to login</a>
+            <button type="button" class="login-button" id="verifyBtn" onclick="verifyOtp()"><?php echo htmlspecialchars(tr('mfa_verify', 'Verify')); ?></button>
+            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php?cancel_mfa=1" class="mfa-cancel"><?php echo htmlspecialchars(tr('mfa_cancel', 'Cancel and return to login')); ?></a>
 
             <script>
             // Auto-submit when 6 digits entered
@@ -724,7 +778,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const btn = document.getElementById('verifyBtn');
                 const errEl = document.getElementById('mfaError');
                 btn.disabled = true;
-                btn.textContent = 'Verifying...';
+                btn.textContent = <?php echo json_encode(tr('mfa_verifying', 'Verifying...')); ?>;
                 errEl.style.display = 'none';
 
                 try {
@@ -742,13 +796,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         document.getElementById('otpCode').value = '';
                         document.getElementById('otpCode').focus();
                         btn.disabled = false;
-                        btn.textContent = 'Verify';
+                        btn.textContent = <?php echo json_encode(tr('mfa_verify', 'Verify')); ?>;
                     }
                 } catch (e) {
-                    errEl.textContent = 'Verification failed. Please try again.';
+                    errEl.textContent = <?php echo json_encode(tr('mfa_failed', 'Verification failed. Please try again.')); ?>;
                     errEl.style.display = 'block';
                     btn.disabled = false;
-                    btn.textContent = 'Verify';
+                    btn.textContent = <?php echo json_encode(tr('mfa_verify', 'Verify')); ?>;
                 }
             }
             </script>
@@ -787,8 +841,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) { $ssoProviders = []; $hasLdap = false; }
             $ssoActive = $ssoOn && !empty($ssoProviders);
             $localLinkLabel = !empty($hasLdap)
-                ? 'Sign in with a username and password'
-                : 'Sign in with a local account';
+                ? tr('reveal_local_ldap', 'Sign in with a username and password')
+                : tr('reveal_local_plain', 'Sign in with a local account');
             // Break-glass: ?local=1 always reveals the local form, even when local login is "off".
             $forceLocal = isset($_GET['local']);
             // Is local login permitted at all (for the reveal link / email-first fallback)?
@@ -800,13 +854,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <!-- Email-first router: type email -> routed to your provider (or fall back to local) -->
                 <div id="emailFirst">
                     <div class="form-group">
-                        <label for="ssoEmail">Email</label>
-                        <input type="email" id="ssoEmail" autofocus autocomplete="username" placeholder="you@example.com">
+                        <label for="ssoEmail"><?php echo htmlspecialchars(tr('email', 'Email')); ?></label>
+                        <input type="email" id="ssoEmail" autofocus autocomplete="username" placeholder="<?php echo htmlspecialchars(tr('email_placeholder', 'you@example.com')); ?>">
                     </div>
-                    <button type="button" class="login-button" id="continueBtn">Continue</button>
+                    <button type="button" class="login-button" id="continueBtn"><?php echo htmlspecialchars(tr('continue', 'Continue')); ?></button>
                     <div class="error-message" id="routerError" style="display:none;margin-top:10px;"></div>
                 </div>
-                <div style="<?php echo $divider; ?>"><span style="flex:1;height:1px;background:#ddd;"></span>or<span style="flex:1;height:1px;background:#ddd;"></span></div>
+                <div style="<?php echo $divider; ?>"><span style="flex:1;height:1px;background:#ddd;"></span><?php echo htmlspecialchars(tr('or', 'or')); ?><span style="flex:1;height:1px;background:#ddd;"></span></div>
                 <?php foreach ($ssoProviders as $p): ?>
                     <a href="<?php echo htmlspecialchars(BASE_URL . 'api/auth/oidc_login.php?provider=' . (int)$p['id']); ?>"
                        style="display:block;text-align:center;padding:11px;margin-bottom:8px;border:1px solid #cfd8dc;border-radius:6px;color:#37474f;text-decoration:none;font-weight:600;font-size:14px;background:#fff;">
@@ -830,16 +884,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php endif; ?>
                         <form method="POST" action="" autocomplete="off" id="localLoginForm">
                             <div class="form-group">
-                                <label for="username"><?php echo !empty($hasLdap) ? 'Username or email' : 'Username'; ?></label>
+                                <label for="username"><?php echo htmlspecialchars(!empty($hasLdap) ? tr('username_or_email', 'Username or email') : tr('username', 'Username')); ?></label>
                                 <input type="text" id="username" name="username" required autocomplete="off">
                             </div>
                             <div class="form-group">
-                                <label for="password">Password</label>
+                                <label for="password"><?php echo htmlspecialchars(tr('password', 'Password')); ?></label>
                                 <input type="password" id="password" name="password" required autocomplete="off">
                             </div>
-                            <button type="submit" class="login-button">Sign In</button>
+                            <button type="submit" class="login-button"><?php echo htmlspecialchars(tr('sign_in', 'Sign In')); ?></button>
                         </form>
-                        <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="forgot-link">Forgot password?</a>
+                        <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="forgot-link"><?php echo htmlspecialchars(tr('forgot', 'Forgot password?')); ?></a>
                     </div>
                 </div>
 
@@ -872,7 +926,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     async function resolve() {
                         var email = (emailEl.value || '').trim();
-                        if (!email) { routerErr.textContent = 'Please enter your email.'; routerErr.style.display = 'block'; return; }
+                        if (!email) { routerErr.textContent = <?php echo json_encode(tr('js_need_email', 'Please enter your email.')); ?>; routerErr.style.display = 'block'; return; }
                         routerErr.style.display = 'none';
                         contBtn.disabled = true;
                         try {
@@ -890,7 +944,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (localAllowed) {
                             openModal(true);
                         } else {
-                            routerErr.textContent = 'No single sign-on provider is set up for that email. Please contact your administrator.';
+                            routerErr.textContent = <?php echo json_encode(tr('js_no_provider', 'No single sign-on provider is set up for that email. Please contact your administrator.')); ?>;
                             routerErr.style.display = 'block';
                         }
                         contBtn.disabled = false;
@@ -906,16 +960,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php endif; ?>
                 <form method="POST" action="" autocomplete="off" id="localLoginForm">
                     <div class="form-group">
-                        <label for="username">Username</label>
+                        <label for="username"><?php echo htmlspecialchars(tr('username', 'Username')); ?></label>
                         <input type="text" id="username" name="username" required autofocus autocomplete="off">
                     </div>
                     <div class="form-group">
-                        <label for="password">Password</label>
+                        <label for="password"><?php echo htmlspecialchars(tr('password', 'Password')); ?></label>
                         <input type="password" id="password" name="password" required autocomplete="off">
                     </div>
-                    <button type="submit" class="login-button">Sign In</button>
+                    <button type="submit" class="login-button"><?php echo htmlspecialchars(tr('sign_in', 'Sign In')); ?></button>
                 </form>
-                <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="forgot-link">Forgot password?</a>
+                <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="forgot-link"><?php echo htmlspecialchars(tr('forgot', 'Forgot password?')); ?></a>
             <?php endif; ?>
         <?php endif; ?>
 
@@ -931,7 +985,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             and getting them to the right page is the whole point.
         -->
         <div class="portal-link">
-            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>self-service/login.php">Go to the Self-Service Portal</a>
+            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>self-service/login.php"><?php echo htmlspecialchars(tr('portal_link', 'Go to the Self-Service Portal')); ?></a>
         </div>
     </div>
 </body>
