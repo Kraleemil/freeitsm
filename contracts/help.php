@@ -247,6 +247,7 @@ $translationNamespaces = ['common', 'contracts'];
 
                     <h4><?php echo htmlspecialchars(t('contracts.help.equipment_adding_heading')); ?></h4>
                     <p><?php echo t('contracts.help.equipment_adding_body'); ?></p>
+                    <p><?php echo t('contracts.help.equipment_both_ways'); ?></p>
 
                     <h4><?php echo htmlspecialchars(t('contracts.help.equipment_reference_heading')); ?></h4>
                     <p><?php echo t('contracts.help.equipment_reference_body'); ?></p>

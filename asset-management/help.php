@@ -96,8 +96,11 @@ $translationNamespaces = ['common', 'asset-management'];
             <a href="#linked-contracts" class="help-nav-link" data-section="linked-contracts">
                 <span class="help-nav-num">11</span> Contracts covering an asset
             </a>
+            <a href="#right-click" class="help-nav-link" data-section="right-click">
+                <span class="help-nav-num">12</span> Right-click an asset
+            </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">12</span>
+                <span class="help-nav-num">13</span>
                 <?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?>
             </a>
         </div>
@@ -528,14 +531,36 @@ $translationNamespaces = ['common', 'asset-management'];
 
                     <p>A link can carry a short <strong>reference</strong> &mdash; a phone number, a line ID, a seat number &mdash; which is shown beside the contract title. It describes the equipment's place on that particular agreement, so a handset moved to a different contract keeps the handset and loses the line.</p>
 
-                    <p class="help-note">Links are made from the <strong>contract</strong> side: open a contract, find the <strong>Equipment</strong> panel and click <strong>Add</strong>. Nothing is linked automatically, so this tab stays empty on equipment nobody has put on a contract. Removing a link there takes the equipment off the contract and does not delete the asset.</p>
+                    <p>Links can be made <strong>from here</strong> as well as from the contract. <strong>Add to a contract</strong> searches by contract number, title or supplier name &mdash; &ldquo;the Vodafone one&rdquo; is how most people refer to a contract they have not opened in a year &mdash; and offers the contracts closest to ending first, since a contract you are about to lose is the one you are most likely to be attaching equipment to. Anything this asset is already on is left out.</p>
+
+                    <p class="help-note">Nothing is linked automatically, so this tab stays empty on equipment nobody has put on a contract. Removing a link, from either end, takes the equipment off that contract and nothing else: the contract is not cancelled and the asset is not deleted.</p>
 
                     <p class="help-note">If you cannot see the Contracts module, this tab says so rather than showing an empty list &mdash; &ldquo;no contracts&rdquo; and &ldquo;you may not see contracts&rdquo; are different answers, and reading one as the other is how somebody concludes a contract was never set up.</p>
                 </div>
 
-<div class="help-section" id="tips">
+<div class="help-section" id="right-click">
                     <div class="help-section-header">
                         <span class="help-section-num">12</span>
+                        <h3>Right-click an asset</h3>
+                    </div>
+                    <p>Right-clicking any asset in the list opens a menu of the things you most often want to do to one piece of equipment, without opening it and without hunting through the detail panel.</p>
+
+                    <div class="help-list">
+                        <div><strong>Status, Type and Location</strong> &mdash; each opens a submenu of everything configured, with a tick against the current value, so you can see what it is as well as change it.</div>
+                        <div><strong>Add to a contract</strong> &mdash; the same picker as the Contracts tab.</div>
+                        <div><strong>Assign to somebody</strong> &mdash; opens the assignment window.</div>
+                        <div><strong>Print label</strong> &mdash; the printable label sheet for this one asset.</div>
+                        <div><strong>Copy asset tag</strong> and <strong>Copy serial number</strong> &mdash; straight to the clipboard, for pasting into a supplier's warranty checker or a purchase order. These only appear when the asset actually has one.</div>
+                    </div>
+
+                    <p>Right-clicking <strong>selects</strong> the asset first, so the detail panel on the right is always showing the same equipment the menu is about to change. Changes made from the menu are recorded in the asset's history exactly as they would be if you had edited the field by hand.</p>
+
+                    <p class="help-note">A submenu that says <strong>None configured</strong> means that lookup is empty &mdash; add statuses, types or locations under <strong>Settings</strong> and they appear here straight away.</p>
+                </div>
+
+<div class="help-section" id="tips">
+                    <div class="help-section-header">
+                        <span class="help-section-num">13</span>
                         <h3><?php echo htmlspecialchars(t('asset-management.help.nav_tips')); ?></h3>
                     </div>
                     <div class="help-cards">
