@@ -457,6 +457,7 @@ return [
         'position' => 'Vorkommen {n}',
         'position_of' => '{n} von {total}',
         'open_master' => 'Erste dieser Serie',
+        'projected' => 'noch nicht erstellt',
         'stop' => 'Wiederholung beenden',
         'stop_title' => 'Wiederholung beenden?',
         'stop_message' => 'Es werden keine weiteren Vorkommen mehr erstellt. Bereits erstellte Aufgaben bleiben erhalten, einschließlich der darauf erfassten Arbeit.',

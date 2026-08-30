@@ -458,6 +458,7 @@ return [
         'position' => 'forekomst {n}',
         'position_of' => '{n} af {total}',
         'open_master' => 'Første i denne serie',
+        'projected' => 'endnu ikke oprettet',
         'stop' => 'Stop gentagelsen',
         'stop_title' => 'Stop gentagelsen?',
         'stop_message' => 'Der oprettes ikke flere forekomster. Opgaver, der allerede er oprettet, bevares, inklusive det arbejde, der er registreret på dem.',

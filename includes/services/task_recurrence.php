@@ -326,6 +326,78 @@ class TaskRecurrence
         return $made;
     }
 
+    /**
+     * Dates a FIXED SCHEDULE will land on between two dates, without creating
+     * anything.
+     *
+     * The calendar's job is to show what is coming, and until this existed it
+     * could only show what already existed - which on a fixed schedule is one
+     * occurrence at a time, because the rest are not created until their dates
+     * arrive. Setting up "every Monday, five times" and seeing a single entry is
+     * a fair reason to think the feature is broken.
+     *
+     * So these are PROJECTIONS: real dates from the real rule, drawn faintly,
+     * with no rows behind them. That keeps both halves honest - the board stays
+     * clear of work that does not exist yet, and the calendar still shows the
+     * plan.
+     *
+     * ⚠️ ONLY 'schedule' series. A series that repeats on completion has no
+     * future to project: its next date is counted from the day somebody finishes
+     * the current one, which has not happened. Drawing a guess there would be
+     * inventing information, and it would move every time somebody was a day
+     * late.
+     */
+    public static function project(PDO $conn, string $from, string $to, int $capPerSeries = 60): array
+    {
+        $out = [];
+        $s = $conn->prepare(
+            "SELECT r.*, t.id AS source_task_id, t.title, t.status_id, t.priority_id,
+                    t.assigned_analyst_id, t.tenant_id
+               FROM task_recurrences r
+               JOIN tasks t ON t.id = (
+                    SELECT id FROM tasks WHERE recurrence_id = r.id AND parent_task_id IS NULL
+                     ORDER BY id DESC LIMIT 1)
+              WHERE r.is_active = 1 AND r.mode = 'schedule' AND r.next_due_date IS NOT NULL"
+        );
+        $s->execute();
+
+        foreach ($s->fetchAll(PDO::FETCH_ASSOC) as $rule) {
+            $due   = (string)$rule['next_due_date'];
+            $made  = (int)$rule['occurrences_created'];
+            $seen  = 0;
+
+            while ($due !== '' && $due <= $to && $seen < $capPerSeries) {
+                // Same accounting the worker uses, so what is drawn is what will
+                // actually be produced - including a series stopping early.
+                $probe = $rule;
+                $probe['occurrences_created'] = $made;
+                if (self::isExhausted($probe, $due)) break;
+
+                if ($due >= $from) {
+                    $out[] = [
+                        'id'             => null,          // nothing exists yet
+                        'projected'      => true,
+                        'source_task_id' => (int)$rule['source_task_id'],
+                        'recurrence_id'  => (int)$rule['id'],
+                        'title'          => $rule['title'],
+                        'due_date'       => $due,
+                        'start_date'     => null,
+                        'status_id'      => $rule['status_id'],
+                        'priority_id'    => $rule['priority_id'],
+                        'assigned_analyst_id' => $rule['assigned_analyst_id'],
+                        'tenant_id'      => $rule['tenant_id'],
+                    ];
+                }
+                $made++;
+                $seen++;
+                $next = self::nextDate($rule, $due);
+                if ($next === null || $next === $due) break;
+                $due = $next;
+            }
+        }
+        return $out;
+    }
+
     private static function deactivate(PDO $conn, int $recurrenceId): void
     {
         $conn->prepare("UPDATE task_recurrences SET is_active = 0, updated_datetime = UTC_TIMESTAMP() WHERE id = ?")

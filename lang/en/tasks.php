@@ -504,6 +504,7 @@ return [
         'position'     => 'occurrence {n}',
         'position_of'  => '{n} of {total}',
         'open_master'  => 'First in this series',
+        'projected' => 'not created yet',
         'stop'         => 'Stop repeating',
         'stop_title'   => 'Stop repeating?',
         'stop_message' => 'No further occurrences will be created. Tasks already created are kept, including any work recorded on them.',

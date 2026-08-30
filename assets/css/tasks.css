@@ -1888,3 +1888,19 @@ body {
 /* .btn gives padding and radius; .btn-primary only sets the colours, so the two
    are always used together. */
 .recur-actions .btn { padding: 7px 16px; font-size: 13px; }
+
+/* Projected occurrences of a fixed schedule (#94). No row exists behind these
+   yet — they are dates computed from the rule — so they are drawn as an outline
+   rather than a solid chip. A plan, not a fact. */
+.cal-bar-projected {
+    opacity: .55;
+    background-image: repeating-linear-gradient(
+        135deg, rgba(255,255,255,.28) 0 5px, transparent 5px 10px);
+    border: 1px dashed rgba(255,255,255,.8);
+}
+.cal-day-task-projected { opacity: .65; }
+.cal-day-task-projected .cal-day-task-dot {
+    background: transparent !important;
+    border: 2px dashed var(--text-muted, #888);
+    box-sizing: border-box;
+}

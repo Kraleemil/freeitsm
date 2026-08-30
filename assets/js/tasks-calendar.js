@@ -24,6 +24,8 @@ let currentFilterAnalystId = null;
 // fetch. Falls back to the old behaviour if the page did not publish one.
 let currentSubtaskScope = window.CAL_SUBTASK_SCOPE || '';
 let tasks = [];
+// Future occurrences of fixed schedules - dates, not rows (#94).
+let projected = [];
 let statuses = [];
 let priorities = [];
 let analysts = [];
@@ -96,6 +98,43 @@ async function loadDropdowns() {
     } catch (e) { console.error('Failed to load dropdowns:', e); }
 }
 
+/**
+ * Future occurrences of fixed-schedule repeats (#94), honouring the same
+ * who-is-it-for filter as the real tasks beside them.
+ *
+ * These have no row behind them, so they cannot be filtered in SQL by the same
+ * joins; the endpoint returns the assignee and the filtering happens here.
+ * Getting that wrong would be worse than not showing them: a projection under
+ * "My tasks" that is not yours is a promise about somebody else's week.
+ */
+function visibleProjected() {
+    if (!projected.length) return [];
+    return projected.filter(p => {
+        // The page publishes it on <body>, the same source tasks.js reads.
+        // window.ANALYST_ID does not exist on this page - reaching for it would
+        // have made every projection vanish under "My tasks" and looked like the
+        // projections simply not working.
+        if (currentFilter === 'my')      return String(p.assigned_analyst_id) === String(document.body.dataset.analystId || '');
+        if (currentFilter === 'analyst') return String(p.assigned_analyst_id) === String(currentFilterAnalystId);
+        if (currentFilter === 'team')    return false;   // a projection carries no team of its own
+        return true;                                     // 'all'
+    });
+}
+
+async function loadProjected() {
+    // A generous window either side of anything the calendar can show, so paging
+    // a month does not need another round trip.
+    const from = new Date(viewDate.getFullYear(), viewDate.getMonth() - 2, 1);
+    const to   = new Date(viewDate.getFullYear(), viewDate.getMonth() + 12, 0);
+    const ymd  = d => d.toISOString().slice(0, 10);
+    try {
+        const d = await fetch(`${API_BASE}projected.php?from=${ymd(from)}&to=${ymd(to)}`).then(r => r.json());
+        projected = d.success ? (d.projected || []) : [];
+    } catch (e) {
+        projected = [];   // the calendar still draws every real task
+    }
+}
+
 async function loadTasks() {
     let url = API_BASE + 'list.php?filter=' + currentFilter;
     if (currentSubtaskScope) url += '&subtasks=' + currentSubtaskScope;
@@ -105,6 +144,7 @@ async function loadTasks() {
         const d = await fetch(url).then(r => r.json());
         if (d.success) {
             tasks = d.tasks;
+            await loadProjected();
             renderCalendar();
         }
     } catch (e) { console.error('Failed to load tasks:', e); }
@@ -198,9 +238,12 @@ function renderCalendar() {
 }
 
 // Resolve each task to the date range it occupies, respecting span mode.
+// Projected occurrences (#94) are merged in here rather than rendered
+// separately, so they get the same placement, span and week-wrapping logic and
+// cannot drift from how real tasks are drawn.
 function placedTasks() {
     const placed = [];
-    tasks.forEach(t => {
+    tasks.concat(visibleProjected()).forEach(t => {
         if (!t.due_date) return;
         const end = t.due_date;
         let start = end;
@@ -370,7 +413,11 @@ function renderDay() {
         // In the day list there is room to say which task a subtask belongs to,
         // so it says it rather than relying on a tooltip (#90).
         if (t.parent_task_id && t.parent_title) meta.unshift(esc(t.parent_title));
-        return `<div class="cal-day-task${done ? ' cal-day-task-done' : ''}${t.parent_task_id ? ' cal-day-task-subtask' : ''}${t.recurrence_id ? ' cal-day-task-recur' : ''}" onclick="openTask(${t.id})">
+        // A projection says so in words here. On the month grid there is only a
+        // tooltip and a faded chip; in a list, "not created yet" is worth stating,
+        // because otherwise it looks like a task you could open and edit.
+        if (t.projected) meta.push(esc(window.t('tasks.recur.projected')));
+        return `<div class="cal-day-task${done ? ' cal-day-task-done' : ''}${t.parent_task_id ? ' cal-day-task-subtask' : ''}${t.recurrence_id ? ' cal-day-task-recur' : ''}${t.projected ? ' cal-day-task-projected' : ''}" onclick="openTask(${t.projected ? t.source_task_id : t.id})">
             <span class="cal-day-task-dot" style="background:${esc(colour)}"></span>
             <div class="cal-day-task-body">
                 <div class="cal-day-task-title">${t.recurrence_id ? CAL_ICON_RECUR : ''}${esc(t.title)}</div>
@@ -395,9 +442,14 @@ function renderBars(iv) {
     // A task that is one of a repeating series carries the same mark here as in
     // the detail panel (#94). One shape wherever it appears.
     const isRecur = !!t.recurrence_id;
+    // A projection has no row behind it: it is drawn faintly and clicking it
+    // opens the task the series comes from, because there is nothing else to open.
+    const isProj = !!t.projected;
+    const projLabel = isProj ? ' · ' + window.t('tasks.recur.projected') : '';
     const tip = esc(t.title + (isSub && t.parent_title ? ' (' + t.parent_title + ')' : '') +
         (t.analyst_name ? ' · ' + t.analyst_name : '') +
-        ' · ' + (iv.p.start !== iv.p.end ? fmt(iv.p.start) + ' → ' + fmt(iv.p.end) : fmt(iv.p.end)));
+        ' · ' + (iv.p.start !== iv.p.end ? fmt(iv.p.start) + ' → ' + fmt(iv.p.end) : fmt(iv.p.end)) +
+        projLabel);
 
     const tagDots = (surfaceTags && t.tags && t.tags.length)
         ? t.tags.slice(0, 4).map(tg =>
@@ -407,9 +459,9 @@ function renderBars(iv) {
     const make = (col, span, extraCls) => {
         const left = `calc(${col} / 7 * 100% + 3px)`;
         const width = `calc(${span} / 7 * 100% - 6px)`;
-        return `<div class="cal-bar ${extraCls}${done ? ' cal-bar-done' : ''}${isSub ? ' cal-bar-subtask' : ''}${isRecur ? ' cal-bar-recur' : ''}"
+        return `<div class="cal-bar ${extraCls}${done ? ' cal-bar-done' : ''}${isSub ? ' cal-bar-subtask' : ''}${isRecur ? ' cal-bar-recur' : ''}${isProj ? ' cal-bar-projected' : ''}"
             style="left:${left};width:${width};top:${top}px;background:${colour}"
-            title="${tip}" onclick="openTask(${t.id})">
+            title="${tip}" onclick="openTask(${isProj ? t.source_task_id : t.id})">
             <span class="cal-bar-label">${isRecur ? CAL_ICON_RECUR : ''}${title}</span>${tagDots}</div>`;
     };
 
