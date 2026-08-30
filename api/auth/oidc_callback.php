@@ -103,10 +103,10 @@ try {
     $analystId = $stmt->fetchColumn();
 
     // A link whose analyst has been deleted counts as no link at all — see
-    // oidcClearDanglingLink(). Fall through to the email match / JIT path.
+    // ssoClearDanglingLink(). Fall through to the email match / JIT path.
     $analyst = $analystId ? oidcLoadAnalyst($conn, (int)$analystId) : null;
     if ($analystId && !$analyst) {
-        oidcClearDanglingLink($conn, 'analyst_sso_identities', $providerId, $sub);
+        ssoClearDanglingLink($conn, 'analyst_sso_identities', $providerId, $sub);
         $analystId = false;
     }
 
@@ -238,10 +238,10 @@ function completeSelfServiceSso(PDO $conn, array $provider, int $providerId, str
     $userId = $stmt->fetchColumn();
 
     // A link whose requester has been deleted counts as no link at all — see
-    // oidcClearDanglingLink(). Fall through to the email match / JIT path.
+    // ssoClearDanglingLink(). Fall through to the email match / JIT path.
     $user = $userId ? ssLoadUser($conn, (int)$userId) : null;
     if ($userId && !$user) {
-        oidcClearDanglingLink($conn, 'user_sso_identities', $providerId, $sub);
+        ssoClearDanglingLink($conn, 'user_sso_identities', $providerId, $sub);
         $userId = false;
     }
 

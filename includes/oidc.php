@@ -15,6 +15,7 @@
  */
 
 require_once __DIR__ . '/encryption.php';
+require_once __DIR__ . '/sso_identity.php';   // ssoClearDanglingLink() — shared with LDAP
 require_once __DIR__ . '/vendor/firebase-jwt/src/JWT.php';
 require_once __DIR__ . '/vendor/firebase-jwt/src/JWK.php';
 require_once __DIR__ . '/vendor/firebase-jwt/src/Key.php';
@@ -241,31 +242,3 @@ function oidcHttpPost(string $url, array $fields): string {
     return $body; // caller inspects JSON (may be a 400 with an error body)
 }
 
-/**
- * Drop a sign-in link whose account no longer exists.
- *
- * A link can outlive the account it points at. Both identity tables declare
- * ON DELETE CASCADE, but anything that deletes rows with FOREIGN_KEY_CHECKS
- * off bypasses the cascade - the demo-data importer does exactly that when it
- * empties `analysts` and `users` - and the link is left dangling.
- *
- * That is not a cosmetic leftover. oidc_callback.php looks a person up by
- * (provider, subject) FIRST, so a dangling link wins that lookup, and email
- * matching and just-in-time provisioning both live in the branch past it.
- * The person is locked out permanently and re-creating their account by hand
- * does not help, because the link still points at the old id.
- *
- * Clearing it puts them back on the path a first-time sign-in takes, with the
- * same verified-email and provider-assignment checks - no account becomes
- * reachable that a first-time user could not already reach. (#1296)
- *
- * $table is a caller-supplied literal and is checked against a fixed list;
- * it never comes from request input.
- */
-function oidcClearDanglingLink(PDO $conn, string $table, int $providerId, string $sub): void {
-    if (!in_array($table, ['analyst_sso_identities', 'user_sso_identities'], true)) {
-        throw new Exception("oidcClearDanglingLink: unknown table $table");
-    }
-    $conn->prepare("DELETE FROM `$table` WHERE provider_id = ? AND subject = ?")
-         ->execute([$providerId, $sub]);
-}

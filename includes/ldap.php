@@ -21,6 +21,7 @@
  */
 
 require_once __DIR__ . '/encryption.php';
+require_once __DIR__ . '/sso_identity.php';   // ssoClearDanglingLink() — shared with OIDC
 
 /** Connection/read timeout, in seconds. A dead DC must not hang the login page. */
 define('LDAP_TIMEOUT_SECONDS', 8);
@@ -570,12 +571,23 @@ function ldapResolveAnalyst(PDO $conn, array $provider, array $ldapUser): array 
     $stmt->execute([$providerId, $subject]);
     $analystId = $stmt->fetchColumn();
 
+    // A link whose analyst has been deleted counts as no link at all — see
+    // ssoClearDanglingLink(). Fall through to the email match / JIT path below,
+    // exactly as the OIDC callback does.
+    $analyst = null;
+    if ($analystId) {
+        $stmt = $conn->prepare("SELECT * FROM analysts WHERE id = ?");
+        $stmt->execute([(int)$analystId]);
+        $analyst = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$analyst) {
+            ssoClearDanglingLink($conn, 'analyst_sso_identities', $providerId, $subject);
+            $analystId = false;
+        }
+    }
+
     if ($analystId) {
         $analystId = (int)$analystId;
-        $stmt = $conn->prepare("SELECT * FROM analysts WHERE id = ?");
-        $stmt->execute([$analystId]);
-        $analyst = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$analyst || (int)$analyst['is_active'] !== 1) {
+        if ((int)$analyst['is_active'] !== 1) {
             return ['ok' => false, 'error' => 'Your account is inactive. Contact an administrator.'];
         }
         if ((int)($analyst['auth_provider_id'] ?? 0) !== $providerId) {
@@ -684,14 +696,21 @@ function ldapResolveUser(PDO $conn, array $provider, array $ldapUser): array {
     $stmt->execute([$providerId, $subject]);
     $userId = $stmt->fetchColumn();
 
+    // A link whose account has been deleted counts as no link at all — see
+    // ssoClearDanglingLink(). Fall through to the email match / JIT path below.
+    $user = null;
+    if ($userId) {
+        $stmt = $conn->prepare("SELECT id, auth_provider_id, email FROM users WHERE id = ?");
+        $stmt->execute([(int)$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$user) {
+            ssoClearDanglingLink($conn, 'user_sso_identities', $providerId, $subject);
+            $userId = false;
+        }
+    }
+
     if ($userId) {
         $userId = (int)$userId;
-        $stmt = $conn->prepare("SELECT id, auth_provider_id, email FROM users WHERE id = ?");
-        $stmt->execute([$userId]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$user) {
-            return ['ok' => false, 'error' => 'Your account could not be found. Contact your service desk.'];
-        }
         if ((int)($user['auth_provider_id'] ?? 0) !== $providerId) {
             return ['ok' => false, 'error' => 'Your account is not assigned to this sign-in method.'];
         }

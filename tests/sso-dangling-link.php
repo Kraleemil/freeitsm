@@ -25,12 +25,13 @@
  * ⚠️ Touches the database. Every row it creates is prefixed ZZTEST and is
  * removed again in the cleanup at the bottom, including on failure.
  *
- * Run:  php tests/oidc-dangling-link.php
+ * Run:  php tests/sso-dangling-link.php
  */
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/oidc.php';
+require_once __DIR__ . '/../includes/ldap.php';   // the LDAP path shares the same resolver shape
 
 $pass = 0; $fail = 0;
 function ok(string $what, bool $cond, string $detail = ''): void {
@@ -136,8 +137,8 @@ try {
 
     // ---- 3. The heal ------------------------------------------------------
     echo "\nClearing a dangling link puts the person back on the first-time path:\n";
-    oidcClearDanglingLink($conn, 'analyst_sso_identities', $providerId, 'zztest-sub-analyst');
-    oidcClearDanglingLink($conn, 'user_sso_identities',    $providerId, 'zztest-sub-user');
+    ssoClearDanglingLink($conn, 'analyst_sso_identities', $providerId, 'zztest-sub-analyst');
+    ssoClearDanglingLink($conn, 'user_sso_identities',    $providerId, 'zztest-sub-user');
 
     ok('the dangling analyst link is gone',
        linkTarget($conn, 'analyst_sso_identities', 'analyst_id', $providerId, 'zztest-sub-analyst') === false);
@@ -150,10 +151,62 @@ try {
        (int)linkTarget($conn, 'user_sso_identities', 'user_id', $providerId, 'zztest-sub-bystander') === $bystanderId,
        'the clear is too broad and would sign healthy accounts out');
 
-    // ---- 5. The table name is not a free-text hole ------------------------
+    // ---- 5. The LDAP path, which had the same fault -----------------------
+    // The sweep for #1296 found ldapResolveAnalyst()/ldapResolveUser() resolving
+    // by (provider, subject) first and dead-ending the same way, so it was FOUR
+    // branches, not two. This drives the real function: no network is involved
+    // once we hand it the directory attributes an authenticated bind returns.
+    echo "\nThe LDAP resolver falls through to the email match, rather than dead-ending:\n";
+    $conn->prepare(
+        "INSERT INTO analysts (username, password_hash, full_name, email, auth_provider_id, is_active)
+         VALUES ('zztest_ldap', 'x', 'ZZTEST LDAP', 'zztest-ldap@zztest.invalid', ?, 1)"
+    )->execute([$providerId]);
+    $ldapAnalystId = (int)$conn->lastInsertId();
+    $conn->prepare(
+        "INSERT INTO analyst_sso_identities (analyst_id, provider_id, subject, email)
+         VALUES (?, ?, 'zztest-sub-ldap', 'zztest-ldap@zztest.invalid')"
+    )->execute([$ldapAnalystId, $providerId]);
+
+    // Delete the analyst the way the importer used to, leaving the link behind,
+    // then re-create the same person as an administrator would.
+    $conn->exec("SET FOREIGN_KEY_CHECKS = 0");
+    $conn->prepare("DELETE FROM analysts WHERE id = ?")->execute([$ldapAnalystId]);
+    $conn->exec("SET FOREIGN_KEY_CHECKS = 1");
+    ok('the LDAP link is left dangling by the same manoeuvre',
+       (int)linkTarget($conn, 'analyst_sso_identities', 'analyst_id', $providerId, 'zztest-sub-ldap') === $ldapAnalystId);
+
+    $conn->prepare(
+        "INSERT INTO analysts (username, password_hash, full_name, email, auth_provider_id, is_active)
+         VALUES ('zztest_ldap2', 'x', 'ZZTEST LDAP Recreated', 'zztest-ldap@zztest.invalid', ?, 1)"
+    )->execute([$providerId]);
+    $recreatedId = (int)$conn->lastInsertId();
+
+    $provider = ['id' => $providerId];
+    $result   = ldapResolveAnalyst($conn, $provider, [
+        'guid'     => 'zztest-sub-ldap',
+        'email'    => 'zztest-ldap@zztest.invalid',
+        'username' => 'zztest_ldap2',
+        'name'     => 'ZZTEST LDAP Recreated',
+    ]);
+    ok('the re-created analyst signs in', !empty($result['ok']),
+       'got: ' . json_encode($result) . ' — before the fix this returned "Your account is inactive"');
+    ok('and resolves to the RE-CREATED account, not the deleted id',
+       ($result['analyst_id'] ?? 0) === $recreatedId,
+       'resolved to ' . ($result['analyst_id'] ?? 'nothing') . ', expected ' . $recreatedId);
+
+    // The assertion that makes the CLEAR load-bearing rather than just the
+    // fall-through. ldapResolveAnalyst() re-links inside a try/catch that
+    // swallows a unique-key failure, so without the clear the stale row simply
+    // survives — the person signs in, and the link still points at the dead id
+    // for ever, with nothing reporting it. Repairing the link is the fix.
+    ok('and the link now points at the live account, not the dead id',
+       (int)linkTarget($conn, 'analyst_sso_identities', 'analyst_id', $providerId, 'zztest-sub-ldap') === $recreatedId,
+       'the stale link survived — the re-link INSERT swallows its own failure, so this is the only thing that catches it');
+
+    // ---- 6. The table name is not a free-text hole ------------------------
     echo "\nThe table argument is checked, not interpolated blindly:\n";
     $threw = false;
-    try { oidcClearDanglingLink($conn, 'analysts', $providerId, 'zztest-sub-bystander'); }
+    try { ssoClearDanglingLink($conn, 'analysts', $providerId, 'zztest-sub-bystander'); }
     catch (Exception $e) { $threw = true; }
     ok('an unexpected table name is refused', $threw,
        'the helper would run a DELETE against any table a caller named');
@@ -165,7 +218,7 @@ try {
             $conn->prepare("DELETE FROM user_sso_identities    WHERE provider_id = ?")->execute([$providerId]);
             $conn->prepare("DELETE FROM analyst_sso_identities WHERE provider_id = ?")->execute([$providerId]);
             $conn->prepare("DELETE FROM users    WHERE email LIKE 'zztest%@zztest.invalid'")->execute();
-            $conn->prepare("DELETE FROM analysts WHERE username = 'zztest_analyst'")->execute();
+            $conn->prepare("DELETE FROM analysts WHERE username LIKE 'zztest_%'")->execute();
             $conn->prepare("DELETE FROM auth_providers WHERE id = ?")->execute([$providerId]);
         } catch (Exception $e) {
             echo "\n  ⚠️  cleanup failed: " . $e->getMessage() . "\n";
