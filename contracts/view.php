@@ -193,6 +193,38 @@ if (!$contract_id) {
         .btn-create-task:hover { background: #4f46e5; }
         .btn-create-event { background: #0ea5e9; color: white; border: none; }
         .btn-create-event:hover { background: #0284c7; }
+        .btn-equipment-report { background: #10b981; color: white; border: none; }
+        .btn-equipment-report:hover { background: #059669; }
+
+        /* The report menu. Three destinations for one report, so they are three
+           rows of equal weight rather than one primary action and two
+           afterthoughts - which of the three is right depends entirely on who
+           is asking for it. */
+        .cr-choice {
+            display: flex; align-items: flex-start; gap: 12px; width: 100%;
+            padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
+            border: 1px solid var(--border, #ddd); border-radius: 8px;
+            background: var(--surface, #fff); text-align: left; font: inherit;
+            color: var(--text, #333); text-decoration: none;
+        }
+        .cr-choice:hover { background: var(--surface-hover, #f5f5f5); border-color: var(--con-accent, #f59e0b); }
+        .cr-choice-icon { flex-shrink: 0; color: var(--con-accent, #f59e0b); margin-top: 1px; }
+        .cr-choice-name { display: block; font-size: 13px; font-weight: 600; }
+        .cr-choice-desc { display: block; font-size: 12px; color: var(--text-muted, #666); line-height: 1.45; }
+        .cr-email-row { display: flex; gap: 8px; margin-top: 4px; }
+        .cr-email-row input {
+            flex: 1; padding: 8px 10px; font: inherit; font-size: 13px;
+            border: 1px solid var(--border, #ddd); border-radius: 6px;
+            background: var(--surface, #fff); color: var(--text, #333);
+        }
+        .cr-email-row input:focus { outline: none; border-color: var(--con-accent, #f59e0b); }
+        .cr-email-row button {
+            padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+            font: inherit; font-size: 13px; font-weight: 500;
+            background: var(--con-accent, #f59e0b); color: #fff;
+        }
+        .cr-email-row button:disabled { opacity: .6; cursor: not-allowed; }
+        .cr-count { font-size: 12px; color: var(--text-muted, #666); margin: -4px 0 14px; }
 
         .related-list { padding: 0 30px 20px 30px; }
         .related-section { margin-bottom: 24px; }
@@ -459,6 +491,7 @@ if (!$contract_id) {
                         <a href="index.php" class="btn btn-back">${escapeHtml(window.t('contracts.detail.back'))}</a>
                         <button type="button" class="btn btn-create-task" onclick="openTaskModal()">${escapeHtml(window.t('contracts.detail.task'))}</button>
                         <button type="button" class="btn btn-create-event" onclick="openEventModal()">${escapeHtml(window.t('contracts.detail.calendar'))}</button>
+                        <button type="button" class="btn btn-equipment-report" onclick="openReportModal()">${escapeHtml(window.t('contracts.report.button'))}</button>
                         <a href="edit.php?id=${c.id}" class="btn btn-edit-contract">${escapeHtml(window.t('contracts.actions.edit'))}</a>
                     </div>
                 </div>
@@ -763,10 +796,95 @@ if (!$contract_id) {
                     body: JSON.stringify({ link_id: linkId })
                 });
                 const data = await resp.json();
-                if (!data.success) { alert(data.error || window.t('contracts.detail.assets_load_failed')); return; }
+                if (!data.success) { showToast(data.error || window.t('contracts.detail.assets_load_failed'), 'error'); return; }
                 loadRelatedAssets();
             } catch (e) {
-                alert(window.t('contracts.detail.assets_load_failed'));
+                showToast(window.t('contracts.detail.assets_load_failed'), 'error');
+            }
+        }
+
+        // ── The equipment report: one report, three ways out (Ed) ────────────
+        //
+        // ⚠️ All three show the SAME rows, and all three are filtered to what
+        // the person asking can see. A report is not a way around the company
+        // filter on the panel above.
+        //
+        // "PDF" means printing to one, as asset handover and the RFP preview
+        // already do. There is no PDF library in this stack, and adding one to
+        // lay out a six-column table would be a dependency to maintain forever
+        // in exchange for a button every browser already has.
+        function openReportModal() {
+            document.getElementById('reportPdf').href = 'equipment-report.php?id=' + contractId + '&print=1';
+            document.getElementById('reportEmailTo').value = '';
+            document.getElementById('reportEmailBtn').disabled = false;
+
+            // Say how many rows before they choose. An empty report emailed to a
+            // supplier is worse than not sending one, and this is the last
+            // moment anybody can notice.
+            const count = document.querySelectorAll('#equipment .related-item--asset').length;
+            document.getElementById('reportCount').textContent =
+                count ? window.t('contracts.report.count', { n: count })
+                      : window.t('contracts.report.count_none');
+
+            document.getElementById('reportModal').classList.add('active');
+        }
+
+        function closeReportModal() {
+            document.getElementById('reportModal').classList.remove('active');
+        }
+
+        async function downloadEquipmentCsv() {
+            try {
+                const resp = await fetch(CONTRACTS_API + 'get_contract_assets.php?contract_id=' + contractId);
+                const data = await resp.json();
+                if (!data.success) { showToast(data.error || window.t('contracts.detail.assets_load_failed'), 'error'); return; }
+
+                const head = ['contracts.report.col_equipment', 'contracts.report.col_type',
+                              'contracts.report.col_serial', 'contracts.report.col_tag',
+                              'contracts.report.col_location', 'contracts.report.col_reference']
+                             .map(k => window.t(k));
+
+                // ⚠️ Every field is quoted and its own quotes doubled. A model
+                // name with a comma in it is not exotic, and an unquoted one
+                // silently shifts every column after it.
+                const cell = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+                const rows = [head.map(cell).join(',')];
+                (data.assets || []).forEach(a => rows.push([
+                    assetLabel(a), a.type_name, a.service_tag, a.asset_tag, a.location_name, a.reference
+                ].map(cell).join(',')));
+
+                // The BOM is what makes Excel read UTF-8 rather than guessing at
+                // the local codepage and mangling every accented location name.
+                const blob = new Blob(['\uFEFF' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href = url;
+                a.download = ((currentContract && currentContract.contract_number) || 'contract')
+                             .replace(/[^a-zA-Z0-9 _-]/g, '') + '-equipment.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+                closeReportModal();
+            } catch (e) {
+                showToast(window.t('contracts.detail.assets_load_failed'), 'error');
+            }
+        }
+
+        async function emailEquipmentReport() {
+            const btn = document.getElementById('reportEmailBtn');
+            const to  = document.getElementById('reportEmailTo').value.trim();
+            btn.disabled = true;
+            try {
+                const resp = await fetch(CONTRACTS_API + 'email_equipment_report.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contract_id: contractId, to: to })
+                });
+                const data = await resp.json();
+                if (!data.success) { showToast(data.error || window.t('contracts.report.email_failed'), 'error'); btn.disabled = false; return; }
+                showToast(window.t('contracts.report.email_sent', { email: data.sent_to }), 'success');
+                closeReportModal();
+            } catch (e) {
+                showToast(window.t('contracts.report.email_failed'), 'error');
+                btn.disabled = false;
             }
         }
 
@@ -822,11 +940,11 @@ if (!$contract_id) {
                     body: JSON.stringify({ contract_id: contractId, asset_id: assetId })
                 });
                 const data = await resp.json();
-                if (!data.success) { alert(data.error || window.t('contracts.detail.assets_load_failed')); return; }
+                if (!data.success) { showToast(data.error || window.t('contracts.detail.assets_load_failed'), 'error'); return; }
                 closeAssetPicker();
                 loadRelatedAssets();
             } catch (e) {
-                alert(window.t('contracts.detail.assets_load_failed'));
+                showToast(window.t('contracts.detail.assets_load_failed'), 'error');
             }
         }
 
@@ -1068,6 +1186,47 @@ if (!$contract_id) {
             }
         }
     </script>
+
+    <!-- Equipment report: the same report, three ways out (Ed) -->
+    <div class="cv-modal-overlay" id="reportModal">
+        <div class="cv-modal">
+            <div class="cv-modal-header">
+                <h3><?php echo htmlspecialchars(t('contracts.report.button')); ?></h3>
+            </div>
+            <div class="cv-modal-body">
+                <p class="cr-count" id="reportCount"></p>
+
+                <a class="cr-choice" id="reportPdf" target="_blank" rel="noopener">
+                    <svg class="cr-choice-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                    <span>
+                        <span class="cr-choice-name"><?php echo htmlspecialchars(t('contracts.report.opt_pdf')); ?></span>
+                        <span class="cr-choice-desc"><?php echo htmlspecialchars(t('contracts.report.opt_pdf_desc')); ?></span>
+                    </span>
+                </a>
+
+                <button type="button" class="cr-choice" onclick="downloadEquipmentCsv()">
+                    <svg class="cr-choice-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                    <span>
+                        <span class="cr-choice-name"><?php echo htmlspecialchars(t('contracts.report.opt_csv')); ?></span>
+                        <span class="cr-choice-desc"><?php echo htmlspecialchars(t('contracts.report.opt_csv_desc')); ?></span>
+                    </span>
+                </button>
+
+                <div class="cr-choice" style="cursor:default;display:block;">
+                    <span class="cr-choice-name"><?php echo htmlspecialchars(t('contracts.report.opt_email')); ?></span>
+                    <span class="cr-choice-desc"><?php echo htmlspecialchars(t('contracts.report.opt_email_desc')); ?></span>
+                    <div class="cr-email-row">
+                        <input type="email" id="reportEmailTo" autocomplete="off"
+                               placeholder="<?php echo htmlspecialchars(t('contracts.report.email_placeholder')); ?>">
+                        <button type="button" id="reportEmailBtn" onclick="emailEquipmentReport()"><?php echo htmlspecialchars(t('contracts.report.send')); ?></button>
+                    </div>
+                </div>
+            </div>
+            <div class="cv-modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeReportModal()"><?php echo htmlspecialchars(t('common.close')); ?></button>
+            </div>
+        </div>
+    </div>
 
     <!-- Link equipment to this contract (discussion #106) -->
     <div class="cv-modal-overlay" id="assetPickerModal">
