@@ -262,8 +262,19 @@ $translationNamespaces = ['common', 'service-status'];
                         <div><?php echo t('service-status.help.history_field_status_html'); ?></div>
                         <div><?php echo t('service-status.help.history_field_affected_html'); ?></div>
                         <div><?php echo t('service-status.help.history_field_updated_html'); ?></div>
+                        <div><?php echo t('service-status.help.history_field_actions_html'); ?></div>
                     </div>
                     <p><?php echo htmlspecialchars(t('service-status.help.history_p2')); ?></p>
+                    <h4><?php echo htmlspecialchars(t('service-status.help.actions_heading')); ?></h4>
+                    <p><?php echo t('service-status.help.actions_p1'); ?></p>
+                    <div class="help-list">
+                        <div><?php echo t('service-status.help.actions_edit'); ?></div>
+                        <div><?php echo t('service-status.help.actions_resolve'); ?></div>
+                        <div><?php echo t('service-status.help.actions_delete'); ?></div>
+                    </div>
+                    <p><?php echo t('service-status.help.actions_updates'); ?></p>
+                    <p class="help-note"><?php echo t('service-status.help.actions_tip'); ?></p>
+
                     <p class="help-note"><?php echo htmlspecialchars(t('service-status.help.history_tip')); ?></p>
                 </div>
 
