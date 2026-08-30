@@ -72,6 +72,16 @@ return [
         'passwords_mismatch' => 'Adgangskoderne stemmer ikke overens',
         'register_failed' => 'Oprettelse mislykkedes. Prøv igen.',
     ],
+    // Incidents on the status panel (#99)
+    'status' => [
+        'incidents_heading'   => 'Hvad der sker',
+        'show_updates'        => 'Vis opdateringer ({n})',
+        'hide_updates'        => 'Skjul opdateringer',
+        'loading'             => 'Indlæser…',
+        'no_updates'          => 'Der er endnu ikke offentliggjort noget om dette.',
+        'load_failed'         => 'Opdateringerne kunne ikke indlæses.',
+    ],
+
     'dashboard' => [
         'title' => 'Selvbetjeningsportal',
         'welcome' => 'Velkommen, {name}',

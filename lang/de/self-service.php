@@ -82,6 +82,16 @@ return [
         'passwords_mismatch' => 'Die Passwörter stimmen nicht überein',
         'register_failed'    => 'Registrierung fehlgeschlagen. Bitte versuchen Sie es erneut.',
     ],
+    // Incidents on the status panel (#99)
+    'status' => [
+        'incidents_heading'   => 'Was gerade passiert',
+        'show_updates'        => 'Aktualisierungen anzeigen ({n})',
+        'hide_updates'        => 'Aktualisierungen ausblenden',
+        'loading'             => 'Wird geladen…',
+        'no_updates'          => 'Dazu wurde noch nichts veröffentlicht.',
+        'load_failed'         => 'Diese Aktualisierungen konnten nicht geladen werden.',
+    ],
+
     'dashboard' => [
         'title'                 => 'Self-Service-Portal',
         'welcome'               => 'Willkommen, {name}',

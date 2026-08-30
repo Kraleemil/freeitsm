@@ -824,3 +824,59 @@ body.portal-app .portal-layout { padding: 0; max-width: none; margin: 0; }
      * every page all the time. */
     body.ss-nav-open .portal-header { z-index: 3000; }
 }
+
+/* ══ Incidents on the status panel (discussion #99) ════════════════════════
+   Shown only when an administrator has switched this on AND somebody has
+   written an external update, so most portals never render any of it. */
+.inc-list-heading {
+    margin: 18px 0 10px;
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--text-dim, #999);
+}
+.inc-card {
+    border: 1px solid var(--border, #e5e7eb);
+    border-left: 3px solid var(--danger-accent, #d13438);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--surface, #fff);
+}
+/* Resolved loses the red edge. A page full of red bars is a page nobody reads
+   carefully, and the whole point of keeping resolved entries is reassurance. */
+.inc-card.is-resolved { border-left-color: var(--success-accent, #16a34a); }
+.inc-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.inc-card-title { font-size: 14px; font-weight: 600; color: var(--text, #333); }
+.inc-card-state { font-size: 12px; color: var(--text-muted, #666); white-space: nowrap; }
+.inc-card-svcs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.inc-svc {
+    font-size: 11px; padding: 1px 8px; border-radius: 10px;
+    background: var(--surface-3, #eee); color: var(--text-muted, #666);
+}
+.inc-card-toggle {
+    margin-top: 9px; padding: 0; border: none; background: none; cursor: pointer;
+    font: inherit; font-size: 12.5px; color: var(--ss-accent, #0078d4); text-decoration: underline;
+}
+.inc-card-updates[hidden] { display: none !important; }
+.inc-card-updates { margin-top: 10px; border-top: 1px solid var(--border-soft, #f1f1f1); padding-top: 10px; }
+.inc-upd-loading { font-size: 12.5px; color: var(--text-dim, #999); }
+
+/* A table with timestamps, as the request asked for — the story of the outage
+   read top to bottom, oldest first. */
+.inc-upd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.inc-upd-table td { padding: 6px 0; vertical-align: top; border-top: 1px solid var(--border-soft, #f5f5f5); }
+.inc-upd-table tr:first-child td { border-top: none; }
+.inc-upd-when { width: 1%; white-space: nowrap; padding-right: 14px !important; color: var(--text-muted, #666); font-size: 12px; }
+.inc-upd-status {
+    display: inline-block; margin-right: 8px;
+    font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+    background: var(--surface-3, #eee); color: var(--text-muted, #666);
+}
+.inc-upd-text { color: var(--text, #333); }
+
+@media (max-width: 600px) {
+    /* The timestamp goes above the text rather than beside it — a date column
+       plus a sentence in 320px leaves no room for the sentence. */
+    .inc-upd-table, .inc-upd-table tr, .inc-upd-table td { display: block; width: auto; }
+    .inc-upd-when { padding-right: 0 !important; padding-bottom: 2px !important; }
+    .inc-upd-table td.inc-upd-body { border-top: none; padding-top: 0; }
+}

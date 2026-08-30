@@ -7,6 +7,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/service_impact_levels.php';
+require_once '../../includes/service_status_portal.php';
 
 header('Content-Type: application/json');
 
@@ -147,6 +148,12 @@ try {
         'recent_tickets' => $recentTickets,
         'requests' => $requests,
         'services' => $services,
+        // Incidents behind an outage, and how many external updates each has
+        // (#99). ssPortalIncidents() returns [] unless an administrator has
+        // switched this on, so the portal is unchanged until they do — the
+        // check lives in there rather than here, because it must hold for
+        // every caller rather than for the ones that remember.
+        'incidents' => ssPortalIncidents($conn),
         // Which level counts as "all clear" — the portal's "All systems operational"
         // banner tests against this instead of the literal name (GH #70).
         'default_impact' => $defaultImpact

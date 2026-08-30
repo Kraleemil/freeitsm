@@ -88,6 +88,16 @@ return [
         'register_failed'    => 'Registration failed. Please try again.',
     ],
 
+    // Incidents on the status panel (#99)
+    'status' => [
+        'incidents_heading'   => 'What is happening',
+        'show_updates'        => 'Show updates ({n})',
+        'hide_updates'        => 'Hide updates',
+        'loading'             => 'Loading…',
+        'no_updates'          => 'Nothing has been posted about this yet.',
+        'load_failed'         => 'Those updates could not be loaded.',
+    ],
+
     'dashboard' => [
         'title'              => 'Self-Service Portal',
         'welcome'            => 'Welcome, {name}',

@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', loadDashboard);
                 renderRequests(data.requests);
                 renderRecentTickets(data.recent_tickets);
                 renderServiceStatus(data.services, data.default_impact);
+                renderStatusIncidents(data.incidents);
             } catch (err) {
                 console.error('Failed to load dashboard:', err);
             }
@@ -179,6 +180,105 @@ document.addEventListener('DOMContentLoaded', loadDashboard);
 
             html += '</tbody></table>';
             container.innerHTML = html;
+        }
+
+        /**
+         * Incidents behind an outage, and what has been said about them (#99).
+         *
+         * ⚠️ COLLAPSED by default, which the requester asked for and which is
+         * right for a different reason too: most people looking at a status page
+         * want to know whether something is wrong, not to read the whole history.
+         * The updates are fetched when somebody opens one, so a portal nobody
+         * expands costs nothing.
+         *
+         * The server sends only incidents that have at least one external
+         * update, and only when an administrator has switched this on — so an
+         * empty list here is the normal state, not a failure.
+         */
+        function renderStatusIncidents(incidents) {
+            const box = document.getElementById('statusIncidents');
+            if (!box) return;
+
+            if (!incidents || !incidents.length) {
+                box.innerHTML = '';
+                box.hidden = true;
+                return;
+            }
+            box.hidden = false;
+
+            box.innerHTML = `<h3 class="inc-list-heading">${escapeHtml(window.t('self-service.status.incidents_heading'))}</h3>`
+                + incidents.map(inc => {
+                    const svcs = (inc.services || []).map(s =>
+                        `<span class="inc-svc"${s.impact_colour ? ` style="background:${escapeHtml(s.impact_colour)};color:#fff;"` : ''}>${escapeHtml(s.service_name)}</span>`
+                    ).join('');
+
+                    // A resolved incident says so plainly. It is the most
+                    // reassuring thing on the page for somebody who was hit by it.
+                    const resolved = Number(inc.is_resolved) === 1;
+
+                    return `
+                    <div class="inc-card${resolved ? ' is-resolved' : ''}" data-incident="${inc.id}">
+                        <div class="inc-card-head">
+                            <span class="inc-card-title">${escapeHtml(inc.title || '')}</span>
+                            <span class="inc-card-state">${escapeHtml(inc.status || '')}</span>
+                        </div>
+                        ${svcs ? `<div class="inc-card-svcs">${svcs}</div>` : ''}
+                        <button type="button" class="inc-card-toggle" onclick="toggleStatusUpdates(${inc.id}, this)">
+                            ${escapeHtml(window.t('self-service.status.show_updates', { n: inc.update_count }))}
+                        </button>
+                        <div class="inc-card-updates" id="incUpd${inc.id}" hidden></div>
+                    </div>`;
+                }).join('');
+        }
+
+        async function toggleStatusUpdates(incidentId, btn) {
+            const box = document.getElementById('incUpd' + incidentId);
+            if (!box) return;
+
+            if (!box.hidden) {
+                box.hidden = true;
+                btn.textContent = btn.dataset.showLabel || window.t('self-service.status.show_updates', { n: '' });
+                return;
+            }
+
+            // Remember the collapsed label before replacing it, so re-collapsing
+            // puts back the count rather than a guess at it.
+            if (!btn.dataset.showLabel) btn.dataset.showLabel = btn.textContent.trim();
+            box.hidden = false;
+
+            if (!box.dataset.loaded) {
+                box.innerHTML = `<div class="inc-upd-loading">${escapeHtml(window.t('self-service.status.loading'))}</div>`;
+                try {
+                    const d = await fetch('../api/self-service/get_incident_updates.php?incident_id=' + incidentId)
+                        .then(r => r.json());
+                    const rows = (d.success && d.updates) ? d.updates : [];
+
+                    // A table with timestamps, as asked for: what was said, when,
+                    // oldest first, so it reads as the story of the outage.
+                    box.innerHTML = rows.length
+                        ? `<table class="inc-upd-table">${rows.map(u => `
+                            <tr>
+                                <td class="inc-upd-when">${escapeHtml(formatWhen(u.created_datetime))}</td>
+                                <td class="inc-upd-body">
+                                    ${u.status ? `<span class="inc-upd-status">${escapeHtml(u.status)}</span>` : ''}
+                                    ${u.comment ? `<span class="inc-upd-text">${escapeHtml(u.comment)}</span>` : ''}
+                                </td>
+                            </tr>`).join('')}</table>`
+                        : `<div class="inc-upd-loading">${escapeHtml(window.t('self-service.status.no_updates'))}</div>`;
+                    box.dataset.loaded = '1';
+                } catch (e) {
+                    box.innerHTML = `<div class="inc-upd-loading">${escapeHtml(window.t('self-service.status.load_failed'))}</div>`;
+                }
+            }
+            btn.textContent = window.t('self-service.status.hide_updates');
+        }
+
+        /** Stored UTC, shown in the reader's own zone — same as everything else here. */
+        function formatWhen(dt) {
+            try {
+                const d = parseUTCDate(dt);
+                return (!d || isNaN(d.getTime())) ? dt : fmtDateTime(d);
+            } catch (e) { return dt; }
         }
 
         function renderServiceStatus(services, defaultImpact) {
@@ -345,6 +445,11 @@ require __DIR__ . "/includes/header.php";
                 <div id="statusContainer">
                     <div class="loading-state"><?php echo htmlspecialchars(t('self-service.dashboard.loading_status')); ?></div>
                 </div>
+                <?php /* Incidents behind an outage (#99). Hidden until there is
+                         something to show, which on most installs is always —
+                         it needs an administrator to switch it on AND somebody
+                         to have written an external update. */ ?>
+                <div id="statusIncidents" hidden></div>
             </div>
         </div>
 
