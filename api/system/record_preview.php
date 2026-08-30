@@ -28,8 +28,14 @@ if (!isset($_SESSION['analyst_id'])) {
 }
 
 try {
-    $type = (string)($_GET['type'] ?? '');
-    $id   = (int)($_GET['id'] ?? 0);
+    // ⚠️ is_string / is_scalar FIRST. ?type[]=ticket hands PHP an array, and
+    // casting one to string emits "Array to string conversion" — a warning that
+    // is printed BEFORE the JSON and carries the server's absolute file path
+    // with it. The request was already refused; the leak was the whole problem.
+    $rawType = $_GET['type'] ?? '';
+    $rawId   = $_GET['id']   ?? 0;
+    $type = is_string($rawType) ? $rawType : '';
+    $id   = is_scalar($rawId)   ? (int)$rawId : 0;
 
     $conn    = connectToDatabase();
     $preview = recordPreview($conn, (int)$_SESSION['analyst_id'], $type, $id);

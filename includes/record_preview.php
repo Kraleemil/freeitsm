@@ -85,10 +85,24 @@ function rpField(string $label, $value, ?string $colour = null): ?array
     if ($value === null || $value === '' ) {
         return null;
     }
+
+    // 🔒 The colour is the ONE value that does not reach the browser as text —
+    // it is written into a style attribute. Escaping stops it breaking OUT of
+    // the attribute, but not from adding a second declaration INSIDE it, so
+    // `red;background-image:url(https://elsewhere/beacon)` would still fetch
+    // from elsewhere every time somebody glanced at a record. These come from
+    // status settings rather than from a visitor, and every one on this install
+    // is clean — but "the only people who can set it are trusted" is a fact
+    // about today, and an import or a future screen can change it. A colour
+    // that is not a colour is dropped, and the field renders without a dot.
+    if ($colour !== null && !preg_match('/^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{3,20}|rgba?\([0-9,.\s%]{5,40}\))$/', trim($colour))) {
+        $colour = null;
+    }
+
     return array_filter([
         'label'  => $label,
         'value'  => (string)$value,
-        'colour' => $colour,
+        'colour' => $colour === null ? null : trim($colour),
     ], fn($v) => $v !== null);
 }
 
