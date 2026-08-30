@@ -483,6 +483,7 @@ return [
         'rec_5' => '<strong>Vurdér risiko</strong> &mdash; vælg Sandsynlighed (1&ndash;5) og Konsekvens (1&ndash;5). Risikoscoren beregnes automatisk. En farvekodet matrix viser, hvor den ligger.',
         'rec_6' => '<strong>Skriv planerne</strong> &mdash; brug fanerne til at udfylde Beskrivelse, Årsag, Risikovurdering, Testplan og Reversérplan.',
         'rec_7' => '<strong>Gem</strong> som kladde. Du kan altid komme tilbage og redigere, før du sender til godkendelse.',
+        'rec_preview_note' => 'Hver sag, der er knyttet til en ændring, har et lille <strong>&#9432;</strong> i handlingskolonnen. Klik på det for et kort med sagens status, prioritet, hvem den ligger hos, og hvem der har oprettet den &mdash; nok til at kontrollere, at de tilknyttede sager virkelig er dem, ændringen handler om, uden at åbne hver enkelt. Kortet er skrivebeskyttet, og <strong>Åbn</strong> fører dig til selve sagen.',
         'cab_heading' => 'CAB-gennemgang &mdash; når du har brug for flere godkendere',
         'cab_intro' => 'Ved ændringer med højere risiko eller større konsekvens er én godkender måske ikke nok. <strong>Change Advisory Board (CAB)</strong> lader dig samle et panel af bedømmere, der hver især stemmer om ændringen.',
         'cab_setup_heading' => 'Opsæt CAB',

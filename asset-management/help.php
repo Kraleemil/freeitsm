@@ -528,6 +528,8 @@ $translationNamespaces = ['common', 'asset-management'];
 
                     <p>A long history is capped at the twenty most recent closed tickets, with the true total shown alongside, so an asset that has been in service for years still opens quickly.</p>
 
+                    <p>Each row carries a small <strong>&#9432;</strong>. Click it for a card showing the ticket&rsquo;s status, priority, who it is with and who raised it &mdash; enough to tell whether it is the report you were thinking of, without leaving the asset. It is read-only; <strong>Open</strong> takes you to the ticket itself.</p>
+
                     <p class="help-note">Tickets appear here once somebody links the asset to them &mdash; from the <strong>Links</strong> bar on the ticket (<strong>Link to&hellip; &rarr; Equipment</strong>), or by the requester choosing their device when raising it in the self-service portal. Nothing is linked automatically, so this tab stays empty on assets nobody has attached to a ticket.</p>
                 </div>
 
@@ -541,6 +543,8 @@ $translationNamespaces = ['common', 'asset-management'];
                     <p>The <strong>notice date</strong> is picked out in the warning colour, and that is the point of the tab. An end date is easy to plan around; a notice period is what quietly turns a decision you meant to make into a renewal you did not. Having it on the equipment means the question can be asked at the moment somebody is holding the thing, rather than only when the contract happens to be open in front of them.</p>
 
                     <p>A link can carry a short <strong>reference</strong> &mdash; a phone number, a line ID, a seat number &mdash; which is shown beside the contract title. It describes the equipment's place on that particular agreement, so a handset moved to a different contract keeps the handset and loses the line.</p>
+
+                    <p>Each row carries a small <strong>&#9432;</strong> as well. Click it for a card giving the contract&rsquo;s supplier, status and renewal date on the spot &mdash; which is usually all you need to answer &ldquo;is this the agreement I was thinking of?&rdquo; without opening it. The card is read-only, and <strong>Open</strong> takes you to the contract itself.</p>
 
                     <p>Links can be made <strong>from here</strong> as well as from the contract. <strong>Add to a contract</strong> searches by contract number, title or supplier name &mdash; &ldquo;the Vodafone one&rdquo; is how most people refer to a contract they have not opened in a year &mdash; and offers the contracts closest to ending first, since a contract you are about to lose is the one you are most likely to be attaching equipment to. Anything this asset is already on is left out.</p>
 

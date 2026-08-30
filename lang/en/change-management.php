@@ -537,6 +537,7 @@ return [
         'rec_5' => '<strong>Assess risk</strong> &mdash; pick Likelihood (1&ndash;5) and Impact (1&ndash;5). The risk score auto-calculates. A colour-coded matrix shows where it falls.',
         'rec_6' => '<strong>Write the plans</strong> &mdash; use the tabs to fill in Description, Reason, Risk Evaluation, Test Plan, and Rollback Plan.',
         'rec_7' => '<strong>Save</strong> as Draft. You can come back and edit anytime before submitting for approval.',
+        'rec_preview_note' => 'Each incident linked to a change carries a small <strong>&#9432;</strong> in its actions column. Click it for a card with the ticket&rsquo;s status, priority, who it is with and who raised it &mdash; enough to check that the incidents attached to a change really are the ones it addresses, without opening each in turn. The card is read-only, and <strong>Open</strong> takes you to the ticket itself.',
 
         'cab_heading'   => 'CAB review &mdash; when you need multiple approvers',
         'cab_intro'     => 'For higher-risk or higher-impact changes, a single approver may not be enough. The <strong>Change Advisory Board (CAB)</strong> lets you assemble a panel of reviewers who each vote on the change.',

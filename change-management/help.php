@@ -253,6 +253,7 @@ $translationNamespaces = ['common', 'change-management'];
                             </div>
                         </div>
                     </div>
+                    <p class="help-note"><?php echo t('change-management.help.rec_preview_note'); ?></p>
                 </div>
 
                 <!-- Section 5: CAB -->

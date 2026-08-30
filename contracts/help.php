@@ -252,6 +252,8 @@ $translationNamespaces = ['common', 'contracts'];
                     <h4><?php echo htmlspecialchars(t('contracts.help.equipment_reference_heading')); ?></h4>
                     <p><?php echo t('contracts.help.equipment_reference_body'); ?></p>
 
+                    <p><?php echo t('contracts.help.equipment_preview_body'); ?></p>
+
                     <h4><?php echo htmlspecialchars(t('contracts.help.equipment_report_heading')); ?></h4>
                     <p><?php echo t('contracts.help.equipment_report_body'); ?></p>
 

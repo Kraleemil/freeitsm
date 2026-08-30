@@ -480,6 +480,7 @@ return [
         'rec_5' => '<strong>Bewerten Sie das Risiko</strong> &mdash; wählen Sie Eintrittswahrscheinlichkeit (1&ndash;5) und Auswirkung (1&ndash;5). Der Risikowert wird automatisch berechnet. Eine farbcodierte Matrix zeigt, wo er liegt.',
         'rec_6' => '<strong>Schreiben Sie die Pläne</strong> &mdash; verwenden Sie die Registerkarten, um Beschreibung, Grund, Risikobewertung, Testplan und Rollback-Plan auszufüllen.',
         'rec_7' => '<strong>Speichern</strong> Sie als Entwurf. Sie können jederzeit vor der Einreichung zur Genehmigung zurückkehren und bearbeiten.',
+        'rec_preview_note' => 'Jedes mit einer Änderung verknüpfte Ticket trägt in der Aktionsspalte ein kleines <strong>&#9432;</strong>. Ein Klick zeigt eine Karte mit Status, Priorität, Zuständigkeit und anfragender Person &mdash; genug, um zu prüfen, ob die verknüpften Tickets wirklich die sind, um die es geht, ohne jedes einzeln zu öffnen. Die Karte ist schreibgeschützt; <strong>Öffnen</strong> führt zum Ticket selbst.',
         'cab_heading' => 'CAB-Prüfung &mdash; wenn Sie mehrere Genehmiger benötigen',
         'cab_intro' => 'Bei Changes mit höherem Risiko oder höherer Auswirkung reicht ein einzelner Genehmiger möglicherweise nicht aus. Das <strong>Change Advisory Board (CAB)</strong> ermöglicht es Ihnen, ein Gremium von Prüfern zusammenzustellen, die jeweils über den Change abstimmen.',
         'cab_setup_heading' => 'Das Gremium einrichten',

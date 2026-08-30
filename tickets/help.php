@@ -346,6 +346,22 @@ try {
 
                     <p>You can attach a task <strong>without opening the ticket at all</strong>: right-click any ticket in the list and choose <strong>Link to task&hellip;</strong>.</p>
 
+                    <p class="help-note warn"><strong>A task belongs to one ticket.</strong> If you attach a task that is already on another ticket, it <em>moves</em> &mdash; the other ticket loses it. FreeITSM will say so before it happens, naming the task and the ticket it would be taken from, and will do nothing if you decline. The picker also marks such a task <strong>currently on TICKET-x</strong> while you are still choosing, so you can usually see it coming.</p>
+
+                    <h4>Seeing what is on the other end of a link</h4>
+
+                    <p>Every linked record carries a small <strong>&#9432;</strong> beside it. Click it and a card opens on the spot with the handful of facts you actually wanted &mdash; without leaving the ticket you are reading and without opening a second tab you will forget to close.</p>
+
+                    <p>What the card shows depends on what you are looking at. A <strong>ticket</strong> gives its status, priority, who it is with and who raised it. A <strong>task</strong> gives its status, who it is assigned to, when it is due and how many subtasks are done. A <strong>change</strong> gives its status, its risk and the planned window. A <strong>problem</strong> gives its status and how many tickets are attached to it. A piece of <strong>equipment</strong> gives its tag, make and model, serial number, who holds it and when the warranty runs out. A <strong>contract</strong> gives its supplier and renewal date. A <strong>knowledge article</strong> gives its opening lines.</p>
+
+                    <p>The card is <strong>read-only</strong>, deliberately. It exists so you can tell whether a link is the one you meant, and being able to change a record you only meant to glance at is a good way to change the wrong one. <strong>Open</strong> at the foot of the card takes you to the record itself when you do want to work on it.</p>
+
+                    <p>Press <strong>Escape</strong> to close it, or click anywhere else. Clicking the same <strong>&#9432;</strong> again closes it too. On a phone the card comes up from the bottom of the screen instead, because there is nowhere sensible to float it.</p>
+
+                    <p>The same <strong>&#9432;</strong> appears wherever records are linked to one another &mdash; on a task's links, on the incidents listed against a problem or a change, on the equipment attached to a contract, and on the contracts and tickets listed against a piece of equipment.</p>
+
+                    <p class="help-note">If a card says the record <strong>cannot be shown</strong>, that is the honest answer rather than a fault: it means the record is not one you have access to, or it is no longer there. FreeITSM deliberately gives the same answer to both, because saying which would tell you something about a record you are not entitled to see.</p>
+
                     <p class="help-note">The &times; on a task pill <strong>unlinks, it does not delete</strong>. The task carries on living in the Tasks module &mdash; it simply stops being connected to this ticket. Deleting a task is done from the task itself, where you can see what you are throwing away. And if you close a ticket that still has unfinished tasks, FreeITSM will say so and let you decide &mdash; it will not stop you, because the remaining work is often somebody else's now.</p>
                 </div>
 

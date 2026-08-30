@@ -317,6 +317,8 @@ $translationNamespaces = ['common', 'tasks'];
                     </div>
                     <p style="margin-top:14px;"><?php echo t('tasks.help.panel_view_note'); ?></p>
                     <p style="margin-top:10px;"><?php echo t('tasks.help.panel_context_note'); ?></p>
+                    <p style="margin-top:10px;"><?php echo t('tasks.help.panel_links_note'); ?></p>
+                    <p style="margin-top:10px;"><?php echo t('tasks.help.panel_preview_note'); ?></p>
                     <p style="margin-top:10px;"><?php echo t('tasks.help.panel_delete_note'); ?></p>
                 </div>
 
