@@ -240,6 +240,13 @@ return [
         'no_matches'         => 'No matching tasks — the row above creates one',
         'create_named'       => 'Create task "{title}"',
         'moves_from'         => 'currently on {ticket}',
+        // A task belongs to ONE ticket, so linking one that is already attached
+        // takes it off the other ticket. Saying so in the row was not enough —
+        // it has to be asked. (Ed)
+        'another_ticket'     => 'another ticket',
+        'move_title'         => 'Move this task?',
+        'move_confirm'       => '“{title}” is currently linked to {ticket}. Linking it here will remove it from that ticket.',
+        'move_ok'            => 'Move',
         'created_toast'      => 'Task "{title}" created',
         'linked_toast'       => 'Task linked',
         'unlinked_toast'     => 'Task unlinked',

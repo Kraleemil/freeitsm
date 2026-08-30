@@ -3031,10 +3031,31 @@ function openLinkTaskPicker(ticketId) {
         });
     };
 
-    const pick = (r) => {
+    const pick = async (r) => {
         if (!r) return;
-        if (r.kind === 'create') createTaskForTicket(ticketId, r.title);
-        else linkTaskToTicket(ticketId, r.id);
+        if (r.kind === 'create') { createTaskForTicket(ticketId, r.title); return; }
+
+        // ⚠️ A task belongs to ONE ticket — `tasks.ticket_id` is a single
+        // column — so linking one that is already attached MOVES it off the
+        // other ticket. The picker labelled the row "moves from TICKET-x", but a
+        // label you may have read is not consent, and the other ticket loses a
+        // task without anybody being asked. (Ed)
+        //
+        // The task side asks before replacing a link; this is the same event
+        // approached from the other end, so it asks in the same way.
+        if (r.linked_elsewhere) {
+            const ok = await showConfirm({
+                title:   t('tickets.tasks.move_title'),
+                message: t('tickets.tasks.move_confirm', {
+                    title:  r.title || '',
+                    ticket: r.linked_ticket_number || t('tickets.tasks.another_ticket')
+                }),
+                okLabel: t('tickets.tasks.move_ok'),
+                okClass: 'primary'
+            });
+            if (!ok) return;
+        }
+        linkTaskToTicket(ticketId, r.id);
     };
 
     const search = async (typed) => {
