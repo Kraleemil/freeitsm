@@ -124,6 +124,7 @@
         accent: '#7c3aed',
         prefApi: '../../api/system/',
         prefKey: 'tasks_table_v1',
+        viewsKey: 'tasks',   // saved views (#96); viewsApi is derived from prefApi
         noun: 'task',
         exportName: 'tasks',
         defaultSort: { key: 'due_date', dir: 'asc' },

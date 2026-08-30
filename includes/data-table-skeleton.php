@@ -28,6 +28,15 @@ $dtSearchPlaceholder = $dtSearchPlaceholder ?? 'Search across visible columns...
             </svg>
             Columns
         </button>
+        <?php /* Saved views (#96). Present for every table; data-table.js hides
+                 it on any table that has not been given a viewsKey, because a
+                 button that does nothing is worse than no button. */ ?>
+        <button type="button" class="dt-btn" id="dtViewsBtn" title="Saved views: your own, your teams', and shared ones">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+            </svg>
+            <span class="dt-views-label">Views</span>
+        </button>
         <button type="button" class="dt-btn" id="dtResetBtn" title="Clear all filters, sort and search">Reset</button>
         <button type="button" class="dt-btn" id="dtCsvBtn" title="Download visible rows as CSV">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

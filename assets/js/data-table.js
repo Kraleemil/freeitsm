@@ -80,8 +80,32 @@
             if (tableEl && editable) tableEl.classList.add('dt-editable');
 
             await loadPreferences();
+            await applyDefaultView();
             await reload();
             wireToolbar();
+        }
+
+        /**
+         * Open the table with whichever view this analyst made their default.
+         *
+         * ⚠️ AFTER loadPreferences, so a default view wins over the loose column
+         * state — picking a view is the more deliberate act of the two.
+         *
+         * A default pointing at a view that has since been deleted, or shared
+         * with a team the reader has left, simply does not load: they get the
+         * table's own defaults, which is what they would have had anyway. Better
+         * than an error every morning about a view they cannot do anything about.
+         */
+        async function applyDefaultView() {
+            if (!viewsKey) return;
+            try {
+                const views = await loadViews('');
+                if (!viewDefaultId) return;
+                const view = views.find(v => Number(v.id) === Number(viewDefaultId));
+                if (!view) return;
+                applyViewConfig(typeof view.config === 'string' ? JSON.parse(view.config) : view.config);
+                activeViewId = Number(view.id);
+            } catch (e) { /* the table's own defaults are a fine answer */ }
         }
 
         function byId(id) { return document.getElementById(id); }
@@ -98,30 +122,47 @@
         }
 
         // --- Preferences ----------------------------------------------
+        /**
+         * Restore column order and visibility from a saved list.
+         *
+         * ⚠️ ONE implementation, shared by preferences and saved views. Both
+         * restore the same thing, and two copies would drift the first time a
+         * column was added — which is exactly what the merge below is for: keys
+         * that no longer exist are dropped, and columns the saved list has never
+         * heard of are appended in their default order rather than vanishing.
+         * A view saved last year still works after a new column ships.
+         */
+        function applyColumnConfig(cols) {
+            if (!Array.isArray(cols)) return;
+            const known  = new Set(columns.map(c => c.key));
+            const seen   = new Set();
+            const merged = [];
+            cols.forEach(c => {
+                if (known.has(c.k)) {
+                    merged.push({ key: c.k, visible: c.v !== 0 });
+                    seen.add(c.k);
+                }
+            });
+            columns.slice().sort((a, b) => a.defaultOrder - b.defaultOrder).forEach(c => {
+                if (!seen.has(c.key)) merged.push({ key: c.key, visible: c.defaultVisible });
+            });
+            columnState = merged;
+        }
+
+        function applySortConfig(s) {
+            if (s && colByKey[s.k]) {
+                sort = { key: s.k, dir: s.d === 'desc' ? 'desc' : 'asc' };
+            }
+        }
+
         async function loadPreferences() {
             try {
                 const res = await fetch(`${prefApi}get_user_preference.php?key=${encodeURIComponent(prefKey)}`);
                 const data = await res.json();
                 if (!data.success || !data.value) return;
                 const parsed = JSON.parse(data.value);
-                if (Array.isArray(parsed.cols)) {
-                    const known = new Set(columns.map(c => c.key));
-                    const seen = new Set();
-                    const merged = [];
-                    parsed.cols.forEach(c => {
-                        if (known.has(c.k)) {
-                            merged.push({ key: c.k, visible: c.v !== 0 });
-                            seen.add(c.k);
-                        }
-                    });
-                    columns.slice().sort((a, b) => a.defaultOrder - b.defaultOrder).forEach(c => {
-                        if (!seen.has(c.key)) merged.push({ key: c.key, visible: c.defaultVisible });
-                    });
-                    columnState = merged;
-                }
-                if (parsed.sort && colByKey[parsed.sort.k]) {
-                    sort = { key: parsed.sort.k, dir: parsed.sort.d === 'desc' ? 'desc' : 'asc' };
-                }
+                applyColumnConfig(parsed.cols);
+                applySortConfig(parsed.sort);
             } catch (e) { /* defaults */ }
         }
 
@@ -139,6 +180,394 @@
                     body: JSON.stringify({ key: prefKey, value: payload }),
                 }).catch(e => console.error('save prefs:', e));
             }, 400);
+        }
+
+
+        // ══ Saved views (discussion #96) ═══════════════════════════════
+        //
+        // A view is a saved way of LOOKING at this table: which columns, in what
+        // order, sorted how, filtered to what. Built here rather than in any one
+        // module, so all four tables that run this engine get it.
+        //
+        // ⚠️ The free-text SEARCH is deliberately not saved. A filter is how you
+        // like to look at things; a search is a question you asked once. Saving
+        // it would mean opening "Servers" tomorrow and seeing three rows because
+        // of what you typed last Tuesday.
+        const viewsKey = config.viewsKey || null;          // null = views off for this table
+        // Derived from prefApi rather than set again per module. The four host
+        // pages sit at different depths ('../api/…' vs '../../api/…') and a
+        // second copy of that path is a second chance to get it wrong — which
+        // would show up as a Views button that silently does nothing.
+        const viewsApi = config.viewsApi
+            || String(prefApi).replace(/api\/system\/?$/, 'api/table-views/');
+        let   viewTeams = [];
+        let   viewDefaultId = null;
+        let   activeViewId = null;
+        let   viewLayout = 'list';                          // 'list' | 'cards'
+
+        /**
+         * Translate, falling back to English — the engine has no i18n of its own.
+         *
+         * ⚠️ The FALLBACK is interpolated too. Without that a missing key renders
+         * the placeholder itself — "Created {d}" — which is how the first run of
+         * this looked: every date in the library was the literal word {d}. A
+         * safety net that produces visible nonsense is not a safety net.
+         */
+        function vt(key, fallback, params) {
+            const fill = s => String(s).replace(/\{(\w+)\}/g,
+                (m, k) => (params && params[k] !== undefined) ? params[k] : m);
+
+            if (typeof window.t !== 'function') return fill(fallback);
+            const out = window.t('common.table_views.' + key, params || {});
+            // i18n.js hands back the key itself when it has nothing; never show that.
+            return (!out || out.indexOf('common.table_views.') === 0) ? fill(fallback) : out;
+        }
+
+        /** The current state, as a view's config. Filters are Sets, so unpack them. */
+        function captureViewConfig() {
+            const f = {};
+            Object.keys(filters).forEach(k => {
+                if (filters[k] && filters[k].size) f[k] = Array.from(filters[k]);
+            });
+            return {
+                cols: columnState.map(c => ({ k: c.key, v: c.visible ? 1 : 0 })),
+                sort: { k: sort.key, d: sort.dir },
+                filters: f,
+            };
+        }
+
+        /**
+         * Put a saved config back on the table.
+         *
+         * Filters go back into Sets because that is what the filtering code
+         * expects, and a filter naming a value that no longer exists simply
+         * matches nothing — an empty table rather than an error.
+         */
+        function applyViewConfig(cfg) {
+            if (!cfg) return;
+            applyColumnConfig(cfg.cols);
+            applySortConfig(cfg.sort);
+            filters = {};
+            if (cfg.filters && typeof cfg.filters === 'object') {
+                Object.keys(cfg.filters).forEach(k => {
+                    if (colByKey[k] && Array.isArray(cfg.filters[k]) && cfg.filters[k].length) {
+                        filters[k] = new Set(cfg.filters[k]);
+                    }
+                });
+            }
+            searchTerm = '';
+            const s = byId(els.search);
+            if (s) s.value = '';
+            render();
+        }
+
+        async function viewsFetch(path, opts) {
+            const res = await fetch(viewsApi + path, opts);
+            return res.json();
+        }
+
+        /** Every view this analyst can see on this table, plus their teams and default. */
+        async function loadViews(q) {
+            const data = await viewsFetch('list.php?table_key=' + encodeURIComponent(viewsKey)
+                                          + '&q=' + encodeURIComponent(q || ''));
+            if (!data.success) return [];
+            viewTeams     = data.teams || [];
+            viewDefaultId = data.default_id || null;
+            return data.views || [];
+        }
+
+        async function applyViewById(id, rows) {
+            const view = (rows || []).find(v => Number(v.id) === Number(id));
+            if (!view) return;
+            try {
+                applyViewConfig(typeof view.config === 'string' ? JSON.parse(view.config) : view.config);
+            } catch (e) {
+                console.error('view config:', e);
+                return;
+            }
+            activeViewId = Number(id);
+            markActiveView();
+            // Stamp it used. Fire and forget: a failed stamp must not stop
+            // somebody looking at their table.
+            viewsFetch('use.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: Number(id) }),
+            }).catch(() => {});
+        }
+
+        /** The toolbar button shows which view is on, or that none is. */
+        function markActiveView(name) {
+            const btn = byId('dtViewsBtn');
+            if (!btn) return;
+            const label = btn.querySelector('.dt-views-label');
+            if (label) label.textContent = name || vt('button', 'Views');
+            btn.classList.toggle('dt-views-on', !!activeViewId);
+        }
+
+        // --- The library ----------------------------------------------
+        let viewsModalEl = null;
+
+        function closeViewsModal() {
+            if (viewsModalEl) { viewsModalEl.remove(); viewsModalEl = null; }
+            document.removeEventListener('keydown', viewsEsc);
+        }
+        function viewsEsc(e) { if (e.key === 'Escape') closeViewsModal(); }
+
+        async function openViewsLibrary() {
+            closePopover();
+            closeViewsModal();
+
+            viewsModalEl = document.createElement('div');
+            viewsModalEl.className = 'dt-modal-overlay';
+            viewsModalEl.addEventListener('click', e => { if (e.target === viewsModalEl) closeViewsModal(); });
+            viewsModalEl.innerHTML = `
+                <div class="dt-modal dt-views-modal">
+                    <div class="dt-modal-head">
+                        <h3>${esc(vt('heading', 'Saved views'))}</h3>
+                        <button type="button" class="dt-modal-x" data-act="close">&times;</button>
+                    </div>
+                    <div class="dt-views-bar">
+                        <input type="text" class="dt-views-search" id="dtViewsSearch" autocomplete="off"
+                               placeholder="${esc(vt('search_placeholder', 'Search views by name, description or who made them'))}">
+                        <div class="dt-views-layout" role="group">
+                            <button type="button" class="dt-views-layout-btn" data-layout="list" title="${esc(vt('layout_list', 'List'))}">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                            </button>
+                            <button type="button" class="dt-views-layout-btn" data-layout="cards" title="${esc(vt('layout_cards', 'Cards'))}">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="dt-views-body" id="dtViewsBody"></div>
+                    <div class="dt-modal-foot">
+                        <button type="button" class="dt-btn dt-btn-primary" data-act="save-new">${esc(vt('save_current', 'Save current view'))}</button>
+                        <button type="button" class="dt-btn" data-act="close">${esc(vt('close', 'Close'))}</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(viewsModalEl);
+            document.addEventListener('keydown', viewsEsc);
+
+            viewsModalEl.querySelectorAll('[data-act="close"]').forEach(b => b.addEventListener('click', closeViewsModal));
+            viewsModalEl.querySelector('[data-act="save-new"]').addEventListener('click', () => openViewEditor(null));
+
+            viewsModalEl.querySelectorAll('.dt-views-layout-btn').forEach(b => {
+                b.classList.toggle('is-on', b.dataset.layout === viewLayout);
+                b.addEventListener('click', () => {
+                    viewLayout = b.dataset.layout;
+                    viewsModalEl.querySelectorAll('.dt-views-layout-btn')
+                        .forEach(x => x.classList.toggle('is-on', x.dataset.layout === viewLayout));
+                    try { localStorage.setItem('dtViewLayout', viewLayout); } catch (e) { /* private window */ }
+                    refreshViewsList();
+                });
+            });
+
+            let searchTimer = null;
+            byId('dtViewsSearch').addEventListener('input', () => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(refreshViewsList, 200);
+            });
+
+            refreshViewsList();
+        }
+
+        async function refreshViewsList() {
+            const body = byId('dtViewsBody');
+            if (!body) return;
+            const q = (byId('dtViewsSearch') || {}).value || '';
+            const views = await loadViews(q);
+
+            if (!views.length) {
+                body.innerHTML = `<div class="dt-views-empty">${esc(q
+                    ? vt('none_matching', 'No views match what you typed.')
+                    : vt('none_yet', 'No saved views yet. Set the table up how you like it, then use Save current view.'))}</div>`;
+                return;
+            }
+
+            body.className = 'dt-views-body dt-views-' + viewLayout;
+            body.innerHTML = views.map(v => renderViewEntry(v)).join('');
+
+            body.querySelectorAll('[data-view-act]').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const id  = Number(btn.closest('[data-view-id]').dataset.viewId);
+                    const act = btn.dataset.viewAct;
+                    if (act === 'edit')    { openViewEditor(views.find(v => Number(v.id) === id)); }
+                    if (act === 'delete')  { deleteView(id); }
+                    if (act === 'default') { setDefaultView(viewDefaultId === id ? null : id); }
+                });
+            });
+            body.querySelectorAll('[data-view-id]').forEach(el => {
+                el.addEventListener('click', () => {
+                    applyViewById(Number(el.dataset.viewId), views);
+                    closeViewsModal();
+                });
+            });
+        }
+
+        function renderViewEntry(v) {
+            const isDefault = viewDefaultId === Number(v.id);
+            const vis = v.visibility === 'public' ? vt('vis_public', 'Everyone')
+                      : v.visibility === 'team'   ? (v.team_name || vt('vis_team', 'Team'))
+                      : vt('vis_private', 'Only me');
+
+            // Dates are plain calendar timestamps from the server. Show the day,
+            // not the minute: on a library the useful question is "is this
+            // stale?", and a time of day is noise against that.
+            const day = s => (s || '').substring(0, 10);
+            const used = v.last_used_datetime
+                ? vt('last_used', 'Last used {d}', { d: day(v.last_used_datetime) })
+                : vt('never_used', 'Never used');
+
+            return `
+                <div class="dt-view-entry${isDefault ? ' is-default' : ''}" data-view-id="${v.id}" tabindex="0">
+                    <div class="dt-view-main">
+                        <div class="dt-view-name">
+                            ${esc(v.name)}
+                            ${isDefault ? `<span class="dt-view-badge dt-view-badge-default">${esc(vt('default', 'Default'))}</span>` : ''}
+                            <span class="dt-view-badge dt-view-vis-${esc(v.visibility)}">${esc(vis)}</span>
+                        </div>
+                        ${v.description ? `<div class="dt-view-desc">${esc(v.description)}</div>` : ''}
+                        <div class="dt-view-meta">
+                            ${v.owner_name ? esc(vt('by', 'by {name}', { name: v.owner_name })) : esc(vt('by_nobody', 'owner removed'))}
+                            <span class="dt-view-sep">&bull;</span>${esc(vt('created', 'Created {d}', { d: day(v.created_datetime) }))}
+                            <span class="dt-view-sep">&bull;</span>${esc(vt('modified', 'Modified {d}', { d: day(v.updated_datetime) }))}
+                            <span class="dt-view-sep">&bull;</span>${esc(used)}
+                        </div>
+                    </div>
+                    <div class="dt-view-acts">
+                        <button type="button" class="dt-view-act" data-view-act="default"
+                                title="${esc(isDefault ? vt('unset_default', 'Stop opening this table with this view')
+                                                       : vt('set_default', 'Open this table with this view'))}">
+                            ${isDefault ? '&#9733;' : '&#9734;'}
+                        </button>
+                        ${v.can_edit ? `
+                        <button type="button" class="dt-view-act" data-view-act="edit" title="${esc(vt('edit', 'Edit'))}">&#9998;</button>
+                        <button type="button" class="dt-view-act dt-view-act-danger" data-view-act="delete" title="${esc(vt('delete', 'Delete'))}">&times;</button>` : ''}
+                    </div>
+                </div>`;
+        }
+
+        /**
+         * The save / edit dialog.
+         *
+         * ⚠️ Editing an existing view keeps its SAVED config rather than
+         * overwriting it with whatever the table looks like now. Renaming a view
+         * should not silently change what it shows. "Save current view" is the
+         * gesture for that, and it says so.
+         */
+        function openViewEditor(view) {
+            const editing = !!view;
+            const wrap = document.createElement('div');
+            wrap.className = 'dt-modal-overlay dt-views-editor';
+            wrap.addEventListener('click', e => { if (e.target === wrap) wrap.remove(); });
+
+            const teamOpts = viewTeams.map(t =>
+                `<option value="${t.id}"${editing && Number(view.team_id) === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+
+            wrap.innerHTML = `
+                <div class="dt-modal dt-view-editor">
+                    <div class="dt-modal-head">
+                        <h3>${esc(editing ? vt('edit_heading', 'Edit view') : vt('save_heading', 'Save this view'))}</h3>
+                        <button type="button" class="dt-modal-x" data-act="cancel">&times;</button>
+                    </div>
+                    <div class="dt-modal-body">
+                        <label class="dt-field">
+                            <span>${esc(vt('field_name', 'Name'))}</span>
+                            <input type="text" id="dtViewName" maxlength="120" value="${editing ? esc(view.name) : ''}"
+                                   placeholder="${esc(vt('name_placeholder', 'My end user devices'))}">
+                        </label>
+                        <label class="dt-field">
+                            <span>${esc(vt('field_description', 'Description'))}</span>
+                            <textarea id="dtViewDesc" maxlength="500" rows="2"
+                                      placeholder="${esc(vt('desc_placeholder', 'What this view is for, so somebody else knows whether to use it'))}">${editing && view.description ? esc(view.description) : ''}</textarea>
+                        </label>
+                        <div class="dt-field">
+                            <span>${esc(vt('field_visibility', 'Who can see it'))}</span>
+                            <div class="dt-vis-choices">
+                                <label><input type="radio" name="dtVis" value="private"${!editing || view.visibility === 'private' ? ' checked' : ''}> ${esc(vt('vis_private', 'Only me'))}</label>
+                                <label${viewTeams.length ? '' : ' class="dt-vis-off"'}>
+                                    <input type="radio" name="dtVis" value="team"${editing && view.visibility === 'team' ? ' checked' : ''}${viewTeams.length ? '' : ' disabled'}>
+                                    ${esc(vt('vis_team_label', 'A team'))}
+                                </label>
+                                <label><input type="radio" name="dtVis" value="public"${editing && view.visibility === 'public' ? ' checked' : ''}> ${esc(vt('vis_public_label', 'Everyone'))}</label>
+                            </div>
+                            ${viewTeams.length
+                                ? `<select id="dtViewTeam" class="dt-view-team">${teamOpts}</select>`
+                                : `<div class="dt-views-hint">${esc(vt('no_teams', 'You are not in a team, so there is nobody to share a team view with.'))}</div>`}
+                        </div>
+                        ${editing ? `<div class="dt-views-hint">${esc(vt('edit_hint', 'This changes the name and who can see it. What the view SHOWS is left as it was saved - use "Save current view" to capture the table as it looks now.'))}</div>` : ''}
+                    </div>
+                    <div class="dt-modal-foot">
+                        <button type="button" class="dt-btn dt-btn-primary" data-act="save">${esc(vt('save', 'Save'))}</button>
+                        <button type="button" class="dt-btn" data-act="cancel">${esc(vt('cancel', 'Cancel'))}</button>
+                    </div>
+                </div>`;
+
+            document.body.appendChild(wrap);
+            wrap.querySelectorAll('[data-act="cancel"]').forEach(b => b.addEventListener('click', () => wrap.remove()));
+            byId('dtViewName').focus();
+
+            const teamSel = byId('dtViewTeam');
+            const syncTeam = () => {
+                const on = wrap.querySelector('input[name="dtVis"]:checked').value === 'team';
+                if (teamSel) teamSel.style.display = on ? '' : 'none';
+            };
+            wrap.querySelectorAll('input[name="dtVis"]').forEach(r => r.addEventListener('change', syncTeam));
+            syncTeam();
+
+            wrap.querySelector('[data-act="save"]').addEventListener('click', async () => {
+                const name = byId('dtViewName').value.trim();
+                if (!name) { byId('dtViewName').focus(); return; }
+                const vis = wrap.querySelector('input[name="dtVis"]:checked').value;
+
+                const payload = {
+                    table_key:   viewsKey,
+                    name:        name,
+                    description: byId('dtViewDesc').value.trim(),
+                    visibility:  vis,
+                    team_id:     vis === 'team' && teamSel ? Number(teamSel.value) : null,
+                    // Editing keeps the saved config; saving new captures now.
+                    config:      editing ? (typeof view.config === 'string' ? JSON.parse(view.config) : view.config)
+                                         : captureViewConfig(),
+                };
+                if (editing) payload.id = Number(view.id);
+
+                const data = await viewsFetch('save.php', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!data.success) { alertViews(data.error); return; }
+                wrap.remove();
+                if (!editing) { activeViewId = Number(data.id); markActiveView(name); }
+                refreshViewsList();
+            });
+        }
+
+        async function deleteView(id) {
+            const data = await viewsFetch('delete.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id }),
+            });
+            if (!data.success) { alertViews(data.error); return; }
+            if (activeViewId === id) { activeViewId = null; markActiveView(); }
+            refreshViewsList();
+        }
+
+        async function setDefaultView(id) {
+            const data = await viewsFetch('use.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table_key: viewsKey, default_id: id }),
+            });
+            if (!data.success) { alertViews(data.error); return; }
+            viewDefaultId = id;
+            refreshViewsList();
+        }
+
+        /** Errors go through the host page's toast when it has one. */
+        function alertViews(msg) {
+            const text = msg || vt('failed', 'That did not work.');
+            if (typeof window.showToast === 'function') window.showToast(text, 'error');
+            else console.error('table views:', text);
         }
 
         // --- Column value/display helpers -----------------------------
@@ -172,6 +601,23 @@
                 render();
                 savePreferences();
             });
+            // Saved views. The button is in the shared toolbar for every table,
+            // but only wired up on tables that asked for views, and hidden
+            // otherwise — a button that does nothing is worse than no button.
+            const vb = byId('dtViewsBtn');
+            if (vb) {
+                if (viewsKey) {
+                    vb.addEventListener('click', e => { e.stopPropagation(); openViewsLibrary(); });
+                    try {
+                        const saved = localStorage.getItem('dtViewLayout');
+                        if (saved === 'cards' || saved === 'list') viewLayout = saved;
+                    } catch (e) { /* private window: the default is fine */ }
+                    markActiveView();
+                } else {
+                    vb.style.display = 'none';
+                }
+            }
+
             const csv = byId(els.csvBtn);
             if (csv) csv.addEventListener('click', exportCSV);
             const pdf = byId(els.pdfBtn);

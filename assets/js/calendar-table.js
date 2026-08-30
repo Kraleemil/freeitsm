@@ -52,6 +52,7 @@
         accent: '#ef6c00',
         prefApi: '../../api/system/',
         prefKey: 'calendar_table_v1',
+        viewsKey: 'calendar',   // saved views (#96); viewsApi is derived from prefApi
         noun: 'event',
         exportName: 'calendar-events',
         defaultSort: { key: 'start_datetime', dir: 'asc' },

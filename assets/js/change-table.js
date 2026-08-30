@@ -104,6 +104,7 @@
         accent: '#00897b',
         prefApi: '../api/system/',
         prefKey: 'change_table_v1',
+        viewsKey: 'changes',   // saved views (#96); viewsApi is derived from prefApi
         noun: 'change',
         exportName: 'changes',
         defaultSort: { key: 'modified_datetime', dir: 'desc' },

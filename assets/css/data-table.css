@@ -293,3 +293,142 @@ table.dt-table {
     font-size: 14px;
     line-height: 1;
 }
+
+/* ══ Saved views (discussion #96) ══════════════════════════════════════════
+   The library, its editor, and the Views button in the toolbar. Uses the same
+   tokens as the rest of this sheet, plus --dt-accent, which each module injects
+   at runtime — so the library takes on the colour of whichever table it is
+   opened from rather than looking like a visitor from another module. */
+
+.dt-btn .dt-views-label { margin-left: 2px; }
+/* A table currently showing a saved view says so on the button, rather than
+   leaving somebody to wonder why their columns are not the usual ones. */
+.dt-btn.dt-views-on {
+    border-color: var(--dt-accent);
+    color: var(--dt-accent);
+    font-weight: 600;
+}
+
+.dt-modal-overlay {
+    position: fixed; inset: 0; z-index: 3000;
+    background: rgba(0, 0, 0, .45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+}
+.dt-modal {
+    background: var(--surface, #fff);
+    color: var(--text, #333);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px var(--shadow, rgba(0,0,0,.3));
+    width: 100%; max-width: 720px;
+    max-height: 84vh;
+    display: flex; flex-direction: column;
+}
+.dt-view-editor { max-width: 470px; }
+.dt-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px; border-bottom: 1px solid var(--border-soft, #eee);
+}
+.dt-modal-head h3 { margin: 0; font-size: 16px; }
+.dt-modal-x {
+    border: none; background: none; cursor: pointer;
+    font-size: 22px; line-height: 1; color: var(--text-faint, #999);
+    padding: 0 4px; border-radius: 4px;
+}
+.dt-modal-x:hover { color: var(--text, #333); }
+.dt-modal-body { padding: 16px 20px; overflow-y: auto; }
+.dt-modal-foot {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 12px 20px; border-top: 1px solid var(--border-soft, #eee);
+}
+.dt-btn-primary {
+    background: var(--dt-accent); color: var(--on-accent, #fff);
+    border-color: var(--dt-accent);
+}
+
+.dt-views-bar {
+    display: flex; gap: 8px; align-items: center;
+    padding: 14px 20px 10px;
+}
+.dt-views-search {
+    flex: 1; padding: 8px 10px; font: inherit; font-size: 13px;
+    border: 1px solid var(--border, #ddd); border-radius: 6px;
+    background: var(--surface, #fff); color: var(--text, #333);
+}
+.dt-views-search:focus { outline: none; border-color: var(--dt-accent); }
+.dt-views-layout { display: flex; gap: 2px; flex-shrink: 0; }
+.dt-views-layout-btn {
+    border: 1px solid var(--border, #ddd); background: var(--surface, #fff);
+    color: var(--text-muted, #666); cursor: pointer;
+    padding: 7px 9px; border-radius: 6px; display: inline-flex;
+}
+.dt-views-layout-btn:hover { background: var(--surface-hover, #f5f5f5); }
+.dt-views-layout-btn.is-on {
+    background: var(--dt-accent); border-color: var(--dt-accent); color: var(--on-accent, #fff);
+}
+
+.dt-views-body { padding: 0 20px 8px; overflow-y: auto; flex: 1; }
+.dt-views-empty { padding: 28px 4px; color: var(--text-dim, #999); font-size: 13px; text-align: center; }
+
+/* One entry, two layouts. The CONTENT is identical either way — only the
+   arrangement changes — so nothing is hidden from somebody who prefers cards. */
+.dt-view-entry {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 11px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent;
+}
+.dt-view-entry:hover { background: var(--surface-hover, #f5f5f5); }
+.dt-view-entry:focus-visible { outline: 2px solid var(--dt-accent); outline-offset: 1px; }
+.dt-view-entry.is-default { border-color: var(--dt-accent); }
+.dt-view-main { flex: 1; min-width: 0; }
+.dt-view-name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dt-view-desc {
+    font-size: 12.5px; color: var(--text-muted, #666); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dt-view-meta { font-size: 11.5px; color: var(--text-faint, #999); margin-top: 5px; }
+.dt-view-sep { margin: 0 5px; }
+.dt-view-badge {
+    font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+    background: var(--surface-3, #eee); color: var(--text-muted, #666);
+}
+.dt-view-badge-default { background: var(--dt-accent); color: var(--on-accent, #fff); }
+.dt-view-vis-public { background: var(--surface-3, #eee); }
+.dt-view-acts { display: flex; gap: 2px; flex-shrink: 0; }
+.dt-view-act {
+    border: none; background: none; cursor: pointer; font-size: 15px; line-height: 1;
+    color: var(--text-faint, #bbb); padding: 5px 7px; border-radius: 5px;
+}
+.dt-view-act:hover { background: var(--surface-3, #eee); color: var(--text, #333); }
+.dt-view-act-danger:hover { background: #fee2e2; color: #991b1b; }
+
+.dt-views-list .dt-view-entry + .dt-view-entry { border-top: 1px solid var(--border-soft, #f1f1f1); border-radius: 0; }
+.dt-views-cards {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px;
+}
+.dt-views-cards .dt-view-entry {
+    flex-direction: column; align-items: stretch;
+    border: 1px solid var(--border, #ddd); min-height: 104px;
+}
+.dt-views-cards .dt-view-entry.is-default { border-color: var(--dt-accent); }
+/* In cards the description gets the room a card has and a list row does not. */
+.dt-views-cards .dt-view-desc { white-space: normal; overflow: visible; }
+.dt-views-cards .dt-view-acts { margin-top: auto; padding-top: 8px; justify-content: flex-end; }
+
+.dt-field { display: block; margin-bottom: 14px; }
+.dt-field > span { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted, #666); margin-bottom: 5px; }
+.dt-field input[type="text"], .dt-field textarea, .dt-view-team {
+    width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit; font-size: 13px;
+    border: 1px solid var(--border, #ddd); border-radius: 6px;
+    background: var(--surface, #fff); color: var(--text, #333);
+}
+.dt-field input:focus, .dt-field textarea:focus, .dt-view-team:focus { outline: none; border-color: var(--dt-accent); }
+.dt-vis-choices { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.dt-vis-choices label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+.dt-vis-off { opacity: .5; }
+.dt-views-hint { font-size: 12px; color: var(--text-dim, #999); line-height: 1.45; margin-top: 6px; }
+
+@media (max-width: 700px) {
+    .dt-views-cards { grid-template-columns: 1fr; }
+    .dt-modal { max-height: 92vh; }
+}

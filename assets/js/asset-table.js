@@ -60,6 +60,7 @@
         accent: '#0078d4',
         prefApi: '../api/system/',
         prefKey: 'asset_table_v1',
+        viewsKey: 'assets',   // saved views (#96); viewsApi is derived from prefApi
         noun: 'asset',
         exportName: 'assets',
         defaultSort: { key: 'hostname', dir: 'asc' },
