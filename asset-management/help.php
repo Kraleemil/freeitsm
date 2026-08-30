@@ -201,6 +201,17 @@ $translationNamespaces = ['common', 'asset-management'];
                         <div><strong>Reset</strong> &mdash; clears every filter, the search box and the sort in one click.</div>
                     </div>
 
+                    <p style="margin-top: 14px;"><strong>Saved views</strong></p>
+                    <p>Once the table looks how you want it &mdash; the right columns in the right order, sorted and filtered &mdash; <strong>Save view</strong> in the toolbar keeps that arrangement under a name. <strong>Views</strong> beside it opens the library of everything you can reach.</p>
+                    <div class="help-list">
+                        <div><strong>Who can see it</strong> &mdash; only you, one of your teams, or everyone. Sharing asks <em>which</em> team, because most people are in more than one, and a view shared with a team is readable by them and editable only by whoever wrote it.</div>
+                        <div><strong>A description</strong> &mdash; worth writing on anything you share, since it is what tells somebody else whether the view is the one they want.</div>
+                        <div><strong>Your default</strong> &mdash; the star opens the table with that view every time. It is your default, not everybody's: two people can have different defaults pointing at the same shared view.</div>
+                        <div><strong>Searching the library</strong> &mdash; by name, by description, or by who made it, which is how people look for a view they did not write. List or cards, whichever you prefer; the choice is remembered.</div>
+                    </div>
+                    <p class="help-note">The <strong>search box is not saved</strong> with a view, on purpose. A filter is how you like to look at things; a search is a question you asked once, and reopening &ldquo;Servers&rdquo; tomorrow to find three rows because of what you typed last week would be baffling. Filters, columns and sort are all saved.</p>
+                    <p class="help-note">Editing a view changes its name, description and who can see it &mdash; not what it shows. Renaming something should not silently change what it does. To capture the table as it looks now, use <strong>Save view</strong> again.</p>
+                    <p class="help-note">The same views exist on the Tasks, Calendar and Change Management tables, because all four share one table engine. Each table has its own views, so an asset view never turns up on the tasks table.</p>
                     <p style="margin-top: 14px;"><strong>Customise the columns</strong></p>
                     <p>The default visible set is Hostname, Type, Status, Manufacturer, Model, OS and Assigned users. Click the <strong>Columns</strong> button on the toolbar to open a drawer where you can tick to show / hide and drag the ⋮⋮ handles to reorder. You can also drag the table headers themselves to reorder columns directly. The available hidden-by-default columns include Feature release, Build, Service tag, CPU, CPU speed, Memory and BIOS.</p>
                     <p><strong>Your own fields appear here too.</strong> Any <a href="help-custom-fields.php">custom field</a> marked <em>Offer as a column</em> joins the same drawer, and sorts, filters and exports exactly like a built-in one. Filtering a yes/no field keeps <em>Yes</em>, <em>No</em> and <em>not filled in</em> as three separate choices, so filtering to <em>No</em> never sweeps up assets that simply have not got the field.</p>
