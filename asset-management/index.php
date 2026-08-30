@@ -976,7 +976,13 @@ $translationNamespaces = ['common', 'asset-management'];
                more urgent one look like a footnote to the later one. Fixed
                widths on the dates so they line up down the list; a column that
                shifts row to row is no easier to scan than no column. */
-            grid-template-columns: minmax(90px, auto) 1fr auto 150px 165px;
+            /* ⚠️ EVERY column except the title is a FIXED width, and that is
+               what makes the headings line up. The heading row and each data
+               row are separate grids, so an `auto` column resolves to its own
+               content in each one — "Supplier" and "Nexus IT" are not the same
+               width, and the heading ends up a few pixels off the thing it
+               labels. Only 1fr, which fills what is left, is safe to share. */
+            grid-template-columns: 110px 1fr 140px 150px 165px;
             gap: 12px;
             align-items: center;
             padding: 9px 16px;
@@ -986,12 +992,20 @@ $translationNamespaces = ['common', 'asset-management'];
             font-size: 13px;
         }
         .asset-contract-row:hover { background-color: var(--surface-hover, #f8f9fa); }
-        .asset-contract-ref { color: var(--text-dim, #6b7280); font-family: monospace; font-size: 12px; }
+        .asset-contract-ref {
+            color: var(--text-dim, #6b7280); font-family: monospace; font-size: 12px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         .asset-contract-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         /* The link's own note - a phone number, a line ID - reads as a detail of
            the title rather than a field of its own. */
         .asset-contract-title em { color: var(--text-muted, #6b7280); font-style: normal; font-size: 12px; }
-        .asset-contract-meta { color: var(--text-muted, #6b7280); font-size: 12px; }
+        /* Now that it has a fixed width, a long supplier name has to be told
+           what to do rather than pushing the dates out of line. */
+        .asset-contract-meta {
+            color: var(--text-muted, #6b7280); font-size: 12px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         .asset-contract-when { color: var(--text-muted, #6b7280); font-size: 12px; text-align: right; }
         /* The notice date is the one people miss, so it keeps the warning colour
            even now that it has a column of its own. */
@@ -1013,6 +1027,28 @@ $translationNamespaces = ['common', 'asset-management'];
             font-size: 18px; color: var(--text-faint, #bbb); border-radius: 4px;
         }
         .asset-contract-remove:hover { background: var(--danger-bg, #fee2e2); color: var(--danger-text, #991b1b); }
+        /* Stands in for the remove button on the heading row, so the columns
+           line up with the cells they label. Width must track .asset-contract-
+           remove above: 26px plus its 10px right margin. */
+        .asset-contract-remove-spacer { flex-shrink: 0; width: 26px; margin-right: 10px; }
+
+        .asset-contract-head .asset-contract-row {
+            padding-top: 12px;
+            padding-bottom: 6px;
+            cursor: default;
+        }
+        .asset-contract-head span {
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            /* One colour for every heading. The notice column is coloured in the
+               DATA because that date is urgent; a coloured heading would say the
+               column itself is a warning. */
+            color: var(--text-faint, #999);
+        }
+        .asset-contract-head:hover { background: none; }
 
         .asset-contract-add-bar { padding: 10px 16px 4px; }
         .asset-contract-add {
@@ -2179,19 +2215,33 @@ $translationNamespaces = ['common', 'asset-management'];
                     return;
                 }
 
-                list.innerHTML = addBar + rows.map(c => {
+                // Headings, so the dates do not have to introduce themselves on
+                // every row. Same grid as a row, plus a spacer standing in for
+                // the remove button, or the columns would not line up with what
+                // they label.
+                const head = `<div class="asset-contract-item asset-contract-head">
+                        <div class="asset-contract-row">
+                            <span class="asset-contract-ref">${escapeHtml(window.t('asset-management.detail.col_number'))}</span>
+                            <span class="asset-contract-title">${escapeHtml(window.t('asset-management.detail.col_contract'))}</span>
+                            <span class="asset-contract-meta">${escapeHtml(window.t('asset-management.detail.col_supplier'))}</span>
+                            <span class="asset-contract-when">${escapeHtml(window.t('asset-management.detail.contract_ends'))}</span>
+                            <span class="asset-contract-notice">${escapeHtml(window.t('asset-management.detail.contract_notice_by'))}</span>
+                        </div>
+                        <span class="asset-contract-remove-spacer"></span>
+                    </div>`;
+
+                list.innerHTML = addBar + head + rows.map(c => {
                     const supplier = c.supplier_trading_name || c.supplier_name || '';
+                    // Bare dates. The words that used to prefix them are now
+                    // column headings (Ed) — "Ends" and "Notice by" repeated on
+                    // every row is the same two words said as many times as you
+                    // have contracts, and it crowds out the thing you came to
+                    // read. A contract with no notice date still gets its cell,
+                    // so the dates below stay in a straight line.
                     const ends = c.contract_end
-                        ? `${escapeHtml(window.t('asset-management.detail.contract_ends'))} ${escapeHtml(c.contract_end)}`
+                        ? escapeHtml(c.contract_end)
                         : escapeHtml(window.t('asset-management.detail.contract_no_end'));
-                    // Its own column (Ed). Stacked under the end date it read as
-                    // a footnote to it; they are two different deadlines and the
-                    // notice one is the earlier and more urgent of the two.
-                    // A contract with no notice date still gets the cell, so the
-                    // dates below it stay in a straight line.
-                    const notice = c.notice_date
-                        ? `${escapeHtml(window.t('asset-management.detail.contract_notice_by'))} ${escapeHtml(c.notice_date)}`
-                        : '';
+                    const notice = c.notice_date ? escapeHtml(c.notice_date) : '';
                     // The remove button is a SIBLING of the anchor, not inside
                     // it: a button nested in a link is a link, and clicking it
                     // would navigate as well as unlink.
