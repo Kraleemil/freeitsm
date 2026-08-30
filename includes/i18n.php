@@ -37,11 +37,19 @@ class I18n {
         // bokmål is what ~85-90% write, nynorsk is co-official and dominant in the
         // west. Naming them natively is the point of this map — a nynorsk reader
         // offered only "Norsk" cannot tell which one they are about to get.
-        // ⚠️ A locale listed here MUST have a complete lang/<code>/ folder. Listing
-        // one whose files are missing or unparseable is a fatal on that module, not
-        // a fallback — the per-key English fallback only covers a file that LOADS.
+        // ⚠️ A namespace file listed here must PARSE. loadNamespace() does
+        // `file_exists($file) ? (require $file) : []`, so a file that is simply
+        // ABSENT falls back to English cleanly and a locale may ship a subset —
+        // fr, nl and it each carry 17 of the 24 namespaces today. A file that
+        // exists and contains a parse error is a fatal on that module, which is
+        // the case this warning is actually about.
         'nb'    => 'Norsk bokmål',
         'nn'    => 'Norsk nynorsk',
+        // Danish, added for a Danish installation that reported two bugs in a
+        // week (#117 and the demo data account deletion). Norwegian is close
+        // enough to Danish to look right and be wrong, so nothing here was
+        // seeded from nb — every namespace is translated or absent.
+        'da'    => 'Dansk',
         'ru'    => 'Русский',
         'uk'    => 'Українська',
         'id'    => 'Bahasa Indonesia',
