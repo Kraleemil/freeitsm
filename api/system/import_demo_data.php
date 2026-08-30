@@ -382,7 +382,17 @@ try {
                 $placeholders = array_fill(0, count($columns), '?');
                 $sql = "INSERT INTO `$tableName` (`" . implode('`, `', $columns) . "`) VALUES (" . implode(', ', $placeholders) . ")";
                 $stmt = $conn->prepare($sql);
-                $stmt->execute(array_values($record));
+                try {
+                    $stmt->execute(array_values($record));
+                } catch (PDOException $e) {
+                    // A unique-key collision here almost always means untagged demo
+                    // data from before #1297 — say so instead of quoting MySQL at
+                    // someone about a row they never created.
+                    if ($e->getCode() === '23000') {
+                        throw new Exception(demoDuplicateExplanation($conn, $module, $tableName, $e->getMessage()));
+                    }
+                    throw $e;
+                }
 
                 // Map the ref to the new ID
                 if ($ref) {

@@ -120,6 +120,35 @@ function demoBlockingModules(PDO $conn, string $table, string $exceptModule): ar
 }
 
 /**
+ * Explain a unique-key collision during an import in terms of its actual cause.
+ *
+ * On an installation whose demo data predates the is_demo mark, the importer
+ * cannot recognise the old sample rows, so it does not remove them, and then
+ * collides with them: `Duplicate entry 'jsmith' for key analysts.uq_...`. That
+ * message is true and useless — it names a row the administrator never created
+ * and says nothing about what to do. It is also the likeliest failure on
+ * exactly the installations most at risk, so it is worth spelling out.
+ */
+function demoDuplicateExplanation(PDO $conn, string $module, string $table, string $dbMessage): string {
+    $value = '';
+    if (preg_match("/Duplicate entry '([^']*)'/", $dbMessage, $m)) {
+        $value = " (\"{$m[1]}\")";
+    }
+
+    if (demoHasUntaggedImport($conn)) {
+        return "This installation already has demo data that was imported before demo rows were "
+             . "marked as such, so it cannot be recognised or replaced automatically. The "
+             . ucfirst($module) . " import stopped because one of its records already exists in "
+             . "`$table`{$value}. Remove the old sample records by hand first, or import into a "
+             . "fresh installation. Nothing has been changed.";
+    }
+
+    return "The " . ucfirst($module) . " demo data could not be added: a record in `$table`{$value} "
+         . "already exists and is not marked as demo data, so the importer will not touch it. "
+         . "Nothing has been changed.";
+}
+
+/**
  * Does this installation hold demo data from BEFORE the rows were tagged?
  *
  * Installations that imported demo data prior to #1297 have is_demo = 0 on all
