@@ -473,8 +473,14 @@ return [
         'heading'  => 'Demo Data',
         'subtitle' => 'Import realistic sample data module by module. Import Core first, then choose which modules to populate.',
 
-        'warning_strong' => 'Designed for fresh installations only.',
-        'warning_text'   => 'Importing demo data into a system that already contains real data may cause conflicts. Each module can only be imported once.',
+        // ⚠️ This used to read "may cause conflicts". It did not cause conflicts,
+        // it deleted: importing Core emptied the analysts and users tables. Someone
+        // lost their own account to that sentence (#1296, #1297). Say what happens.
+        'warning_strong' => 'Demo data is for trying FreeITSM out.',
+        'warning_text'   => 'Importing a module removes the sample records it created last time and adds a fresh set. Your own records are left alone — only rows created by this importer are removed.',
+
+        'untagged_strong' => 'This installation has demo data from an earlier version.',
+        'untagged_text'   => 'It was imported before sample rows were marked as such, so it cannot be recognised or removed from here. Importing again would add a second copy alongside it rather than replacing it. Remove the old sample records by hand first if you want a clean set.',
         'tip_text_prefix' => 'Import both',
         'tip_text_and'    => 'and',
         'tip_text_suffix' => 'to unlock a bonus option that links installed software to computers.',
@@ -491,9 +497,11 @@ return [
         'imported_count'   => '{total} imported',
         'already_imported' => 'Already imported',
 
-        'delete_title'   => 'Delete',
-        'delete_confirm' => 'This will delete existing {module} demo data and re-import fresh. Continue?',
-        'delete_ok'      => 'Delete',
+        // Asked on EVERY import, including the first — see importModule() (#1297).
+        'import_title'     => 'Import demo data',
+        'import_confirm'   => 'Import the {module} demo data? Sample records will be added to this installation. Your own records are not affected.',
+        'reimport_title'   => 'Replace demo data',
+        'reimport_confirm' => 'Replace the {module} demo data? The sample records from the last import are removed and a fresh set added. Your own records are not affected.',
         'connection_failed' => 'Connection failed: {message}',
     ],
 

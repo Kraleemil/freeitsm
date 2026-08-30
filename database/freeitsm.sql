@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS `analysts` (
     -- clears these. See includes/mfa_throttle.php.
     `mfa_failed_count`          INT NOT NULL DEFAULT 0,
     `mfa_locked_until`          DATETIME NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_analysts_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -191,6 +192,7 @@ CREATE TABLE IF NOT EXISTS `departments` (
     `is_active`         TINYINT(1) NULL DEFAULT 1,
     `display_order`     INT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_departments_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -274,6 +276,7 @@ CREATE TABLE IF NOT EXISTS `teams` (
     `can_access_all_modules` TINYINT(1) NOT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -282,6 +285,7 @@ CREATE TABLE IF NOT EXISTS `analyst_teams` (
     `analyst_id`        INT NOT NULL,
     `team_id`           INT NOT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_analyst_team` (`analyst_id`, `team_id`),
     CONSTRAINT `fk_analyst_teams_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE,
@@ -293,6 +297,7 @@ CREATE TABLE IF NOT EXISTS `department_teams` (
     `department_id`     INT NOT NULL,
     `team_id`           INT NOT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_department_team` (`department_id`, `team_id`),
     CONSTRAINT `fk_department_teams_department` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE,
@@ -313,6 +318,7 @@ CREATE TABLE IF NOT EXISTS `team_modules` (
     `id`            INT NOT NULL AUTO_INCREMENT,
     `team_id`       INT NOT NULL,
     `module_key`    VARCHAR(50) NOT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_team_module` (`team_id`, `module_key`),
     CONSTRAINT `fk_team_modules_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE
@@ -336,6 +342,7 @@ CREATE TABLE IF NOT EXISTS `rbac_roles` (
     `created_by_id`     INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -344,6 +351,7 @@ CREATE TABLE IF NOT EXISTS `rbac_role_capabilities` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `role_id`           INT NOT NULL,
     `capability_key`    VARCHAR(100) NOT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_rrc_role_capability` (`role_id`, `capability_key`),
     CONSTRAINT `fk_rrc_role` FOREIGN KEY (`role_id`) REFERENCES `rbac_roles` (`id`) ON DELETE CASCADE
@@ -367,6 +375,7 @@ CREATE TABLE IF NOT EXISTS `rbac_team_roles` (
     `team_id`           INT NOT NULL,
     `role_id`           INT NOT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_rtr_team_role` (`team_id`, `role_id`),
     CONSTRAINT `fk_rtr_team` FOREIGN KEY (`team_id`) REFERENCES `teams` (`id`) ON DELETE CASCADE,
@@ -389,6 +398,7 @@ CREATE TABLE IF NOT EXISTS `ticket_types` (
     -- global default — unlike scoped data tables where NULL means "unrouted".)
     `tenant_id`         INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     -- Per-scope name uniqueness (a company may hold a type whose name matches a
     -- global default). Global-name dedup is enforced in the API, since NULL
@@ -405,6 +415,7 @@ CREATE TABLE IF NOT EXISTS `ticket_origins` (
     -- Multi-tenancy: NULL = global default origin; set = a company's own.
     `tenant_id`         INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -456,6 +467,7 @@ CREATE TABLE IF NOT EXISTS `ticket_prefixes` (
     `description`   VARCHAR(100) NULL,
     `department_id` INT NULL,
     `is_default`    TINYINT(1) NULL DEFAULT 0,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_ticket_prefixes_prefix` (`prefix`),
     CONSTRAINT `fk_prefixes_departments` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`)
@@ -555,6 +567,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     -- had not caught up. Missing repeatedly is a fact. Nobody is deactivated
     -- until this passes the provider's threshold, and any sighting resets it.
     `sync_missed_count` INT NOT NULL DEFAULT 0,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
 
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_users_email` (`email`),
@@ -873,6 +886,7 @@ CREATE TABLE IF NOT EXISTS `tickets` (
     `snoozed_at`            DATETIME NULL,
     `snoozed_by`            INT NULL,
     `snooze_reason`         VARCHAR(255) NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_tickets_number` (`ticket_number`),
     KEY `ix_tickets_merged_into_id` (`merged_into_id`),
@@ -996,6 +1010,7 @@ CREATE TABLE IF NOT EXISTS `ticket_audit` (
     `old_value`         VARCHAR(500) NULL,
     `new_value`         VARCHAR(500) NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_ticket_audit_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`),
     CONSTRAINT `fk_ticket_audit_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`)
@@ -1008,6 +1023,7 @@ CREATE TABLE IF NOT EXISTS `ticket_notes` (
     `note_text`         LONGTEXT NOT NULL,
     `is_internal`       TINYINT(1) NULL DEFAULT 1,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_notes_tickets` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`),
     CONSTRAINT `fk_notes_analysts` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`)
@@ -1247,6 +1263,7 @@ CREATE TABLE IF NOT EXISTS `emails` (
     -- For channel messages: the messaging_channels row it belongs to (so an
     -- outbound reply knows which provider/number to send from). NULL for email.
     `channel_id`            INT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_emails_analysts` FOREIGN KEY (`assigned_analyst_id`) REFERENCES `analysts` (`id`),
     CONSTRAINT `fk_emails_departments` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`),
@@ -1980,6 +1997,7 @@ CREATE TABLE IF NOT EXISTS `asset_types` (
     -- global default — unlike scoped data tables where NULL means "unrouted".)
     `tenant_id`         INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     -- Per-scope name uniqueness (a company may hold a type whose name matches a
     -- global default). Global-name dedup is enforced in the API, since NULL
@@ -1997,6 +2015,7 @@ CREATE TABLE IF NOT EXISTS `asset_status_types` (
     -- asset_types above for the tenant_id config convention.
     `tenant_id`         INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_asset_status_types_tenant_name` (`tenant_id`, `name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -2073,6 +2092,7 @@ CREATE TABLE IF NOT EXISTS `assets` (
     -- on first label print. Deliberately NOT the id (…/a/4711 invites 4712) and
     -- deliberately NOT the asset tag (two companies may both use LT0001).
     `qr_token`          VARCHAR(64) NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_assets_location` (`location_id`),
     KEY `idx_assets_supplier` (`supplier_id`),
@@ -2096,6 +2116,7 @@ CREATE TABLE IF NOT EXISTS `users_assets` (
     `assigned_by_analyst_id`    INT NULL,
     `notes`                     VARCHAR(500) NULL,
     `expected_return_date`      DATE NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_user_asset` (`user_id`, `asset_id`),
     CONSTRAINT `fk_users_assets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
@@ -2543,6 +2564,7 @@ CREATE TABLE IF NOT EXISTS `ticket_dashboard_widgets` (
     `display_order`         INT NOT NULL DEFAULT 0,
     `is_active`             TINYINT(1) NOT NULL DEFAULT 1,
     `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -2553,6 +2575,7 @@ CREATE TABLE IF NOT EXISTS `analyst_ticket_dashboard_widgets` (
     `sort_order`        INT NOT NULL DEFAULT 0,
     `status_filter`     VARCHAR(50) NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_analyst_ticket_widget` (`analyst_id`, `widget_id`),
     CONSTRAINT `fk_atdw_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`),
@@ -2876,6 +2899,7 @@ CREATE TABLE IF NOT EXISTS `changes` (
     `created_by_id`                 INT NULL,
     `created_datetime`              DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `modified_datetime`             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_changes_status_id` (`status_id`),
     KEY `ix_changes_priority_id` (`priority_id`),
@@ -2916,6 +2940,7 @@ CREATE TABLE IF NOT EXISTS `change_audit` (
     `old_value`         VARCHAR(1000) NULL,
     `new_value`         VARCHAR(1000) NULL,
     `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     INDEX `idx_change_audit_change` (`change_id`),
     CONSTRAINT `fk_change_audit_change` FOREIGN KEY (`change_id`) REFERENCES `changes` (`id`) ON DELETE CASCADE,
@@ -2929,6 +2954,7 @@ CREATE TABLE IF NOT EXISTS `change_comments` (
     `comment_text`      LONGTEXT NOT NULL,
     `is_internal`       TINYINT(1) NOT NULL DEFAULT 1,
     `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     INDEX `idx_change_comments_change` (`change_id`),
     CONSTRAINT `fk_change_comments_change` FOREIGN KEY (`change_id`) REFERENCES `changes` (`id`) ON DELETE CASCADE,
@@ -2945,6 +2971,7 @@ CREATE TABLE IF NOT EXISTS `change_cab_members` (
     `vote_datetime`     DATETIME NULL,
     `added_by_id`       INT NULL,
     `added_datetime`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_cab_change_analyst` (`change_id`, `analyst_id`),
     CONSTRAINT `fk_cab_change` FOREIGN KEY (`change_id`) REFERENCES `changes` (`id`) ON DELETE CASCADE,
@@ -3172,6 +3199,7 @@ CREATE TABLE IF NOT EXISTS `calendar_categories` (
     `is_active`     TINYINT(1) NOT NULL DEFAULT 1,
     `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -3192,6 +3220,7 @@ CREATE TABLE IF NOT EXISTS `calendar_events` (
     `source`            VARCHAR(30) NULL,
     `created_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_calendar_events_category` FOREIGN KEY (`category_id`) REFERENCES `calendar_categories` (`id`),
     CONSTRAINT `fk_calendar_events_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`id`) ON DELETE SET NULL
@@ -3360,6 +3389,7 @@ CREATE TABLE IF NOT EXISTS `morningChecks_Checks` (
     `AssignedAnalystID` INT NULL,
     `CreatedDate`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `ModifiedDate`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`CheckID`),
     KEY `ix_mcc_group` (`GroupID`),
     KEY `ix_mcc_analyst` (`AssignedAnalystID`),
@@ -3411,6 +3441,7 @@ CREATE TABLE IF NOT EXISTS `morningChecks_Results` (
     `ModifiedBy`    VARCHAR(100) NULL,
     `CreatedDate`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `ModifiedDate`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`ResultID`),
     UNIQUE KEY `uq_check_date` (`CheckID`, `CheckDate`),
     CONSTRAINT `fk_results_checks` FOREIGN KEY (`CheckID`) REFERENCES `morningChecks_Checks` (`CheckID`),
@@ -3466,6 +3497,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_articles` (
     `folder_id`             INT NULL,
     `is_restricted`         TINYINT(1) NOT NULL DEFAULT 0,
     `inherit_permissions`   TINYINT(1) NOT NULL DEFAULT 1,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_knowledge_articles_tenant` (`tenant_id`),
     KEY `idx_knowledge_articles_folder` (`folder_id`),
@@ -3676,6 +3708,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_tags` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `name`              VARCHAR(50) NOT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_knowledge_tags_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -3683,6 +3716,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_tags` (
 CREATE TABLE IF NOT EXISTS `knowledge_article_tags` (
     `article_id`    INT NOT NULL,
     `tag_id`        INT NOT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`article_id`, `tag_id`),
     CONSTRAINT `fk_article_tags_article` FOREIGN KEY (`article_id`) REFERENCES `knowledge_articles` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_article_tags_tag` FOREIGN KEY (`tag_id`) REFERENCES `knowledge_tags` (`id`) ON DELETE CASCADE
@@ -3762,6 +3796,7 @@ CREATE TABLE IF NOT EXISTS `software_inventory_apps` (
     `display_name`      VARCHAR(512) NOT NULL,
     `publisher`         VARCHAR(512) NULL,
     `first_detected`    DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `ux_app_display_publisher` (`display_name`(400), `publisher`(360))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -3779,6 +3814,7 @@ CREATE TABLE IF NOT EXISTS `software_inventory_detail` (
     `created_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `last_seen`         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `source`            VARCHAR(20) NOT NULL DEFAULT 'agent',
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `ux_software_detail_host_app` (`host_id`, `app_id`),
     CONSTRAINT `fk_software_detail_app` FOREIGN KEY (`app_id`) REFERENCES `software_inventory_apps` (`id`)
@@ -3802,6 +3838,7 @@ CREATE TABLE IF NOT EXISTS `software_licences` (
     `created_by`        INT NULL,
     `created_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_software_licences_app` FOREIGN KEY (`app_id`) REFERENCES `software_inventory_apps` (`id`),
     CONSTRAINT `fk_software_licences_analyst` FOREIGN KEY (`created_by`) REFERENCES `analysts` (`id`)
@@ -3951,6 +3988,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     `work_start_datetime` DATETIME NULL,             -- naive wall clock, like a ticket's scheduled work
     `work_end_datetime`   DATETIME NULL,
     `work_all_day`        TINYINT(1) NOT NULL DEFAULT 0,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_tasks_status_id` (`status_id`),
     KEY `ix_tasks_priority_id` (`priority_id`),
@@ -3996,6 +4034,7 @@ CREATE TABLE IF NOT EXISTS `task_comments` (
     `analyst_id`        INT NOT NULL,
     `comment`           LONGTEXT NOT NULL,
     `created_datetime`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_task_comments_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_task_comments_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`)
@@ -4058,6 +4097,7 @@ CREATE TABLE IF NOT EXISTS `forms` (
     -- unconfigured so it can never hold requests hostage (submitForm skips the gate).
     `requires_approval` TINYINT(1) NOT NULL DEFAULT 0,
     `approver_id`       INT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     -- RESTRICT (no delete rule): a frozen version can't be deleted while
     -- newer versions chain off it — delete leaf-first (or the whole chain).
@@ -4093,6 +4133,7 @@ CREATE TABLE IF NOT EXISTS `form_fields` (
     -- everywhere a form is filled in; still shown in the submissions view so history
     -- stays readable.
     `is_deleted`    TINYINT(1) NOT NULL DEFAULT 0,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_form_fields_form` FOREIGN KEY (`form_id`) REFERENCES `forms` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -4124,6 +4165,7 @@ CREATE TABLE IF NOT EXISTS `form_submissions` (
     `approval_decided_by_id`     INT NULL,
     `approval_decided_datetime`  DATETIME NULL,
     `approval_comment`           TEXT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_form_submissions_user` (`submitted_by_user_id`),
     KEY `idx_form_submissions_ticket` (`ticket_id`),
@@ -4140,6 +4182,7 @@ CREATE TABLE IF NOT EXISTS `form_submission_data` (
     `submission_id` INT NOT NULL,
     `field_id`      INT NOT NULL,
     `field_value`   LONGTEXT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_submission_data_submission` FOREIGN KEY (`submission_id`) REFERENCES `form_submissions` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_submission_data_field` FOREIGN KEY (`field_id`) REFERENCES `form_fields` (`id`)
@@ -4256,6 +4299,7 @@ CREATE TABLE IF NOT EXISTS `supplier_types` (
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `display_order`     INT NOT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -4266,6 +4310,7 @@ CREATE TABLE IF NOT EXISTS `supplier_statuses` (
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `display_order`     INT NOT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -4289,6 +4334,7 @@ CREATE TABLE IF NOT EXISTS `suppliers` (
     `is_active`                     TINYINT(1) NOT NULL DEFAULT 1,
     `supplies_assets`               TINYINT(1) NOT NULL DEFAULT 0,
     `created_datetime`              DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_suppliers_type` FOREIGN KEY (`supplier_type_id`) REFERENCES `supplier_types` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_suppliers_status` FOREIGN KEY (`supplier_status_id`) REFERENCES `supplier_statuses` (`id`) ON DELETE SET NULL
@@ -4306,6 +4352,7 @@ CREATE TABLE IF NOT EXISTS `contacts` (
     `switchboard`       VARCHAR(50) NULL,
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     CONSTRAINT `fk_contacts_supplier` FOREIGN KEY (`supplier_id`) REFERENCES `suppliers` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -4317,6 +4364,7 @@ CREATE TABLE IF NOT EXISTS `contract_statuses` (
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `display_order`     INT NOT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -4327,6 +4375,7 @@ CREATE TABLE IF NOT EXISTS `payment_schedules` (
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `display_order`     INT NOT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -4337,6 +4386,7 @@ CREATE TABLE IF NOT EXISTS `contract_term_tabs` (
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `display_order`     INT NOT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -4364,6 +4414,7 @@ CREATE TABLE IF NOT EXISTS `contracts` (
     `dpia_dms_link`             VARCHAR(500) NULL,
     `is_active`                 TINYINT(1) NOT NULL DEFAULT 1,
     `created_datetime`          DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_contracts_supplier_id` (`supplier_id`),
     KEY `ix_contracts_contract_end` (`contract_end`),
@@ -4380,6 +4431,7 @@ CREATE TABLE IF NOT EXISTS `contract_term_values` (
     `content`           LONGTEXT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_ctv_contract_tab` (`contract_id`, `term_tab_id`),
     CONSTRAINT `fk_ctv_contract` FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`id`) ON DELETE CASCADE,
@@ -4640,6 +4692,7 @@ CREATE TABLE IF NOT EXISTS `lms_courses` (
     `created_by_id`         INT NULL,
     `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -4656,6 +4709,7 @@ CREATE TABLE IF NOT EXISTS `lms_lessons` (
     `display_order`         INT NOT NULL DEFAULT 0,
     `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_lms_lessons_course` (`course_id`),
     CONSTRAINT `fk_lms_lessons_course` FOREIGN KEY (`course_id`) REFERENCES `lms_courses` (`id`) ON DELETE CASCADE
@@ -4672,6 +4726,7 @@ CREATE TABLE IF NOT EXISTS `lms_questions` (
     `display_order`         INT NOT NULL DEFAULT 0,
     `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_lms_questions_lesson` (`lesson_id`),
     CONSTRAINT `fk_lms_questions_lesson` FOREIGN KEY (`lesson_id`) REFERENCES `lms_lessons` (`id`) ON DELETE CASCADE
@@ -4686,6 +4741,7 @@ CREATE TABLE IF NOT EXISTS `lms_answers` (
     `is_correct`            TINYINT(1) NOT NULL DEFAULT 0,
     `display_order`         INT NOT NULL DEFAULT 0,
     `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_lms_answers_question` (`question_id`),
     CONSTRAINT `fk_lms_answers_question` FOREIGN KEY (`question_id`) REFERENCES `lms_questions` (`id`) ON DELETE CASCADE
@@ -4765,6 +4821,7 @@ CREATE TABLE IF NOT EXISTS `processes` (
     `created_by`        INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -4783,6 +4840,7 @@ CREATE TABLE IF NOT EXISTS `process_steps` (
     `color2`            VARCHAR(20) NULL,
     `lane_id`           INT NULL,
     `group_id`          INT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_ps_process` (`process_id`),
     KEY `idx_ps_lane` (`lane_id`),
@@ -4795,6 +4853,7 @@ CREATE TABLE IF NOT EXISTS `process_connectors` (
     `from_step_id`      INT NOT NULL,
     `to_step_id`        INT NOT NULL,
     `label`             VARCHAR(255) NULL DEFAULT '',
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_pc_process` (`process_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -4880,6 +4939,7 @@ CREATE TABLE IF NOT EXISTS `workflows` (
     `last_run_datetime` DATETIME NULL,
     `last_run_status`   VARCHAR(20) NULL,             -- 'success' | 'failed' | 'skipped' | 'aborted'
     `run_count`         INT NOT NULL DEFAULT 0,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `idx_workflows_trigger` (`trigger_event`),
     KEY `idx_workflows_active` (`is_active`),
@@ -5082,6 +5142,7 @@ CREATE TABLE IF NOT EXISTS `status_services` (
     `is_active`         TINYINT(1) NOT NULL DEFAULT 1,
     `display_order`     INT NOT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -5145,6 +5206,7 @@ CREATE TABLE IF NOT EXISTS `status_incidents` (
     `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `resolved_datetime`     DATETIME NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_status_incidents_status_id` (`status_id`),
     CONSTRAINT `fk_status_incidents_status` FOREIGN KEY (`status_id`) REFERENCES `service_incident_statuses` (`id`)
@@ -5155,6 +5217,7 @@ CREATE TABLE IF NOT EXISTS `status_incident_services` (
     `incident_id`       INT NOT NULL,
     `service_id`        INT NOT NULL,
     `impact_level_id`   INT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_sis_impact_level_id` (`impact_level_id`),
     CONSTRAINT `fk_sis_impact_level` FOREIGN KEY (`impact_level_id`) REFERENCES `service_impact_levels` (`id`)
@@ -5234,6 +5297,7 @@ CREATE TABLE IF NOT EXISTS `cmdb_classes` (
     `is_active`         TINYINT(1) NULL DEFAULT 1,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_cmdb_classes_key` (`class_key`),
     KEY `ix_cmdb_classes_icon_id` (`icon_id`),
@@ -5257,6 +5321,7 @@ CREATE TABLE IF NOT EXISTS `cmdb_class_properties` (
     `spreads_impact`    TINYINT(1) NOT NULL DEFAULT 0,
     `display_order`     INT NULL DEFAULT 0,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_cmdb_class_property_key` (`class_id`, `property_key`),
     CONSTRAINT `fk_cmdb_cp_class` FOREIGN KEY (`class_id`) REFERENCES `cmdb_classes` (`id`) ON DELETE CASCADE,
@@ -5271,6 +5336,7 @@ CREATE TABLE IF NOT EXISTS `cmdb_class_property_options` (
     -- hex colour like "#22c55e", optional. Drives the coloured pill on the
     -- object detail page when set; plain text fallback otherwise.
     `display_order`     INT NULL DEFAULT 0,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_cmdb_cpo_property_id` (`property_id`),
     CONSTRAINT `fk_cmdb_cpo_property` FOREIGN KEY (`property_id`) REFERENCES `cmdb_class_properties` (`id`) ON DELETE CASCADE
@@ -5297,6 +5363,7 @@ CREATE TABLE IF NOT EXISTS `cmdb_objects` (
     `tenant_id`         INT NULL,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_cmdb_objects_class_id` (`class_id`),
     KEY `ix_cmdb_objects_parent_id` (`parent_id`),
@@ -5320,6 +5387,7 @@ CREATE TABLE IF NOT EXISTS `cmdb_object_properties` (
     `value_date`        DATETIME NULL,
     `value_boolean`     TINYINT(1) NULL,
     `value_object_id`   INT NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_cmdb_op_obj_prop` (`object_id`, `property_id`),
     KEY `ix_cmdb_op_value_object_id` (`value_object_id`),
@@ -5345,6 +5413,7 @@ CREATE TABLE IF NOT EXISTS `cmdb_relationship_types` (
     `display_order`     INT NULL DEFAULT 0,
     `is_active`         TINYINT(1) NULL DEFAULT 1,
     `created_datetime`  DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_cmdb_rel_type_verb` (`verb`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -5355,6 +5424,7 @@ CREATE TABLE IF NOT EXISTS `cmdb_object_relationships` (
     `to_object_id`          INT NOT NULL,
     `relationship_type_id`  INT NOT NULL,
     `created_datetime`      DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     UNIQUE KEY `uq_cmdb_or_triple` (`from_object_id`, `to_object_id`, `relationship_type_id`),
     KEY `ix_cmdb_or_to_object_id` (`to_object_id`),
@@ -5441,6 +5511,7 @@ CREATE TABLE IF NOT EXISTS `network_diagrams` (
     `footer_left`           VARCHAR(200) NULL,
     `footer_center`         VARCHAR(200) NULL,
     `footer_right`          VARCHAR(200) NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_net_diag_parent` (`parent_diagram_id`),
     KEY `ix_net_diag_author` (`created_by_analyst_id`),
@@ -5456,6 +5527,7 @@ CREATE TABLE IF NOT EXISTS `network_diagram_nodes` (
     `y`              INT NOT NULL DEFAULT 0,
     `size`           VARCHAR(20) NOT NULL DEFAULT 'medium',
     `icon_override`  VARCHAR(100) NULL,
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_net_node_diag` (`diagram_id`),
     KEY `ix_net_node_cmdb` (`cmdb_object_id`),
@@ -5471,6 +5543,7 @@ CREATE TABLE IF NOT EXISTS `network_diagram_connectors` (
     `cmdb_relationship_id`     INT NULL,
     `label`                    VARCHAR(255) NULL,
     `line_style`               VARCHAR(20) NULL DEFAULT 'solid',
+    `is_demo`           TINYINT(1) NOT NULL DEFAULT 0,   -- set by the demo data importer (#1297)
     PRIMARY KEY (`id`),
     KEY `ix_net_conn_diag` (`diagram_id`),
     KEY `ix_net_conn_from` (`from_node_id`),

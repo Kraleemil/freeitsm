@@ -8,6 +8,7 @@ session_start(['read_and_close' => true]);
 require_once '../../config.php';
 require_once '../../includes/admin_api_guard.php'; // System admins only (issue #34)
 require_once '../../includes/functions.php';
+require_once '../../includes/demo_data.php';   // DEMO_MODULES, demoTablesWithInserts()
 
 header('Content-Type: application/json');
 
@@ -16,9 +17,8 @@ if (!isset($_SESSION['analyst_id'])) {
     exit;
 }
 
-$allowedModules = ['core', 'tickets', 'assets', 'knowledge', 'changes', 'calendar', 'checks', 'contracts', 'services', 'software', 'forms', 'software-assets', 'dashboards', 'tasks', 'process-mapper', 'cmdb', 'lms', 'workflow', 'network-mapper'];
 $module = $_POST['module'] ?? '';
-if (!in_array($module, $allowedModules)) {
+if (!in_array($module, DEMO_MODULES, true)) {
     echo json_encode(['success' => false, 'error' => 'Invalid module: ' . $module]);
     exit;
 }
@@ -232,50 +232,42 @@ try {
     $conn = connectToDatabase();
     $conn->beginTransaction();
 
-    // Pre-scan: find tables with insertable records and collect skip-insert criteria
+    // Which tables this module inserts into — shared with the demo data page so
+    // the two cannot drift apart. See includes/demo_data.php.
     $tiers = ['tier1', 'tier2', 'tier3', 'tier4', 'tier5'];
-    $tablesToClean = [];
-    $skipCriteria = [];
+    $tablesToClean = demoTablesWithInserts($demoData);
 
-    foreach ($tiers as $tierKey) {
-        if (!isset($demoData[$tierKey])) continue;
-        foreach ($demoData[$tierKey] as $tableName => $records) {
-            $hasInserts = false;
-            foreach ($records as $record) {
-                if (!empty($record['_skip_insert'])) {
-                    $skipCriteria[$tableName][] = [
-                        'column' => $record['_match_by'],
-                        'value' => $record['_match_value']
-                    ];
-                } else {
-                    $hasInserts = true;
-                }
-            }
-            if ($hasInserts && !in_array($tableName, $tablesToClean)) {
-                $tablesToClean[] = $tableName;
-            }
-        }
-    }
-
-    // Delete existing demo data (reverse order for FK dependencies)
-    $conn->exec("SET FOREIGN_KEY_CHECKS = 0");
+    // Delete the PREVIOUS demo import's rows, and nothing else (reverse order,
+    // so children go before the rows they point at).
+    //
+    // 🔴 This used to be `DELETE FROM <table>` — the whole table. Importing Core
+    // emptied `analysts` (bar the one row core.json exempts by username) and ALL
+    // of `users`, along with departments, teams, RBAC roles and their 80
+    // capability rows. On an installation with real people in it that is
+    // straightforward data loss, and it happened to a real user: he imported the
+    // demo data on a live system and lost his own account. Every row this
+    // importer creates is now stamped is_demo = 1, and only those come back out.
+    //
+    // Foreign key checks stay ON, which they did not used to. Turning them off
+    // skipped the ON DELETE CASCADE on both SSO identity tables, so the deleted
+    // accounts left their sign-in links behind, pointing at nothing — and that
+    // orphan locked the same user out of SSO permanently (#1296). With checks on,
+    // a delete that would strand a real row fails loudly and the whole import
+    // rolls back, which is the outcome we want.
     foreach (array_reverse($tablesToClean) as $tableName) {
-        if (!empty($skipCriteria[$tableName])) {
-            // Keep rows that match skip-insert criteria (e.g. admin account)
-            $conditions = [];
-            $params = [];
-            foreach ($skipCriteria[$tableName] as $criteria) {
-                $conditions[] = "`{$criteria['column']}` = ?";
-                $params[] = $criteria['value'];
-            }
-            $sql = "DELETE FROM `$tableName` WHERE NOT (" . implode(' OR ', $conditions) . ")";
-            $stmt = $conn->prepare($sql);
-            $stmt->execute($params);
-        } else {
-            $conn->exec("DELETE FROM `$tableName`");
+        try {
+            $conn->exec("DELETE FROM `$tableName` WHERE is_demo = 1");
+        } catch (PDOException $e) {
+            $blocking = demoBlockingModules($conn, $tableName, $module);
+            throw new Exception($blocking
+                ? "The " . implode(' and ', array_map('ucfirst', $blocking)) . " demo data still refers to the "
+                  . ucfirst($module) . " demo data, so it cannot be replaced while that is in place. Remove or re-import "
+                  . implode(' and ', array_map('ucfirst', $blocking)) . " first. Nothing has been changed."
+                : "Could not clear the previous demo data from `$tableName`: " . $e->getMessage()
+                  . " — something still refers to it. Nothing has been changed."
+            );
         }
     }
-    $conn->exec("SET FOREIGN_KEY_CHECKS = 1");
 
     $idMap = [];
     $counts = [];
@@ -376,6 +368,14 @@ try {
                 if ($tableName === 'tickets') {
                     unset($record['requester_email'], $record['requester_name']);
                 }
+
+                // Stamp the row as demo data. This is the ONLY thing that tells a
+                // later import which rows are safe to remove — without it the
+                // importer has no way to distinguish its own sample rows from a
+                // real analyst, requester or ticket, which is exactly why it used
+                // to delete the lot. Set here rather than in the JSON so it cannot
+                // be forgotten on a new demo file.
+                $record['is_demo'] = 1;
 
                 // Build and execute INSERT
                 $columns = array_keys($record);

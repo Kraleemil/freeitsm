@@ -73,6 +73,7 @@ return [
         // See includes/mfa_throttle.php.
         'mfa_failed_count'       => 'INT NOT NULL DEFAULT 0',
         'mfa_locked_until'       => 'DATETIME NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'auth_providers' => [
@@ -164,6 +165,7 @@ return [
         'is_active'         => 'TINYINT(1) NULL DEFAULT 1',
         'display_order'     => 'INT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'teams' => [
@@ -182,6 +184,7 @@ return [
         'can_access_all_modules' => 'TINYINT(1) NOT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'analyst_teams' => [
@@ -189,6 +192,7 @@ return [
         'analyst_id'        => 'INT NOT NULL',
         'team_id'           => 'INT NOT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'department_teams' => [
@@ -196,6 +200,7 @@ return [
         'department_id'     => 'INT NOT NULL',
         'team_id'           => 'INT NOT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Per-team module grants (issue #30) — the team twin of analyst_modules,
@@ -204,6 +209,7 @@ return [
         'id'          => 'INT NOT NULL AUTO_INCREMENT',
         'team_id'     => 'INT NOT NULL',
         'module_key'  => 'VARCHAR(50) NOT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'analyst_modules' => [
@@ -223,12 +229,14 @@ return [
         'created_by_id'     => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'rbac_role_capabilities' => [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'role_id'           => 'INT NOT NULL',
         'capability_key'    => 'VARCHAR(100) NOT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'rbac_analyst_roles' => [
@@ -243,6 +251,7 @@ return [
         'team_id'           => 'INT NOT NULL',
         'role_id'           => 'INT NOT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'user_preferences' => [
@@ -266,6 +275,7 @@ return [
         // from scoped data tables like `tickets` where NULL means "unrouted".
         'tenant_id'         => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'ticket_origins' => [
@@ -279,6 +289,7 @@ return [
         // NULL, so a single-company install is unaffected.
         'tenant_id'         => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Multi-tenancy: the per-company "hide" layer for global config (the add+hide
@@ -323,6 +334,7 @@ return [
         'description'   => 'VARCHAR(100) NULL',
         'department_id' => 'INT NULL',
         'is_default'    => 'TINYINT(1) NULL DEFAULT 0',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'users' => [
@@ -396,6 +408,7 @@ return [
         // Consecutive runs that failed to find this person. Missing once is
         // noise; missing repeatedly is a fact. Any sighting resets it to 0.
         'sync_missed_count' => 'INT NOT NULL DEFAULT 0',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'user_sso_identities' => [
@@ -571,6 +584,7 @@ return [
         'snoozed_at'            => 'DATETIME NULL',
         'snoozed_by'            => 'INT NULL',
         'snooze_reason'         => 'VARCHAR(255) NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Collision detection (#934): who is looking at which ticket right now.
@@ -595,6 +609,7 @@ return [
         'old_value'         => 'VARCHAR(500) NULL',
         'new_value'         => 'VARCHAR(500) NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'ticket_notes' => [
@@ -604,6 +619,7 @@ return [
         'note_text'         => 'LONGTEXT NOT NULL',
         'is_internal'       => 'TINYINT(1) NULL DEFAULT 1',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'ticket_time_entries' => [
@@ -949,6 +965,7 @@ return [
         // For channel messages: the messaging_channels row (which provider/number to
         // reply from). NULL for email.
         'channel_id'              => 'INT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'email_attachments' => [
@@ -1410,6 +1427,7 @@ return [
         // tenant_id defeats it). qr_token is what the QR encodes.
         'asset_tag'         => 'VARCHAR(64) NULL',
         'qr_token'          => 'VARCHAR(64) NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'asset_types' => [
@@ -1422,6 +1440,7 @@ return [
         // Multi-tenancy config: NULL = global default type, set = a company's own.
         'tenant_id'         => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'asset_status_types' => [
@@ -1433,6 +1452,7 @@ return [
         // Multi-tenancy config: NULL = global default status, set = a company's own.
         'tenant_id'         => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Arbitrary-depth physical location tree (adjacency list). Self-ref FK +
@@ -1457,6 +1477,7 @@ return [
         'assigned_by_analyst_id'    => 'INT NULL',
         'notes'                     => 'VARCHAR(500) NULL',
         'expected_return_date'      => 'DATE NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Check-in / check-out custody trail. FK + index in post-schema section.
@@ -1691,6 +1712,7 @@ return [
         'display_order'         => 'INT NOT NULL DEFAULT 0',
         'is_active'             => 'TINYINT(1) NOT NULL DEFAULT 1',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'analyst_ticket_dashboard_widgets' => [
@@ -1700,6 +1722,7 @@ return [
         'sort_order'        => 'INT NOT NULL DEFAULT 0',
         'status_filter'     => 'VARCHAR(50) NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'software_dashboard_widgets' => [
@@ -1905,6 +1928,7 @@ return [
         'created_by_id'                 => 'INT NULL',
         'created_datetime'              => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'modified_datetime'             => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'change_attachments' => [
@@ -1927,6 +1951,7 @@ return [
         'old_value'         => 'VARCHAR(1000) NULL',
         'new_value'         => 'VARCHAR(1000) NULL',
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'change_comments' => [
@@ -1936,6 +1961,7 @@ return [
         'comment_text'      => 'LONGTEXT NOT NULL',
         'is_internal'       => 'TINYINT(1) NOT NULL DEFAULT 1',
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'change_cab_members' => [
@@ -1948,6 +1974,7 @@ return [
         'vote_datetime'     => 'DATETIME NULL',
         'added_by_id'       => 'INT NULL',
         'added_datetime'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'change_checklist_items' => [
@@ -2112,6 +2139,7 @@ return [
         'is_active'     => 'TINYINT(1) NOT NULL DEFAULT 1',
         'created_at'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_at'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'calendar_events' => [
@@ -2128,6 +2156,7 @@ return [
         'source'            => 'VARCHAR(30) NULL',
         'created_at'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_at'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // ── Scheduled work -> the analyst's own calendar (GH #75) ────────────────
@@ -2234,6 +2263,7 @@ return [
         'AssignedAnalystID' => 'INT NULL',
         'CreatedDate'       => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'ModifiedDate'      => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Tickets/tasks raised from a check. A link table rather than columns on the
@@ -2272,6 +2302,7 @@ return [
         'ModifiedBy'    => 'VARCHAR(100) NULL',
         'CreatedDate'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'ModifiedDate'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Configurable status options for morning checks. Drives the status
@@ -2346,6 +2377,7 @@ return [
         'created_by_id'         => 'INT NULL',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'lms_learning_groups' => [
@@ -2412,6 +2444,7 @@ return [
         'display_order'         => 'INT NOT NULL DEFAULT 0',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'lms_questions' => [
@@ -2423,6 +2456,7 @@ return [
         'display_order'         => 'INT NOT NULL DEFAULT 0',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'lms_answers' => [
@@ -2432,6 +2466,7 @@ return [
         'is_correct'            => 'TINYINT(1) NOT NULL DEFAULT 0',
         'display_order'         => 'INT NOT NULL DEFAULT 0',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'processes' => [
@@ -2441,6 +2476,7 @@ return [
         'created_by'        => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'process_steps' => [
@@ -2458,6 +2494,7 @@ return [
         'color2'            => 'VARCHAR(20) NULL',
         'lane_id'           => 'INT NULL',
         'group_id'          => 'INT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'process_annotations' => [
@@ -2478,6 +2515,7 @@ return [
         'from_step_id'      => 'INT NOT NULL',
         'to_step_id'        => 'INT NOT NULL',
         'label'             => "VARCHAR(255) NULL DEFAULT ''",
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'process_groups' => [
@@ -2531,6 +2569,7 @@ return [
         'last_run_datetime' => 'DATETIME NULL',
         'last_run_status'   => 'VARCHAR(20) NULL',
         'run_count'         => 'INT NOT NULL DEFAULT 0',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'webhook_deliveries' => [
@@ -2633,6 +2672,7 @@ return [
         // Default 1 so an upgraded install inherits from a root that restricts
         // nothing — i.e. nothing changes.
         'inherit_permissions'   => 'TINYINT(1) NOT NULL DEFAULT 1',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // ── Knowledge folders ───────────────────────────────────────────────────
@@ -2763,11 +2803,13 @@ return [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'name'              => 'VARCHAR(50) NOT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'knowledge_article_tags' => [
         'article_id'    => 'INT NOT NULL',
         'tag_id'        => 'INT NOT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Knowledge gaps — the Knowledge assistant. One closed ticket says almost
@@ -2827,6 +2869,7 @@ return [
         'display_name'      => 'VARCHAR(512) NOT NULL',
         'publisher'         => 'VARCHAR(512) NULL',
         'first_detected'    => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'software_inventory_detail' => [
@@ -2842,6 +2885,7 @@ return [
         'created_at'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'last_seen'         => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'source'            => "VARCHAR(20) NOT NULL DEFAULT 'agent'",
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'software_licences' => [
@@ -2862,6 +2906,7 @@ return [
         'created_by'        => 'INT NULL',
         'created_at'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_at'        => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Ingest log for software-inventory agent submissions — the submit
@@ -2977,6 +3022,7 @@ return [
         'work_start_datetime' => 'DATETIME NULL',
         'work_end_datetime'   => 'DATETIME NULL',
         'work_all_day'        => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Time actually SPENT on a task, as many sessions as it took (GH #112).
@@ -3014,6 +3060,7 @@ return [
         'analyst_id'        => 'INT NOT NULL',
         'comment'           => 'LONGTEXT NOT NULL',
         'created_datetime'  => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'forms' => [
@@ -3042,6 +3089,7 @@ return [
         // in freeitsm.sql. requires_approval on + approver_id NULL = unconfigured.
         'requires_approval' => 'TINYINT(1) NOT NULL DEFAULT 0',
         'approver_id'       => 'INT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'form_fields' => [
@@ -3063,6 +3111,7 @@ return [
         // Soft delete — form_submission_data.field_id points at this row, so a
         // hard delete destroyed past respondents' answers. See freeitsm.sql.
         'is_deleted'    => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'form_submissions' => [
@@ -3086,6 +3135,7 @@ return [
         'approval_decided_by_id'     => 'INT NULL',
         'approval_decided_datetime'  => 'DATETIME NULL',
         'approval_comment'           => 'TEXT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'form_submission_data' => [
@@ -3093,6 +3143,7 @@ return [
         'submission_id' => 'INT NOT NULL',
         'field_id'      => 'INT NOT NULL',
         'field_value'   => 'LONGTEXT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'wiki_scan_runs' => [
@@ -3184,6 +3235,7 @@ return [
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'supplier_statuses' => [
@@ -3193,6 +3245,7 @@ return [
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'suppliers' => [
@@ -3215,6 +3268,7 @@ return [
         'is_active'                     => 'TINYINT(1) NOT NULL DEFAULT 1',
         'supplies_assets'               => 'TINYINT(1) NOT NULL DEFAULT 0',
         'created_datetime'              => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'contacts' => [
@@ -3229,6 +3283,7 @@ return [
         'switchboard'       => 'VARCHAR(50) NULL',
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'contract_statuses' => [
@@ -3238,6 +3293,7 @@ return [
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'payment_schedules' => [
@@ -3247,6 +3303,7 @@ return [
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'contract_term_tabs' => [
@@ -3256,6 +3313,7 @@ return [
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'contract_term_values' => [
@@ -3265,6 +3323,7 @@ return [
         'content'           => 'LONGTEXT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'contracts' => [
@@ -3291,6 +3350,7 @@ return [
         'dpia_dms_link'             => 'VARCHAR(500) NULL',
         'is_active'                 => 'TINYINT(1) NOT NULL DEFAULT 1',
         'created_datetime'          => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // RFP Builder (feature of the Contracts module)
@@ -3461,6 +3521,7 @@ return [
         'is_active'         => 'TINYINT(1) NOT NULL DEFAULT 1',
         'display_order'     => 'INT NOT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'service_incident_statuses' => [
@@ -3519,6 +3580,7 @@ return [
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'resolved_datetime'     => 'DATETIME NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'status_incident_services' => [
@@ -3526,6 +3588,7 @@ return [
         'incident_id'       => 'INT NOT NULL',
         'service_id'        => 'INT NOT NULL',
         'impact_level_id'   => 'INT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // CMDB ----------------------------------------------------------
@@ -3547,6 +3610,7 @@ return [
         'is_active'         => 'TINYINT(1) NULL DEFAULT 1',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'cmdb_class_properties' => [
@@ -3562,6 +3626,7 @@ return [
         'spreads_impact'    => 'TINYINT(1) NOT NULL DEFAULT 0',
         'display_order'     => 'INT NULL DEFAULT 0',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'cmdb_class_property_options' => [
@@ -3570,6 +3635,7 @@ return [
         'option_value'      => 'VARCHAR(255) NOT NULL',
         'colour'            => 'VARCHAR(7) NULL',
         'display_order'     => 'INT NULL DEFAULT 0',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'cmdb_objects' => [
@@ -3586,6 +3652,7 @@ return [
         'tenant_id'         => 'INT NULL',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'cmdb_object_properties' => [
@@ -3597,6 +3664,7 @@ return [
         'value_date'        => 'DATETIME NULL',
         'value_boolean'     => 'TINYINT(1) NULL',
         'value_object_id'   => 'INT NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'cmdb_relationship_types' => [
@@ -3611,6 +3679,7 @@ return [
         'display_order'     => 'INT NULL DEFAULT 0',
         'is_active'         => 'TINYINT(1) NULL DEFAULT 1',
         'created_datetime'  => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'cmdb_object_relationships' => [
@@ -3619,6 +3688,7 @@ return [
         'to_object_id'          => 'INT NOT NULL',
         'relationship_type_id'  => 'INT NOT NULL',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'ticket_cmdb_objects' => [
@@ -3665,6 +3735,7 @@ return [
         'footer_left'           => 'VARCHAR(200) NULL',
         'footer_center'         => 'VARCHAR(200) NULL',
         'footer_right'          => 'VARCHAR(200) NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'network_diagram_nodes' => [
@@ -3675,6 +3746,7 @@ return [
         'y'              => 'INT NOT NULL DEFAULT 0',
         'size'           => "VARCHAR(20) NOT NULL DEFAULT 'medium'",
         'icon_override'  => 'VARCHAR(100) NULL',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'network_diagram_connectors' => [
@@ -3685,6 +3757,7 @@ return [
         'cmdb_relationship_id' => 'INT NULL',
         'label'                => 'VARCHAR(255) NULL',
         'line_style'           => "VARCHAR(20) NULL DEFAULT 'solid'",
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     // Search corpus — one row per searchable unit (ticket subject, email body,

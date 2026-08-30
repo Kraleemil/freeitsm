@@ -322,6 +322,20 @@ if (!isset($_SESSION['analyst_id'])) {
             </div>
         </div>
 
+        <!-- Only shown when the installation holds demo data imported before the
+             rows were tagged (#1297). It cannot be recognised, so a re-import
+             would add a second copy rather than replace the first. -->
+        <div class="warning-card" id="untaggedCard" style="display:none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <div class="warning-text">
+                <strong><?php echo htmlspecialchars(t('system.demo.untagged_strong')); ?></strong> <?php echo htmlspecialchars(t('system.demo.untagged_text')); ?>
+            </div>
+        </div>
+
         <div class="tip-card">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
@@ -548,9 +562,18 @@ if (!isset($_SESSION['analyst_id'])) {
         const checkSvg = '<svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
         async function importModule(module, btn) {
-            if (btn.classList.contains('success')) {
-                if (!(await showConfirm({ title: window.t('system.demo.delete_title'), message: window.t('system.demo.delete_confirm', { module: module }), okLabel: window.t('system.demo.delete_ok'), okClass: 'danger' }))) return;
-            }
+            // Ask EVERY time, not only on a re-import. The confirmation used to be
+            // skipped unless the button already showed success, which meant the
+            // very first import - the one that changes an installation from having
+            // no demo data to having it - was the only one that never asked. (#1297)
+            const reimport = btn.classList.contains('success');
+            const ok = await showConfirm({
+                title: window.t(reimport ? 'system.demo.reimport_title' : 'system.demo.import_title'),
+                message: window.t(reimport ? 'system.demo.reimport_confirm' : 'system.demo.import_confirm', { module: module }),
+                okLabel: window.t('system.demo.import'),
+                okClass: 'danger'
+            });
+            if (!ok) return;
 
             btn.disabled = true;
             const origHtml = btn.innerHTML;
@@ -631,29 +654,28 @@ if (!isset($_SESSION['analyst_id'])) {
                     btn.innerHTML = checkSvg + ' ' + window.t('system.demo.already_imported');
                     enableModuleButtons();
                 }
-                // Track which modules have data so bonus sections appear
+                if (data.untagged) {
+                    const card = document.getElementById('untaggedCard');
+                    if (card) card.style.display = '';
+                }
+
+                // Every module reports now, not just the five that used to be
+                // listed here, and each reports a count of rows marked as demo
+                // data rather than "this table has rows in it". (#1297)
                 if (data.modules) {
-                    if (data.modules.software) importedModules['software'] = true;
-                    if (data.modules.assets) importedModules['assets'] = true;
-                    if (data.modules.tickets) importedModules['tickets'] = true;
-                    if (data.modules['software-assets']) {
-                        importedModules['software-assets'] = true;
-                        var saBtn = document.getElementById('btn-software-assets');
-                        if (saBtn) {
-                            saBtn.className = 'import-btn success';
-                            saBtn.innerHTML = checkSvg + ' ' + window.t('system.demo.already_imported');
-                            saBtn.disabled = false;
+                    Object.keys(data.modules).forEach(function (module) {
+                        if (!data.modules[module] || module === 'core') return;
+                        importedModules[module] = true;
+                        const modBtn = document.getElementById('btn-' + module);
+                        if (modBtn) {
+                            modBtn.className = modBtn.className.includes('import-btn-lg')
+                                ? 'import-btn import-btn-lg success' : 'import-btn success';
+                            modBtn.innerHTML = checkSvg + ' ' + window.t('system.demo.already_imported');
+                            // Module buttons stay locked until Core is in — don't
+                            // unlock one just because it reports rows.
+                            if (coreImported) modBtn.disabled = false;
                         }
-                    }
-                    if (data.modules.dashboards) {
-                        importedModules['dashboards'] = true;
-                        var dbBtn = document.getElementById('btn-dashboards');
-                        if (dbBtn) {
-                            dbBtn.className = 'import-btn success';
-                            dbBtn.innerHTML = checkSvg + ' ' + window.t('system.demo.already_imported');
-                            dbBtn.disabled = false;
-                        }
-                    }
+                    });
                     checkBonusEligibility();
                 }
             } catch (e) { /* ignore - user can still click Import */ }
