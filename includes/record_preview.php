@@ -144,7 +144,15 @@ function recordPreviewTicket(PDO $conn, int $analystId, int $id): ?array
 // ── Task ────────────────────────────────────────────────────────────────────
 function recordPreviewTask(PDO $conn, int $analystId, int $id): ?array
 {
-    [$where, $args] = activeTenantFilter($conn, $analystId, 'tk');
+    // 🔴 analystCanAccessTask(), NOT activeTenantFilter(). The filter answers
+    // "is this in the company I am CURRENTLY LOOKING AT", which is a view
+    // setting, not a permission — so it refuses records the analyst is
+    // perfectly entitled to open, and the refusal is indistinguishable from a
+    // real one. Every module gates its own reads with these helpers; a preview
+    // that were stricter would show a link and then deny what is behind it.
+    if (!analystCanAccessTask($conn, $analystId, $id)) {
+        return null;
+    }
 
     $stmt = $conn->prepare(
         "SELECT tk.title, tk.due_date,
@@ -158,9 +166,9 @@ function recordPreviewTask(PDO $conn, int $analystId, int $id): ?array
       LEFT JOIN task_statuses s ON s.id = tk.status_id
       LEFT JOIN analysts a      ON a.id = tk.assigned_analyst_id
       LEFT JOIN teams tm        ON tm.id = tk.assigned_team_id
-          WHERE tk.id = ?" . $where
+          WHERE tk.id = ?"
     );
-    $stmt->execute(array_merge([$id], $args));
+    $stmt->execute([$id]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$r) return null;
 
@@ -182,16 +190,20 @@ function recordPreviewTask(PDO $conn, int $analystId, int $id): ?array
 // ── Change ──────────────────────────────────────────────────────────────────
 function recordPreviewChange(PDO $conn, int $analystId, int $id): ?array
 {
-    [$where, $args] = activeTenantFilter($conn, $analystId, 'c');
+    // 🔴 The module's own gate, not the active-company filter. See the note on
+    // recordPreviewTask() for why the difference matters.
+    if (!analystCanAccessChange($conn, $analystId, $id)) {
+        return null;
+    }
 
     $stmt = $conn->prepare(
         "SELECT c.title, c.risk_level, c.work_start_datetime, c.work_end_datetime,
                 s.name AS status, s.colour AS status_colour
            FROM changes c
       LEFT JOIN change_statuses s ON s.id = c.status_id
-          WHERE c.id = ?" . $where
+          WHERE c.id = ?"
     );
-    $stmt->execute(array_merge([$id], $args));
+    $stmt->execute([$id]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$r) return null;
 
@@ -217,7 +229,13 @@ function recordPreviewChange(PDO $conn, int $analystId, int $id): ?array
 // ── Problem ─────────────────────────────────────────────────────────────────
 function recordPreviewProblem(PDO $conn, int $analystId, int $id): ?array
 {
-    [$where, $args] = activeTenantFilter($conn, $analystId, 'p');
+    // 🔴 The module's own gate, not the active-company filter. See the note on
+    // recordPreviewTask(). This is the one the live run caught: a ticket showed
+    // a problem pill and the preview behind it refused, because the problem sat
+    // in a company other than the one the analyst happened to be filtered to.
+    if (!analystCanAccessProblem($conn, $analystId, $id)) {
+        return null;
+    }
 
     $stmt = $conn->prepare(
         "SELECT p.problem_number, p.title,
@@ -227,9 +245,9 @@ function recordPreviewProblem(PDO $conn, int $analystId, int $id): ?array
                 (SELECT COUNT(*) FROM problem_tickets pt WHERE pt.problem_id = p.id) AS tickets
            FROM problems p
       LEFT JOIN problem_statuses s ON s.id = p.status_id
-          WHERE p.id = ?" . $where
+          WHERE p.id = ?"
     );
-    $stmt->execute(array_merge([$id], $args));
+    $stmt->execute([$id]);
     $r = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$r) return null;
 

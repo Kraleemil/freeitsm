@@ -1079,8 +1079,8 @@ function renderDetailPanel(task) {
         <div class="link-section">
             <h4>${esc(window.t('tasks.detail.links'))}</h4>
             <div id="linkList">
-                ${task.ticket_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_ticket'))}</span> ${linkedRecord(task.ticket_url, '#' + (task.ticket_number || task.ticket_id) + ' — ' + (task.ticket_subject || ''))}<button class="link-remove" onclick="removeLink('ticket_id')">&times;</button></div>` : ''}
-                ${task.change_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_change'))}</span> ${linkedRecord(task.change_url, task.change_title || (window.t('tasks.detail.link_change') + ' #' + task.change_id))}<button class="link-remove" onclick="removeLink('change_id')">&times;</button></div>` : ''}
+                ${task.ticket_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_ticket'))}</span> ${linkedRecord(task.ticket_url, '#' + (task.ticket_number || task.ticket_id) + ' — ' + (task.ticket_subject || ''))}${taskPreviewBadge('ticket', task.ticket_id)}<button class="link-remove" onclick="removeLink('ticket_id')">&times;</button></div>` : ''}
+                ${task.change_id ? `<div class="link-item"><span class="link-type">${esc(window.t('tasks.detail.link_change'))}</span> ${linkedRecord(task.change_url, task.change_title || (window.t('tasks.detail.link_change') + ' #' + task.change_id))}${taskPreviewBadge('change', task.change_id)}<button class="link-remove" onclick="removeLink('change_id')">&times;</button></div>` : ''}
             </div>
             ${!task.ticket_id ? `
             <div class="link-search-container">
@@ -2157,6 +2157,14 @@ function escAttr(value) {
  * A missing url renders as text rather than href="#": an anchor that goes
  * nowhere is worse than no anchor, because it looks like it should work.
  */
+/**
+ * The ⓘ preview badge (#91). Guarded, so a page that somehow loaded without
+ * record-preview.js loses the preview rather than the whole detail pane.
+ */
+function taskPreviewBadge(type, id) {
+    return window.FreeITSMPreview ? window.FreeITSMPreview.badge(type, id) : '';
+}
+
 function linkedRecord(url, label) {
     if (!url) return esc(label);
     const base = window.APP_BASE || '';

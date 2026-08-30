@@ -2731,6 +2731,18 @@ async function openTicketByNumber(ticketNumber) {
     }
 }
 
+/**
+ * The ⓘ preview badge (#91), guarded.
+ *
+ * ⚠️ Guarded because the pills are built by this file whether or not
+ * record-preview.js loaded. An unguarded call would throw inside the template
+ * literal and take the WHOLE links strip with it — a missing preview would cost
+ * you the links, which is much worse than no preview.
+ */
+function rpBadge(type, id) {
+    return window.FreeITSMPreview ? window.FreeITSMPreview.badge(type, id) : '';
+}
+
 function buildLinksSection(email) {
     const pills = [];
 
@@ -2738,6 +2750,7 @@ function buildLinksSection(email) {
     (email.problems || []).forEach(p => {
         pills.push(`<a class="pm-ticket-badge" href="../problem-management/index.php?id=${p.id}" target="_blank" title="Problem: ${escapeHtml(p.title || '')}">
             ⚠ ${escapeHtml(p.problem_number || ('#' + p.id))}${p.status ? ' · ' + escapeHtml(p.status) : ''}
+            ${rpBadge('problem', p.id)}
             <span class="pm-ticket-unlink" onclick="event.preventDefault();event.stopPropagation();unlinkTicketFromProblem(${p.id});">✕</span>
         </a>`);
     });
@@ -2747,6 +2760,7 @@ function buildLinksSection(email) {
         const ref = 'CHG-' + String(c.id).padStart(4, '0');
         pills.push(`<a class="pm-ticket-badge" href="../change-management/index.php?id=${c.id}" target="_blank" title="Change: ${escapeHtml(c.title || '')}">
             🔁 ${escapeHtml(ref)}${c.status ? ' · ' + escapeHtml(c.status) : ''}
+            ${rpBadge('change', c.id)}
             <span class="pm-ticket-unlink" onclick="event.preventDefault();event.stopPropagation();unlinkTicketFromChange(${c.id});">✕</span>
         </a>`);
     });
@@ -2755,6 +2769,7 @@ function buildLinksSection(email) {
     const L = email.linked_tickets || {};
     const tp = (item, prefix) => `<a class="pm-ticket-badge" href="#" onclick="event.preventDefault();loadTicketById(${item.ticket_id});" title="${escapeHtml(item.subject || '')}">
         🔗 ${escapeHtml(prefix)} ${escapeHtml(item.ticket_number || ('#' + item.ticket_id))}${item.status ? ' · ' + escapeHtml(item.status) : ''}
+        ${rpBadge('ticket', item.ticket_id)}
         <span class="pm-ticket-unlink" onclick="event.preventDefault();event.stopPropagation();unlinkTicketLink(${item.link_id});">✕</span>
     </a>`;
     if (L.parent) pills.push(tp(L.parent, 'Parent:'));
@@ -2937,6 +2952,7 @@ function renderTicketTasks(ticketId) {
         return `<a class="${cls}" href="../tasks/index.php?task=${tk.id}" target="_blank"
                    title="${escapeHtml(bits.join(' · '))}">
             ${box} ${escapeHtml(tk.title)}${prog}
+            ${rpBadge('task', tk.id)}
             <span class="pm-ticket-unlink" title="${escapeHtml(t('tickets.tasks.unlink_title'))}"
                   onclick="event.preventDefault();event.stopPropagation();unlinkTicketTask(event, ${tk.id}, ${ticketId});">&#10005;</span>
         </a>`;
@@ -4415,6 +4431,7 @@ function renderTicketAssets(ticketId) {
         if (link.location_name) bits.push(link.location_name);
         return `<a class="pm-ticket-badge" href="../asset-management/index.php?asset_id=${link.asset_id}" title="${escapeHtml(bits.join(' · '))}">
             🖥️ ${escapeHtml(assetDisplayName(link))}
+            ${rpBadge('asset', link.asset_id)}
             <span class="pm-ticket-unlink" title="${escapeHtml(t('tickets.assets.unlink_title'))}" onclick="event.preventDefault();event.stopPropagation();removeTicketAsset(event, ${link.link_id}, ${ticketId});">✕</span>
         </a>`;
     }).join('');

@@ -31,6 +31,8 @@ $translationNamespaces = ['common', 'change-management'];
     <?php echo Tz::scriptTag(); ?>
     <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=5"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/record-preview.css?v=1">
+    <script src="<?php echo BASE_URL; ?>assets/js/record-preview.js?v=1"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/tinymce/tinymce.min.js"></script>
 </head>
 <body data-analyst-id="<?php echo $_SESSION['analyst_id'] ?? ''; ?>">
@@ -529,7 +531,7 @@ $translationNamespaces = ['common', 'change-management'];
         window.openCreateOnLoad = true;
         <?php endif; ?>
     </script>
-    <script src="<?php echo BASE_URL; ?>assets/js/change-management.js?v=17"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/change-management.js?v=18"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=33"></script>
 </body>
 </html>

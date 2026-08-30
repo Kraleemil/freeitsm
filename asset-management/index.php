@@ -30,6 +30,8 @@ $translationNamespaces = ['common', 'asset-management'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="../assets/css/record-preview.css?v=1">
+    <script src="../assets/js/record-preview.js?v=1"></script>
     <?php
     // This page renders its detail pane in JavaScript, so it takes the panel's
     // assets here and mounts the component itself — renderDocumentsPanel() is for
@@ -954,7 +956,11 @@ $translationNamespaces = ['common', 'asset-management'];
         }
         .asset-ticket-row {
             display: grid;
-            grid-template-columns: minmax(90px, auto) 1fr auto auto;
+            /* Five columns, the last being the ⓘ preview badge (#91). It is a
+               column of its own rather than a passenger in the date cell so it
+               lines up down the panel, and so it survives the phone layout
+               below — where the reference and the date are hidden. */
+            grid-template-columns: minmax(90px, auto) 1fr auto auto auto;
             gap: 12px;
             align-items: center;
             padding: 9px 16px;
@@ -1031,6 +1037,12 @@ $translationNamespaces = ['common', 'asset-management'];
            line up with the cells they label. Width must track .asset-contract-
            remove above: 26px plus its 10px right margin. */
         .asset-contract-remove-spacer { flex-shrink: 0; width: 26px; margin-right: 10px; }
+        /* ⚠️ The heading row is a separate element from the rows it labels, so
+           every item added beside a row has to be added to the head as an empty
+           stand-in of the same width. Miss one and the headings sit a badge to
+           the right of the columns they name. */
+        .asset-contract-item > .rp-badge { flex-shrink: 0; margin: 0 2px 0 6px; }
+        .asset-contract-preview-spacer { flex-shrink: 0; width: 20px; margin: 0 2px 0 6px; }
 
         .asset-contract-head .asset-contract-row {
             padding-top: 12px;
@@ -1104,7 +1116,11 @@ $translationNamespaces = ['common', 'asset-management'];
         @media (max-width: 700px) {
             /* Ref and date drop away first — the subject and its status are what
                you are actually scanning for on a phone. */
-            .asset-ticket-row { grid-template-columns: 1fr auto; }
+            /* Subject, status, and the preview badge — which keeps its column
+               here precisely because the reference and the date have gone: on a
+               phone the badge is the only way left to see what the ticket is
+               without leaving the asset. */
+            .asset-ticket-row { grid-template-columns: 1fr auto auto; }
             .asset-ticket-ref, .asset-ticket-when { display: none; }
 
             /* The contract rows lose the reference and the supplier, but KEEP
@@ -2227,6 +2243,7 @@ $translationNamespaces = ['common', 'asset-management'];
                             <span class="asset-contract-when">${escapeHtml(window.t('asset-management.detail.contract_ends'))}</span>
                             <span class="asset-contract-notice">${escapeHtml(window.t('asset-management.detail.contract_notice_by'))}</span>
                         </div>
+                        <span class="asset-contract-preview-spacer"></span>
                         <span class="asset-contract-remove-spacer"></span>
                     </div>`;
 
@@ -2254,6 +2271,7 @@ $translationNamespaces = ['common', 'asset-management'];
                             <span class="asset-contract-when">${ends}</span>
                             <span class="asset-contract-notice">${notice}</span>
                         </a>
+                        ${assetPreviewBadge('contract', c.contract_id)}
                         <button type="button" class="asset-contract-remove"
                                 title="${escapeHtml(window.t('asset-management.detail.remove_contract'))}"
                                 onclick="unlinkAssetContract(${c.link_id})">&times;</button>
@@ -2514,6 +2532,7 @@ $translationNamespaces = ['common', 'asset-management'];
                         <span class="asset-ticket-subject">${escapeHtml(tk.subject || '')}</span>
                         <span class="asset-ticket-status" style="background:${escapeHtml(tk.status_colour || '#6b7280')}">${escapeHtml(tk.status || '')}</span>
                         <span class="asset-ticket-when">${escapeHtml((when || '').substring(0, 10))}</span>
+                        ${assetPreviewBadge('ticket', tk.id)}
                     </a>`;
                 };
 
@@ -3515,6 +3534,15 @@ $translationNamespaces = ['common', 'asset-management'];
                 console.error('Error removing user:', error);
                 showToast(window.t('asset-management.toast.remove_failed'), 'error');
             }
+        }
+
+        /**
+         * The ⓘ preview badge (#91). Guarded, so a page that somehow loaded
+         * without record-preview.js loses the preview rather than the panel it
+         * would have been drawn into.
+         */
+        function assetPreviewBadge(type, id) {
+            return window.FreeITSMPreview ? window.FreeITSMPreview.badge(type, id) : '';
         }
 
         // Escape HTML for safe display

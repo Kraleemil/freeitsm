@@ -29,6 +29,8 @@ $translationNamespaces = ['common'];
     <title>Service Desk - Problem Management</title>
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <script src="<?php echo BASE_URL; ?>assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/record-preview.css?v=1">
+    <script src="<?php echo BASE_URL; ?>assets/js/record-preview.js?v=1"></script>
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/theme.css?v=23">
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/inbox.css?v=62">
     <style>
@@ -254,7 +256,7 @@ $translationNamespaces = ['common'];
 
     <script src="<?php echo BASE_URL; ?>assets/js/toast.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/confirm.js"></script>
-    <script src="<?php echo BASE_URL; ?>assets/js/problem-management.js?v=18"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/problem-management.js?v=19"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=33"></script>
 </body>
 </html>

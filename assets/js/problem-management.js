@@ -11,6 +11,15 @@ let pmDetailCache = null;     // last loaded detail payload
 const PM_OPEN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
 const PM_UNLINK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 0 1 4 8"></path><line x1="8" y1="12" x2="12" y2="12"></line><line x1="2" y1="2" x2="22" y2="22"></line></svg>';
 
+/**
+ * The ⓘ preview badge (#91). Guarded, so that a page which somehow loaded
+ * without record-preview.js loses the preview rather than the whole table it
+ * would have been drawn into.
+ */
+function pmPreviewBadge(type, id) {
+    return window.FreeITSMPreview ? window.FreeITSMPreview.badge(type, id) : '';
+}
+
 function pmEsc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -233,6 +242,7 @@ function pmRenderDetail(data) {
             <td>${pmEsc(i.subject || '')}</td>
             <td>${pmEsc(i.status || '')}</td>
             <td class="pm-actions">
+                ${pmPreviewBadge('ticket', i.id)}
                 <a class="pm-icon-btn" href="../tickets/index.php?ticket_id=${i.id}" target="_blank" title="Open incident">${PM_OPEN_SVG}</a>
                 <button class="pm-icon-btn danger" onclick="pmUnlinkIncident(${i.id})" title="Unlink incident">${PM_UNLINK_SVG}</button>
             </td>
@@ -245,6 +255,7 @@ function pmRenderDetail(data) {
             <td>${pmEsc(c.title || '')}</td>
             <td>${pmEsc(c.status || '')}</td>
             <td class="pm-actions">
+                ${pmPreviewBadge('change', c.id)}
                 <a class="pm-icon-btn" href="../change-management/index.php?change_id=${c.id}" target="_blank" title="Open change">${PM_OPEN_SVG}</a>
                 <button class="pm-icon-btn danger" onclick="pmUnlinkChange(${c.id})" title="Unlink change">${PM_UNLINK_SVG}</button>
             </td>

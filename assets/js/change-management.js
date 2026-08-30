@@ -741,6 +741,14 @@ function renderChangeDetail() {
 const CM_OPEN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
 const CM_UNLINK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
+/**
+ * The ⓘ preview badge (#91). Guarded, so a page that somehow loaded without
+ * record-preview.js loses the preview rather than the table it belongs to.
+ */
+function cmPreviewBadge(type, id) {
+    return window.FreeITSMPreview ? window.FreeITSMPreview.badge(type, id) : '';
+}
+
 function renderLinkedIncidents(c) {
     const incidents = c.incidents || [];
     const rows = incidents.map(i => `
@@ -749,6 +757,7 @@ function renderLinkedIncidents(c) {
             <td>${escapeHtml(i.subject || '')}</td>
             <td>${escapeHtml(i.status || '')}</td>
             <td class="linked-incidents-actions">
+                ${cmPreviewBadge('ticket', i.id)}
                 <a class="linked-incident-btn" href="../tickets/index.php?ticket_id=${i.id}" target="_blank" rel="noopener" title="${escapeHtml(window.t('change-management.detail.open_incident'))}">${CM_OPEN_SVG}</a>
                 <button class="linked-incident-btn danger" onclick="unlinkChangeIncident(${i.id})" title="${escapeHtml(window.t('change-management.detail.unlink'))}">${CM_UNLINK_SVG}</button>
             </td>

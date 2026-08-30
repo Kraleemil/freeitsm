@@ -46,6 +46,8 @@ $translationNamespaces = ['common', 'tasks'];
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="../assets/css/record-preview.css?v=1">
+    <script src="../assets/js/record-preview.js?v=1"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
     <link rel="stylesheet" href="../assets/css/mobile.css?v=90">
 </head>
@@ -236,7 +238,7 @@ $translationNamespaces = ['common', 'tasks'];
     window.TASK_DETAIL_VIEW = <?php echo json_encode($taskDetailView); ?>;</script>
     <script src="../assets/js/tasks-priority.js?v=1"></script>
     <script src="../assets/js/tasks-ctx-menu.js?v=3"></script>
-    <script src="../assets/js/tasks.js?v=32"></script>
+    <script src="../assets/js/tasks.js?v=33"></script>
     <script src="../assets/js/mobile.js?v=33"></script>
 </body>
 </html>

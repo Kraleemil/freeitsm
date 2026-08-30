@@ -125,6 +125,44 @@ try {
     }
     ok('no type answers an analyst id of 0', $leaked === [], implode(', ', $leaked));
 
+    // ── 3b. Never STRICTER than the module's own gate ───────────────────────
+    //
+    // 🔴 The bug this catches shipped once already, and a live run found it, not
+    // this file. Three types scoped themselves with activeTenantFilter(), which
+    // answers "is this in the company I am currently LOOKING AT" — a view
+    // setting, not a permission. So a ticket showed a problem pill and the
+    // preview behind it refused, and the refusal was indistinguishable from a
+    // genuine one.
+    //
+    // The rule: if the module's own analystCanAccess…() says yes, the preview
+    // must answer. Records in another company are exactly where the two used to
+    // disagree, so they are what this looks for.
+    echo "\nA preview is never stricter than the module it belongs to:\n";
+    $gates = [
+        'task'    => ['tasks',    'analystCanAccessTask'],
+        'change'  => ['changes',  'analystCanAccessChange'],
+        'problem' => ['problems', 'analystCanAccessProblem'],
+        'ticket'  => ['tickets',  'analystCanAccessTicket'],
+    ];
+    $checked = 0;
+    foreach ($gates as $type => [$table, $gate]) {
+        if (!function_exists($gate)) { continue; }
+        // Prefer a record in ANOTHER company — that is where they diverged.
+        $ids = $conn->query(
+            "SELECT id FROM {$table} ORDER BY (tenant_id IS NULL), tenant_id DESC, id DESC LIMIT 25"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($ids as $rid) {
+            if (!$gate($conn, $admin, (int)$rid)) continue;   // genuinely out of reach
+            $checked++;
+            ok("{$type} #{$rid} is allowed by {$gate}(), so it previews",
+                recordPreview($conn, $admin, $type, (int)$rid) !== null,
+                'the gate said yes and the preview said no');
+            break;
+        }
+    }
+    ok('POSITIVE CONTROL: this section actually examined something', $checked > 0,
+       'no record passed any gate, so the assertions above were vacuous');
+
     // ── 4. Nothing leaks through the shape of the answer ────────────────────
     echo "\nOne answer for \"missing\" and \"not allowed\":\n";
     $a = recordPreview($conn, $admin, 'ticket', 999999998);

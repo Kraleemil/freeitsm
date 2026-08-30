@@ -34,6 +34,8 @@ if (!$contract_id) {
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="../assets/css/record-preview.css?v=1">
+    <script src="../assets/js/record-preview.js?v=1"></script>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
     <style>
@@ -737,6 +739,7 @@ if (!$contract_id) {
                 list.innerHTML = data.assets.map(a => `
                     <div class="related-item related-item--asset">
                         <a href="../asset-management/index.php?asset=${a.asset_id}">${escapeHtml(assetLabel(a))}</a>
+                        ${window.FreeITSMPreview ? window.FreeITSMPreview.badge('asset', a.asset_id) : ''}
                         <span class="meta">
                             ${a.type_name ? escapeHtml(a.type_name) : ''}
                             ${a.type_name && a.location_name ? '<span class="meta-sep">•</span>' : ''}

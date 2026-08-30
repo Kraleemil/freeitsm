@@ -45,6 +45,8 @@ $translationNamespaces = ['common', 'tickets'];
     ?>
     <script>window.SNOOZE_WAKE_HOUR = <?php echo (int)$snoozeWakeHour; ?>;</script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <link rel="stylesheet" href="../assets/css/record-preview.css?v=1">
+    <script src="../assets/js/record-preview.js?v=1"></script>
     <script src="../assets/js/tinymce/tinymce.min.js"></script>
 </head>
 <body>
@@ -901,7 +903,7 @@ $translationNamespaces = ['common', 'tickets'];
          three because this page was the one that never loaded tz.js. -->
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/schedule.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=110"></script>
+    <script src="../assets/js/inbox.js?v=111"></script>
     <script src="../assets/js/mobile.js?v=33"></script>
     <script>
     // Auto-check mailboxes every 60 seconds
