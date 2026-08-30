@@ -1223,6 +1223,45 @@ function renderHeaderRight($analyst_name, $path_prefix) {
     }
     $analyst_username = $_SESSION['analyst_username'] ?? '';
 
+    /**
+     * Does this analyst also have a self-service portal account they could
+     * actually sign in to? (discussion #81)
+     *
+     * An analyst and a requester are separate identities in separate tables:
+     * the portal's guard wants $_SESSION['ss_user_id'] and an analyst session
+     * only carries analyst_id. So a link offered unconditionally would drop
+     * most analysts on the portal's sign-in page with credentials they do not
+     * have — on a typical installation the great majority of analysts have no
+     * `users` row at all.
+     *
+     * The test is deliberately "could sign in", not "a row exists". A portal
+     * row auto-created from an inbound email has no password and no provider,
+     * so its owner cannot get in either, and offering them the link would be
+     * the same dead end wearing a match.
+     *
+     * Failure renders nothing. This is the header on every page, and a menu
+     * entry is never worth an exception.
+     */
+    $__portalAccount = false;
+    if (!empty($_SESSION['analyst_email'])) {
+        try {
+            if (!function_exists('connectToDatabase')) require_once __DIR__ . '/functions.php';
+            $__pa = connectToDatabase()->prepare(
+                "SELECT 1
+                   FROM users u
+              LEFT JOIN auth_providers p ON p.id = u.auth_provider_id
+                  WHERE LOWER(u.email) = LOWER(?)
+                    AND ( (u.password_hash IS NOT NULL AND u.password_hash <> '')
+                       OR (p.id IS NOT NULL AND p.enabled = 1) )
+                  LIMIT 1"
+            );
+            $__pa->execute([$_SESSION['analyst_email']]);
+            $__portalAccount = (bool)$__pa->fetchColumn();
+        } catch (Throwable $e) {
+            $__portalAccount = false;
+        }
+    }
+
     // Company switcher (multi-tenancy). Captured defensively — it renders an
     // empty string unless a second company exists, so single-company installs
     // see no change to the header at all. Any error renders nothing.
@@ -1646,6 +1685,16 @@ function renderHeaderRight($analyst_name, $path_prefix) {
                 <span><?php echo htmlspecialchars(t('common.account.trusted_device')); ?></span>
                 <span class="mfa-badge disabled" id="trustBadgeMenu"><?php echo htmlspecialchars(t('common.account.badge_off')); ?></span>
             </button>
+            <?php /* Switch to the portal (#81). Shown only when this analyst has a portal
+                     account they could actually sign in to — see $__portalAccount above.
+                     New tab on purpose: the analyst keeps whatever they were working on,
+                     and the two sessions coexist because they use different session keys. */ ?>
+            <?php if (!empty($__portalAccount)): ?>
+            <button class="user-menu-item" onclick="window.open('<?php echo BASE_URL; ?>self-service/', '_blank', 'noopener');">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                <span><?php echo htmlspecialchars(t('common.account.portal')); ?></span>
+            </button>
+            <?php endif; ?>
             <div class="user-menu-divider"></div>
             <?php /* Appearance picker — always shown in the account menu (global theme). */ ?>
             <?php if (class_exists('Theme')): ?>

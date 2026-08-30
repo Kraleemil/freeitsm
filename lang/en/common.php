@@ -274,6 +274,9 @@ return [
         'change_password' => 'Change Password',
         'mfa'             => 'Multi-Factor Auth',
         'trusted_device'  => 'Trusted Device',
+        // Only rendered when the analyst also has a portal account they could sign
+        // in to. See includes/waffle-menu.php (#81).
+        'portal'          => 'Self-Service Portal',
         'logout'          => 'Logout',
         'logout_confirm'  => 'Are you sure you want to logout?',
         'badge_off'       => 'Off',

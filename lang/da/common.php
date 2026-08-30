@@ -245,6 +245,7 @@ return [
         'change_password' => 'Skift adgangskode',
         'mfa'             => 'Flerfaktorgodkendelse',
         'trusted_device'  => 'Betroet enhed',
+        'portal'          => 'Selvbetjeningsportal',
         'logout'          => 'Log ud',
         'logout_confirm'  => 'Er du sikker på, at du vil logge ud?',
         'badge_off'       => 'Fra',
