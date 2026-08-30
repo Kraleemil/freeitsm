@@ -556,6 +556,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .forgot-link:hover { color: #666; }
 
+        /* The way across to the self-service portal (#82). Sits below the form and
+           any Forgot password link, separated by a rule so it reads as "you are on
+           the wrong page" rather than as another sign-in option. */
+        .portal-link {
+            margin-top: 22px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 13px;
+        }
+        .portal-link a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .portal-link a:hover { text-decoration: underline; }
+
         /* MFA challenge styles */
         .mfa-icon {
             text-align: center;
@@ -902,6 +918,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/forgot-password.php" class="forgot-link">Forgot password?</a>
             <?php endif; ?>
         <?php endif; ?>
+
+        <!--
+            The way back to the self-service portal (discussion #82). The portal's
+            own login has offered the reverse link to here since it was built; this
+            side never did, so somebody who followed a bookmark or a link in an
+            email to the wrong one of the two had no way across but the address bar.
+
+            Deliberately OUTSIDE both branches above: it must show whether or not
+            single sign-on is configured and whether or not local login is allowed,
+            because a person on the wrong page cannot sign in here by ANY method
+            and getting them to the right page is the whole point.
+        -->
+        <div class="portal-link">
+            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>self-service/login.php">Go to the Self-Service Portal</a>
+        </div>
     </div>
 </body>
 </html>
