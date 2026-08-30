@@ -354,8 +354,10 @@ return [
         'heading'  => 'Demodata',
         'subtitle' => 'Importer realistiske eksempeldata modul for modul. Importer Core først, og vel så kva modular som skal fyllast.',
 
-        'warning_strong' => 'Laga berre for nye installasjonar.',
-        'warning_text'   => 'Å importere demodata i eit system som allereie inneheld verkelege data, kan skape konfliktar. Kvar modul kan berre importerast éin gong.',
+        'warning_strong' => 'Demodata er til for å prøve ut FreeITSM.',
+        'warning_text'   => 'Å importere ein modul fjernar eksempeldataa han laga førre gong og legg inn eit nytt sett. Dine eigne data vert ikkje rørte: berre rader som denne importen sjølv har laga, vert fjerna.',
+        'untagged_strong' => 'Denne installasjonen har demodata frå ein tidlegare versjon.',
+        'untagged_text'   => 'Dei vart importerte før eksempelrader vart merkte som slike, så dei kan korkje kjennast att eller fjernast herifrå. Ein ny import ville lagt ein kopi nummer to ved sida av dei i staden for å erstatte dei. Fjern dei gamle eksempeldataa manuelt først dersom du vil ha eit reint sett.',
         'tip_text_prefix' => 'Importer både',
         'tip_text_and'    => 'og',
         'tip_text_suffix' => 'for å låse opp eit ekstraval som koplar installert programvare til datamaskiner.',
@@ -372,9 +374,10 @@ return [
         'imported_count'   => '{total} importerte',
         'already_imported' => 'Allereie importert',
 
-        'delete_title'   => 'Slett',
-        'delete_confirm' => 'Dette slettar eksisterande demodata for {module} og importerer dei på nytt. Halde fram?',
-        'delete_ok'      => 'Slett',
+        'import_title'     => 'Importer demodata',
+        'import_confirm'   => 'Importere demodata for {module}? Eksempeldata vert lagde inn i denne installasjonen. Dine eigne data vert ikkje påverka.',
+        'reimport_title'   => 'Erstatt demodata',
+        'reimport_confirm' => 'Erstatte demodata for {module}? Eksempeldataa frå førre import vert fjerna og eit nytt sett lagt inn. Dine eigne data vert ikkje påverka.',
         'connection_failed' => 'Tilkoplinga feila: {message}',
     ],
 

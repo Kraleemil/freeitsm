@@ -343,8 +343,10 @@ return [
         'heading'  => 'Data Demo',
         'subtitle' => 'Import data sampel realistik modul demi modul. Import Core dahulu, kemudian pilih modul yang hendak diisi.',
 
-        'warning_strong' => 'Direka untuk pemasangan baharu sahaja.',
-        'warning_text'   => 'Mengimport data demo ke dalam sistem yang sudah mengandungi data sebenar boleh menyebabkan konflik. Setiap modul hanya boleh diimport sekali.',
+        'warning_strong' => 'Data demo adalah untuk mencuba FreeITSM.',
+        'warning_text'   => 'Mengimport sesuatu modul akan membuang rekod contoh yang diciptanya kali terakhir dan menambah set yang baharu. Rekod anda sendiri tidak disentuh: hanya baris yang dicipta oleh pengimport ini dibuang.',
+        'untagged_strong' => 'Pemasangan ini mempunyai data demo daripada versi terdahulu.',
+        'untagged_text'   => 'Ia diimport sebelum baris contoh ditanda sedemikian, jadi ia tidak dapat dikenal pasti atau dibuang dari sini. Mengimport semula akan menambah salinan kedua di sebelahnya, bukan menggantikannya. Buang rekod contoh lama secara manual dahulu jika anda mahukan set yang bersih.',
         'tip_text_prefix' => 'Import kedua-dua',
         'tip_text_and'    => 'dan',
         'tip_text_suffix' => 'untuk membuka pilihan bonus yang memautkan perisian yang dipasang kepada komputer.',
@@ -361,9 +363,10 @@ return [
         'imported_count'   => '{total} diimport',
         'already_imported' => 'Sudah diimport',
 
-        'delete_title'   => 'Padam',
-        'delete_confirm' => 'Ini akan memadam data demo {module} sedia ada dan mengimport semula yang baharu. Teruskan?',
-        'delete_ok'      => 'Padam',
+        'import_title'     => 'Import data demo',
+        'import_confirm'   => 'Import data demo {module}? Rekod contoh akan ditambah pada pemasangan ini. Rekod anda sendiri tidak terjejas.',
+        'reimport_title'   => 'Ganti data demo',
+        'reimport_confirm' => 'Ganti data demo {module}? Rekod contoh daripada import terakhir akan dibuang dan set baharu ditambah. Rekod anda sendiri tidak terjejas.',
         'connection_failed' => 'Sambungan gagal: {message}',
     ],
 

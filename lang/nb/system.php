@@ -355,8 +355,10 @@ return [
         'heading'  => 'Demodata',
         'subtitle' => 'Importer realistiske eksempeldata modul for modul. Importer Core først, og velg deretter hvilke moduler som skal fylles.',
 
-        'warning_strong' => 'Laget bare for nye installasjoner.',
-        'warning_text'   => 'Å importere demodata i et system som allerede inneholder ekte data, kan skape konflikter. Hver modul kan bare importeres én gang.',
+        'warning_strong' => 'Demodata er til for å prøve ut FreeITSM.',
+        'warning_text'   => 'Å importere en modul fjerner eksempeldataene den lagde forrige gang og legger inn et nytt sett. Dine egne data røres ikke: bare rader som denne importen selv har laget, blir fjernet.',
+        'untagged_strong' => 'Denne installasjonen har demodata fra en tidligere versjon.',
+        'untagged_text'   => 'De ble importert før eksempelrader ble merket som sådan, så de kan verken gjenkjennes eller fjernes herfra. En ny import ville lagt en kopi nummer to ved siden av dem i stedet for å erstatte dem. Fjern de gamle eksempeldataene manuelt først hvis du vil ha et rent sett.',
         'tip_text_prefix' => 'Importer både',
         'tip_text_and'    => 'og',
         'tip_text_suffix' => 'for å låse opp et ekstravalg som kobler installert programvare til datamaskiner.',
@@ -373,9 +375,10 @@ return [
         'imported_count'   => '{total} importert',
         'already_imported' => 'Allerede importert',
 
-        'delete_title'   => 'Slett',
-        'delete_confirm' => 'Dette sletter eksisterende demodata for {module} og importerer nye. Vil du fortsette?',
-        'delete_ok'      => 'Slett',
+        'import_title'     => 'Importer demodata',
+        'import_confirm'   => 'Importere demodata for {module}? Eksempeldata legges inn i denne installasjonen. Dine egne data berøres ikke.',
+        'reimport_title'   => 'Erstatt demodata',
+        'reimport_confirm' => 'Erstatte demodata for {module}? Eksempeldataene fra forrige import fjernes og et nytt sett legges inn. Dine egne data berøres ikke.',
         'connection_failed' => 'Tilkoblingen feilet: {message}',
     ],
 

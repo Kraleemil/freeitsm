@@ -330,8 +330,10 @@ return [
         'heading'  => 'Dados de demonstração',
         'subtitle' => 'Importe dados de exemplo realistas módulo por módulo. Importe o Core primeiro, depois escolha quais módulos preencher.',
 
-        'warning_strong' => 'Projetado apenas para instalações novas.',
-        'warning_text'   => 'Importar dados de demonstração em um sistema que já contém dados reais pode causar conflitos. Cada módulo só pode ser importado uma vez.',
+        'warning_strong' => 'Os dados de demonstração servem para experimentar o FreeITSM.',
+        'warning_text'   => 'Importar um módulo remove os registros de exemplo que ele criou da última vez e adiciona um conjunto novo. Seus próprios registros não são tocados: apenas as linhas criadas por esta importação são removidas.',
+        'untagged_strong' => 'Esta instalação tem dados de demonstração de uma versão anterior.',
+        'untagged_text'   => 'Eles foram importados antes de as linhas de exemplo serem marcadas como tal, portanto não podem ser reconhecidos nem removidos aqui. Importar de novo acrescentaria uma segunda cópia ao lado deles, em vez de substituí-los. Remova os registros de exemplo antigos manualmente primeiro se quiser um conjunto limpo.',
         'tip_text_prefix' => 'Importe tanto',
         'tip_text_and'    => 'quanto',
         'tip_text_suffix' => 'para desbloquear uma opção bônus que vincula softwares instalados a computadores.',
@@ -348,9 +350,10 @@ return [
         'imported_count'   => '{total} importados',
         'already_imported' => 'Já importado',
 
-        'delete_title'   => 'Excluir',
-        'delete_confirm' => 'Isto excluirá os dados de demonstração de {module} existentes e os reimportará do zero. Continuar?',
-        'delete_ok'      => 'Excluir',
+        'import_title'     => 'Importar dados de demonstração',
+        'import_confirm'   => 'Importar os dados de demonstração de {module}? Registros de exemplo serão adicionados a esta instalação. Seus próprios registros não são afetados.',
+        'reimport_title'   => 'Substituir dados de demonstração',
+        'reimport_confirm' => 'Substituir os dados de demonstração de {module}? Os registros de exemplo da última importação são removidos e um conjunto novo é adicionado. Seus próprios registros não são afetados.',
         'connection_failed' => 'Falha na conexão: {message}',
     ],
 
