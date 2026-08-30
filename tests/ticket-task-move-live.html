@@ -31,6 +31,16 @@ if (P.get('sid')) document.cookie = 'PHPSESSID=' + P.get('sid') + '; path=/';
 const TICKET = P.get('ticket') || '409';
 const TASK   = P.get('task')   || '8';
 
+// 🔴 THIS FILE WRITES. It moves a real task between real tickets and puts it
+// back, and if a run is cut short - a timeout, a closed tab, a crash - the task
+// is left on the wrong ticket. That happened during development and took two
+// rounds of "where did this link go?" to notice, because a half-finished run
+// looks exactly like a finished one from outside.
+//
+// So it refuses to run without being asked explicitly. Opening the URL out of
+// curiosity, or a stale tab reloading, now does nothing.
+const ALLOW_WRITE = P.get('allowwrite') === '1';
+
 const lines = [];
 const out = document.getElementById('out');
 function log(s) { lines.push(s); out.textContent = lines.join('\n'); }
@@ -51,6 +61,13 @@ const ticketOf = async () =>
   (await fetch('../api/tasks/get.php?id=' + TASK).then(r => r.json())).task.ticket_id;
 
 (async () => {
+  if (!ALLOW_WRITE) {
+    log('This test MOVES a real task between real tickets and puts it back.\n' +
+        'It will not run without being asked explicitly. Add &allowwrite=1 to the URL,\n' +
+        'and check the task is back where it belongs when it finishes.');
+    return;
+  }
+
   // ⚠️ Ask the SERVER what the task is attached to. Reading it out of the page
   // would mean trusting the thing under test, and a top-level `let` is not a
   // window property anyway.
