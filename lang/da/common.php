@@ -366,4 +366,34 @@ return [
         'failed'               => 'Det virkede ikke.',
     ],
 
+    // At-a-glance previews of a linked record (#91). Shared, because seven
+    // modules render them.
+    'preview' => [
+        'unavailable'        => 'Den post kan ikke vises her.',
+        'status'             => 'Status',
+        'priority'           => 'Prioritet',
+        'with'               => 'Hos',
+        'requester'          => 'Rekvirent',
+        'assignee'           => 'Tildelt',
+        'due'                => 'Frist',
+        'subtasks'           => 'Underopgaver',
+        'subtask_progress'   => '{done} af {total} udført',
+        'risk'               => 'Risiko',
+        'window'             => 'Planlagt',
+        'tickets'            => 'Tilknyttede sager',
+        'tag'                => 'Aktivmærke',
+        'type'               => 'Type',
+        'model'              => 'Fabrikat og model',
+        'serial'             => 'Serienummer',
+        'held_by'            => 'Hos',
+        'held_by_many'       => '{name} og {n} andre',
+        'warranty'           => 'Garanti',
+        'supplier'           => 'Leverandør',
+        'renewal'            => 'Fornyes',
+        'notice'             => 'Opsigelse senest',
+        'open'               => 'Åbn',
+        'loading'            => 'Indlæser…',
+        'aria'               => 'Se en forhåndsvisning af denne post',
+    ],
+
 ];

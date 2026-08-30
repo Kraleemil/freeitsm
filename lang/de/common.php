@@ -399,4 +399,34 @@ return [
         'failed'               => 'Das hat nicht funktioniert.',
     ],
 
+    // At-a-glance previews of a linked record (#91). Shared, because seven
+    // modules render them.
+    'preview' => [
+        'unavailable'        => 'Dieser Datensatz kann hier nicht angezeigt werden.',
+        'status'             => 'Status',
+        'priority'           => 'Priorität',
+        'with'               => 'Bei',
+        'requester'          => 'Anfragende Person',
+        'assignee'           => 'Zugewiesen an',
+        'due'                => 'Fällig',
+        'subtasks'           => 'Teilaufgaben',
+        'subtask_progress'   => '{done} von {total} erledigt',
+        'risk'               => 'Risiko',
+        'window'             => 'Geplant',
+        'tickets'            => 'Verknüpfte Tickets',
+        'tag'                => 'Inventarnummer',
+        'type'               => 'Typ',
+        'model'              => 'Hersteller und Modell',
+        'serial'             => 'Seriennummer',
+        'held_by'            => 'Im Besitz von',
+        'held_by_many'       => '{name} und {n} weitere',
+        'warranty'           => 'Garantie',
+        'supplier'           => 'Lieferant',
+        'renewal'            => 'Verlängerung',
+        'notice'             => 'Kündigung bis',
+        'open'               => 'Öffnen',
+        'loading'            => 'Wird geladen…',
+        'aria'               => 'Diesen Datensatz in der Vorschau ansehen',
+    ],
+
 ];

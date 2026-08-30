@@ -402,4 +402,34 @@ return [
         'failed'               => 'That did not work.',
     ],
 
+    // At-a-glance previews of a linked record (#91). Shared, because seven
+    // modules render them.
+    'preview' => [
+        'unavailable'        => 'That record cannot be shown here.',
+        'status'             => 'Status',
+        'priority'           => 'Priority',
+        'with'               => 'With',
+        'requester'          => 'Requester',
+        'assignee'           => 'Assignee',
+        'due'                => 'Due',
+        'subtasks'           => 'Subtasks',
+        'subtask_progress'   => '{done} of {total} done',
+        'risk'               => 'Risk',
+        'window'             => 'Planned',
+        'tickets'            => 'Tickets attached',
+        'tag'                => 'Asset tag',
+        'type'               => 'Type',
+        'model'              => 'Make and model',
+        'serial'             => 'Serial',
+        'held_by'            => 'Held by',
+        'held_by_many'       => '{name} and {n} other(s)',
+        'warranty'           => 'Warranty',
+        'supplier'           => 'Supplier',
+        'renewal'            => 'Renews',
+        'notice'             => 'Notice by',
+        'open'               => 'Open',
+        'loading'            => 'Loading…',
+        'aria'               => 'Preview this record',
+    ],
+
 ];
