@@ -1810,7 +1810,7 @@ body {
     color: var(--tsk-accent, #7c3aed);
     cursor: pointer;
 }
-.recur-master-link:hover { background: var(--surface-alt, #faf8ff); }
+.recur-master-link:hover { background: var(--surface-2, #fafafa); }
 .recur-editor { margin-top: 12px; }
 .recur-grid {
     display: grid;
@@ -1855,7 +1855,7 @@ body {
     font-size: 12px;
     border: 1px solid var(--border, #ddd);
     border-radius: 6px;
-    background: var(--surface-alt, #f7f7f9);
+    background: var(--surface-2, #fafafa);
     color: var(--text, #333);
     cursor: pointer;
 }
