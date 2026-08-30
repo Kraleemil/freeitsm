@@ -26,7 +26,7 @@ $translationNamespaces = ['common', 'tasks'];
     <title>Service Desk - <?php echo htmlspecialchars(t('tasks.title') . ' ' . t('tasks.nav.calendar')); ?></title>
     <link rel="stylesheet" href="../../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../../assets/css/tasks.css?v=20">
+    <link rel="stylesheet" href="../../assets/css/tasks.css?v=21">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../../assets/js/tz.js?v=5"></script>
@@ -49,6 +49,19 @@ $translationNamespaces = ['common', 'tasks'];
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                     <?php echo htmlspecialchars(t('tasks.filter.all')); ?>
                 </button>
+            </div>
+
+            <?php /* Subtasks on the calendar (discussion #90). A subtask is the same
+                     record as a task and carries its own deadline and assignee, but the
+                     list endpoint leaves subtasks out by default so the board and table
+                     do not show them twice. The calendar opts in. */ ?>
+            <div class="sidebar-section">
+                <div class="sidebar-label"><?php echo htmlspecialchars(t('tasks.sidebar.show')); ?></div>
+                <select id="subtaskFilter" class="sidebar-select" onchange="setSubtaskScope(this.value)">
+                    <option value=""><?php echo htmlspecialchars(t('tasks.filter.parents_only')); ?></option>
+                    <option value="both"><?php echo htmlspecialchars(t('tasks.filter.parents_and_subtasks')); ?></option>
+                    <option value="only"><?php echo htmlspecialchars(t('tasks.filter.subtasks_only')); ?></option>
+                </select>
             </div>
 
             <div class="sidebar-section">
@@ -115,7 +128,7 @@ $translationNamespaces = ['common', 'tasks'];
 
     <script>window.API_BASE = '../../api/tasks/';</script>
     <script src="../../assets/js/tasks-quick-panel.js?v=1"></script>
-    <script src="../../assets/js/tasks-calendar.js?v=8"></script>
+    <script src="../../assets/js/tasks-calendar.js?v=9"></script>
     <script src="../../assets/js/mobile.js?v=33"></script>
 </body>
 </html>

@@ -1715,3 +1715,43 @@ body {
 @media (max-width: 700px) {
     .detail-panel.as-modal { top: 0; bottom: 0; left: 0; right: 0; border-radius: 0; }
 }
+
+/* Subtask due dates (#90). A subtask has always been able to carry a deadline;
+   nothing asked for one at the point of creation, so none ever had one and the
+   calendar had nothing to show. */
+.subtask-add-due {
+    flex: 0 0 auto;
+    max-width: 150px;
+}
+/* Offered on a subtask row only while it has NO date. Once set, the row shows
+   the ordinary due badge instead, which carries the overdue colouring. */
+.subtask-due-set {
+    border: 1px dashed var(--border, #ddd);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    font-size: 11px;
+    padding: 1px 4px;
+    max-width: 130px;
+    opacity: .55;
+}
+.subtask-item:hover .subtask-due-set { opacity: 1; }
+.subtask-due-set:focus {
+    opacity: 1;
+    border-style: solid;
+    border-color: var(--tsk-accent, #7c3aed);
+    outline: none;
+}
+
+/* Subtasks on the task calendar (#90). Deliberately the same colour as any
+   other task - the colour carries status or priority and must keep meaning
+   what it means - so a subtask is marked by a dashed edge and a slight inset
+   instead, which reads as "part of something bigger" rather than "different". */
+.cal-bar-subtask {
+    border: 1px dashed rgba(255, 255, 255, .85);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+.cal-day-task-subtask {
+    border-left: 2px dashed var(--border, #ddd);
+    padding-left: 8px;
+}

@@ -1105,13 +1105,19 @@ function renderDetailPanel(task) {
                         <span class="subtask-title ${s.status_is_closed ? 'completed' : ''}">${esc(s.title)}</span>
                         <span class="subtask-meta">
                             ${assignee ? '<span class="subtask-assignee">' + assignee + '</span>' : ''}
-                            ${dueBadge}
+                            ${dueBadge || `<input type="date" class="subtask-due-set"
+                                   onclick="event.stopPropagation()"
+                                   onchange="event.stopPropagation(); setSubtaskDue(${s.id}, this.value)"
+                                   title="${escAttr(window.t('tasks.detail.subtask_set_due'))}">`}
                         </span>
                     </div>`;
                 }).join('')}
             </div>
             <div class="subtask-add">
                 <input type="text" placeholder="${escAttr(window.t('tasks.detail.add_subtask'))}" id="newSubtaskInput" onkeydown="if(event.key==='Enter')addSubtask()">
+                <input type="date" id="newSubtaskDue" class="subtask-add-due"
+                       title="${escAttr(window.t('tasks.detail.subtask_set_due'))}"
+                       onkeydown="if(event.key==='Enter')addSubtask()">
             </div>
         </div>` : ''}
 
@@ -1589,20 +1595,43 @@ async function toggleSubtask(id) {
     }
 }
 
+/**
+ * Give an existing subtask a due date, without opening it (#90).
+ *
+ * A subtask has always been able to carry one - it is the same record as a task
+ * and the detail panel has always offered the field - but you had to open the
+ * subtask to find it, so in practice none ever had a date and the calendar had
+ * nothing to show. This is the shortcut, offered on the row only while the
+ * subtask has no date; once it has one the row shows the ordinary due badge,
+ * which carries the overdue colouring this input cannot.
+ */
+async function setSubtaskDue(subtaskId, value) {
+    if (!value) return;
+    const ok = await postTaskChange({ id: subtaskId, due_date: value }, 'tasks.toast.save_failed');
+    if (ok && selectedTaskId) openDetailPanel(selectedTaskId);
+}
+
 async function addSubtask() {
     const input = document.getElementById('newSubtaskInput');
     const title = input.value.trim();
     if (!title || !selectedTaskId) return;
 
     try {
+        // A due date is optional and only sent when one was typed, so a subtask
+        // created without a date is stored exactly as it always was (#90).
+        const dueEl   = document.getElementById('newSubtaskDue');
+        const payload = { title, parent_task_id: selectedTaskId, assigned_analyst_id: ANALYST_ID };
+        if (dueEl && dueEl.value) payload.due_date = dueEl.value;
+
         const data = await fetch(API_BASE + 'save.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, parent_task_id: selectedTaskId, assigned_analyst_id: ANALYST_ID })
+            body: JSON.stringify(payload)
         }).then(r => r.json());
 
         if (data.success) {
             input.value = '';
+            if (dueEl) dueEl.value = '';
             openDetailPanel(selectedTaskId);
         }
     } catch (e) { console.error(e); }

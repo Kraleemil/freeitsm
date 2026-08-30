@@ -29,6 +29,7 @@ return [
         'tag'      => 'Tag',
         'legend'   => 'Legend',
         'group_by' => 'Group by',
+        'show'     => 'Show',
     ],
 
     'view' => [
@@ -42,6 +43,11 @@ return [
         'all_teams'     => 'All teams',
         'all_analysts'  => 'All analysts',
         'all_tags'      => 'All tags',
+        // Task calendar only (#90). A subtask is the same record as a task, so
+        // the list endpoint leaves subtasks out unless a caller opts in.
+        'parents_only'         => 'Tasks only',
+        'parents_and_subtasks' => 'Tasks and subtasks',
+        'subtasks_only'        => 'Subtasks only',
     ],
 
     'search' => [
@@ -99,6 +105,7 @@ return [
         'subtasks'       => 'Subtasks',
         'remove_tag'               => 'Remove',
         'add_subtask'    => 'Add subtask...',
+        'subtask_set_due' => 'Give this subtask a due date',
         'comments'       => 'Comments',
         'add_comment'    => 'Add a comment...',
         'post'           => 'Post',

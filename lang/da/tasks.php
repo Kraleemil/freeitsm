@@ -25,6 +25,7 @@ return [
         'tag' => 'Mærke',
         'legend' => 'Signaturforklaring',
         'group_by' => 'Gruppér efter',
+        'show' => 'Vis',
     ],
     'view' => [
         'board' => 'Tavle',
@@ -36,6 +37,9 @@ return [
         'all_teams' => 'Alle teams',
         'all_analysts' => 'Alle medarbejdere',
         'all_tags' => 'Alle mærker',
+        'parents_only' => 'Kun opgaver',
+        'parents_and_subtasks' => 'Opgaver og delopgaver',
+        'subtasks_only' => 'Kun delopgaver',
     ],
     'search' => [
         'placeholder' => 'Søg i opgaver...',
@@ -89,6 +93,7 @@ return [
         'subtasks' => 'Delopgaver',
         'remove_tag' => 'Fjern',
         'add_subtask' => 'Tilføj delopgave...',
+        'subtask_set_due' => 'Giv denne delopgave en frist',
         'comments' => 'Kommentarer',
         'add_comment' => 'Tilføj en kommentar...',
         'post' => 'Send',

@@ -18,6 +18,8 @@ let viewMode = 'month';  // 'month' | 'week' | 'day'
 let currentFilter = 'my';
 let currentFilterTeamId = null;
 let currentFilterAnalystId = null;
+// '' parent tasks only (the default, as before), 'both', or 'only' (#90).
+let currentSubtaskScope = '';
 let tasks = [];
 let statuses = [];
 let priorities = [];
@@ -89,6 +91,7 @@ async function loadDropdowns() {
 
 async function loadTasks() {
     let url = API_BASE + 'list.php?filter=' + currentFilter;
+    if (currentSubtaskScope) url += '&subtasks=' + currentSubtaskScope;
     if (currentFilter === 'team' && currentFilterTeamId) url += '&team_id=' + currentFilterTeamId;
     if (currentFilter === 'analyst' && currentFilterAnalystId) url += '&analyst_id=' + currentFilterAnalystId;
     try {
@@ -101,6 +104,11 @@ async function loadTasks() {
 }
 
 // ── Filters ────────────────────────────────────────────────────────
+function setSubtaskScope(scope) {
+    currentSubtaskScope = scope;
+    loadTasks();
+}
+
 function setFilter(filter) {
     currentFilter = filter;
     currentFilterTeamId = null;
@@ -343,7 +351,10 @@ function renderDay() {
             ? `<span class="cal-day-task-tags">${t.tags.slice(0, 4).map(tg =>
                 `<span class="mini-tag-dot" style="background:${esc(tg.colour || '#6b7280')}"></span>`).join('')}</span>`
             : '';
-        return `<div class="cal-day-task${done ? ' cal-day-task-done' : ''}" onclick="openTask(${t.id})">
+        // In the day list there is room to say which task a subtask belongs to,
+        // so it says it rather than relying on a tooltip (#90).
+        if (t.parent_task_id && t.parent_title) meta.unshift(esc(t.parent_title));
+        return `<div class="cal-day-task${done ? ' cal-day-task-done' : ''}${t.parent_task_id ? ' cal-day-task-subtask' : ''}" onclick="openTask(${t.id})">
             <span class="cal-day-task-dot" style="background:${esc(colour)}"></span>
             <div class="cal-day-task-body">
                 <div class="cal-day-task-title">${esc(t.title)}</div>
@@ -362,7 +373,11 @@ function renderBars(iv) {
     const done = Number(t.status_is_closed) === 1;
     const top = 28 + iv.lane * 24;
     const title = esc(t.title);
-    const tip = esc(t.title + (t.analyst_name ? ' · ' + t.analyst_name : '') +
+    // A subtask carries its parent's name in the tooltip: on a month grid the
+    // title alone ("Rack it") rarely says which piece of work it belongs to (#90).
+    const isSub = !!t.parent_task_id;
+    const tip = esc(t.title + (isSub && t.parent_title ? ' (' + t.parent_title + ')' : '') +
+        (t.analyst_name ? ' · ' + t.analyst_name : '') +
         ' · ' + (iv.p.start !== iv.p.end ? fmt(iv.p.start) + ' → ' + fmt(iv.p.end) : fmt(iv.p.end)));
 
     const tagDots = (surfaceTags && t.tags && t.tags.length)
@@ -373,7 +388,7 @@ function renderBars(iv) {
     const make = (col, span, extraCls) => {
         const left = `calc(${col} / 7 * 100% + 3px)`;
         const width = `calc(${span} / 7 * 100% - 6px)`;
-        return `<div class="cal-bar ${extraCls}${done ? ' cal-bar-done' : ''}"
+        return `<div class="cal-bar ${extraCls}${done ? ' cal-bar-done' : ''}${isSub ? ' cal-bar-subtask' : ''}"
             style="left:${left};width:${width};top:${top}px;background:${colour}"
             title="${tip}" onclick="openTask(${t.id})">
             <span class="cal-bar-label">${title}</span>${tagDots}</div>`;

@@ -36,7 +36,26 @@ try {
     $filter = $_GET['filter'] ?? 'my';
     $analystId = $_SESSION['analyst_id'];
 
-    $where = ['t.parent_task_id IS NULL'];
+    /**
+     * Subtasks are normally left out: a subtask is the same kind of record as a
+     * top-level task, told apart only by parent_task_id, so without this the
+     * board and the table would show every subtask again as a card of its own.
+     *
+     * ?subtasks= opts in, and the DEFAULT IS UNCHANGED on purpose. This endpoint
+     * feeds the board, the table, the timeline and the calendar, and only the
+     * calendar asked for subtasks (discussion #90).
+     *
+     *   (absent)  parent tasks only, as before
+     *   both      parent tasks and subtasks together
+     *   only      subtasks alone
+     */
+    $subtaskScope = $_GET['subtasks'] ?? '';
+    $where  = [];
+    if ($subtaskScope === 'only') {
+        $where[] = 't.parent_task_id IS NOT NULL';
+    } elseif ($subtaskScope !== 'both') {
+        $where[] = 't.parent_task_id IS NULL';
+    }
     $params = [];
 
     if ($filter === 'my') {
@@ -59,7 +78,11 @@ try {
         $where[] = "(ts.is_closed = 0 OR ts.id IS NULL)";
     }
 
-    $whereSql = implode(' AND ', $where);
+    // ⚠️ $where used to be guaranteed non-empty by the parent_task_id condition
+    // that always sat in it. With ?subtasks=both that condition is gone, and
+    // filter=all adds none either, so an empty $where is now reachable and would
+    // build "WHERE  AND t.tenant_id = ?".
+    $whereSql = $where ? implode(' AND ', $where) : '1=1';
 
     // Company scope (GH #83 groundwork). A task is scoped DATA, so the Default
     // company also owns any task whose tenant_id is NULL — which is every task
@@ -76,6 +99,9 @@ try {
                    t.start_date, t.due_date,
                    t.assigned_analyst_id, t.assigned_team_id,
                    t.ticket_id, t.change_id, t.contract_id, t.board_position,
+                   -- Needed by any caller that opts into subtasks, to tell the two
+                   -- apart and to name the parent a subtask belongs to (#90).
+                   t.parent_task_id, pt.title AS parent_title,
                    t.created_by_id, t.created_datetime, t.updated_datetime,
                    t.completed_datetime,
                    a.full_name AS analyst_name,
@@ -85,6 +111,7 @@ try {
             LEFT JOIN task_priorities tp ON tp.id = t.priority_id
             LEFT JOIN analysts a ON t.assigned_analyst_id = a.id
             LEFT JOIN teams tm ON t.assigned_team_id = tm.id
+            LEFT JOIN tasks pt ON pt.id = t.parent_task_id
             WHERE {$whereSql}{$tenantSql}
             ORDER BY t.board_position ASC, t.created_datetime DESC";
 
