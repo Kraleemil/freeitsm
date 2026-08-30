@@ -101,6 +101,8 @@ return [
     'updates' => [
         'edit'             => 'Correct this update',
         'edit_prompt'      => 'Correct the wording. This changes the update that is already there rather than posting another one.',
+        'edit_note'        => 'This changes the update that is already there rather than posting another one, so the timeline does not end up with the same message twice.',
+        'who_can_see'      => 'Who can see it',
         'edited'           => 'Update corrected',
         'delete'           => 'Remove this update',
         'delete_message'   => 'This removes one entry from the incident timeline. The incident itself and every other update stay as they are.',

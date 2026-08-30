@@ -88,6 +88,8 @@ return [
     'updates' => [
         'edit'             => 'Ret denne opdatering',
         'edit_prompt'      => 'Ret ordlyden. Dette ændrer den opdatering, der allerede findes, i stedet for at lægge en ny op.',
+        'edit_note'        => 'Dette ændrer den opdatering, der allerede findes, i stedet for at lægge en ny op, så den samme besked ikke står to gange i forløbet.',
+        'who_can_see'      => 'Hvem der kan se den',
         'edited'           => 'Opdateringen er rettet',
         'delete'           => 'Fjern denne opdatering',
         'delete_message'   => 'Dette fjerner én post fra hændelsens forløb. Selve hændelsen og alle andre opdateringer forbliver, som de er.',

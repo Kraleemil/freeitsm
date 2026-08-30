@@ -96,6 +96,12 @@ $translationNamespaces = ['common', 'service-status'];
         }
         /* Edit and remove, on the row they belong to. Pushed right so they
            do not sit between the badge and the words. */
+        /* The correction dialog. A textarea with room to read the whole
+           update, because these run to several sentences and the thing it
+           replaced was a one-line box. */
+        .upd-edit-note { margin: 0 0 14px; font-size: 12.5px; line-height: 1.5; color: var(--text-muted, #6b7280); }
+        .upd-edit-text { height: 130px !important; }
+
         .inc-update-acts { margin-left: auto; display: inline-flex; gap: 2px; }
         .inc-update-act {
             border: none; background: none; cursor: pointer; padding: 2px 6px;
@@ -483,6 +489,46 @@ $translationNamespaces = ['common', 'service-status'];
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
             <span><?php echo htmlspecialchars(t('service-status.actions.delete')); ?></span>
         </button>
+    </div>
+
+    <!--
+      Correcting a posted update (Ed).
+
+      ⚠️ A real dialog, not window.prompt(). The native one names the host
+      ("freeitsm.internal says"), looks nothing like the product, and — worse
+      here — gives a single-line box for text that is routinely several
+      sentences, so you cannot see what you are correcting.
+    -->
+    <div class="modal" id="updateEditModal">
+        <div class="modal-content">
+            <div class="modal-header"><?php echo htmlspecialchars(t('service-status.updates.edit')); ?></div>
+            <form id="updateEditForm" autocomplete="off">
+                <input type="hidden" id="updateEditId">
+                <p class="upd-edit-note"><?php echo t('service-status.updates.edit_note'); ?></p>
+                <div class="form-group">
+                    <label for="updateEditComment"><?php echo htmlspecialchars(t('service-status.modal.comment')); ?></label>
+                    <textarea id="updateEditComment" class="upd-edit-text"></textarea>
+                </div>
+                <div class="form-group">
+                    <label><?php echo htmlspecialchars(t('service-status.updates.who_can_see')); ?></label>
+                    <div class="inc-visibility">
+                        <label class="inc-vis-choice">
+                            <input type="radio" name="updEditVis" value="internal" onchange="syncEditVisHint()">
+                            <span><?php echo htmlspecialchars(t('service-status.modal.vis_internal')); ?></span>
+                        </label>
+                        <label class="inc-vis-choice">
+                            <input type="radio" name="updEditVis" value="external" onchange="syncEditVisHint()">
+                            <span><?php echo htmlspecialchars(t('service-status.modal.vis_external')); ?></span>
+                        </label>
+                        <div class="inc-vis-hint" id="updEditVisHint"></div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeUpdateEditModal()"><?php echo htmlspecialchars(t('service-status.modal.cancel')); ?></button>
+                    <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('service-status.modal.save')); ?></button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="modal" id="incidentModal">
@@ -1050,29 +1096,73 @@ $translationNamespaces = ['common', 'service-status'];
          * which appended a second entry — so anybody reading the portal saw the
          * same sentence twice with the wrong version first.
          *
-         * A plain prompt, deliberately: this is a typo fix, and a modal with a
-         * rich editor for correcting one letter is furniture.
+         * The visibility is editable here too, and that is the more useful half:
+         * an update written as internal that should have gone out can be
+         * published without retyping it, and one published by mistake can be
+         * pulled back without deleting the record of it.
          */
-        async function editUpdate(updateId, incidentId) {
-            const box = document.querySelector(`#incUpdates${incidentId} [data-update="${updateId}"] .inc-update-comment`);
-            const current = box ? box.textContent : '';
-            const next = window.prompt(window.t('service-status.updates.edit_prompt'), current);
-            if (next === null || next === current) return;
+        let editingIncidentId = null;
+
+        function editUpdate(updateId, incidentId) {
+            const row = document.querySelector(`#incUpdates${incidentId} [data-update="${updateId}"]`);
+            const box = row && row.querySelector('.inc-update-comment');
+            const isExternal = !!(row && row.querySelector('.inc-update-vis.is-external'));
+
+            editingIncidentId = incidentId;
+            document.getElementById('updateEditId').value = updateId;
+            document.getElementById('updateEditComment').value = box ? box.textContent : '';
+            document.querySelector(`input[name="updEditVis"][value="${isExternal ? 'external' : 'internal'}"]`).checked = true;
+            syncEditVisHint();
+
+            document.getElementById('updateEditModal').classList.add('active');
+            document.getElementById('updateEditComment').focus();
+        }
+
+        function closeUpdateEditModal() {
+            document.getElementById('updateEditModal').classList.remove('active');
+            editingIncidentId = null;
+        }
+
+        /** Same honesty as the incident dialog: say what "external" will do. */
+        function syncEditVisHint() {
+            const hint = document.getElementById('updEditVisHint');
+            if (!hint) return;
+            const external = (document.querySelector('input[name="updEditVis"]:checked') || {}).value === 'external';
+            if (!external) {
+                hint.textContent = window.t('service-status.modal.vis_internal_hint');
+                hint.className = 'inc-vis-hint';
+                return;
+            }
+            hint.textContent = window.t(portalShowsUpdates
+                ? 'service-status.modal.vis_external_hint'
+                : 'service-status.modal.vis_external_hint_off');
+            hint.className = 'inc-vis-hint' + (portalShowsUpdates ? ' is-live' : ' is-off');
+        }
+
+        document.getElementById('updateEditForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('updateEditId').value, 10);
+            const incidentId = editingIncidentId;
 
             try {
                 const r = await fetch(API_BASE + 'save_incident_update.php', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: updateId, comment: next })
+                    body: JSON.stringify({
+                        id: id,
+                        comment: document.getElementById('updateEditComment').value,
+                        is_internal: (document.querySelector('input[name="updEditVis"]:checked') || {}).value !== 'external',
+                    })
                 });
                 const d = await r.json();
                 if (!d.success) { showToast(d.error || window.t('service-status.toast.save_failed'), 'error'); return; }
+                closeUpdateEditModal();
                 showToast(window.t('service-status.updates.edited'), 'success');
                 refreshUpdates(incidentId);
                 loadDashboard();   // the board shows the latest comment, which may be this one
-            } catch (e) {
+            } catch (err) {
                 showToast(window.t('service-status.toast.save_failed'), 'error');
             }
-        }
+        });
 
         async function deleteUpdate(updateId, incidentId) {
             const ok = await showConfirm({

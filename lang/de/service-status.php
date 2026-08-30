@@ -85,6 +85,8 @@ return [
     'updates' => [
         'edit'             => 'Diese Aktualisierung korrigieren',
         'edit_prompt'      => 'Korrigieren Sie den Wortlaut. Damit wird die vorhandene Aktualisierung geändert, statt eine weitere zu veröffentlichen.',
+        'edit_note'        => 'Damit wird die vorhandene Aktualisierung geändert, statt eine weitere zu veröffentlichen &mdash; so steht dieselbe Nachricht nicht zweimal im Verlauf.',
+        'who_can_see'      => 'Wer sie sehen darf',
         'edited'           => 'Aktualisierung korrigiert',
         'delete'           => 'Diese Aktualisierung entfernen',
         'delete_message'   => 'Damit wird ein Eintrag aus dem Verlauf des Vorfalls entfernt. Der Vorfall selbst und alle anderen Aktualisierungen bleiben unverändert.',
