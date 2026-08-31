@@ -182,8 +182,7 @@ try {
            problem with a fix the administrator can act on; anything else is not.
            Reported as itself, because "that did not work" sends somebody looking
            at their API key for a problem that is nowhere near it. */
-        $ranOut = ($result['finish_reason'] ?? '') === 'length'
-                  || ($result['finish_reason'] ?? '') === 'max_tokens'
+        $ranOut = in_array($result['finish_reason'] ?? '', ['length', 'max_tokens'], true)
                   || (int)($result['reasoning_tokens'] ?? 0) > 0;
         echo json_encode(['success' => false, 'error' => $ranOut ? 'reasoning_overran' : 'empty_response']);
         exit;
