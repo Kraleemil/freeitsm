@@ -116,24 +116,28 @@ $translationNamespaces = ['common', 'watchtower'];
                 <span class="help-nav-num">2</span>
                 <?php echo htmlspecialchars(t('watchtower.help.nav_layout')); ?>
             </a>
-            <a href="#status-dots" class="help-nav-link" data-section="status-dots">
+            <a href="#whose-work" class="help-nav-link" data-section="whose-work">
                 <span class="help-nav-num">3</span>
+                <?php echo htmlspecialchars(t('watchtower.help.nav_whose')); ?>
+            </a>
+            <a href="#status-dots" class="help-nav-link" data-section="status-dots">
+                <span class="help-nav-num">4</span>
                 <?php echo htmlspecialchars(t('watchtower.help.nav_dots')); ?>
             </a>
             <a href="#module-cards" class="help-nav-link" data-section="module-cards">
-                <span class="help-nav-num">4</span>
+                <span class="help-nav-num">5</span>
                 <?php echo htmlspecialchars(t('watchtower.help.nav_cards')); ?>
             </a>
             <a href="#auto-refresh" class="help-nav-link" data-section="auto-refresh">
-                <span class="help-nav-num">5</span>
+                <span class="help-nav-num">6</span>
                 <?php echo htmlspecialchars(t('watchtower.help.nav_refresh')); ?>
             </a>
             <a href="#tips" class="help-nav-link" data-section="tips">
-                <span class="help-nav-num">6</span>
+                <span class="help-nav-num">7</span>
                 <?php echo htmlspecialchars(t('watchtower.help.nav_tips')); ?>
             </a>
             <a href="#settings" class="help-nav-link" data-section="settings">
-                <span class="help-nav-num">7</span>
+                <span class="help-nav-num">8</span>
                 <?php echo htmlspecialchars(t('watchtower.help.nav_settings')); ?>
             </a>
         </div>
@@ -240,9 +244,33 @@ $translationNamespaces = ['common', 'watchtower'];
                 </div>
 
                 <!-- Section 3: Understanding Status Dots (highlighted) -->
-                <div class="help-section" id="status-dots">
+                <div class="help-section" id="whose-work">
                     <div class="help-section-header">
                         <span class="help-section-num">3</span>
+                        <h3><?php echo htmlspecialchars(t('watchtower.help.s_whose_title')); ?></h3>
+                    </div>
+                    <p><?php echo t('watchtower.help.s_whose_p1'); ?></p>
+
+                    <div class="help-list">
+                        <div><?php echo t('watchtower.help.s_whose_mine'); ?></div>
+                        <div><?php echo t('watchtower.help.s_whose_team'); ?></div>
+                        <div><?php echo t('watchtower.help.s_whose_all'); ?></div>
+                    </div>
+
+                    <p style="margin-top:14px;"><?php echo t('watchtower.help.s_whose_narrows'); ?></p>
+
+                    <p class="help-note"><?php echo t('watchtower.help.s_whose_impersonal'); ?></p>
+
+                    <p class="help-note warn"><?php echo t('watchtower.help.s_whose_unassigned'); ?></p>
+
+                    <p><?php echo t('watchtower.help.s_whose_checks'); ?></p>
+
+                    <p class="help-note"><?php echo t('watchtower.help.s_whose_setting'); ?></p>
+                </div>
+
+                <div class="help-section" id="status-dots">
+                    <div class="help-section-header">
+                        <span class="help-section-num">4</span>
                         <h3><?php echo htmlspecialchars(t('watchtower.help.s3_title')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('watchtower.help.s3_intro')); ?></p>
@@ -280,7 +308,7 @@ $translationNamespaces = ['common', 'watchtower'];
                 <!-- Section 4: Module Cards Explained -->
                 <div class="help-section" id="module-cards">
                     <div class="help-section-header">
-                        <span class="help-section-num">4</span>
+                        <span class="help-section-num">5</span>
                         <h3><?php echo htmlspecialchars(t('watchtower.help.s4_title')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('watchtower.help.s4_intro')); ?></p>
@@ -372,7 +400,7 @@ $translationNamespaces = ['common', 'watchtower'];
                 <!-- Section 5: Auto-Refresh and Manual Refresh -->
                 <div class="help-section" id="auto-refresh">
                     <div class="help-section-header">
-                        <span class="help-section-num">5</span>
+                        <span class="help-section-num">6</span>
                         <h3><?php echo htmlspecialchars(t('watchtower.help.s5_title')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('watchtower.help.s5_intro')); ?></p>
@@ -404,7 +432,7 @@ $translationNamespaces = ['common', 'watchtower'];
                 <!-- Section 6: Quick Tips -->
                 <div class="help-section" id="tips">
                     <div class="help-section-header">
-                        <span class="help-section-num">6</span>
+                        <span class="help-section-num">7</span>
                         <h3><?php echo htmlspecialchars(t('watchtower.help.s6_title')); ?></h3>
                     </div>
                     <div class="help-cards">
@@ -437,7 +465,7 @@ $translationNamespaces = ['common', 'watchtower'];
 
                 <div class="help-section" id="settings">
                     <div class="help-section-header">
-                        <span class="help-section-num">7</span>
+                        <span class="help-section-num">8</span>
                         <h3><?php echo htmlspecialchars(t('watchtower.help.s7_title')); ?></h3>
                     </div>
                     <p><?php echo htmlspecialchars(t('watchtower.help.s7_intro')); ?></p>
