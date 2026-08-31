@@ -214,17 +214,23 @@ function ticketAiMessagesSince(PDO $conn, int $ticketId, ?int $lastEmailId): int
     return (int)$stmt->fetchColumn();
 }
 
-/** The current summary for a ticket, or null. */
-function ticketAiLatestSummary(PDO $conn, int $ticketId): ?array
+/** The two things this file stores, and the only two values `kind` may take. */
+const TICKET_AI_KINDS = ['summary', 'read'];
+
+/** The newest stored summary (or briefing) for a ticket, or null. */
+function ticketAiLatestSummary(PDO $conn, int $ticketId, string $kind = 'summary'): ?array
 {
+    // Never interpolated from a request: an unknown kind falls back rather than
+    // reaching the query.
+    if (!in_array($kind, TICKET_AI_KINDS, true)) $kind = 'summary';
     $stmt = $conn->prepare(
         "SELECT s.*, a.full_name AS generated_by_name
            FROM ticket_ai_summaries s
       LEFT JOIN analysts a ON a.id = s.generated_by
-          WHERE s.ticket_id = ?
+          WHERE s.ticket_id = ? AND s.kind = ?
        ORDER BY s.version DESC LIMIT 1"
     );
-    $stmt->execute([$ticketId]);
+    $stmt->execute([$ticketId, $kind]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     return $row ?: null;
 }

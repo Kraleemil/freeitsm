@@ -9722,9 +9722,18 @@ async function refreshAiSummary(auto) {
         slot.hidden = false;
         slot.innerHTML = `<div class="ai-summary-head">
             <span class="ai-summary-badge">${escapeHtml(t('tickets.ai.badge'))}</span>
-            <span class="ai-summary-note">${escapeHtml(t('tickets.ai.working'))}</span>
+            <span class="ai-summary-note" id="aiSummaryWait">${escapeHtml(t('tickets.ai.working'))}</span>
         </div>`;
     }
+    /* Same counting wait as "read it for me": a reasoning model can take a
+       minute, and a line that never changes reads as a broken feature rather
+       than a slow one. An AUTOMATIC refresh gets none of this — it happens
+       behind the summary already on screen and must not disturb it. */
+    const startedAt = Date.now();
+    const waitTick = (slot && !auto) ? setInterval(() => {
+        const el = document.getElementById('aiSummaryWait');
+        if (el) el.textContent = t('tickets.ai.working_secs').replace('{n}', Math.round((Date.now() - startedAt) / 1000));
+    }, 1000) : null;
     try {
         const r = await fetch('../api/tickets/ai_summary.php', {
             method: 'POST',
@@ -9751,6 +9760,7 @@ async function refreshAiSummary(auto) {
     } catch (e) {
         if (!auto) renderAiSummary();
     } finally {
+        if (waitTick) clearInterval(waitTick);
         _aiSummaryBusy = false;
     }
 }
@@ -9777,11 +9787,53 @@ async function showAiSummaryHistory() {
 
 /* ── read this ticket for me ────────────────────────────────────────────── */
 
+let _aiReadBusy = false;
+let _aiReadTicketId = 0;
+
+/* Opening the panel READS what is already stored — from the database, never the
+   provider — so a briefing you have seen comes back instantly and free. Only
+   "Read again" spends anything, and only when there is nothing stored at all is
+   one written without being asked for. */
 async function openReadForMe() {
     if (!currentEmail) return;
     const ticketId = currentEmail.ticket_id || currentEmail.id;
+    _aiReadTicketId = ticketId;
     showAiPanel(t('tickets.ai.read_for_me'),
-        `<div class="ai-read-working">${escapeHtml(t('tickets.ai.working'))}</div>`);
+        `<div class="ai-read-working">${escapeHtml(t('tickets.ai.loading'))}</div>`);
+    try {
+        const r = await fetch(`../api/tickets/ai_read.php?ticket_id=${encodeURIComponent(ticketId)}`);
+        const d = await r.json();
+        if (_aiReadTicketId !== ticketId) return;
+        if (!d.success) { aiReadShowError(d.error); return; }
+        if (d.briefing) { aiReadRender(d.briefing, (d.versions || []).length); return; }
+        // Nothing written yet — this is the one case that goes straight to the model.
+        runReadForMe();
+    } catch (e) {
+        aiReadShowError('provider_unreachable');
+    }
+}
+
+/* ⚠️ A REASONING MODEL CAN TAKE A MINUTE, and every call here is PAID. The first
+   version showed a motionless "Reading the ticket…" for the whole of it, which
+   is precisely when somebody clicks again — so a slow answer billed twice and
+   the second call overwrote the first. The guard is the part that matters; the
+   counter only stops it LOOKING broken. */
+async function runReadForMe() {
+    if (_aiReadBusy || !_aiReadTicketId) return;
+    _aiReadBusy = true;
+    const ticketId = _aiReadTicketId;
+    const box = document.querySelector('#aiPanelModal .ai-panel-body');
+    if (box) box.innerHTML = `<div class="ai-read-working"><span id="aiReadWait">${escapeHtml(t('tickets.ai.working'))}</span></div>`;
+
+    /* Counts up rather than animating: "38s" says it is still going AND roughly
+       how long this model takes on this desk, which a spinner does not. Cleared
+       in `finally` so it cannot outlive the request. */
+    const started = Date.now();
+    const tick = setInterval(() => {
+        const el = document.getElementById('aiReadWait');
+        if (el) el.textContent = t('tickets.ai.working_secs').replace('{n}', Math.round((Date.now() - started) / 1000));
+    }, 1000);
+
     try {
         const r = await fetch('../api/tickets/ai_read.php', {
             method: 'POST',
@@ -9789,18 +9841,64 @@ async function openReadForMe() {
             body: JSON.stringify({ ticket_id: ticketId }),
         });
         const d = await r.json();
-        const box = document.querySelector('#aiPanelModal .ai-panel-body');
-        if (!box) return;
-        if (!d.success) { box.innerHTML = `<div class="ai-read-working">${escapeHtml(aiErrorText(d.error))}</div>`; return; }
-        box.innerHTML = `
-            <div class="ai-summary-badge ai-badge-block">${escapeHtml(t('tickets.ai.badge'))}</div>
-            <div class="ai-read-body">${escapeHtml(d.briefing)}</div>
-            <div class="ai-read-foot">${escapeHtml(
-                t('tickets.ai.read_n').replace('{n}', d.messages) + (d.model ? ' · ' + d.model : ''))}</div>`;
+        if (_aiReadTicketId !== ticketId) return;
+        if (!d.success) { aiReadShowError(d.error); return; }
+        aiReadRender(d.briefing, d.briefing.version);
     } catch (e) {
-        const box = document.querySelector('#aiPanelModal .ai-panel-body');
-        if (box) box.innerHTML = `<div class="ai-read-working">${escapeHtml(t('tickets.ai.unreachable'))}</div>`;
+        aiReadShowError('provider_unreachable');
+    } finally {
+        clearInterval(tick);
+        _aiReadBusy = false;
     }
+}
+
+/* One renderer for a stored briefing and a freshly written one, so a re-read
+   cannot come back looking different from what reopening shows. */
+function aiReadRender(b, versionCount) {
+    const box = document.querySelector('#aiPanelModal .ai-panel-body');
+    if (!box) return;
+    const meta = [
+        t('tickets.ai.written_at').replace('{time}', formatFullDateTime(b.created_at)),
+        t('tickets.ai.read_n').replace('{n}', b.message_count),
+        'v' + b.version,
+    ].join(' · ');
+    box.innerHTML = `
+        <div class="ai-summary-head" style="padding-left:0;padding-right:0">
+            <span class="ai-summary-badge">${escapeHtml(t('tickets.ai.badge'))}</span>
+            <span class="ai-summary-meta">${escapeHtml(meta)}</span>
+            <span class="ai-summary-actions">
+                ${versionCount > 1 ? `<button type="button" class="ai-summary-link" onclick="showAiReadHistory()">${escapeHtml(t('tickets.ai.history'))}</button>` : ''}
+                <button type="button" class="ai-summary-btn" onclick="runReadForMe()">${escapeHtml(t('tickets.ai.read_again'))}</button>
+            </span>
+        </div>
+        ${b.truncated ? `<div class="ai-summary-stale">${escapeHtml(t('tickets.ai.cut_off'))}</div>` : ''}
+        ${b.behind > 0 ? `<div class="ai-summary-stale">${escapeHtml(
+            (b.behind === 1 ? t('tickets.ai.behind_one') : t('tickets.ai.behind_n')).replace('{n}', b.behind))}</div>` : ''}
+        <div class="ai-read-body">${escapeHtml(b.text)}</div>
+        <div class="ai-read-foot">${escapeHtml(b.model || '')}</div>`;
+}
+
+function aiReadShowError(code) {
+    const box = document.querySelector('#aiPanelModal .ai-panel-body');
+    if (box) box.innerHTML = `<div class="ai-read-working">${escapeHtml(aiErrorText(code))}</div>`;
+}
+
+/** Every briefing ever written for this ticket — nothing is overwritten. */
+async function showAiReadHistory() {
+    if (!_aiReadTicketId) return;
+    const r = await fetch(`../api/tickets/ai_read.php?ticket_id=${encodeURIComponent(_aiReadTicketId)}`);
+    const d = await r.json();
+    if (!d.success) return;
+    const rows = (d.versions || []).map(v => `
+        <div class="ai-history-item">
+            <div class="ai-history-meta">v${v.version} · ${escapeHtml(formatFullDateTime(v.created_at))}
+                ${v.generated_by_name ? '· ' + escapeHtml(v.generated_by_name) : ''}
+                · ${escapeHtml(t('tickets.ai.read_n').replace('{n}', v.message_count))}
+                ${v.model ? '· ' + escapeHtml(v.model) : ''}</div>
+            ${+v.truncated ? `<div class="ai-summary-stale">${escapeHtml(t('tickets.ai.cut_off'))}</div>` : ''}
+            <div class="ai-history-body">${escapeHtml(v.summary)}</div>
+        </div>`).join('');
+    showAiPanel(t('tickets.ai.read_history_title'), `<div class="ai-history">${rows}</div>`);
 }
 
 /* ── the shared panel ───────────────────────────────────────────────────── */

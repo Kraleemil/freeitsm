@@ -1022,6 +1022,13 @@ CREATE TABLE IF NOT EXISTS `ticket_merges` (
 CREATE TABLE IF NOT EXISTS `ticket_ai_summaries` (
     `id`            INT NOT NULL AUTO_INCREMENT,
     `ticket_id`     INT NOT NULL,
+    -- 'summary' = the standing panel at the top of the ticket; 'read' = a
+    -- "read it for me" briefing. One table because they want the same three
+    -- things — a version history, a record of how much was read, and a way to
+    -- know the conversation has moved on since. Two tables would be two sets
+    -- of those rules, and they would drift.
+    `kind`          VARCHAR(16) NOT NULL DEFAULT 'summary',
+    -- Numbered per (ticket, kind), so a briefing and a summary count separately.
     `version`       INT NOT NULL DEFAULT 1,
     `summary`       MEDIUMTEXT NOT NULL,
     `provider`      VARCHAR(32) NULL,
@@ -1040,7 +1047,7 @@ CREATE TABLE IF NOT EXISTS `ticket_ai_summaries` (
     `tokens_out`    INT NOT NULL DEFAULT 0,
     `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    KEY `ix_ticket_ai_summaries_ticket` (`ticket_id`, `version`),
+    KEY `ix_ticket_ai_summaries_ticket` (`ticket_id`, `kind`, `version`),
     CONSTRAINT `fk_ticket_ai_summaries_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_ticket_ai_summaries_analyst` FOREIGN KEY (`generated_by`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

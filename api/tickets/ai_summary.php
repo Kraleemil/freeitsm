@@ -36,6 +36,13 @@ require_once '../../includes/ticket_ai.php';
 
 header('Content-Type: application/json');
 
+/* ⚠️ A reasoning model on a long ticket takes a MINUTE — measured at 62s on a
+   real one. PHP's default limit would kill the request after the provider had
+   already been paid and before anything was written down, which is the worst
+   of both. The provider's own timeout is the real bound; this just stops PHP
+   getting there first. */
+@set_time_limit(300);
+
 if (!isset($_SESSION['analyst_id'])) {
     echo json_encode(['success' => false, 'error' => 'Not authenticated']);
     exit;
@@ -76,7 +83,7 @@ try {
                     s.note_count, s.truncated, s.created_at, a.full_name AS generated_by_name
                FROM ticket_ai_summaries s
           LEFT JOIN analysts a ON a.id = s.generated_by
-              WHERE s.ticket_id = ?
+              WHERE s.ticket_id = ? AND s.kind = 'summary'
            ORDER BY s.version DESC"
         );
         $stmt->execute([$ticketId]);
@@ -193,8 +200,8 @@ try {
     $stmt = $conn->prepare(
         "INSERT INTO ticket_ai_summaries
             (ticket_id, version, summary, provider, model, message_count, note_count,
-             last_email_id, generated_by, tokens_in, tokens_out, truncated, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?, UTC_TIMESTAMP())"
+             last_email_id, generated_by, tokens_in, tokens_out, truncated, kind, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'summary', UTC_TIMESTAMP())"
     );
     $stmt->execute([
         $ticketId, $version, $text,

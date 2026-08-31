@@ -1249,6 +1249,9 @@ return [
     'ticket_ai_summaries' => [
         'id'            => 'INT NOT NULL AUTO_INCREMENT',
         'ticket_id'     => 'INT NOT NULL',
+        // 'summary' = the standing panel; 'read' = a "read it for me" briefing.
+        'kind'          => "VARCHAR(16) NOT NULL DEFAULT 'summary'",
+        // Numbered per (ticket, kind).
         'version'       => 'INT NOT NULL DEFAULT 1',
         'summary'       => 'MEDIUMTEXT NOT NULL',
         'provider'      => 'VARCHAR(32) NULL',
