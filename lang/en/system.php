@@ -14,6 +14,28 @@
  * identifiers, module/permission keys, enum codes and server log strings.
  */
 return [
+    // System → AI thinking: one switch per AI feature.
+    'ai' => [
+        'title' => 'AI thinking',
+        'subtitle' => 'Some AI models think at length before they answer. It is charged for, it is slow, and for the work FreeITSM asks of them it rarely helps — so it is off unless you ask for it, one feature at a time.',
+        'heading' => 'Extended thinking, per feature',
+        'desc' => 'Every AI feature here summarises, extracts or drafts from text that is already in front of it. None of them is a puzzle, which is what extended thinking is for. Switch it on for a feature if you find its answers are better with it.',
+        'evidence_intro' => 'Measured on this install — one AI feature summarising a two-message ticket.',
+        'desc_provider' => 'The switch is sent to OpenRouter, which is the only provider that accepts it. A feature configured against Anthropic or OpenAI is still listed, and its setting still kept, in case you move it later.',
+        'na_tag' => 'no effect',
+        'col_time' => 'Time',
+        'col_thinking' => 'Thinking',
+        'col_answer' => 'Answer',
+        'evidence_on' => 'Thinking on',
+        'evidence_off' => 'Thinking off',
+        'evidence_note' => 'Eight times faster, and the faster answer was the better one — it picked up details the slow one missed.',
+        'use_thinking' => 'Use extended thinking',
+        'not_applicable' => 'This feature is not using OpenRouter, so this switch has no effect on it. Your setting is kept in case that changes.',
+        'no_key' => 'no API key set',
+        'unavailable' => 'The AI features could not be listed. Check the database connection and try again.',
+        'saved' => 'Saved',
+        'save_failed' => 'Could not save. Nothing has been changed.',
+    ],
     'title' => 'System',
 
     // Shared header navigation (system/includes/header.php)
@@ -44,6 +66,9 @@ return [
     ],
 
     'landing' => [
+        'ai_title' => 'AI thinking',
+        'ai_desc' => 'Whether each AI feature may use a model\'s extended thinking. Off is usually faster and no worse.',
+        'ai_keywords' => 'ai reasoning thinking model tokens slow speed openrouter latency cost',
         'heading'  => 'System Administration',
         'subtitle' => 'Configure system-level settings and access controls',
 

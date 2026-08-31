@@ -103,13 +103,16 @@ function aiSettingsEntry(string $ns): array
     return $reg[$ns];
 }
 
-/** The 4 system_settings keys for a namespace. */
+/** The system_settings keys for a namespace. */
 function aiSettingsKeys(string $ns): array
 {
     return [
         'provider'   => $ns . '_provider',
         'model'      => $ns . '_model',
         'api_key'    => $ns . '_api_key',
+        // Whether this feature may use a model's EXTENDED THINKING. Set from
+        // System → AI thinking, one switch per feature. See aiSettingsLoad().
+        'reasoning'  => $ns . '_reasoning',
     ];
 }
 
@@ -124,7 +127,8 @@ function aiSettingsLoad(PDO $conn, string $ns): array
     $keys  = aiSettingsKeys($ns);
 
     $rows = [];
-    $stmt = $conn->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?,?,?)");
+    $place = implode(',', array_fill(0, count($keys), '?'));
+    $stmt = $conn->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ($place)");
     $stmt->execute(array_values($keys));
     foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
         $rows[$r['setting_key']] = $r['setting_value'];
@@ -150,10 +154,21 @@ function aiSettingsLoad(PDO $conn, string $ns): array
     // surface 'verify_ssl' here, mirroring the global, so existing callers that
     // read $cfg['verify_ssl'] keep working; the value no longer drives any curl
     // handle (they all go through sslApplyCurl), it is informational only.
+    /* ⚠️ DEFAULT OFF, and the default is the interesting part.
+       A model that reasons spends its output budget thinking BEFORE it writes a
+       word. Measured on qwen/qwen3.7-plus summarising a two-message ticket:
+       3,437 reasoning tokens and 64 seconds with no control, versus 0 tokens and
+       5.4 seconds with thinking off — and the fast answer was the BETTER one,
+       catching details the slow one missed. Every AI feature here summarises,
+       extracts or drafts; none of them is a puzzle. So thinking is off unless an
+       administrator asks for it, per feature.
+       An absent row therefore means off, which is also what a settings table we
+       cannot read gives us — the safe direction. */
     return [
         'provider'   => $provider,
         'model'      => $model,
         'api_key'    => $apiKey,
+        'reasoning'  => !empty($rows[$keys['reasoning']]) && (int)$rows[$keys['reasoning']] === 1,
         'verify_ssl' => defined('SSL_VERIFY_PEER') ? (bool)SSL_VERIFY_PEER : true,
     ];
 }
@@ -170,6 +185,7 @@ function aiSettingsForUi(PDO $conn, string $ns): array
         'model'      => $cfg['model'],
         'has_key'    => $cfg['api_key'] !== '',
         'masked_key' => $cfg['api_key'] !== '' ? maskSecret($cfg['api_key']) : '',
+        'reasoning'  => $cfg['reasoning'],
     ];
 }
 

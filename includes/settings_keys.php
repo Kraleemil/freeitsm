@@ -89,6 +89,17 @@ function settingKeyOwners(): array
     //
     // (Every other module's keys are DERIVED from its manifest above. Tickets' 'system_name'
     // was the last one to move out, when Tickets converted in #848.)
+    /* --- System: AI thinking area ---
+       One <ns>_reasoning key per REGISTERED AI namespace, generated from the
+       registry rather than listed here. That is the whole point: a tenth AI
+       feature appears on the page and becomes writable in the same commit that
+       registers it, with nothing to remember. Administrator-only, like every
+       other System key. */
+    require_once __DIR__ . '/ai_settings.php';
+    foreach (array_keys(aiSettingsRegistry()) as $ns) {
+        $owners[$ns . '_reasoning'] = ['module' => 'system', 'cap' => null, 'tab' => 'ai'];
+    }
+
     return $owners += [
         // --- System: Security area. The lockout policy — an analyst able to raise
         // max_failed_logins could switch off brute-force protection entirely. ---

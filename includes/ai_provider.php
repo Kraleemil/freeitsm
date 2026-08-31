@@ -62,6 +62,11 @@ function aiProviderChat(array $cfg, array $opts): array
 
     $opts['max_tokens']  = $opts['max_tokens']  ?? 1024;
     $opts['temperature'] = $opts['temperature'] ?? 0.0;
+    /* Extended thinking is a property of the FEATURE, so it arrives on $cfg with
+       everything else aiSettingsLoad() reads — no caller has to know about it and
+       all nine features get it at once. An explicit $opts value still wins, for a
+       caller that has a reason. */
+    $opts['reasoning']   = $opts['reasoning'] ?? (array_key_exists('reasoning', $cfg) ? (bool)$cfg['reasoning'] : true);
 
     $start = microtime(true);
 
@@ -128,7 +133,7 @@ function aiProviderCallAnthropic(string $model, string $apiKey, bool $verify, ar
 
 function aiProviderCallOpenAICompatible(string $base, string $model, string $apiKey, bool $verify, array $opts, array $extraHeaders = []): array
 {
-    $body = json_encode([
+    $payload = [
         'model'       => $model,
         'max_tokens'  => $opts['max_tokens'],
         'temperature' => $opts['temperature'],
@@ -136,7 +141,21 @@ function aiProviderCallOpenAICompatible(string $base, string $model, string $api
             ['role' => 'system', 'content' => (string)($opts['system'] ?? '')],
             ['role' => 'user',   'content' => (string)($opts['user']   ?? '')],
         ],
-    ]);
+    ];
+
+    /* ⚠️ ONLY ON OPENROUTER. `reasoning` is OpenRouter's own parameter; OpenAI's
+       /chat/completions rejects an unknown field outright, so sending it to both
+       would break every OpenAI-configured feature. The base URL is the test
+       because it is the thing that actually decides where the request lands.
+
+       Sent only to switch thinking OFF. Leaving it out is "whatever the model
+       does by default", which is what an administrator who wants thinking has
+       asked for — so there is nothing to send in that case. */
+    if (($opts['reasoning'] ?? true) === false && strpos($base, 'openrouter.ai') !== false) {
+        $payload['reasoning'] = ['enabled' => false];
+    }
+
+    $body = json_encode($payload);
 
     $headers = array_merge([
         'Authorization: Bearer ' . $apiKey,
