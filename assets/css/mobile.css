@@ -8054,6 +8054,42 @@
        the sentence is desktop guidance. */
     [data-mobile-module="lms"] .lms-editor-tools .lms-editor-hint { display: none; }
     [data-mobile-module="lms"] .lms-editor-tools:empty { display: none; }
+    /* ---- the questions page's own heading row ----
+       `.lms-questions-head` is a flex row: the "Questions" heading on the left,
+       "AI: write questions" and "+ Add question" on the right. Two buttons and
+       a heading do not fit across 360px — they were sharing the row with the
+       heading and each other, three ways.
+
+       Stacked, so the heading gets its own line and the two controls sit under
+       it at a size worth tapping. Ed's request, #1400. */
+    [data-mobile-module="lms"] .lms-questions-head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    [data-mobile-module="lms"] .lms-questions-head > div {
+        /* the buttons' own wrapper — share the width evenly rather than
+           hugging the right-hand edge as they do on a desktop */
+        width: 100%;
+    }
+    [data-mobile-module="lms"] .lms-questions-head > div > .btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 42px;
+        /* Same reasoning as the bottom bar above: these labels WRAP. */
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.25;
+    }
+    /* On the questions PAGE the section is the whole screen, so lms.css's
+       separator rule (34px of margin, 22px of padding and a top border, all
+       there to divide the questions from the editor above them) is dividing
+       the heading from nothing. It is a leftover of the two-page split. */
+    [data-mobile-module="lms"] [data-lms-page="questions"] .lms-questions {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+    }
     /* Room to scroll the last field clear of the bar. */
     [data-mobile-module="lms"] .lms-editor-main {
         padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));

@@ -380,7 +380,7 @@ $translationNamespaces = ['common', 'software'];
             font-size: 14px;
         }
     </style>
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=109">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=110">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
