@@ -539,6 +539,29 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
 
                     <div id="workCalPushPanel" style="display:none;margin-top:12px;">
                         <p class="pref-hint" style="color:var(--text-muted,#666);font-size:12px;" id="workCalPushInfo"></p>
+
+                        <?php /* Tasks (#75). Deliberately INSIDE the push panel:
+                                 task events are real appointments, so the choice
+                                 is meaningless until the direct route is chosen,
+                                 and showing it beforehand would offer something
+                                 that quietly does nothing.
+
+                                 Four options in one control, not two switches,
+                                 for the same reason the mode above is one value:
+                                 a task has two datable things and you should be
+                                 able to say "the deadline but not the slot". */ ?>
+                        <div style="margin-top:16px;">
+                            <div style="font-size:13px;margin-bottom:6px;"><?php echo htmlspecialchars(t('system.preferences.taskcal_heading')); ?></div>
+                            <div class="anim-toggle" id="taskCalToggle">
+                                <button class="anim-option" data-taskcal="off"><?php echo htmlspecialchars(t('system.preferences.taskcal_off')); ?></button>
+                                <button class="anim-option" data-taskcal="work"><?php echo htmlspecialchars(t('system.preferences.taskcal_work')); ?></button>
+                                <button class="anim-option" data-taskcal="due"><?php echo htmlspecialchars(t('system.preferences.taskcal_due')); ?></button>
+                                <button class="anim-option" data-taskcal="both"><?php echo htmlspecialchars(t('system.preferences.taskcal_both')); ?></button>
+                            </div>
+                            <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;">
+                                <?php echo htmlspecialchars(t('system.preferences.taskcal_note')); ?>
+                            </p>
+                        </div>
                     </div>
 
                     <div id="workCalPanel" style="display:none;margin-top:14px;">
@@ -1347,11 +1370,56 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
             if (d.address) {
                 document.getElementById('workCalPushInfo').textContent =
                     window.t('system.preferences.workcal_push_where', { addr: d.address });
+
+                paintTaskCal(d.task_mode);
             }
             paintWorkCal(d.mode || 'off');
             if (d.mode === 'feed') await loadWorkCalDetail();
             return d;
         }
+
+        /** Paint the task choice (#75). */
+        function paintTaskCal(taskMode) {
+            const root = document.getElementById('taskCalToggle');
+            if (!root) return;
+            root.querySelectorAll('.anim-option').forEach(b => {
+                b.classList.toggle('active', b.dataset.taskcal === (taskMode || 'off'));
+            });
+        }
+
+        (function initTaskCal() {
+            const root = document.getElementById('taskCalToggle');
+            if (!root) return;
+
+            root.addEventListener('click', async function (e) {
+                const btn = e.target.closest('.anim-option');
+                if (!btn || btn.disabled) return;
+                const previous = root.querySelector('.anim-option.active');
+                const taskMode = btn.dataset.taskcal;
+                paintTaskCal(taskMode);
+
+                // ⚠️ `mode` is sent UNCHANGED alongside. The endpoint takes both
+                // on one POST, and omitting the mode would be read as a request
+                // to change it — which would switch the whole thing off while
+                // the analyst was only choosing what tasks do.
+                const currentMode = (document.querySelector('#workCalToggle .anim-option.active') || {}).dataset;
+                const r = await fetch(ENROL_API, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        mode: (currentMode && currentMode.workcal) || 'push',
+                        task_mode: taskMode
+                    })
+                });
+                const d = await r.json().catch(() => ({}));
+                if (!d.success) {
+                    // Back where it was: a control showing a state the server
+                    // refused is a lie about what is happening.
+                    paintTaskCal(previous ? previous.dataset.taskcal : 'off');
+                    showToast(d.error || window.t('system.preferences.taskcal_failed'), 'error');
+                }
+            });
+        })();
 
         (function initWorkCal() {
             const root = document.getElementById('workCalToggle');

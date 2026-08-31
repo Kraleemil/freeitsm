@@ -51,6 +51,7 @@ try {
         echo json_encode([
             'success'        => true,
             'mode'           => $enrolment['mode'],
+            'task_mode'      => $enrolment['task_mode'] ?? TASK_CAL_OFF,
             'address'        => $enrolment['calendar_address'],
             'push_available' => (bool)$connection,
             'feed_available' => scheduleFeedAllowed($conn),
@@ -106,12 +107,24 @@ try {
 
     $wasPushing = ($enrolment['mode'] ?? '') === CALENDAR_MODE_PUSH;
 
+    // What of a TASK they want (#75). Sent alongside the mode because they are
+    // chosen on the same screen; absent means "leave it as it was", so an older
+    // client that does not know about tasks cannot silently switch them off.
+    $wasTaskMode = (string)($enrolment['task_mode'] ?? TASK_CAL_OFF);
+    $taskMode    = array_key_exists('task_mode', $_POST) ? (string)$_POST['task_mode'] : $wasTaskMode;
+    if (!taskCalendarModeIsValid($taskMode)) {
+        echo json_encode(['success' => false, 'error' => 'Unknown task calendar choice']);
+        exit;
+    }
+
     $conn->prepare(
-        "INSERT INTO calendar_enrolments (analyst_id, mode, connection_id)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE mode = VALUES(mode), connection_id = VALUES(connection_id),
+        "INSERT INTO calendar_enrolments (analyst_id, mode, task_mode, connection_id)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE mode = VALUES(mode), task_mode = VALUES(task_mode),
+                                 connection_id = VALUES(connection_id),
                                  last_error = NULL, updated_datetime = NOW()"
-    )->execute([$analystId, $mode, ($mode === CALENDAR_MODE_PUSH && $connection) ? (int)$connection['id'] : null]);
+    )->execute([$analystId, $mode, $taskMode,
+                ($mode === CALENDAR_MODE_PUSH && $connection) ? (int)$connection['id'] : null]);
 
     // 🔑 TURNING IT OFF TAKES BACK WHAT WE PUT THERE. Leaving events behind in
     // somebody's calendar that FreeITSM has stopped tracking is the worst of both
@@ -144,7 +157,41 @@ try {
         }
     }
 
-    echo json_encode(['success' => true, 'mode' => $mode, 'address' => $enrolment['calendar_address']]);
+    // Tasks, whenever the choice moved at all (#75).
+    //
+    // 🔑 RECONCILE, DON'T BRANCH. The same sweep handles switching tasks on,
+    // switching them off, and narrowing 'both' to one kind — because
+    // calendarSyncReconcileTask() works out what SHOULD be there and makes that
+    // true. Widening needs a backfill or the calendar looks broken; narrowing
+    // needs a withdrawal or events nobody can update are left behind. One call
+    // does both, so a combination nobody thought of cannot fall through a gap.
+    //
+    // ⚠️ Also runs when the ticket mode changed, because task events only exist
+    // while mode is 'push' — turning tickets off has to take tasks with them.
+    if ($taskMode !== $wasTaskMode || $wasPushing !== ($mode === CALENDAR_MODE_PUSH)) {
+        require_once '../../includes/calendar_sync/push.php';
+        $st = $conn->prepare(
+            "SELECT tk.id
+               FROM tasks tk
+          LEFT JOIN task_statuses ts ON ts.id = tk.status_id
+              WHERE tk.assigned_analyst_id = ?
+                AND (tk.work_start_datetime IS NOT NULL OR tk.due_date IS NOT NULL)
+                AND COALESCE(ts.is_closed, 0) = 0
+             UNION
+             SELECT task_id FROM calendar_sync_events WHERE analyst_id = ? AND task_id IS NOT NULL"
+        );
+        // ⚠️ The UNION is not tidiness. Turning tasks OFF means reconciling
+        // tasks that no longer qualify on the first half — a completed one, or
+        // one reassigned away — and those are exactly the rows whose events
+        // must be taken back. Without it, switching off would leave them.
+        $st->execute([$analystId, $analystId]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $tid) {
+            if ($tid) calendarSyncReconcileTask($conn, (int)$tid);
+        }
+    }
+
+    echo json_encode(['success' => true, 'mode' => $mode, 'task_mode' => $taskMode,
+                      'address' => $enrolment['calendar_address']]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
 }

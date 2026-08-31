@@ -34,6 +34,41 @@ function calendarModeIsValid(string $mode): bool
     return in_array($mode, [CALENDAR_MODE_OFF, CALENDAR_MODE_PUSH, CALENDAR_MODE_FEED], true);
 }
 
+// ─── What of a TASK reaches the calendar (#75) ──────────────────────────────
+//
+// 🔑 A SECOND VALUE, NOT MORE VALUES ON `mode`. `mode` decides HOW things get
+// there — a push, a subscribed feed, or nothing. This decides WHAT. They are
+// independent: folding them together would need eight values to say two things,
+// and switching tickets off would silently take tasks with them.
+//
+// ⚠️ A task has TWO datable things and they are not the same kind of fact:
+//   - the scheduled work window, which is a plan — when you intend to do it;
+//   - the due date, which is a commitment — when it must be finished by.
+// Tickets only have the first, which is why this choice does not exist there.
+// On a real install the second is the one people actually fill in, so syncing
+// only the work window would put nothing in anybody's calendar.
+const TASK_CAL_OFF  = 'off';
+const TASK_CAL_WORK = 'work';   // the scheduled work window, as a timed appointment
+const TASK_CAL_DUE  = 'due';    // the due date, as an all-day event
+const TASK_CAL_BOTH = 'both';
+
+function taskCalendarModeIsValid(string $mode): bool
+{
+    return in_array($mode, [TASK_CAL_OFF, TASK_CAL_WORK, TASK_CAL_DUE, TASK_CAL_BOTH], true);
+}
+
+/** Does this analyst want a task's work window in their calendar? */
+function taskCalendarWantsWork(string $mode): bool
+{
+    return $mode === TASK_CAL_WORK || $mode === TASK_CAL_BOTH;
+}
+
+/** Does this analyst want a task's due date in their calendar? */
+function taskCalendarWantsDue(string $mode): bool
+{
+    return $mode === TASK_CAL_DUE || $mode === TASK_CAL_BOTH;
+}
+
 /** Decrypt + JSON-decode a stored credentials blob (never throws). */
 function calendarSyncDecodeCredentials($stored): array
 {
@@ -172,6 +207,7 @@ function calendarSyncEnrolment(PDO $conn, int $analystId): array
     $off = [
         'analyst_id'       => $analystId,
         'mode'             => CALENDAR_MODE_OFF,
+        'task_mode'        => TASK_CAL_OFF,
         'connection_id'    => null,
         'calendar_address' => $email,
         'last_error'       => null,
@@ -192,6 +228,12 @@ function calendarSyncEnrolment(PDO $conn, int $analystId): array
     }
     if (!calendarModeIsValid((string)$row['mode'])) {
         $row['mode'] = CALENDAR_MODE_OFF;      // a value we do not recognise is not a licence to push
+    }
+    // Same rule for tasks, and for the same reason. An install that has not run
+    // Database Verification yet has no task_mode column at all, so the key may
+    // be absent rather than merely wrong — both land on 'off'.
+    if (!taskCalendarModeIsValid((string)($row['task_mode'] ?? ''))) {
+        $row['task_mode'] = TASK_CAL_OFF;
     }
     return $row;
 }

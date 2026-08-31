@@ -437,6 +437,19 @@ $translationNamespaces = ['common', 'system'];
                     pill += ' <span class="cs-pill bad" title="' + escapeCs(p.last_error) + '">'
                           + escapeCs(t('system.calsync.mode_error')) + '</span>';
                 }
+                // Tasks (#75). Shown, never SET here: this screen decides what is
+                // possible, and the analyst decides what they want — the same
+                // division the ticket mode already follows. An admin who cannot
+                // see the choice cannot answer "why is my task not in Outlook",
+                // which is the only reason it is on this table at all.
+                //
+                // Only alongside 'push': task events are real appointments, so
+                // the choice does nothing on any other mode and showing it would
+                // suggest otherwise.
+                if (mode === 'push' && p.task_mode && p.task_mode !== 'off') {
+                    pill += ' <span class="cs-pill on" title="' + escapeCs(t('system.calsync.tasks_note')) + '">'
+                          + escapeCs(t('system.calsync.tasks_' + p.task_mode)) + '</span>';
+                }
                 // Notifications, per person. Shown only where they could apply —
                 // no address configured means nobody is subscribed by design, and
                 // flagging that on every row would report a feature not in use as

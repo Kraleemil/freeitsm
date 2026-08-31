@@ -193,6 +193,9 @@ return [
     ['calendar_enrolments', 'uniq_calendar_enrolment_analyst', 'unique', '(`analyst_id`)'],
     ['calendar_sync_events', 'uniq_calendar_sync_ticket_analyst', 'unique', '(`ticket_id`,`analyst_id`)'],
     ['calendar_sync_events', 'idx_calendar_sync_ticket', 'key', '(`ticket_id`)'],
+    ['calendar_sync_events', 'uniq_calendar_sync_task_analyst_kind', 'unique', '(`task_id`,`analyst_id`,`kind`)'],
+    ['calendar_sync_events', 'idx_calendar_sync_task', 'key', '(`task_id`)'],
+    ['task_audit', 'idx_task_audit_task', 'key', '(`task_id`)'],
     ['morningChecks_Groups', 'ix_mcg_team', 'key', '(`AssignedTeamID`)'],
     ['morningChecks_Groups', 'ix_mcg_analyst', 'key', '(`AssignedAnalystID`)'],
     ['morningChecks_Checks', 'ix_mcc_group', 'key', '(`GroupID`)'],
@@ -226,13 +229,9 @@ return [
     ['tasks', 'ix_tasks_status_id', 'key', '(`status_id`)'],
     ['tasks', 'ix_tasks_priority_id', 'key', '(`priority_id`)'],
     ['tasks', 'idx_tasks_tenant', 'key', '(`tenant_id`)'],
-    // Recurring tasks (#94). The first finds every occurrence of a series, the
-    // second answers "what else came from the same original", which is what the
-    // detail panel's link to the master needs.
     ['tasks', 'ix_tasks_recurrence_id', 'key', '(`recurrence_id`)'],
     ['tasks', 'ix_tasks_recurrence_master', 'key', '(`recurrence_master_id`)'],
-    // The worker's own query: active schedule-mode series that are due.
-    ['task_recurrences', 'ix_task_recurrences_due', 'key', '(`is_active`, `next_due_date`)'],
+    ['task_recurrences', 'ix_task_recurrences_due', 'key', '(`is_active`,`next_due_date`)'],
     ['task_time_entries', 'ix_task_time_entries_task_id', 'key', '(`task_id`)'],
     ['task_time_entries', 'ix_task_time_entries_analyst_date', 'key', '(`analyst_id`,`entry_datetime`)'],
     ['task_tags', 'uq_task_tags_name', 'unique', '(`name`)'],

@@ -104,7 +104,7 @@ try {
             // row and must still be listed — otherwise the one person an admin
             // most needs to fix is the one who is invisible.
             'analysts'   => $conn->query(
-                "SELECT a.id, a.full_name, a.email, e.calendar_address, e.mode, e.last_error,
+                "SELECT a.id, a.full_name, a.email, e.calendar_address, e.mode, e.task_mode, e.last_error,
                         e.subscription_id,
                         TIMESTAMPDIFF(HOUR, NOW(), e.subscription_expires) AS sub_hours,
                         TIMESTAMPDIFF(MINUTE, e.delta_synced_datetime, NOW()) AS checked_minutes

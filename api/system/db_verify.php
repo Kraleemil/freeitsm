@@ -213,6 +213,36 @@ try {
         // Non-fatal — everyone with an address is unaffected either way.
     }
 
+    // `calendar_sync_events.ticket_id` was NOT NULL back when only a ticket
+    // could reach a calendar. A task now can (#75), and a row belongs to one or
+    // the other, never both — so a task's row has no ticket to name. Same
+    // probe-then-MODIFY shape as the two above; relaxing NOT NULL cannot
+    // invalidate a row that already exists.
+    //
+    // ⚠️ The UNIQUE index on (ticket_id, analyst_id) is deliberately left
+    // alone. MySQL permits any number of NULLs in a unique index, so task rows
+    // pass straight through it and get their own unique on
+    // (task_id, analyst_id, kind) instead.
+    try {
+        $csCol = $conn->prepare(
+            "SELECT IS_NULLABLE FROM information_schema.columns
+             WHERE table_schema = ? AND table_name = 'calendar_sync_events' AND column_name = 'ticket_id'"
+        );
+        $csCol->execute([$dbName]);
+        $csRow = $csCol->fetch(PDO::FETCH_ASSOC);
+        if ($csRow && strtoupper($csRow['IS_NULLABLE']) === 'NO') {
+            $conn->exec("ALTER TABLE `calendar_sync_events` MODIFY `ticket_id` INT NULL");
+            $results[] = [
+                'table'   => 'calendar_sync_events',
+                'status'  => 'updated',
+                'details' => ['ticket_id: NOT NULL → NULL (a row can now belong to a task instead)'],
+            ];
+        }
+    } catch (Exception $e) {
+        // Non-fatal — the table may not exist yet on an install that has never
+        // configured calendar sync, and $schema creates it correctly.
+    }
+
     foreach ($schema as $tableName => $columns) {
         $tableResult = ['table' => $tableName, 'status' => 'ok', 'details' => []];
 

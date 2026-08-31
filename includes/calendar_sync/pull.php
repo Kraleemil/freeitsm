@@ -105,20 +105,50 @@ function calendarSyncPullForAnalyst(PDO $conn, int $analystId): array
     if (!$ids) return $report;
 
     $in = implode(',', array_fill(0, count($ids), '?'));
+    $mine = [];
+
+    // ⚠️ TWO lookups, not one join. A row belongs to a ticket OR a task, so a
+    // single query would need an OUTER join to both tables and a pile of
+    // COALESCE to work out which columns meant anything. `_entity` carries the
+    // answer explicitly instead — the alternative is every branch below
+    // re-deriving it from which column happens to be null.
     $st = $conn->prepare(
-        "SELECT s.*, t.work_start_datetime, t.work_end_datetime, t.work_all_day, t.ticket_number
+        "SELECT s.*, 'ticket' AS _entity, t.ticket_number AS _ref, NULL AS due_date,
+                t.work_start_datetime, t.work_end_datetime, t.work_all_day
            FROM calendar_sync_events s
            JOIN tickets t ON t.id = s.ticket_id
           WHERE s.analyst_id = ? AND s.remote_event_id IN ($in)"
     );
     $st->execute(array_merge([$analystId], $ids));
-    $mine = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) $mine[$row['remote_event_id']] = $row;
+
+    $st = $conn->prepare(
+        "SELECT s.*, 'task' AS _entity, tk.title AS _ref, tk.due_date,
+                tk.work_start_datetime, tk.work_end_datetime, tk.work_all_day
+           FROM calendar_sync_events s
+           JOIN tasks tk ON tk.id = s.task_id
+          WHERE s.analyst_id = ? AND s.remote_event_id IN ($in)"
+    );
+    $st->execute(array_merge([$analystId], $ids));
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) $mine[$row['remote_event_id']] = $row;
 
     // ── Moves ───────────────────────────────────────────────────────────────
     foreach ($result['changed'] as $change) {
         $row = $mine[$change['remote_event_id']] ?? null;
         if (!$row) { $report['skipped']++; continue; }
+
+        // A DUE-DATE event is a different comparison: it is an all-day banner,
+        // so only the date matters, and the thing it maps to is a date column
+        // rather than a start/end pair. Comparing it like a work slot would call
+        // every refresh a move and rewrite the due date on every poll.
+        if ($row['_entity'] === 'task' && (string)$row['kind'] === 'due') {
+            $wasDay = substr((string)$row['due_date'], 0, 10);
+            $newDay = substr((string)$change['start'], 0, 10);
+            if ($wasDay === $newDay) { $report['skipped']++; continue; }   // echo
+            calendarPullApplyTaskDue($conn, $row, $newDay, $enrolment['calendar_address']);
+            $report['moved']++;
+            continue;
+        }
 
         $sameStart = substr((string)$row['work_start_datetime'], 0, 16) === substr($change['start'], 0, 16);
         $sameEnd   = substr((string)$row['work_end_datetime'], 0, 16)   === substr($change['end'], 0, 16);
@@ -129,7 +159,11 @@ function calendarSyncPullForAnalyst(PDO $conn, int $analystId): array
             continue;
         }
 
-        calendarPullApply($conn, $row, $change, $enrolment['calendar_address']);
+        if ($row['_entity'] === 'task') {
+            calendarPullApplyTaskWork($conn, $row, $change, $enrolment['calendar_address']);
+        } else {
+            calendarPullApply($conn, $row, $change, $enrolment['calendar_address']);
+        }
         $report['moved']++;
     }
 
@@ -162,7 +196,11 @@ function calendarSyncPullForAnalyst(PDO $conn, int $analystId): array
         // not try to delete an event that is already gone, and does not put a
         // replacement back.
         $conn->prepare("DELETE FROM calendar_sync_events WHERE id = ?")->execute([(int)$row['id']]);
-        calendarPullUnschedule($conn, (int)$row['ticket_id'], $analystId, $enrolment['calendar_address']);
+        if ($row['_entity'] === 'task') {
+            calendarPullUnscheduleTask($conn, $row, $analystId, $enrolment['calendar_address']);
+        } else {
+            calendarPullUnschedule($conn, (int)$row['ticket_id'], $analystId, $enrolment['calendar_address']);
+        }
         $report['unscheduled']++;
     }
     return $report;
@@ -210,6 +248,79 @@ function calendarPullAudit(PDO $conn, int $ticketId, int $analystId, string $fie
         )->execute([$ticketId, $analystId, $field, substr($old, 0, 500), substr($new, 0, 500)]);
     } catch (Exception $e) {
         // An audit we cannot write must not stop the change the analyst asked for.
+    }
+}
+
+// ── Tasks (#75) ─────────────────────────────────────────────────────────────
+//
+// 🔴 A CHANGE MADE OUTSIDE FREEITSM. Everything below writes to a task because
+// somebody dragged something in Outlook, so every one of them leaves an audit
+// row marked `calendar`. Tasks had NO history at all before this, which is
+// exactly why it had to be added: a due date that moves with no record of who
+// moved it or where is worse than one that cannot move.
+
+/** A task's work window, moved in the calendar. */
+function calendarPullApplyTaskWork(PDO $conn, array $row, array $change, string $address): void
+{
+    $conn->prepare(
+        "UPDATE tasks SET work_start_datetime = ?, work_end_datetime = ?, work_all_day = ?,
+                          updated_datetime = UTC_TIMESTAMP()
+          WHERE id = ?"
+    )->execute([$change['start'], $change['end'], $change['all_day'] ? 1 : 0, (int)$row['task_id']]);
+
+    calendarPullTaskAudit($conn, (int)$row['task_id'], (int)$row['analyst_id'], 'Scheduled',
+        (string)$row['work_start_datetime'], $change['start'] . ' (moved in ' . $address . ')');
+}
+
+/**
+ * A task's DUE DATE, moved in the calendar.
+ *
+ * ⚠️ A due date is a commitment rather than a plan — it is often a promise to
+ * somebody else. Ed asked for it to be editable from Outlook anyway, so it is;
+ * the audit row is what makes that safe to live with, because otherwise a
+ * deadline could move and nobody would ever know where it went.
+ */
+function calendarPullApplyTaskDue(PDO $conn, array $row, string $newDay, string $address): void
+{
+    $conn->prepare("UPDATE tasks SET due_date = ?, updated_datetime = UTC_TIMESTAMP() WHERE id = ?")
+         ->execute([$newDay, (int)$row['task_id']]);
+
+    calendarPullTaskAudit($conn, (int)$row['task_id'], (int)$row['analyst_id'], 'Due date',
+        substr((string)$row['due_date'], 0, 10), $newDay . ' (moved in ' . $address . ')');
+}
+
+/** The event was deleted from the calendar: take the matching field away. */
+function calendarPullUnscheduleTask(PDO $conn, array $row, int $analystId, string $address): void
+{
+    $taskId = (int)$row['task_id'];
+    if ((string)$row['kind'] === 'due') {
+        $conn->prepare("UPDATE tasks SET due_date = NULL, updated_datetime = UTC_TIMESTAMP() WHERE id = ?")
+             ->execute([$taskId]);
+        calendarPullTaskAudit($conn, $taskId, $analystId, 'Due date',
+            substr((string)$row['due_date'], 0, 10), 'cleared (deleted in ' . $address . ')');
+        return;
+    }
+    $conn->prepare(
+        "UPDATE tasks SET work_start_datetime = NULL, work_end_datetime = NULL,
+                          updated_datetime = UTC_TIMESTAMP()
+          WHERE id = ?"
+    )->execute([$taskId]);
+    calendarPullTaskAudit($conn, $taskId, $analystId, 'Scheduled',
+        (string)$row['work_start_datetime'], 'cleared (deleted in ' . $address . ')');
+}
+
+/** One line of task history, marked as having come from a calendar. */
+function calendarPullTaskAudit(PDO $conn, int $taskId, int $analystId, string $field, string $old, string $new): void
+{
+    try {
+        $conn->prepare(
+            "INSERT INTO task_audit (task_id, analyst_id, field_name, old_value, new_value, source, created_datetime)
+             VALUES (?, ?, ?, ?, ?, 'calendar', NOW())"
+        )->execute([$taskId, $analystId, $field, substr($old, 0, 500), substr($new, 0, 500)]);
+    } catch (Exception $e) {
+        // An audit we cannot write must not stop the change — but this is the
+        // one place where losing it matters most, so it is also logged.
+        error_log('Task audit failed for task ' . $taskId . ': ' . $e->getMessage());
     }
 }
 

@@ -3287,6 +3287,12 @@ CREATE TABLE IF NOT EXISTS `calendar_enrolments` (
     -- push and a subscribed feed live you see every scheduled ticket TWICE, once
     -- as a real event and once from the subscription.
     `mode`               VARCHAR(10) NOT NULL DEFAULT 'off',
+    -- What of a TASK reaches the calendar: 'off' | 'work' | 'due' | 'both' (#75).
+    -- Separate from `mode`, which decides HOW things get there. Folding the two
+    -- together would need eight values to say two independent things, and
+    -- turning tickets off would silently take tasks with them. Defaults to
+    -- 'off': nobody asked for their task list to appear in Outlook overnight.
+    `task_mode`          VARCHAR(10) NOT NULL DEFAULT 'off',
     `connection_id`      INT NULL,
     -- The mailbox to write into. Normally analysts.email, but an analyst's
     -- FreeITSM address is not always their mailbox UPN — a local account with a
@@ -3325,7 +3331,17 @@ CREATE TABLE IF NOT EXISTS `calendar_enrolments` (
 
 CREATE TABLE IF NOT EXISTS `calendar_sync_events` (
     `id`                 INT NOT NULL AUTO_INCREMENT,
-    `ticket_id`          INT NOT NULL,
+    -- A row belongs to a ticket OR a task, never both, so both are nullable
+    -- (#75). An install that predates tasks is relaxed by the probed MODIFY in
+    -- api/system/db_verify.php.
+    `ticket_id`          INT NULL,
+    `task_id`            INT NULL,
+    -- 'work' | 'due'. ONE TASK CAN PRODUCE TWO EVENTS: its scheduled work
+    -- window and its due date. Without this the second write finds the first
+    -- row and overwrites it, so an analyst who asked for both gets whichever
+    -- was reconciled last. Tickets only ever have a work window, hence the
+    -- default and no migration for existing rows.
+    `kind`               VARCHAR(16) NOT NULL DEFAULT 'work',
     -- WHOSE calendar it went into. Not derivable from the ticket at delete time:
     -- reassignment changes tickets.owner_id, and by then this row is the only
     -- record of who the event was actually created for.
@@ -3341,10 +3357,42 @@ CREATE TABLE IF NOT EXISTS `calendar_sync_events` (
     PRIMARY KEY (`id`),
     -- One event per ticket per person. A ticket reassigned A -> B -> A must not
     -- accumulate rows, and this is what makes "delete the old one" a lookup.
+    -- One event per ticket per person. A ticket reassigned A -> B -> A must not
+    -- accumulate rows, and this is what makes "delete the old one" a lookup.
+    --
+    -- Still correct now ticket_id is nullable: MySQL allows any number of NULLs
+    -- in a UNIQUE index, so task rows pass straight through it rather than
+    -- colliding on (NULL, analyst).
     UNIQUE KEY `uniq_calendar_sync_ticket_analyst` (`ticket_id`, `analyst_id`),
     KEY `idx_calendar_sync_ticket` (`ticket_id`),
+    -- The task equivalent MUST include `kind`, or a task's work event and its
+    -- due event are the same row.
+    UNIQUE KEY `uniq_calendar_sync_task_analyst_kind` (`task_id`, `analyst_id`, `kind`),
+    KEY `idx_calendar_sync_task` (`task_id`),
     CONSTRAINT `fk_calendar_sync_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_calendar_sync_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_calendar_sync_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tasks had NO history at all until calendar sync could change one from outside
+-- FreeITSM (#75) - a due date dragged in Outlook is a change nobody in FreeITSM
+-- made. Mirrors ticket_audit rather than inventing a second shape for the same
+-- idea, plus a `source` so an Outlook-driven change is tellable from a person's.
+CREATE TABLE IF NOT EXISTS `task_audit` (
+    `id`                 INT NOT NULL AUTO_INCREMENT,
+    `task_id`            INT NOT NULL,
+    -- NULL when it was not a person: a calendar sync, a cron.
+    `analyst_id`         INT NULL,
+    `field_name`         VARCHAR(100) NOT NULL,
+    `old_value`          VARCHAR(500) NULL,
+    `new_value`          VARCHAR(500) NULL,
+    `source`             VARCHAR(20) NOT NULL DEFAULT 'app',
+    `created_datetime`   DATETIME NULL DEFAULT CURRENT_TIMESTAMP,
+    `is_demo`            TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`),
+    KEY `idx_task_audit_task` (`task_id`),
+    CONSTRAINT `fk_task_audit_task` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_task_audit_analyst` FOREIGN KEY (`analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- ----------------------------------------------------------
 -- Morning Checks
@@ -3998,6 +4046,16 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     KEY `ix_tasks_status_id` (`status_id`),
     KEY `ix_tasks_priority_id` (`priority_id`),
     KEY `idx_tasks_tenant` (`tenant_id`),
+    -- Recurring tasks (#94). The first finds every occurrence of a series, the
+    -- second answers "what else came from the same original", which is what the
+    -- detail panel's link to the master needs.
+    --
+    -- ⚠️ These were added to includes/db_verify_indexes.php by hand and never to
+    -- this file, so a FRESH install never had them - only an install that ran
+    -- Database Verification got them backfilled. Found when the generated index
+    -- list was rebuilt and tried to delete them.
+    KEY `ix_tasks_recurrence_id` (`recurrence_id`),
+    KEY `ix_tasks_recurrence_master` (`recurrence_master_id`),
     CONSTRAINT `fk_tasks_analyst` FOREIGN KEY (`assigned_analyst_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_tasks_team` FOREIGN KEY (`assigned_team_id`) REFERENCES `teams` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_tasks_parent` FOREIGN KEY (`parent_task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,

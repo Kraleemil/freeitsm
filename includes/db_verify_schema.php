@@ -2184,6 +2184,18 @@ return [
         'analyst_id'         => 'INT NOT NULL',
         // off | push | feed — ONE choice, or you see every ticket twice.
         'mode'               => "VARCHAR(10) NOT NULL DEFAULT 'off'",
+        // What of a TASK reaches the calendar: off | work | due | both (#75).
+        //
+        // 🔑 SEPARATE FROM `mode`, which decides HOW things get there (a push,
+        // a feed, or nothing). This decides WHAT. Folding them into one value
+        // would need eight combinations to say two independent things, and
+        // turning tickets off would silently take tasks with them.
+        //
+        // ⚠️ Defaults to 'off'. Existing analysts asked for their scheduled
+        // ticket work; nobody asked for their task list to appear in Outlook
+        // overnight, and a calendar that fills itself up is a calendar people
+        // disconnect.
+        'task_mode'          => "VARCHAR(10) NOT NULL DEFAULT 'off'",
         'connection_id'      => 'INT NULL',
         'calendar_address'   => 'VARCHAR(255) NULL',
         'credentials'        => 'LONGTEXT NULL',
@@ -2198,15 +2210,44 @@ return [
         'updated_datetime'   => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
     ],
 
+    // One row per event we have written into somebody's calendar.
+    //
+    // ⚠️ ticket_id is NULLABLE — a row belongs to a ticket OR a task, never
+    // both. It is declared NULL here so a fresh install is right; an install
+    // that predates tasks is relaxed by the probed MODIFY in db_verify.php,
+    // the same shape used for users.email.
+    //
+    // 🔑 `kind` exists because ONE TASK CAN PRODUCE TWO EVENTS: its scheduled
+    // work window and its due date. Without it the second write would find the
+    // first row and overwrite it, so an analyst who asked for both would get
+    // whichever was reconciled last. Tickets only ever have a work window,
+    // which is why 'work' is the default and existing rows need no migration.
     'calendar_sync_events' => [
         'id'               => 'INT NOT NULL AUTO_INCREMENT',
-        'ticket_id'        => 'INT NOT NULL',
+        'ticket_id'        => 'INT NULL',
+        'task_id'          => 'INT NULL',
+        'kind'             => "VARCHAR(16) NOT NULL DEFAULT 'work'",   // work | due
         'analyst_id'       => 'INT NOT NULL',
         'connection_id'    => 'INT NULL',
         'remote_event_id'  => 'VARCHAR(500) NOT NULL',
         'remote_calendar'  => 'VARCHAR(255) NOT NULL',
         'created_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime' => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
+
+    // Tasks had NO history at all until calendar sync could change one from
+    // outside FreeITSM (#75). Mirrors ticket_audit exactly rather than
+    // inventing a second shape for the same idea.
+    'task_audit' => [
+        'id'               => 'INT NOT NULL AUTO_INCREMENT',
+        'task_id'          => 'INT NOT NULL',
+        'analyst_id'       => 'INT NULL',      // NULL = not a person: a sync, a cron
+        'field_name'       => 'VARCHAR(100) NOT NULL',
+        'old_value'        => 'VARCHAR(500) NULL',
+        'new_value'        => 'VARCHAR(500) NULL',
+        'source'           => "VARCHAR(20) NOT NULL DEFAULT 'app'",   // app | calendar
+        'created_datetime' => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'          => 'TINYINT(1) NOT NULL DEFAULT 0',
     ],
 
     // Optional grouping + routing for the morning round (discussion #64).

@@ -148,6 +148,7 @@ class TasksService
         if ($analystId !== null) {
             self::assignedDispatch($conn, $taskId, $analystId);
         }
+        self::calendarOnTaskChanged($conn, $taskId);
         return $taskId;
     }
 
@@ -302,6 +303,7 @@ class TasksService
         if ($assignedTo !== null) {
             self::assignedDispatch($conn, $taskId, $assignedTo);
         }
+        self::calendarOnTaskChanged($conn, $taskId);
         return $taskId;
     }
 
@@ -357,6 +359,9 @@ class TasksService
         if ($targetIsClosed && !(bool)$current['status_is_closed']) {
             self::recurrenceOnClosed($conn, $taskId);
         }
+        // Completing by DRAGGING must take the calendar entry away too, exactly
+        // as ticking the box does. Same reason recurrence fires from here.
+        self::calendarOnTaskChanged($conn, $taskId);
         return $taskId;
     }
 
@@ -367,6 +372,27 @@ class TasksService
      * one place, and so a missing recurrence service — an install part-way
      * through an upgrade — cannot break completing a task.
      */
+    /**
+     * Put this task into (or take it out of) its assignee's calendar (#75).
+     *
+     * ⚠️ CALL AFTER COMMIT, never inside a transaction — it makes a network
+     * call, and holding row locks across one turns a slow third party into a
+     * database problem. Same rule the ticket side documents.
+     *
+     * ⚠️ Wrapped, and swallowing Throwable rather than Exception: a task must
+     * save even if the calendar file is missing on a part-upgraded install,
+     * and a missing class raises an Error, which `catch (Exception)` misses.
+     */
+    private static function calendarOnTaskChanged(PDO $conn, int $taskId, bool $gone = false): void
+    {
+        try {
+            require_once __DIR__ . '/../calendar_sync/push.php';
+            calendarSyncReconcileTask($conn, $taskId, $gone);
+        } catch (Throwable $e) {
+            error_log('Calendar sync hook failed for task ' . $taskId . ': ' . $e->getMessage());
+        }
+    }
+
     private static function recurrenceOnClosed(PDO $conn, int $taskId): void
     {
         try {
@@ -391,6 +417,19 @@ class TasksService
             $frontier = array_map('intval', $kids->fetchAll(PDO::FETCH_COLUMN));
             $ids = array_merge($ids, $frontier);
         }
+
+        // 🔴 BEFORE the delete, not after. calendar_sync_events.task_id is
+        // ON DELETE CASCADE, so the moment the task row goes the mapping rows
+        // go with it — and those rows are the ONLY record of which event, in
+        // whose mailbox, to remove. Reconciling afterwards would find nothing
+        // and leave an orphaned appointment in somebody's calendar that
+        // FreeITSM can no longer update or take back.
+        //
+        // The whole subtask tree, because every one of them may have its own.
+        foreach ($ids as $id) {
+            self::calendarOnTaskChanged($conn, (int)$id, true);
+        }
+
         $ph = implode(',', array_fill(0, count($ids), '?'));
         $conn->prepare("DELETE FROM task_comments WHERE task_id IN ($ph)")->execute($ids);
         $conn->prepare("DELETE FROM task_tag_map WHERE task_id IN ($ph)")->execute($ids);

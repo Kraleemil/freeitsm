@@ -89,6 +89,30 @@ try {
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $detail = scheduleFeedDetail($conn, $analystId);
+
+    // Tasks, if this analyst asked for them (#75). The SAME per-analyst choice
+    // the direct route uses, so somebody who wants only deadlines gets only
+    // deadlines whichever way their calendar is fed — two answers to one
+    // question is how the two routes drift apart.
+    $taskMode  = (string)(calendarSyncEnrolment($conn, $analystId)['task_mode'] ?? TASK_CAL_OFF);
+    $taskRows  = [];
+    if ($taskMode !== TASK_CAL_OFF) {
+        $stmt = $conn->prepare(
+            "SELECT tk.id, tk.title, tk.due_date, tk.updated_datetime,
+                    tk.work_start_datetime, tk.work_end_datetime, tk.work_all_day,
+                    s.name AS status_name, p.name AS priority_name
+               FROM tasks tk
+          LEFT JOIN task_statuses   s ON s.id = tk.status_id
+          LEFT JOIN task_priorities p ON p.id = tk.priority_id
+              WHERE tk.assigned_analyst_id = ?
+                AND COALESCE(s.is_closed, 0) = 0
+                AND (tk.work_start_datetime >= (NOW() - INTERVAL 3 MONTH)
+                     OR tk.due_date >= (CURDATE() - INTERVAL 3 MONTH))
+              ORDER BY COALESCE(tk.work_start_datetime, tk.due_date)"
+        );
+        $stmt->execute([$analystId]);
+        $taskRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 } catch (Exception $e) {
     feed_deny('500 Internal Server Error', 'Calendar feed error.');
 }
@@ -138,6 +162,59 @@ foreach ($rows as $r) {
         'all_day'     => (int)$r['work_all_day'] === 1,
         'stamp'       => $r['updated_datetime'],
     ], $tz));
+}
+
+// ── Tasks (#75) ─────────────────────────────────────────────────────────────
+//
+// ⚠️ The uid carries the KIND. A task can appear twice — its work slot and its
+// due date — and two events sharing a uid are ONE event to every calendar
+// client, so the second would silently replace the first.
+foreach ($taskRows as $r) {
+    $bits = [];
+    if ($detail !== 'ref') {
+        if (!empty($r['status_name']))   $bits[] = 'Status: '   . $r['status_name'];
+        if (!empty($r['priority_name'])) $bits[] = 'Priority: ' . $r['priority_name'];
+    }
+    $description = implode("\n", $bits);
+    $url = $base ? (($https ? 'https' : 'http') . '://' . $host . $base . '/tasks/?task=' . (int)$r['id']) : '';
+    // 'ref' keeps titles off the wire for tickets, and a task title is no less
+    // revealing. Numbered rather than named, so the slot is still visible.
+    $title = $detail === 'ref' ? ('Task #' . (int)$r['id']) : (string)$r['title'];
+
+    if (taskCalendarWantsWork($taskMode) && !empty($r['work_start_datetime'])) {
+        $end = $r['work_end_datetime'];
+        if (!$end || strtotime($end) <= strtotime($r['work_start_datetime'])) {
+            $end = date('Y-m-d H:i:s',
+                strtotime($r['work_start_datetime']) + TicketsService::SCHEDULE_DEFAULT_MINUTES * 60);
+        }
+        $lines = array_merge($lines, icsEvent([
+            'uid'         => 'freeitsm-task-work-' . (int)$r['id'] . '@' . $domain,
+            'summary'     => $title,
+            'description' => $description,
+            'url'         => $url,
+            'start'       => $r['work_start_datetime'],
+            'end'         => $end,
+            'all_day'     => (int)$r['work_all_day'] === 1,
+            'stamp'       => $r['updated_datetime'],
+        ], $tz));
+    }
+
+    if (taskCalendarWantsDue($taskMode) && !empty($r['due_date'])) {
+        // ⚠️ The all-day END IS EXCLUSIVE in iCalendar, so it must be the day
+        // AFTER the due date. Ending on the due date itself draws the banner on
+        // the day before and the deadline silently moves.
+        $day = substr((string)$r['due_date'], 0, 10);
+        $lines = array_merge($lines, icsEvent([
+            'uid'         => 'freeitsm-task-due-' . (int)$r['id'] . '@' . $domain,
+            'summary'     => 'Due: ' . $title,
+            'description' => $description,
+            'url'         => $url,
+            'start'       => $day . ' 00:00:00',
+            'end'         => date('Y-m-d', strtotime($day . ' +1 day')) . ' 00:00:00',
+            'all_day'     => true,
+            'stamp'       => $r['updated_datetime'],
+        ], $tz));
+    }
 }
 
 icsRespond($lines, 'freeitsm-my-work.ics');
