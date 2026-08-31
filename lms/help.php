@@ -49,8 +49,10 @@ $translationNamespaces = ['common', 'lms'];
             --on-accent:    var(--lms-on-accent);
         }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=106">
 </head>
-<body>
+<body data-mobile-module="lms">
     <?php include 'includes/header.php'; ?>
 
     <div class="help-container">
@@ -468,5 +470,6 @@ $translationNamespaces = ['common', 'lms'];
             });
         });
     </script>
+    <script src="../assets/js/mobile.js?v=41"></script>
 </body>
 </html>

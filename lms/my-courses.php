@@ -35,7 +35,7 @@ $canManage = analystHasCapability($conn, (int)$_SESSION['analyst_id'], Cap::LMS_
     <title><?php echo htmlspecialchars(t('lms.my.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/lms.css?v=4">
+    <link rel="stylesheet" href="../assets/css/lms.css?v=5">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -73,8 +73,10 @@ $canManage = analystHasCapability($conn, (int)$_SESSION['analyst_id'], Cap::LMS_
             .myc-actions .btn { width: 100%; }
         }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=106">
 </head>
-<body>
+<body data-mobile-module="lms">
     <?php include 'includes/header.php'; ?>
 
     <div class="myc-wrap">
@@ -89,5 +91,6 @@ $canManage = analystHasCapability($conn, (int)$_SESSION['analyst_id'], Cap::LMS_
 
     <script>window.API_BASE = '../api/lms/';</script>
     <script src="../assets/js/lms-my-courses.js?v=2"></script>
+    <script src="../assets/js/mobile.js?v=41"></script>
 </body>
 </html>

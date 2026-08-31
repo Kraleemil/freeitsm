@@ -49,12 +49,14 @@ $translationNamespaces = ['common', 'lms'];
         .container > h1 { font-size: 1.5rem; margin: 0 0 18px; }
         .tab-content > p { margin-bottom: 14px; max-width: 720px; line-height: 1.6; }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/mobile.css?v=106">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="<?php echo BASE_URL; ?>assets/js/tz.js?v=5"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/i18n.js?v=2"></script>
 </head>
-<body>
+<body data-mobile-page="settings" data-mobile-module="lms">
     <div class="settings-shell">
     <?php include __DIR__ . '/../includes/header.php'; ?>
 
@@ -76,5 +78,6 @@ $translationNamespaces = ['common', 'lms'];
     <script src="<?php echo BASE_URL; ?>assets/js/toast.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/confirm.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/ai-settings.js"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=41"></script>
 </body>
 </html>

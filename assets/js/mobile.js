@@ -1785,11 +1785,32 @@
                                             uploaded. NOT size: "1.2 MB"
                                             says what it is */
         { table: 'body[data-mobile-page="rfp-extracted"] .page-wrap table',
-          columns: [3] }                 /* confidence. A bare "87%" is
+          columns: [3] },                /* confidence. A bare "87%" is
                                             §21's own example of a figure
                                             that means nothing alone, while
                                             Department and Type read as the
                                             tags they are */
+
+        /* ---- LMS (LAYER 29b, #1392) ----
+           Three feeds on one console, told apart by the tbody ids the page
+           already gives them. The fourth table there — progress — stays a
+           scroller and keeps its real header row, so it is deliberately
+           absent from this list. */
+        { table: 'body[data-mobile-module="lms"] .lms-table:has(#coursesBody)',
+          columns: [2] },                /* uploaded. A bare date. The version
+                                            column beside it is a badge
+                                            reading "Authored" or "SCORM 2004",
+                                            which says what it is */
+        { table: 'body[data-mobile-module="lms"] .lms-table:has(#groupsBody)',
+          columns: [2] },                /* member count — a bare number */
+        { table: 'body[data-mobile-module="lms"] .lms-table:has(#assignmentsBody)',
+          columns: [1, 2, 3] }           /* group, deadline, assigned by.
+                                            Course and Group are TWO NAMES
+                                            side by side and "assigned by" a
+                                            third — the contracts round's
+                                            finding that a pair of names is
+                                            unreadable unlabelled, whatever
+                                            the column count says */
     ];
 
     function labelCardFeed(table, columns) {
@@ -2347,4 +2368,124 @@
     syncChrome();
     if (mq.addEventListener) { mq.addEventListener('change', syncChrome); }
     else if (mq.addListener) { mq.addListener(syncChrome); }
+})();
+
+/* ====================================================================
+   LMS — give back the two panels lms.css deletes below 900px  (#1392)
+
+   ITS OWN top-level IIFE, for the reason the blocks above document.
+
+   `lms.css` carries a pre-rollout `@media (max-width: 900px)` that sets
+   `.lms-editor-side, .lms-native-toc { display: none }`. Those are the
+   editor's LESSON LIST (which is also where "Add lesson" lives) and the
+   player's TABLE OF CONTENTS — primary navigation in both cases.
+
+   LAYER 29d brings them back as a slide-in sheet. This is the control
+   that opens it, and the scrim that closes it.
+
+   ⭐ ZERO NEW TRANSLATION KEYS. The button's label is harvested from the
+   panel's own heading — the editor's side panel is headed "Lessons" and
+   the player's is the course contents — so it reads correctly in all 24
+   languages and says the right thing on each of the two screens without
+   this file knowing which is which. Same trick as §21's column headings.
+   ==================================================================== */
+(function () {
+    var panel = document.querySelector('.lms-editor-side, .lms-native-toc');
+    if (!panel) return;                       // not the editor or the player
+
+    var mq = window.matchMedia('(max-width: 768px)');
+
+    /* Where the button goes: the bar at the top of whichever screen this is.
+       Both have one; neither has an id, so this takes the first thing that
+       looks like the page's own header row rather than inventing markup. */
+    var bar = document.querySelector('.lms-native-nav, .lms-editor-bar, .lms-editor-main');
+    if (!bar) return;
+
+    /* The panel's own heading is the honest label for the button that opens
+       it — the editor's side panel is headed "Lessons" already, in whatever
+       language the reader is using.
+     *
+     * ⚠️ THE PLAYER'S PANEL HAS NO HEADING (it is a bare `<nav id="toc">`), so
+     * the fallback is not decoration — it is the label on one of the two
+     * screens. The first version asked for `lms.player.contents`, which does
+     * not exist, and the button rendered as the literal string
+     * "☰ lms.player.contents".
+     *
+     * 🔑 A MISSING KEY RETURNS THE KEY, WHICH IS TRUTHY. `x || 'Contents'`
+     * therefore never fired: the guard has to compare against the key itself,
+     * which is the shape documents.js already uses. Caught by reading the
+     * rendered button rather than trusting the fallback to be a fallback.
+     *
+     * `lms.editor.lessons` is used for both, and is accurate for both: a
+     * course's contents IS its list of lessons. No new locale keys. */
+    function tr(key, fallback) {
+        if (typeof t !== 'function') return fallback;
+        var got = t(key);
+        return (got && got !== key) ? got : fallback;
+    }
+    function panelLabel() {
+        var h = panel.querySelector('h1, h2, h3, h4, .lms-editor-side-head');
+        var text = h ? (h.textContent || '').replace(/\s+/g, ' ').trim() : '';
+        if (text) return text;
+        return tr('lms.editor.lessons', 'Lessons');
+    }
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lms-panel-btn';
+    btn.textContent = '☰ ' + panelLabel();   // ☰ — the same glyph the views drawer uses
+    btn.setAttribute('aria-expanded', 'false');
+    btn.style.display = 'none';                   // injected chrome: hidden off-mobile
+    bar.insertBefore(btn, bar.firstChild);
+
+    var scrim = null;
+
+    function open() {
+        document.body.setAttribute('data-lms-panel', 'open');
+        btn.setAttribute('aria-expanded', 'true');
+        if (!scrim) {
+            scrim = document.createElement('div');
+            scrim.className = 'lms-panel-scrim';
+            scrim.addEventListener('click', close);
+            document.body.appendChild(scrim);
+        }
+        scrim.style.display = '';
+    }
+    function close() {
+        document.body.removeAttribute('data-lms-panel');
+        btn.setAttribute('aria-expanded', 'false');
+        if (scrim) scrim.style.display = 'none';
+    }
+    btn.addEventListener('click', function () {
+        if (document.body.getAttribute('data-lms-panel') === 'open') close(); else open();
+    });
+
+    /* Choosing a lesson should close the sheet — otherwise you tap a lesson
+       and the panel stays over the thing you just asked to read. Delegated,
+       because both panels rebuild their contents from a fetch and neither
+       call site belongs to this file. */
+    panel.addEventListener('click', function (e) {
+        if (!mq.matches) return;
+        var hit = e.target.closest('a, .lms-toc-item, .lms-lesson-item');
+        // The delete button lives inside a lesson row; closing on it would
+        // hide the list you are tidying up.
+        if (hit && !e.target.closest('.lms-lesson-del')) close();
+    });
+
+    /* ⚠️ And it all goes away above 768px: the button hides and the state
+       attribute is removed, or a desktop resize would leave the page with a
+       panel pinned open over the content and the CSS that positions it gone.
+       The Calendar round set the precedent for restoring rather than
+       converting one way. */
+    function sync() {
+        if (mq.matches) {
+            btn.style.display = '';
+        } else {
+            btn.style.display = 'none';
+            close();
+        }
+    }
+    sync();
+    if (mq.addEventListener) { mq.addEventListener('change', sync); }
+    else if (mq.addListener) { mq.addListener(sync); }
 })();

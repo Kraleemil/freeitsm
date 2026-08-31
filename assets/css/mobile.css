@@ -7522,4 +7522,348 @@
         min-height: 0;         /* §14 — without it the rows= attribute wins */
         resize: none;          /* it is already exactly as tall as the sheet */
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LAYER 29 — LMS  (#1392)
+
+       Fifteenth module. Six pages: the courses/groups/assignments/progress
+       console, My courses, the course editor, the player (which routes to a
+       SCORM frame or to the authored-course player), the guide and settings.
+
+       Opening numbers at 360px: `docScrollW=953` on five of the six — the
+       same figure on each, so the shared header again, and opting in took
+       them all to 360. What it did NOT fix is one page carrying FOUR tables,
+       and two panels that a pre-existing media query simply deletes.
+
+       ⚠️⚠️ THE MODULE ALREADY HAD TWO @media BLOCKS, AND ONE OF THEM HIDES
+       NAVIGATION. Grepping for them before writing anything is the Morning
+       Checks lesson (#1269), and it paid again:
+
+         lms.css:680          @media (max-width: 900px)
+             .lms-editor-side, .lms-native-toc { display: none }
+         my-courses.php:71    @media (max-width: 640px)
+             .myc-card { flex-direction: column }
+
+       The second is fine and is left alone. The first is the problem: it
+       deletes the editor's LESSON LIST — which is also where "Add lesson"
+       lives — and the player's TABLE OF CONTENTS. Both are primary
+       navigation, and both vanish below 900px with nothing in their place.
+
+       ⭐ That is worse than not supporting a screen. A module that says "this
+       needs a bigger display" is honest; one that silently removes the way to
+       move around leaves a page that looks complete and quietly cannot be
+       used. The panels come back here, as sheets.
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    /* --------------------------------------------------------------------
+       29a — Shell: the console's padding and its tab strip.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="lms"] .lms-container { padding: 12px; }
+
+    /* Four tabs (Courses / Groups / Assignments / Progress) do not fit at
+       360px. A one-line horizontal scroller rather than a wrapped block, the
+       same idiom as #pmStatusFilters, the settings `.tabs` and `.detail-tabs`
+       — and the scrollbar is hidden for the reason those record: on touch the
+       strip's own overflow is the affordance, and the bar eats a row. */
+    [data-mobile-module="lms"] .lms-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        margin-bottom: 14px;
+    }
+    [data-mobile-module="lms"] .lms-tabs::-webkit-scrollbar { display: none; }
+    [data-mobile-module="lms"] .lms-tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        min-height: 42px;
+    }
+
+    /* `justify-content: space-between` on a row holding a heading and a button
+       group — the shape that produced an 11px column in the contracts round.
+       It happens to fit here because the headings are short, but a translated
+       one ("Zugewiesene Kurse") plus two buttons would not. Wrapped before it
+       becomes a bug report. */
+    [data-mobile-module="lms"] .lms-panel-header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    [data-mobile-module="lms"] .lms-panel-header h2 { font-size: 16px; }
+    [data-mobile-module="lms"] .lms-panel-header .btn { min-height: 40px; }
+
+    /* --------------------------------------------------------------------
+       29b — Four tables on one page, and §11 answers them differently.
+
+       This is the clearest worked example of §11 in the rollout so far,
+       because all four wear the same class (`.lms-table`) and none of them
+       wants the same treatment. They are told apart by their tbody ids, which
+       the page already gives them — no markup change, and no `:has()`
+       gymnastics.
+
+         #coursesBody      Title · Version · Uploaded · Status · Actions
+             → FEED. You are looking for one course, not comparing five.
+               Version and Uploaded are bare values, so they take §21 labels.
+
+         #groupsBody       Name · Description · Members · Actions
+             → FEED, and §11 says so without a second consideration: the
+               Description column holds PROSE. It cannot be scrolled sideways
+               and it cannot be squeezed.
+
+         #assignmentsBody  Course · Group · Deadline · Assigned by · Actions
+             → FEED. Note Course and Group are TWO NAMES side by side, and
+               "Assigned by" is a third — the contracts round's finding that a
+               pair of names is unreadable unlabelled, whatever the column
+               count says. All three take §21 labels.
+
+         #progressBody     Analyst · Course · Group · Status · Score ·
+                           Deadline · Last access
+             → SCROLLER. Seven columns, and it is a REPORT: you read it down
+               the Status and Score columns across people, which is the exact
+               case a card feed destroys. Reading order cannot carry seven.
+       -------------------------------------------------------------------- */
+
+    /* ---- the three feeds ---- */
+    [data-mobile-module="lms"] #coursesBody,
+    [data-mobile-module="lms"] #groupsBody,
+    [data-mobile-module="lms"] #assignmentsBody { display: block; width: 100%; }
+
+    /* ⚠️ The head is hidden per table, NOT with a blanket `.lms-table thead`,
+       or the progress scroller would lose the header row that is the whole
+       reason it stays a table. */
+    [data-mobile-module="lms"] .lms-table:has(#coursesBody) thead,
+    [data-mobile-module="lms"] .lms-table:has(#groupsBody) thead,
+    [data-mobile-module="lms"] .lms-table:has(#assignmentsBody) thead { display: none; }
+    [data-mobile-module="lms"] .lms-table:has(#coursesBody),
+    [data-mobile-module="lms"] .lms-table:has(#groupsBody),
+    [data-mobile-module="lms"] .lms-table:has(#assignmentsBody) { display: block; width: 100%; }
+
+    [data-mobile-module="lms"] #coursesBody tr,
+    [data-mobile-module="lms"] #groupsBody tr,
+    [data-mobile-module="lms"] #assignmentsBody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 8px;
+        padding: 12px 4px;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    [data-mobile-module="lms"] #coursesBody td,
+    [data-mobile-module="lms"] #groupsBody td,
+    [data-mobile-module="lms"] #assignmentsBody td {
+        display: block;
+        flex: 1 1 100%;
+        /* 🔴 Load-bearing. A flex item's automatic minimum size is its content
+           width, so one nowrap cell pins the card wider than the screen while
+           the document stays contained and every check passes (LAYER 27). */
+        min-width: 0;
+        padding: 0;
+        border: none;
+        font-size: 12.5px;
+        color: var(--text-dim, #888);
+    }
+
+    /* The first cell is the card's name, and it shares its line with the state
+       badge. `flex: 1 1 60%` and not `auto` or `0` — §23: `auto` lets a long
+       title claim the whole line and push the badge onto the next one, `0`
+       lets every other short cell join the line and crush the title. */
+    [data-mobile-module="lms"] #coursesBody td:nth-child(1),
+    [data-mobile-module="lms"] #groupsBody td:nth-child(1),
+    [data-mobile-module="lms"] #assignmentsBody td:nth-child(1) {
+        flex: 1 1 60%;
+        order: -2;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+        overflow-wrap: anywhere;
+    }
+    /* Courses: the SCORM/Authored badge rides up beside the title. */
+    [data-mobile-module="lms"] #coursesBody td:nth-child(2) { flex: 0 0 auto; order: -1; }
+    /* Courses: Status is a badge and belongs on the top line too. */
+    [data-mobile-module="lms"] #coursesBody td:nth-child(4) { flex: 0 0 auto; order: -1; }
+
+    /* Actions: the last cell of all three, full width and thumb-sized.
+       ⚠️ `:not(:first-child)` because §11's empty-state warning applies here —
+       the loading/empty row is a single `<td colspan>`, which is both the
+       first AND the last child of its row, and would otherwise be laid out as
+       a row of buttons instead of the sentence it is. */
+    [data-mobile-module="lms"] #coursesBody td:last-child:not(:first-child),
+    [data-mobile-module="lms"] #groupsBody td:last-child:not(:first-child),
+    [data-mobile-module="lms"] #assignmentsBody td:last-child:not(:first-child) {
+        flex: 1 1 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    [data-mobile-module="lms"] #coursesBody td:last-child:not(:first-child) > *,
+    [data-mobile-module="lms"] #groupsBody td:last-child:not(:first-child) > *,
+    [data-mobile-module="lms"] #assignmentsBody td:last-child:not(:first-child) > * {
+        flex: 1 1 auto;
+        min-height: 40px;
+        justify-content: center;
+    }
+    /* …and the empty state itself, which every rule keyed on position above
+       has to leave alone. */
+    [data-mobile-module="lms"] #coursesBody td:only-child,
+    [data-mobile-module="lms"] #groupsBody td:only-child,
+    [data-mobile-module="lms"] #assignmentsBody td:only-child {
+        flex: 1 1 100%;
+        order: 0;
+        margin: 0;
+        padding: 20px 0;
+        text-align: center;
+        font-size: 13px;
+    }
+    /* The harvested column headings (§21), printed from the attribute
+       mobile.js stamps. The rule is general since the contracts round; only
+       cells it has been pointed at carry the attribute. */
+
+    /* ---- the one scroller ---- */
+    /* Same idiom as the settings tables and the contracts comparison grids:
+       the table itself becomes the scroller and keeps its header row. */
+    [data-mobile-module="lms"] .lms-table:has(#progressBody) {
+        display: block;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+
+    /* --------------------------------------------------------------------
+       29c — 🔴 THE HOVER-REVEALED DELETE (§26), found by the sweep.
+
+           .lms-lesson-item:hover .lms-lesson-del { opacity: 1 }
+
+       The editor's per-lesson delete button is invisible until the pointer is
+       over its row, and a touch screen never hovers. So on a phone it occupies
+       its share of every lesson row and can never be seen — tappable by
+       accident, never on purpose.
+
+       This is the sweep §26 says is owed across the shipped modules, run here
+       because it is cheap to do while opening a new one. One hit in this
+       module; it is the second instance found since the technique was written.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="lms"] .lms-lesson-del {
+        opacity: 1;
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    /* --------------------------------------------------------------------
+       29d — The two panels the module deletes, given back as sheets.
+
+       `.lms-editor-side` (the lesson list, and where "Add lesson" lives) and
+       `.lms-native-toc` (the course contents) are both `display: none` below
+       900px in lms.css. Overriding that here rather than editing lms.css: the
+       desktop rule is right for a desktop, and the sheet is a mobile
+       affordance, so both belong on their own side of the gate.
+
+       Chrome deliberately borrowed from LAYER 4's `.mobile-sheet` — full
+       screen, its own header, a close control — so a reader who has seen the
+       ticket sheets recognises this one. It is styled in place rather than
+       having the node relocated: nothing else needs the DOM moved, and not
+       moving it means the editor's own JS keeps working untouched.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="lms"] .lms-editor-side,
+    [data-mobile-module="lms"] .lms-native-toc {
+        display: flex;
+        flex-direction: column;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 86vw;
+        max-width: 340px;
+        z-index: 1500;
+        background: var(--surface, #fff);
+        border-right: 1px solid var(--border, #ddd);
+        box-shadow: 4px 0 30px var(--shadow, rgba(0, 0, 0, 0.35));
+        overflow-y: auto;
+        padding: 14px 12px;
+        /* Parked off-screen until asked for. `visibility` as well as the
+           transform so it is out of the accessibility tree too, not merely
+           off the side of the screen. */
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform 0.22s ease, visibility 0.22s;
+    }
+    /* ⚠️ `body[…]` and not `[data-mobile-module="lms"] […]` — BOTH attributes
+       live on <body>, so a descendant selector for the second would never
+       match its own element. Written that way first; it made the panel open
+       on the player (which the base rule scopes) and stay shut wherever the
+       cascade happened to resolve differently. `body[…]` is also (0,2,1)
+       against the base rule's (0,2,0), so it wins without !important. */
+    body[data-lms-panel="open"] .lms-editor-side,
+    body[data-lms-panel="open"] .lms-native-toc {
+        transform: translateX(0);
+        visibility: visible;
+    }
+    /* The button that opens it is injected by mobile.js and hidden off-mobile
+       by an inline style, per the "injected chrome" corollary. */
+    .lms-panel-btn {
+        border: 1px solid var(--border, #ddd);
+        background: var(--surface, #fff);
+        color: var(--text, #333);
+        border-radius: 8px;
+        min-height: 40px;
+        padding: 8px 12px;
+        font: inherit;
+        font-size: 14px;
+        cursor: pointer;
+        flex: 0 0 auto;
+    }
+    /* Tapping anywhere else closes it — the same expectation the waffle and
+       views drawers set. */
+    .lms-panel-scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 1400;
+        background: rgba(0, 0, 0, 0.45);
+    }
+
+    /* --------------------------------------------------------------------
+       29e — The player and the editor themselves.
+       -------------------------------------------------------------------- */
+    /* lms.css already drops these to 18px below 900. 12px at 360, where 18px
+       of each side is a tenth of the screen. */
+    [data-mobile-module="lms"] .lms-editor-main,
+    [data-mobile-module="lms"] .lms-native-stage { padding: 12px; }
+
+    /* 🔴 THE BAR HAS TO WRAP, AND THE REASON IS MY OWN BUTTON.
+       29d injects a "☰ Lessons" control into `.lms-editor-bar`, and that
+       pushed `.lms-editor-bar-actions` from a bar that just fitted to one
+       ending at x=451 on a 360px screen — the editor went from contained to
+       +91 the moment the panel was given back.
+       ⚠️ Caught only because the sweep was re-run after the change rather
+       than before it. Adding chrome to a row is the same act as adding a
+       child to a grid (GH #122): it is a layout change, and the row it lands
+       in has to be able to take it. */
+    [data-mobile-module="lms"] .lms-editor-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 10px 12px;
+    }
+    [data-mobile-module="lms"] .lms-editor-bar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-left: 0;
+    }
+    [data-mobile-module="lms"] .lms-editor-bar-actions .btn { flex: 1 1 auto; min-height: 40px; }
+    [data-mobile-module="lms"] .lms-native-nav { padding: 10px 12px; gap: 8px; }
+    /* The lesson body is authored prose and can contain anything, including a
+       wide table or image — contained so it cannot take the layout with it,
+       the same guard the Knowledge round put round an article's author HTML. */
+    [data-mobile-module="lms"] .lms-lesson-body img { max-width: 100%; height: auto; }
+    [data-mobile-module="lms"] .lms-lesson-body table {
+        display: block;
+        overflow-x: auto;
+        max-width: 100%;
+    }
+    /* My courses: the 640px block already stacks the card. It stops short of
+       the buttons inside it, which stay at their content width. */
+    [data-mobile-module="lms"] .myc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    [data-mobile-module="lms"] .myc-actions .btn { min-height: 42px; }
 }

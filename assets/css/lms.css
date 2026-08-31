@@ -677,8 +677,26 @@ body {
 /* Marks an authored course in the Courses list, alongside .scorm-badge. */
 .native-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #f5f3ff; color: #6d28d9; }
 
-@media (max-width: 900px) {
-    .lms-editor-side, .lms-native-toc { display: none; }
+/* ⚠️ 768px, NOT 900px, and the number matters.
+ *
+ * This block hides the editor's lesson list and the player's table of
+ * contents - both of which are primary navigation, and the lesson list is
+ * also where "Add lesson" lives. mobile.css LAYER 29d gives them back as a
+ * slide-in sheet with a button to open it, and that layer is gated at the
+ * rollout's own 768px breakpoint, as every mobile rule in the product is.
+ *
+ * While these two disagreed, every width from 769px to 900px - which is
+ * where a tablet held upright lands - had the panels deleted AND no button
+ * to bring them back, because the replacement had not started yet. Measured
+ * at 800px: contents hidden, no button, and the page overflowing by 149px.
+ *
+ * 🔑 A rule that removes something and a rule that replaces it have to share
+ * a breakpoint. Two numbers that are nearly the same leave a band where the
+ * first has happened and the second has not.
+ *
+ * Above 768px the real sidebar is shown, which is what it was always for.
+ */
+@media (max-width: 768px) {
     .lms-editor-main, .lms-native-stage { padding: 18px; }
     .lms-native-nav { padding: 12px 18px; }
     .lms-native-progress { width: 70px; }

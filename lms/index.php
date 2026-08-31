@@ -36,13 +36,15 @@ $translationNamespaces = ['common', 'lms'];
     <title>Service Desk - <?php echo htmlspecialchars(t('lms.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/lms.css?v=4">
+    <link rel="stylesheet" href="../assets/css/lms.css?v=5">
+    <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=106">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
 </head>
-<body>
+<body data-mobile-module="lms">
     <?php include 'includes/header.php'; ?>
 
     <div class="lms-container">
@@ -289,5 +291,6 @@ $translationNamespaces = ['common', 'lms'];
     <!-- Toast -->
     <script>window.API_BASE = '../api/lms/';</script>
     <script src="../assets/js/lms.js?v=4"></script>
+    <script src="../assets/js/mobile.js?v=41"></script>
 </body>
 </html>
