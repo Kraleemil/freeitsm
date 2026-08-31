@@ -5636,6 +5636,24 @@
         overflow: visible;
         box-shadow: none;
         transition: none;
+        /* 🔴 `padding` BELONGS IN THIS LIST, and leaving it out is what Ed saw
+           on the first polish pass as "put a bit of padding around search and
+           New contract". The rail sets `padding: 0` (it is 16px wide — there
+           is no room for any), and at (0,3,0) that beat the `padding: 12px`
+           on the strip rule below at (0,1,0). So the strip had NO padding at
+           all on his account and both controls sat flush against the edge of
+           the screen. The strip rule was not too tight; it was never applied.
+
+           🔑 A neutralisation has to undo EVERY property the mode set, not
+           the ones that were obviously wrong. I overrode width, position,
+           overflow, box-shadow and transition — the five that stopped the
+           sidebar being a 16px rail — and stopped there, because those were
+           the ones that made it VISIBLE. `padding: 0` on a visible element
+           looks like a design choice rather than a leftover, which is exactly
+           why it survived a round.
+           ⭐ The general form: after neutralising a mode, diff the computed
+           style of the element against the same element with the mode off. */
+        padding: 12px;
     }
     html.contracts-sidebar-hover .contracts-layout .contracts-sidebar > *,
     html.contracts-sidebar-hover .contracts-layout .contracts-sidebar:hover > * {
@@ -5667,11 +5685,15 @@
         overflow: visible;
         border-right: none;
         border-bottom: 1px solid var(--border, #e5e7eb);
-        padding: 10px 12px;
+        /* Roomier than the 10px/12px it opened with — see the button rule
+           below for why (Ed's polish pass 1). The strip carries the two
+           primary controls and the figure cards, so it is the one part of the
+           page that should not feel packed. */
+        padding: 12px;
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
     }
     .contracts-sidebar .sidebar-section,
     .rfp-sidebar .sidebar-section {
@@ -5700,46 +5722,101 @@
     .contracts-sidebar .sidebar-section h3,
     .rfp-sidebar .sidebar-section h3 { display: none; }
 
-    /* The figures: one horizontal scrolling row, not five stacked bars. Each
-       keeps its number for the reason LAYER 22 kept the filter counts — the
-       figure is the whole point of the row (is anything expiring at all?),
-       so this cannot collapse into a select. */
+    /* ---- the figures: a dashboard of cards, not a row of chips (Ed, polish
+       pass 1: "consider showing the contracts, active, expiring etc as cards
+       on a dashboard?") ----
+
+       They were a horizontal scrolling chip row, which had two faults the
+       cards fix. The figures ran off the right edge, so "how many are
+       expiring" — the one number anybody opens this module to see — was
+       behind a swipe. And it made the module inconsistent with itself: the
+       RFP Builder's sub-pages already show their totals as a 2-up grid of
+       `.stat-card`s (28i), so the same product was presenting the same kind
+       of information two different ways two taps apart.
+
+       A grid rather than a wrapping flex row, per §10: these are meant to be
+       COMPARED, and `flex-wrap` leaves the last row ragged and the numbers
+       off their columns. `minmax(0, 1fr)` rather than `1fr` for §14's reason
+       — a long translated label ("Expiring (90d)") would otherwise push its
+       track wider than the container.
+
+       ⚠️ `auto-fit` with a 150px floor, NOT a fixed `repeat(2, …)`. Contracts
+       shows five figures and the RFP Builder four, and at 150px a 360px
+       screen gets two while a 420px phone gets two comfortably and a small
+       tablet gets three — the same call 18b made for the service board. */
     .contracts-sidebar .sidebar-section:has(.sidebar-stat),
     .rfp-sidebar .sidebar-section:has(.sidebar-stat) {
-        display: flex;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        -webkit-overflow-scrolling: touch;
-        gap: 6px;
-        /* Same idiom as .detail-tabs, #pmStatusFilters and the settings .tabs:
-           the bar is redundant on touch and eats a row of height. */
-        scrollbar-width: none;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 8px;
     }
-    .contracts-sidebar .sidebar-section:has(.sidebar-stat)::-webkit-scrollbar,
-    .rfp-sidebar .sidebar-section:has(.sidebar-stat)::-webkit-scrollbar { display: none; }
     .contracts-sidebar .sidebar-stat,
     .rfp-sidebar .sidebar-stat {
-        flex: 0 0 auto;
+        /* The desktop row is `label … value` on one line, right-aligned by
+           `justify-content: space-between`. A card wants the number to lead
+           and the caption to sit under it, which is the shape `.stat-card`
+           already uses on the RFP pages — so this is a restack of the same
+           two elements rather than a second design. */
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
         margin-bottom: 0;
-        gap: 8px;
-        padding: 7px 10px;
-        font-size: 13px;
-        white-space: nowrap;
-        background: var(--surface-2, #f7f7f8);
-        border-radius: 999px;
+        padding: 10px 12px;
+        min-width: 0;
+        background: var(--surface, #fff);
+        border-radius: 8px;
+        border-left: 3px solid var(--border, #ddd);
+        box-shadow: 0 1px 3px var(--shadow, rgba(0, 0, 0, 0.06));
     }
+    /* ⚠️ `column-reverse` puts the value first VISUALLY while leaving the DOM
+       as label-then-value, so the reading order a screen reader gets is still
+       "Expiring (90d), 1" and not "1, Expiring (90d)". Reversing the markup
+       instead would have read the number before knowing what it counted. */
     .contracts-sidebar .sidebar-stat .stat-value,
-    .rfp-sidebar .sidebar-stat .stat-value { font-size: 14px; }
+    .rfp-sidebar .sidebar-stat .stat-value {
+        font-size: 22px;
+        line-height: 1.1;
+        font-weight: 700;
+        color: var(--text, #222);
+    }
+    .contracts-sidebar .sidebar-stat > span:not(.stat-value),
+    .rfp-sidebar .sidebar-stat > span:not(.stat-value) {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-dim, #888);
+        /* The caption wraps rather than being cut off — these are translated
+           and German is routinely half again as long as English. */
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+    /* The one figure that is a warning keeps its accent, and now has a spine
+       to carry it — the same device `.stat-card` uses on the RFP pages. */
+    .contracts-sidebar .sidebar-stat.warning { border-left-color: var(--con-accent, #f59e0b); }
+    .contracts-sidebar .sidebar-stat.warning .stat-value { color: var(--con-accent, #f59e0b); }
 
-    /* The quick links, likewise one scrolling row.
-       ⚠️ NOT hidden as duplicates of the views drawer, which was the first
-       instinct. On the contracts sidebar they genuinely do duplicate
-       `.header-nav` (Suppliers / Contacts / RFP Builder / Settings), but the
-       RFP Builder's two are "Back to contracts" and its OWN help page — and
-       the header's Help button goes to `contracts/help.php`, a different
-       document. Hiding the row would have cost the RFP Builder the only link
-       to its guide. */
+    /* ---- the quick links: gone, except the one that is not a duplicate ----
+       Ed, on the first polish pass: "we have a hamburger menu (great) but we
+       then have a row of links e.g. suppliers, contacts, rfp builder — we
+       don't need these as they are on the hamburger menu." Correct, and the
+       hrefs prove it: `suppliers/`, `contacts/`, `rfp-builder/`, `settings/`
+       are the same four destinations the views drawer already lists.
+
+       ⚠️ NOT a blanket `display: none` on `.sidebar-links`, though. The RFP
+       Builder's row holds two links, and only ONE is a duplicate:
+         `../`         → Contracts, which IS in the drawer
+         `help.php`    → the RFP Builder's OWN guide, which is NOT — the
+                         drawer's Help button goes to `contracts/help.php`,
+                         a different document.
+       So the contracts row goes entirely and the RFP row loses exactly the
+       duplicate, keeping the only route to its guide. Keyed on the href
+       because that is the actual test being applied — "is this already in the
+       drawer" — rather than on a position that would go stale. */
+    .contracts-sidebar .sidebar-section:has(.sidebar-links),
+    .rfp-sidebar .sidebar-link[href="../"] { display: none; }
+
     .contracts-sidebar .sidebar-links,
     .rfp-sidebar .sidebar-links {
         flex-direction: row;
@@ -5762,14 +5839,21 @@
         border-radius: 999px;
         gap: 7px;
     }
-    /* Thumb-sized, and the pair on the top line stay side by side. */
+    /* Thumb-sized, and the pair on the top line stay side by side.
+       The generous inline padding is Ed's (polish pass 1: "can you put a bit
+       of padding around search and New contract"). They were flush against
+       the strip's own 12px edge and against each other, so the two controls
+       and the screen edge read as one block; 14px inside them and a wider gap
+       in the strip below give each one its own space. */
     .contracts-sidebar .sidebar-search-btn,
     .contracts-sidebar .sidebar-add-btn,
     .rfp-sidebar .sidebar-add-btn {
-        min-height: 42px;
+        min-height: 44px;
         font-size: 14px;
+        padding: 11px 14px;
         text-align: center;
         justify-content: center;
+        border-radius: 8px;
     }
     .contracts-sidebar .sidebar-add-btn,
     .rfp-sidebar .sidebar-add-btn { display: flex; align-items: center; }
@@ -6520,4 +6604,198 @@
     [data-mobile-module="contracts"] .stat-card { padding: 12px 14px; }
     [data-mobile-module="contracts"] .stat-card .stat-value { font-size: 20px; }
     [data-mobile-module="contracts"] .stat-card .stat-label { font-size: 11px; }
+
+    /* --------------------------------------------------------------------
+       28j — A contract's actions as an icon bar along the BOTTOM (Ed, polish
+       pass 1: "please can we have these as icons at the bottom of the screen
+       just like we did with the knowledge back and ticket icons").
+
+       28f had already stopped them crushing the heading by letting them wrap
+       beneath it — but that spent two rows of the page on chrome and put the
+       five actions at the TOP, which is the hardest part of a phone screen to
+       reach. This is the pattern LAYER 5 established for the ticket reading
+       pane and 17k reused for a knowledge article: pinned to the bottom,
+       icon-only, where a thumb already is.
+
+       The markup follows knowledge/index.php exactly — an aria-hidden icon
+       span, a label span, and a `title` — so this is the third user of one
+       shape rather than a third design.
+
+       ⚠️ `position: fixed`, and 17k's warning applies unchanged and was
+       CHECKED rather than assumed: a fixed element inside an ancestor with a
+       transform, filter or `contain` is trapped in that stacking context —
+       it renders and measures perfectly and is completely untappable. The
+       ancestor chain here is `.contract-card` → `.contracts-main` →
+       `.contracts-layout` → body, none of which carries one. Verified with
+       elementFromPoint at the bar's own coordinates, not by reading the CSS.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="contracts"] .contract-card-header .actions {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1200;
+        display: flex;
+        gap: 6px;
+        align-items: stretch;
+        justify-content: space-around;
+        margin: 0;
+        background: var(--surface, #fff);
+        border-top: 1px solid var(--border, #e0e0e0);
+        /* env() so the bar clears the home indicator on a modern iPhone; the
+           fallback keeps it correct everywhere else. */
+        padding: 8px 10px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -2px 8px var(--shadow, rgba(0, 0, 0, 0.12));
+    }
+    [data-mobile-module="contracts"] .contract-card-header .actions .btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 46px;            /* a comfortable thumb target */
+        padding: 0;
+        gap: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Icon only. The word is carried by `title`, which is also what gives the
+       button its accessible name once the label is out of the tree — see the
+       note on the markup in view.php.
+
+       🔴 `display: inline` is the REVEAL, and it belongs here rather than the
+       icon being visible by default. view.php ships `.cv-act-icon
+       { display: none }`, so the spans are inert on a desktop and the emoji
+       appear only inside this block. The first version had it the other way
+       round — styled on the page, hidden nowhere — and put emoji beside every
+       button label on the desktop contract screen. Ed caught it, and the
+       objection was the right one and bigger than the icons: mobile work that
+       alters desktop doubles the surface he has to re-check, which is the
+       entire reason the @media gate exists.
+       🔑 A mobile layer can only ever REVEAL; it cannot set a desktop default,
+       so anything it shows must be hidden at source. */
+    [data-mobile-module="contracts"] .contract-card-header .actions .cv-act-label { display: none; }
+    [data-mobile-module="contracts"] .contract-card-header .actions .cv-act-icon {
+        display: inline;
+        font-size: 20px;
+        line-height: 1;
+    }
+    /* A secondary button filled with a SURFACE token has no edges against the
+       surface behind it — invisible in dark mode, and it only became obvious
+       once this bar put Back on its own. Mobile only: the same button on the
+       desktop screen is a known niggle but it is not this round's work, and
+       changing it here would be exactly the leak above in a quieter form. */
+    [data-mobile-module="contracts"] .contract-card-header .actions .btn-back {
+        border: 1px solid var(--border, #ddd);
+    }
+    [data-mobile-module="contracts"] .form-actions .btn-secondary {
+        border: 1px solid var(--border, #ddd);
+    }
+
+    /* --------------------------------------------------------------------
+       28l — Bullets in a contract's own terms (Ed: "the bullet points in
+       contract terms detail section are spilling off the left hand side of
+       the panel").
+
+       inbox.css opens with a global `* { margin: 0; padding: 0 }`, which
+       strips a <ul> of its default `padding-inline-start: 40px`. With
+       `list-style-position: outside` — the default — the markers are then
+       drawn OUTSIDE the list's own content box, i.e. to the LEFT of it.
+       Measured at `padding-left: 0` on every list in the section, with the
+       bullets landing on the panel's edge.
+
+       ⚠️ HERE AND NOT IN view.php's OWN STYLESHEET, deliberately. The cause is
+       width-independent, so the first version fixed it on the page — and that
+       moved the desktop render too. On a desktop the panel carries 30px of
+       padding, which is more than enough for the markers to sit in, so
+       nothing looks wrong there and nothing needs changing. The visible fault
+       is the 14px mobile padding, so the fix is scoped to it.
+       (Flagged to Ed as a desktop niggle rather than fixed silently.)
+
+       24px matches `.detail-section-body` in change-management.css and
+       `.lms-lesson-body` in lms.css — the existing idiom for rendering
+       rich-text content under that reset. */
+    [data-mobile-module="contracts"] .rich-content ul,
+    [data-mobile-module="contracts"] .rich-content ol {
+        padding-left: 24px;
+        margin-bottom: 12px;
+    }
+    [data-mobile-module="contracts"] .rich-content li { margin-bottom: 4px; }
+    [data-mobile-module="contracts"] .rich-content p  { margin-bottom: 10px; }
+
+    /* The heading gets the whole width back now that nothing shares its row. */
+    [data-mobile-module="contracts"] .contract-card-header {
+        display: block;
+        padding: 14px;
+    }
+
+    /* 🔴 The bar floats over the page, so the last thing on it has to be able
+       to scroll clear — otherwise the final field of a long contract is
+       permanently underneath five buttons. 68px is the bar (46 + 2×8 padding)
+       plus the safe-area inset, which is 0 on anything without a home
+       indicator. Scoped to the detail page: the list pages have no bar and
+       would just gain dead space. */
+    [data-mobile-module="contracts"] .contracts-main:has(.contract-card-header) {
+        padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* --------------------------------------------------------------------
+       28k — Save and Cancel at the actual bottom of the edit screen (Ed,
+       polish pass 1: "the save and cancel buttons are not at the very bottom
+       so the text of the page peeps through a gap below them").
+
+       Two separate faults in one element, and the measurements showed both:
+
+         `.form-actions`  =  388px wide, starting at x = -18
+
+       🔴 THE WRONG-BOX NEGATIVE MARGIN, AND I INTRODUCED IT. The bar carries
+       `margin: 16px -30px 0 -30px` to bleed to the edges of a container that
+       has 30px of padding — correct on a desktop. 28a changed
+       `.contracts-main` to 12px, so the -30px overshot by 18px on each side
+       and the bar hung off both edges of the screen. This is EXACTLY the
+       Change Management round-2 fault ("I matched the sticky header's -30px
+       full-bleed to the new 12px padding — WRONG BOX"), committed again by
+       changing the padding and not looking for what was cancelling it.
+       🔑 **Grep a container's own file for negative margins before changing
+       its padding.** A full-bleed child is a rule that depends on a number in
+       a different rule, and nothing links them.
+
+         bar bottom = 713   ·   scrollport bottom = 740
+
+       🔴 AND `position: sticky` COULD NOT REACH THE BOTTOM. A sticky element
+       is confined to its PARENT's box, and this bar's parent ends above the
+       scrollport — so it stopped 27px short and the page showed through
+       underneath it, which is precisely what Ed saw. Sticky cannot be argued
+       out of that; the element has to leave the flow.
+
+       Fixed, like 28j and for the same reason — it is the same bar in a
+       different place, and the two screens now behave identically. */
+    [data-mobile-module="contracts"] .form-actions {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: auto;
+        margin: 0;                   /* kills the -30px full bleed outright */
+        z-index: 1200;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 12px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        background: var(--surface, #fff);
+        border-top: 1px solid var(--border, #e0e0e0);
+        box-shadow: 0 -2px 8px var(--shadow, rgba(0, 0, 0, 0.12));
+    }
+    [data-mobile-module="contracts"] .form-actions .btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Room to scroll the last field clear of the bar, as 28j does. */
+    [data-mobile-module="contracts"] .contracts-main:has(.form-actions) {
+        padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    }
 }

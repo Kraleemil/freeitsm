@@ -440,8 +440,28 @@
         var ask = t('remove_confirm', { name: name || '' });
         // Use the app's own dialogue where the page has it, so this looks like
         // every other confirmation rather than a browser alert.
+        //
+        // 🔴 `showConfirm` takes an OPTIONS OBJECT, not a string. Passing the
+        // message as a bare argument meant `opts.message` was undefined, so
+        // confirm.js set the body to '' and the dialogue appeared with a
+        // title, an OK and a Cancel and NO QUESTION IN IT — on every one of
+        // the record types this panel is used on. The browser `confirm`
+        // fallback took the same string and read correctly, which is why this
+        // only ever showed up where the app dialogue was present.
+        //
+        // 🔑 A helper whose argument is a string in one branch and an object
+        // in the other cannot fail loudly: both are truthy, both resolve, and
+        // the only symptom is a missing sentence.
+        //
+        // No new locale keys: the title and the button reuse `remove`, which
+        // this panel already renders on the button that opens the dialogue.
         var confirmed = (typeof window.showConfirm === 'function')
-            ? window.showConfirm(ask)
+            ? window.showConfirm({
+                  title:    t('remove'),
+                  message:  ask,
+                  okLabel:  t('remove'),
+                  okClass:  'danger'
+              })
             : Promise.resolve(window.confirm(ask));
 
         Promise.resolve(confirmed).then(function (ok) {

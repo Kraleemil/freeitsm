@@ -2086,3 +2086,73 @@
         }).observe(footer, { attributes: true, attributeFilter: ['style'], subtree: true });
     }
 })();
+
+/* ====================================================================
+   CONTRACTS — name the icon-only actions in the bottom bar  (#1369)
+
+   ITS OWN top-level IIFE, for the reason the blocks above document.
+
+   LAYER 28j turns a contract's five actions into an icon bar pinned to
+   the bottom of the screen and hides their text labels. `display: none`
+   takes an element out of the ACCESSIBILITY TREE as well as off the
+   screen, so at that point the buttons have no accessible name at all —
+   five unlabelled controls to a screen reader.
+
+   A `title` restores it, and this is where it belongs rather than in
+   view.php's markup. It was in the markup first, and that put a hover
+   tooltip on five desktop buttons that never had one — a small thing,
+   but the rollout's one hard rule is that mobile work changes NOTHING on
+   a desktop, and "small" is how a rule stops being a rule. Ed's point,
+   and it is a good one: anything that leaks doubles the surface he has
+   to re-check.
+
+   ⭐ The label is harvested from the button's own `.cv-act-label`, so
+   there are no invented strings and it is correct in all 24 locales —
+   the same trick LAYER 27c uses to give a card feed its column headings
+   back from the table's own <thead>.
+
+   The card is rendered by view.php's own renderContract() after a fetch,
+   and re-rendered whenever the contract is reloaded, so this observes the
+   container rather than wrapping a function it does not own — the reason
+   27c gives for preferring a MutationObserver to four wraps.
+   ==================================================================== */
+(function () {
+    var host = document.getElementById('contractCard');
+    if (!host) return;                       // not the contract detail page
+
+    var mq = window.matchMedia('(max-width: 768px)');
+
+    function apply() {
+        if (!mq.matches) return;             // desktop: never write the attribute
+        var btns = host.querySelectorAll('.contract-card-header .actions .btn');
+        for (var i = 0; i < btns.length; i++) {
+            if (btns[i].getAttribute('title')) continue;
+            var label = btns[i].querySelector('.cv-act-label');
+            var text  = label ? (label.textContent || '').replace(/\s+/g, ' ').trim() : '';
+            if (text) btns[i].setAttribute('title', text);
+        }
+    }
+
+    /* ⚠️ And take it away again when the viewport leaves mobile, so a
+       desktop browser dragged wide is left exactly as it would have been
+       had it never been narrow. The Calendar round set the precedent for
+       restoring rather than one-way conversion (LAYER 16). It also means
+       the desktop control can assert `[title]` finds nothing here, which
+       is a stronger check than asserting a tooltip does not show. */
+    function clear() {
+        if (mq.matches) return;
+        var btns = host.querySelectorAll('.contract-card-header .actions .btn[title]');
+        for (var i = 0; i < btns.length; i++) {
+            if (btns[i].querySelector('.cv-act-label')) btns[i].removeAttribute('title');
+        }
+    }
+
+    if (window.MutationObserver) {
+        new MutationObserver(function () { apply(); }).observe(host, { childList: true, subtree: true });
+    }
+
+    apply();
+    var onChange = function () { apply(); clear(); };
+    if (mq.addEventListener) { mq.addEventListener('change', onChange); }
+    else if (mq.addListener) { mq.addListener(onChange); }
+})();

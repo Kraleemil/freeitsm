@@ -161,10 +161,33 @@ $contract_id = $_GET['id'] ?? null;
 
         .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        /* 🔴 The OFF track was `var(--surface-3)`, which is a SURFACE token —
+           `#f8f8f8` light, `#20242b` dark. In dark mode that is all but the
+           panel colour behind it, so the track vanished and the only thing
+           left was the white knob: two white dots that did not read as
+           controls at all until you tapped one.
+
+           ⭐ Every other toggle in the product uses a flat `#ccc` here
+           (inbox.css:2822, knowledge.css:1220) precisely because a control's
+           track must NOT follow the surface it sits on — it has to contrast
+           with it in both themes, which is the one thing a surface token
+           guarantees it will not do. This was the only place that reached for
+           one. Restoring the canonical value fixes dark mode outright and
+           makes the switch look like every other switch in FreeITSM.
+
+           ⚠️ THIS ONE IS DELIBERATELY NOT GATED TO MOBILE, and it is the only
+           change in the polish round that alters the desktop render. It is a
+           reported bug rather than mobile work: the track was `#f8f8f8` on a
+           white panel in LIGHT mode too, so the switch was near-invisible at
+           every width and in both themes — it simply showed up first in dark.
+           Gating it would have left the desktop screen carrying the fault Ed
+           had just asked to have fixed. The visible desktop change is that an
+           OFF switch's track goes from near-white to the same grey every other
+           switch in the product already uses. Flagged rather than slipped in. */
         .toggle-slider {
             position: absolute; cursor: pointer;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: var(--surface-3, #ccc); border-radius: 24px; transition: background 0.2s;
+            background: #ccc; border-radius: 24px; transition: background 0.2s;
         }
         .toggle-slider::before {
             content: ''; position: absolute;
@@ -190,7 +213,7 @@ $contract_id = $_GET['id'] ?? null;
         [data-theme-mode="dark"] .sidebar-link:hover { background: #3a2e12; }
     </style>
     <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=91">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=93">
 </head>
 <body data-mobile-module="contracts">
     <?php include 'includes/header.php'; ?>
@@ -718,6 +741,10 @@ $contract_id = $_GET['id'] ?? null;
             const total = termEditorIds.length;
 
             const tinyDark = (document.documentElement.getAttribute('data-theme-mode')||'light')==='dark';
+            // The same gate mobile.js uses. Read once at init; an editor is not
+            // rebuilt on resize, and a desktop browser dragged narrow is not a
+            // case worth re-initialising a TinyMCE instance for.
+            const tinyIsPhone = window.matchMedia('(max-width: 768px)').matches;
             termEditorIds.forEach(id => {
                 tinymce.init({
                     selector: '#' + id,
@@ -726,9 +753,43 @@ $contract_id = $_GET['id'] ?? null;
                     menubar: false,
                     skin: tinyDark ? 'oxide-dark' : 'oxide',
                     content_css: tinyDark ? 'dark' : 'default',
-                    plugins: ['advlist', 'autolink', 'lists', 'link', 'table', 'wordcount'],
-                    toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link table | removeformat',
-                    content_style: 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; color: ' + (tinyDark ? '#e6e8eb' : '#333') + '; }',
+                    plugins: ['advlist', 'autolink', 'lists', 'link', 'table', 'wordcount', 'fullscreen'],
+                    // The DESKTOP toolbar is the existing one with `fullscreen`
+                    // appended, which is exactly where lms-editor.js — the only
+                    // other editor in the product that offers it — puts it. So a
+                    // desktop user gets one new button on the end and nothing
+                    // else moves.
+                    //
+                    // ⚠️ On a phone that position is useless, and it was measured
+                    // rather than assumed: at 360px TinyMCE's own overflow
+                    // collapsed the bar to `undo redo …` and buried the button
+                    // inside the "…" popup — the worst place for the one control
+                    // that rescues a 300px editor on a small screen. So the
+                    // phone gets it FIRST, where it survives any collapse.
+                    //
+                    // Gated on matchMedia for the same reason every other mobile
+                    // behaviour in this product is: above 768px this branch does
+                    // not run and the desktop editor is byte-identical.
+                    toolbar: tinyIsPhone
+                        ? 'fullscreen | undo redo | blocks | bold italic underline | bullist numlist | link table | removeformat'
+                        : 'undo redo | blocks | bold italic underline | bullist numlist | link table | removeformat | fullscreen',
+                    // Sliding keeps the buttons in order behind a chevron rather
+                    // than in a popup that covers the text. Phone only — on a
+                    // wide screen nothing collapses, so this would be invisible
+                    // either way, and "invisible either way" is not a reason to
+                    // change a desktop setting.
+                    toolbar_mode: tinyIsPhone ? 'sliding' : 'floating',
+                    // 🔴 The 16px is NOT cosmetic. iOS Safari zooms on focus for
+                    // any field under 16px, and in a full-screen editor that
+                    // spills the layout wide, makes Safari reflow to desktop
+                    // width and stops `max-width: 768px` matching at all — the
+                    // whole mobile layer switches off (iOS lesson #1).
+                    // CSS cannot reach inside a TinyMCE iframe, so it has to be
+                    // set here. Keyed on `pointer: coarse` rather than a width
+                    // query, exactly as inbox.js does it: a width query is
+                    // unreliable inside an iframe, and this way the desktop
+                    // editor stays at 14px and is byte-identical.
+                    content_style: 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; color: ' + (tinyDark ? '#e6e8eb' : '#333') + '; } @media (pointer: coarse) { body { font-size: 16px; } }',
                     setup: function(editor) {
                         editor.on('init', function() {
                             initialized++;
@@ -754,6 +815,6 @@ $contract_id = $_GET['id'] ?? null;
         }
 
     </script>
-    <script src="../assets/js/mobile.js?v=34"></script>
+    <script src="../assets/js/mobile.js?v=35"></script>
 </body>
 </html>

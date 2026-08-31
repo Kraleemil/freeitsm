@@ -111,6 +111,21 @@ if (!$contract_id) {
         .contract-card-header h2 { margin: 0; font-size: 20px; color: var(--text, #333); }
 
         .contract-card-header .actions { display: flex; gap: 8px; }
+        /* 🔴 THE ICONS ARE HIDDEN BY DEFAULT, i.e. ON DESKTOP, AND THIS LINE IS
+           THE WHOLE REASON THE MARKUP IS SAFE TO ADD.
+
+           The spans exist purely so the mobile layer has something to show in
+           the bottom bar (LAYER 28j). The first version styled them here
+           instead of hiding them, which put emoji beside every button label on
+           the desktop screen — a change to desktop from a piece of mobile
+           work, which is precisely what the rollout's one hard rule exists to
+           prevent, and what makes every desktop screen need re-checking.
+
+           🔑 `mobile.css` is @media-only by design, so it CANNOT set a desktop
+           default — the wiki's "injected chrome must be hidden off-mobile"
+           corollary. Anything a mobile layer reveals therefore has to be
+           hidden at source, here, in the page's own stylesheet. */
+        .cv-act-icon { display: none; }
 
         .contract-card-header .btn {
             padding: 8px 16px; border-radius: 4px; font-size: 13px; font-weight: 500;
@@ -188,6 +203,12 @@ if (!$contract_id) {
         .terms-view-panel { display: none; padding: 20px 0; }
         .terms-view-panel.active { display: block; }
         .terms-view-panel .rich-content { font-size: 14px; line-height: 1.6; color: var(--text, #333); }
+        /* ⚠️ The list-indent fix for authored terms lives in mobile.css
+           (LAYER 28l), NOT here, so it cannot touch the desktop render. The
+           underlying cause — inbox.css's global `* { padding: 0 }` stripping a
+           <ul>'s default indent — is present at every width, but on a desktop
+           the panel's 30px of padding absorbs the markers and nothing looks
+           wrong. See the note in 28l. */
         .terms-view-panel .rich-content table { border-collapse: collapse; width: 100%; }
         .terms-view-panel .rich-content td, .terms-view-panel .rich-content th { border: 1px solid var(--border, #ddd); padding: 8px; }
 
@@ -348,7 +369,7 @@ if (!$contract_id) {
         .checkbox-row label { margin: 0; }
     </style>
     <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=91">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=93">
 </head>
 <body data-mobile-module="contracts">
     <?php include 'includes/header.php'; ?>
@@ -484,6 +505,25 @@ if (!$contract_id) {
             }
         }
 
+        /*
+         * Each action below carries an icon span and a label span — the shape
+         * knowledge/index.php uses for its article action bar. On a phone
+         * LAYER 28j hides the labels and pins the row to the bottom of the
+         * screen, icon-only, where a thumb is; on a desktop the icons simply
+         * sit beside the words and nothing else changes.
+         *
+         * A "title" on EVERY one of them, and it is not decoration: hiding the
+         * label with display:none takes it out of the accessibility tree too,
+         * so the title becomes the button's only accessible name. Without it
+         * the phone bar is five unnamed buttons to a screen reader.
+         *
+         * NOTE the comment lives HERE and not inside the template below. It
+         * was written as an HTML comment inside that backtick template literal
+         * and it contained backticks of its own, which closed the string and
+         * took the whole <script> block with it — renderContract and
+         * loadContract both came out undefined and the page sat on "Loading
+         * contract..." for ever. A backtick in a comment is still a backtick.
+         */
         function renderContract(c) {
             const status = getContractStatus(c);
             const contractValue = c.contract_value ? (c.currency || '') + ' ' + parseFloat(c.contract_value).toLocaleString('en-GB', {minimumFractionDigits: 2}) : '-';
@@ -492,11 +532,11 @@ if (!$contract_id) {
                 <div class="contract-card-header">
                     <h2>${escapeHtml(c.contract_number)} — ${escapeHtml(c.title)}</h2>
                     <div class="actions">
-                        <a href="index.php" class="btn btn-back">${escapeHtml(window.t('contracts.detail.back'))}</a>
-                        <button type="button" class="btn btn-create-task" onclick="openTaskModal()">${escapeHtml(window.t('contracts.detail.task'))}</button>
-                        <button type="button" class="btn btn-create-event" onclick="openEventModal()">${escapeHtml(window.t('contracts.detail.calendar'))}</button>
-                        <button type="button" class="btn btn-equipment-report" onclick="openReportModal()">${escapeHtml(window.t('contracts.report.button'))}</button>
-                        <a href="edit.php?id=${c.id}" class="btn btn-edit-contract">${escapeHtml(window.t('contracts.actions.edit'))}</a>
+                        <a href="index.php" class="btn btn-back"><span class="cv-act-icon" aria-hidden="true">←</span><span class="cv-act-label">${escapeHtml(window.t('contracts.detail.back'))}</span></a>
+                        <button type="button" class="btn btn-create-task" onclick="openTaskModal()"><span class="cv-act-icon" aria-hidden="true">✅</span><span class="cv-act-label">${escapeHtml(window.t('contracts.detail.task'))}</span></button>
+                        <button type="button" class="btn btn-create-event" onclick="openEventModal()"><span class="cv-act-icon" aria-hidden="true">📅</span><span class="cv-act-label">${escapeHtml(window.t('contracts.detail.calendar'))}</span></button>
+                        <button type="button" class="btn btn-equipment-report" onclick="openReportModal()"><span class="cv-act-icon" aria-hidden="true">🖨️</span><span class="cv-act-label">${escapeHtml(window.t('contracts.report.button'))}</span></button>
+                        <a href="edit.php?id=${c.id}" class="btn btn-edit-contract"><span class="cv-act-icon" aria-hidden="true">✏️</span><span class="cv-act-label">${escapeHtml(window.t('contracts.actions.edit'))}</span></a>
                     </div>
                 </div>
                 <div class="contract-details">
@@ -1350,6 +1390,6 @@ if (!$contract_id) {
             </div>
         </div>
     </div>
-    <script src="../assets/js/mobile.js?v=34"></script>
+    <script src="../assets/js/mobile.js?v=35"></script>
 </body>
 </html>
