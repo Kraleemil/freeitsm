@@ -1005,7 +1005,13 @@ CREATE TABLE IF NOT EXISTS `ticket_merges` (
 CREATE TABLE IF NOT EXISTS `ticket_audit` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `ticket_id`         INT NOT NULL,
-    `analyst_id`        INT NOT NULL,
+    -- NULL = nobody did this; the workflow engine did (GH #120). The
+    -- `add_ticket_note` action has always written NULL here on purpose, to mark
+    -- an entry as automation rather than a person, but the column was NOT NULL
+    -- — so the action could never once have succeeded on any installation.
+    -- Both readers already LEFT JOIN analysts, and a NULL never violates the
+    -- foreign key below, so relaxing this is safe in the way tightening is not.
+    `analyst_id`        INT NULL,
     `field_name`        VARCHAR(100) NOT NULL,
     `old_value`         VARCHAR(500) NULL,
     `new_value`         VARCHAR(500) NULL,

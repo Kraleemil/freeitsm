@@ -188,6 +188,38 @@ try {
         // Non-fatal: the portal keeps working for everyone who has an address.
     }
 
+    // `ticket_audit.analyst_id` was NOT NULL, and the workflow engine's
+    // `add_ticket_note` action writes NULL there deliberately — its comment says
+    // so: NULL marks the entry as written by automation rather than by a person.
+    // The column never allowed it, so the action failed with
+    //   SQLSTATE[23000] ... Column 'analyst_id' cannot be null
+    // every single time it ran, on every installation, since it was written
+    // (GitHub #120).
+    //
+    // Same probe-then-MODIFY shape as the two either side. Safe for the same
+    // reason: every existing row already has an analyst, so relaxing the rule
+    // cannot invalidate one. The `fk_ticket_audit_analyst` foreign key is
+    // unaffected — a NULL never violates a foreign key, it simply has nothing
+    // to check.
+    try {
+        $auditCol = $conn->prepare(
+            "SELECT IS_NULLABLE FROM information_schema.columns
+             WHERE table_schema = ? AND table_name = 'ticket_audit' AND column_name = 'analyst_id'"
+        );
+        $auditCol->execute([$dbName]);
+        $auditRow = $auditCol->fetch(PDO::FETCH_ASSOC);
+        if ($auditRow && strtoupper($auditRow['IS_NULLABLE']) === 'NO') {
+            $conn->exec("ALTER TABLE `ticket_audit` MODIFY `analyst_id` INT NULL");
+            $results[] = [
+                'table'   => 'ticket_audit',
+                'status'  => 'updated',
+                'details' => ["analyst_id: NOT NULL → NULL (a workflow writes history entries that no analyst made)"],
+            ];
+        }
+    } catch (Exception $e) {
+        // Non-fatal: ticket history keeps working; only the workflow action stays broken.
+    }
+
     // `emails.from_address` was NOT NULL. A portal requester who signs in
     // through a directory may have no mailbox at all (GitHub #47), and their
     // ticket has no sender address to record — the INSERT failed outright, so

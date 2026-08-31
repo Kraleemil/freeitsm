@@ -39,6 +39,7 @@ try {
                 ta.old_value,
                 ta.new_value,
                 ta.created_datetime,
+                ta.analyst_id,
                 a.full_name as analyst_name
             FROM ticket_audit ta
             LEFT JOIN analysts a ON ta.analyst_id = a.id
@@ -48,6 +49,32 @@ try {
     $stmt = $conn->prepare($sql);
     $stmt->execute([$ticketId]);
     $audit = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Say WHICH case an unresolved author is, rather than leaving the browser to
+    // print "Unknown" — the same three-way split `get_notes.php` already makes,
+    // and for the same reason: "Unknown" says *we do not know* when the truth is
+    // *we did not look*, and it hides the thing worth knowing.
+    //
+    //   analyst — a real person, resolved by the LEFT JOIN
+    //   system  — analyst_id IS NULL: the workflow engine wrote it (GH #120).
+    //             `add_ticket_note` sets NULL deliberately to mark an entry as
+    //             automation rather than a person
+    //   former  — a real analyst_id with no row left. Deleting an analyst is a
+    //             hard DELETE that reassigns nothing, so this is the normal
+    //             state of every entry someone made before they left
+    //
+    // The label itself is resolved in the browser, which is where the
+    // translations live; this endpoint only says which case it is.
+    foreach ($audit as &$row) {
+        if ($row['analyst_name']) {
+            $row['author_kind'] = 'analyst';
+        } elseif ($row['analyst_id'] === null) {
+            $row['author_kind'] = 'system';
+        } else {
+            $row['author_kind'] = 'former';
+        }
+    }
+    unset($row);
 
     echo json_encode([
         'success' => true,

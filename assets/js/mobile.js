@@ -1569,7 +1569,14 @@
             var field = (e.field_name || '').trim();
             var oldV  = (e.old_value || '').trim();
             var newV  = (e.new_value || '').trim();
-            var who   = (e.analyst_name || 'Unknown').trim();
+            // Same three-way split the inbox uses: the endpoint says which case
+            // an unresolved author is, so a workflow-written entry reads as
+            // "System" rather than "Unknown" (GH #120).
+            var who = (e.analyst_name
+                || (typeof t === 'function'
+                    ? t(e.author_kind === 'system' ? 'tickets.note_author.system'
+                                                   : 'tickets.note_author.former')
+                    : '')).trim();
 
             if (stamp.day && stamp.day !== lastDay) {
                 lastDay = stamp.day;

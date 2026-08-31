@@ -4080,6 +4080,22 @@ async function permanentlyDeleteFromTrash(ticketId, ticketNumber) {
     } catch (e) { showToast('Delete failed', 'error'); }
 }
 
+// Who made a history entry. The endpoint says WHICH case it is (analyst /
+// system / former) rather than leaving a blank name to be guessed at; this
+// turns that into the words, which is where the translations live.
+//
+// It used to read `entry.analyst_name || 'Unknown'`. "Unknown" says *we do not
+// know* when the truth is *we did not look* — and it hid the two cases worth
+// telling apart: an entry written by a workflow (GH #120) and one written by
+// somebody who has since left. Same three-way split, and the same two locale
+// keys, that the notes list already uses.
+function auditAuthor(entry) {
+    if (entry.analyst_name) return entry.analyst_name;
+    return entry.author_kind === 'system'
+        ? t('tickets.note_author.system')
+        : t('tickets.note_author.former');
+}
+
 // Show audit history modal
 async function showAuditHistory() {
     if (!currentEmail || !currentEmail.ticket_id) {
@@ -4108,7 +4124,7 @@ async function showAuditHistory() {
                         ${data.audit.map(entry => `
                             <tr>
                                 <td>${formatFullDateTime(entry.created_datetime)}</td>
-                                <td>${escapeHtml(entry.analyst_name || 'Unknown')}</td>
+                                <td>${escapeHtml(auditAuthor(entry))}</td>
                                 <td>${escapeHtml(entry.field_name)}</td>
                                 <td>${escapeHtml(entry.old_value || '-')}</td>
                                 <td>${escapeHtml(entry.new_value || '-')}</td>
