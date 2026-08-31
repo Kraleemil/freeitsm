@@ -3600,6 +3600,6 @@ $translationNamespaces = ['common', 'asset-management'];
     <?php /* Loaded last so it can wrap this page's globals; inert on desktop. */ ?>
     <script>window.assetTypeIcons = <?php echo json_encode($assetTypeIcons, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <script src="../../assets/js/network-mapper-icons.js?v=2"></script>
-    <script src="../../assets/js/mobile.js?v=45"></script>
+    <script src="../../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

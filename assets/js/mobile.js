@@ -2484,10 +2484,17 @@
     /* Choosing a lesson should close the sheet — otherwise you tap a lesson
        and the panel stays over the thing you just asked to read. Delegated,
        because both panels rebuild their contents from a fetch and neither
-       call site belongs to this file. */
+       call site belongs to this file.
+
+       The panel's two BUTTONS close it for the same reason (Ed: "when you
+       click 'AI: draft an outline' can you make the panel close so you are
+       then on the 'AI: draft an outline' screen"). Both of them take you
+       somewhere else — one opens the outline dialogue, the other starts a new
+       lesson in the pane behind — so leaving the panel up puts a sheet over
+       the thing you just asked for. */
     panel.addEventListener('click', function (e) {
         if (!mq.matches) return;
-        var hit = e.target.closest('a, .lms-toc-item, .lms-lesson-item');
+        var hit = e.target.closest('a, .lms-toc-item, .lms-lesson-item, .lms-editor-side-actions .btn');
         // The delete button lives inside a lesson row; closing on it would
         // hide the list you are tidying up.
         if (hit && !e.target.closest('.lms-lesson-del')) close();

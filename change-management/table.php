@@ -53,6 +53,6 @@ $translationNamespaces = ['common', 'change-management'];
 
     <script src="../assets/js/data-table.js?v=6"></script>
     <script src="../assets/js/change-table.js?v=6"></script>
-    <script src="../assets/js/mobile.js?v=45"></script>
+    <script src="../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

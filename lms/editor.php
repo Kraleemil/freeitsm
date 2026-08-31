@@ -251,6 +251,6 @@ $translationNamespaces = ['common', 'lms'];
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
     </script>
     <script src="../assets/js/lms-editor.js?v=3"></script>
-    <script src="../assets/js/mobile.js?v=45"></script>
+    <script src="../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

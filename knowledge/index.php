@@ -559,6 +559,6 @@ $sidebarHoverClass = $sidebarMode === 'hover' ? ' sidebar-hover' : '';
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/copy-to-clipboard/prism-copy-to-clipboard.min.js"></script>
-    <script src="../assets/js/mobile.js?v=45"></script>
+    <script src="../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

@@ -532,6 +532,6 @@ $translationNamespaces = ['common', 'change-management'];
         <?php endif; ?>
     </script>
     <script src="<?php echo BASE_URL; ?>assets/js/change-management.js?v=19"></script>
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=45"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=46"></script>
 </body>
 </html>

@@ -210,6 +210,6 @@ $translationNamespaces = ['common', 'calendar'];
     </script>
     </script>
     <!-- Loaded last so it can wrap the calendar's own globals. -->
-    <script src="../assets/js/mobile.js?v=45"></script>
+    <script src="../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

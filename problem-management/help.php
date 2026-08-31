@@ -203,6 +203,6 @@ $path_prefix = '../';
             });
         });
     </script>
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=45"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=46"></script>
 </body>
 </html>

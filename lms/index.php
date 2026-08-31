@@ -294,6 +294,6 @@ $translationNamespaces = ['common', 'lms'];
     <!-- Toast -->
     <script>window.API_BASE = '../api/lms/';</script>
     <script src="../assets/js/lms.js?v=5"></script>
-    <script src="../assets/js/mobile.js?v=45"></script>
+    <script src="../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

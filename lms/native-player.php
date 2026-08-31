@@ -69,6 +69,6 @@ $translationNamespaces = ['common', 'lms'];
         window.COURSE_ID = <?php echo (int)$courseId; ?>;
     </script>
     <script src="../assets/js/lms-native-player.js?v=1"></script>
-    <script src="../assets/js/mobile.js?v=45"></script>
+    <script src="../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

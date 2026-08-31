@@ -78,6 +78,6 @@ $translationNamespaces = ['common', 'lms'];
     <script src="<?php echo BASE_URL; ?>assets/js/toast.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/confirm.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/ai-settings.js"></script>
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=45"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=46"></script>
 </body>
 </html>

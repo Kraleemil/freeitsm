@@ -257,6 +257,6 @@ $translationNamespaces = ['common'];
     <script src="<?php echo BASE_URL; ?>assets/js/toast.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/confirm.js"></script>
     <script src="<?php echo BASE_URL; ?>assets/js/problem-management.js?v=19"></script>
-    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=45"></script>
+    <script src="<?php echo BASE_URL; ?>assets/js/mobile.js?v=46"></script>
 </body>
 </html>

@@ -547,6 +547,6 @@ $translationNamespaces = ['common', 'contracts'];
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
     </script>
-    <script src="../../assets/js/mobile.js?v=45"></script>
+    <script src="../../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

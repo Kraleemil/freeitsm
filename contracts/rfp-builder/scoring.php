@@ -866,6 +866,6 @@ $translationNamespaces = ['common', 'contracts'];
             return label === key ? p : label;
         }
     </script>
-    <script src="../../assets/js/mobile.js?v=45"></script>
+    <script src="../../assets/js/mobile.js?v=46"></script>
 </body>
 </html>

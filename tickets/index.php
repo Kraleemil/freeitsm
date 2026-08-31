@@ -904,7 +904,7 @@ $translationNamespaces = ['common', 'tickets'];
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/schedule.js?v=1"></script>
     <script src="../assets/js/inbox.js?v=112"></script>
-    <script src="../assets/js/mobile.js?v=45"></script>
+    <script src="../assets/js/mobile.js?v=46"></script>
     <script>
     // Auto-check mailboxes every 60 seconds
     (function() {
