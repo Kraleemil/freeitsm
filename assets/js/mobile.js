@@ -2156,3 +2156,188 @@
     if (mq.addEventListener) { mq.addEventListener('change', onChange); }
     else if (mq.addListener) { mq.addListener(onChange); }
 })();
+
+/* ====================================================================
+   CONTRACTS — Overview / directory on the suppliers and contacts
+   screens, with a search pinned to the bottom  (#1377, Ed's request)
+
+   ITS OWN top-level IIFE, for the reason the blocks above document.
+
+   > "for suppliers and contacts screen I want there to be a dashboard
+   >  view which has the key info and also a directory view which uses
+   >  the full screen and has a search bar sticky at the bottom which
+   >  searches just suppliers or just contacts."
+
+   Two views over the same page, toggled by a two-button switch:
+
+     OVERVIEW  — the figures at the top and the list below them, i.e.
+                 what the page already was. The default, because
+                 landing on a screen should tell you where you are.
+     DIRECTORY — the strip goes, the list gets the whole screen, and a
+                 search bar sits along the bottom filtering that page's
+                 records and nothing else.
+
+   ⭐ ZERO NEW TRANSLATION KEYS, and the labels came out better for it.
+   The obvious pair is "Dashboard / Directory", neither of which exists
+   in the locale files and both of which would have meant a fan-out to
+   24 languages. What DOES exist is `contracts.list.overview` and the
+   nav labels — so the switch reads **Overview | Suppliers** on one page
+   and **Overview | Contacts** on the other, which names the thing you
+   are about to browse instead of describing the layout. Same trick as
+   the Calendar round, which shipped its agenda with no new keys at all.
+
+   🔑 INJECTED, not shipped in the markup. Both pages would otherwise
+   need the switch, the search bar and a `display: none` for each — and
+   the hidden-at-source rule (§25) only pays for itself when the desktop
+   NEEDS the element. Here it never does, so nothing is added to the
+   page at all and there is no desktop render to re-check.
+   ==================================================================== */
+(function () {
+    var PAGES = {
+        'contracts-suppliers': { list: 'suppliersList', label: 'contracts.nav.suppliers' },
+        'contracts-contacts':  { list: 'contactsList',  label: 'contracts.nav.contacts'  }
+    };
+
+    var cfg = PAGES[document.body.getAttribute('data-mobile-page')];
+    if (!cfg) return;                                   // not one of the two pages
+
+    var tbody = document.getElementById(cfg.list);
+    var main  = document.querySelector('.contracts-main');
+    if (!tbody || !main) return;
+
+    var mq = window.matchMedia('(max-width: 768px)');
+
+    function t(key, fallback) {
+        if (typeof window.t !== 'function') return fallback;
+        var got = window.t(key);
+        return (got && got !== key) ? got : fallback;
+    }
+
+    /* ---- the switch ------------------------------------------------ */
+    var sw = document.createElement('div');
+    sw.className = 'con-viewswitch';
+    sw.style.display = 'none';        // the corollary: injected chrome is
+                                      // hidden until syncChrome() reveals it
+    var bOverview  = document.createElement('button');
+    var bDirectory = document.createElement('button');
+    bOverview.type = bDirectory.type = 'button';
+    bOverview.className  = 'con-vs-btn';
+    bDirectory.className = 'con-vs-btn';
+    bOverview.textContent  = t('contracts.list.overview', 'Overview');
+    bDirectory.textContent = t(cfg.label, 'Directory');
+    sw.appendChild(bOverview);
+    sw.appendChild(bDirectory);
+    /* ⚠️ ABOVE the figures, not between them and the list. It went in before
+       `.contracts-main` first, which put it after the strip — so the control
+       that decides whether the strip is showing sat underneath the strip. A
+       switch belongs above everything it switches. `.contracts-layout` is the
+       flex column holding both panes, so its first child is the top of the
+       page proper. */
+    var layout = document.querySelector('.contracts-layout');
+    if (layout) { layout.insertBefore(sw, layout.firstChild); }
+    else { main.parentNode.insertBefore(sw, main); }
+
+    /* ---- the search bar -------------------------------------------- */
+    var bar = document.createElement('div');
+    bar.className = 'con-dirsearch';
+    bar.style.display = 'none';
+    var input = document.createElement('input');
+    input.type = 'search';
+    input.className = 'con-ds-input';
+    input.setAttribute('autocomplete', 'off');
+    // `common.search` = "Search" — already translated everywhere.
+    input.placeholder = t('common.search', 'Search');
+    // The switch's own label names the set being searched, so the input
+    // does not repeat it; but a screen reader has no switch in view.
+    input.setAttribute('aria-label', bDirectory.textContent + ' — ' + input.placeholder);
+    bar.appendChild(input);
+    document.body.appendChild(bar);
+
+    /* ---- filtering -------------------------------------------------
+       Reads the rendered rows rather than the data behind them, so it
+       cannot get out of step with renderSuppliers()/renderContacts() and
+       needs nothing from either. */
+    var empty = null;
+
+    function rowIsRecord(tr) {
+        // ⚠️ The loading / empty / error row is a single `<td colspan>`.
+        // Filtering it would hide the page's own message and leave a
+        // blank panel — §11's empty-state warning, in a new place.
+        return tr.cells.length > 1;
+    }
+
+    function filter() {
+        var q = (input.value || '').trim().toLowerCase();
+        var rows = tbody.rows, shown = 0, any = false;
+        for (var i = 0; i < rows.length; i++) {
+            if (!rowIsRecord(rows[i])) continue;
+            any = true;
+            var hit = !q || (rows[i].textContent || '').toLowerCase().indexOf(q) !== -1;
+            rows[i].style.display = hit ? '' : 'none';
+            if (hit) shown++;
+        }
+        if (!empty) {
+            empty = document.createElement('div');
+            empty.className = 'con-ds-empty';
+            empty.textContent = t('contracts.list.no_results', 'No results found');
+            tbody.parentNode.parentNode.appendChild(empty);
+        }
+        empty.style.display = (any && q && shown === 0) ? 'block' : 'none';
+    }
+
+    function clearFilter() {
+        var rows = tbody.rows;
+        for (var i = 0; i < rows.length; i++) rows[i].style.display = '';
+        if (empty) empty.style.display = 'none';
+    }
+
+    /* ---- view state ------------------------------------------------- */
+    function setView(v) {
+        document.body.setAttribute('data-contracts-view', v);
+        bOverview.classList.toggle('active',  v === 'overview');
+        bDirectory.classList.toggle('active', v === 'directory');
+        bOverview.setAttribute('aria-pressed',  v === 'overview'  ? 'true' : 'false');
+        bDirectory.setAttribute('aria-pressed', v === 'directory' ? 'true' : 'false');
+        if (v === 'directory') { filter(); }
+        else { clearFilter(); }
+    }
+
+    bOverview.addEventListener('click',  function () { setView('overview'); });
+    bDirectory.addEventListener('click', function () { setView('directory'); });
+    input.addEventListener('input', filter);
+
+    /* The list is rebuilt by the page's own renderer after every fetch,
+       which would undo the row-level `display` the filter sets. Observing
+       is one line and cannot get out of step with call sites this file
+       does not own — 27c's reasoning, and it applies to a filter exactly
+       as it does to a label. */
+    if (window.MutationObserver) {
+        new MutationObserver(function () {
+            if (mq.matches && document.body.getAttribute('data-contracts-view') === 'directory') filter();
+        }).observe(tbody, { childList: true, subtree: true });
+    }
+
+    /* ---- and it all goes away above 768px --------------------------
+       Injected chrome must be hidden off-mobile, and the body attribute
+       has to go with it or a desktop resize would leave the page in a
+       view whose CSS no longer exists — the strip would stay hidden with
+       no switch left to bring it back. The Calendar round set the
+       precedent for restoring rather than converting one way (LAYER 16),
+       and this is the case that makes it non-optional. */
+    function syncChrome() {
+        if (mq.matches) {
+            sw.style.display = '';
+            if (!document.body.getAttribute('data-contracts-view')) setView('overview');
+            bar.style.display = '';
+        } else {
+            sw.style.display = 'none';
+            bar.style.display = 'none';
+            document.body.removeAttribute('data-contracts-view');
+            clearFilter();
+        }
+    }
+
+    syncChrome();
+    if (mq.addEventListener) { mq.addEventListener('change', syncChrome); }
+    else if (mq.addListener) { mq.addListener(syncChrome); }
+})();

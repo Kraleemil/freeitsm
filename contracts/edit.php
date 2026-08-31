@@ -213,9 +213,9 @@ $contract_id = $_GET['id'] ?? null;
         [data-theme-mode="dark"] .sidebar-link:hover { background: #3a2e12; }
     </style>
     <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=93">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=99">
 </head>
-<body data-mobile-module="contracts">
+<body data-mobile-module="contracts" data-mobile-page="contract-edit">
     <?php include 'includes/header.php'; ?>
 
     <div class="contracts-layout">
@@ -815,6 +815,6 @@ $contract_id = $_GET['id'] ?? null;
         }
 
     </script>
-    <script src="../assets/js/mobile.js?v=35"></script>
+    <script src="../assets/js/mobile.js?v=37"></script>
 </body>
 </html>

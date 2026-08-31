@@ -5797,6 +5797,73 @@
     .contracts-sidebar .sidebar-stat.warning { border-left-color: var(--con-accent, #f59e0b); }
     .contracts-sidebar .sidebar-stat.warning .stat-value { color: var(--con-accent, #f59e0b); }
 
+    /* 🔴 …AND SUPPLIERS AND CONTACTS DO NOT HOLD A FLAT LIST OF FIGURES.
+       Both build a BREAKDOWN — `#overviewBreakdown`, a container of
+       `<h4>Type</h4>` headings each followed by its own `.sidebar-stat`
+       rows — beside one loose total. The grid above therefore saw two
+       children, not seven: one card for "All suppliers", and one enormous
+       cell holding the entire breakdown, which rendered as a tall empty box
+       next to a column of headings. It looked nothing like the contracts
+       dashboard two taps away.
+
+       ⭐ `display: contents` is the fix and it is the right one: it removes
+       the wrapper from the layout WITHOUT removing it from the DOM, so its
+       headings and figures become direct participants in the grid above and
+       lay out exactly as the contracts ones do. The alternative — a second
+       grid inside the first — would have given the breakdown its own column
+       track and left the two pages looking different again.
+
+       🔑 The tell was that a rule which is right on one page produced a
+       shape on another that no amount of tuning would fix. That is almost
+       always a DOM difference rather than a CSS one: compare the markup
+       before adjusting the rule. */
+    .contracts-sidebar #overviewBreakdown { display: contents; }
+    /* ⚠️ And the headline total is `.sidebar-total`, NOT `.sidebar-stat` — a
+       fourth spelling of the same idea, on top of the breakdown's nested one.
+       It kept the desktop's label-left / number-right row while every figure
+       beneath it had become a card, so the one number that matters most was
+       the only one that did not look like the others. Given the same
+       treatment here rather than a rule of its own. */
+    .contracts-sidebar .sidebar-total {
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
+        grid-column: 1 / -1;
+        margin: 0 0 2px;
+        padding: 10px 12px;
+        min-width: 0;
+        background: var(--surface, #fff);
+        border-radius: 8px;
+        border-left: 3px solid var(--con-accent, #f59e0b);
+        box-shadow: 0 1px 3px var(--shadow, rgba(0, 0, 0, 0.06));
+    }
+    .contracts-sidebar .sidebar-total .stat-value {
+        font-size: 24px;
+        line-height: 1.1;
+        font-weight: 700;
+        color: var(--text, #222);
+    }
+    .contracts-sidebar .sidebar-total > span:not(.stat-value) {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-dim, #888);
+    }
+    /* A type or supplier heading introduces the figures under it, so it takes
+       a row of its own rather than a cell. */
+    .contracts-sidebar #overviewBreakdown h4 {
+        grid-column: 1 / -1;
+        margin: 6px 0 0;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-dim, #888);
+    }
+    .contracts-sidebar #overviewBreakdown h4:first-child { margin-top: 0; }
+
     /* ---- the quick links: gone, except the one that is not a duplicate ----
        Ed, on the first polish pass: "we have a hamburger menu (great) but we
        then have a row of links e.g. suppliers, contacts, rfp builder — we
@@ -6798,4 +6865,409 @@
     [data-mobile-module="contracts"] .contracts-main:has(.form-actions) {
         padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
     }
+
+    /* --------------------------------------------------------------------
+       28m — A record gets the whole screen (Ed, polish pass 2: "when viewing
+       or editing a contract this should use the whole screen - currently the
+       top half is taken by the New contract button and the 5 cards with
+       totals").
+
+       Measured on the detail page at 360x740: the strip was **279px**, the
+       contract itself **411px**. So 38% of the screen was spent on a button
+       for a task you are not doing and five figures about a list you have
+       already left.
+
+       ⭐ The strip earns its place on a LIST page and nowhere else. It is
+       orientation — how many contracts, how many expiring, start a new one —
+       and orientation is what you want before you have chosen a record, not
+       after. The same reasoning the master-detail stack is built on (LAYER 2):
+       once you are in a record, the record is the screen.
+
+       Nothing is lost: Back is the first control in the bottom bar (28j), and
+       the waffle and the views drawer are both still in the header.
+       -------------------------------------------------------------------- */
+    body[data-mobile-page="contract-view"] .contracts-sidebar,
+    body[data-mobile-page="contract-edit"] .contracts-sidebar,
+    body[data-mobile-page="contracts-supplier"] .contracts-sidebar {
+        display: none;
+    }
+
+    /* --------------------------------------------------------------------
+       28n — The asset picker's list fills the sheet (Ed: "when adding
+       equipment to a contract the scrollable panel listing all the assets
+       only uses about 50% of the height of the screen").
+
+       28g promotes `.cv-modal` to a full-screen sheet and gives its body
+       `flex: 1; overflow-y: auto`. The sheet duly became full height — and
+       the list inside it did not, because the page caps it:
+
+           .asset-pick-results { max-height: 320px; overflow-y: auto; }
+
+       320px is right for a 480px centred desktop dialogue and is barely half
+       of a phone. Two scroll containers, one inside the other, and the inner
+       one was the shorter.
+
+       🔑 Promoting a modal to full screen is only half the job: whatever the
+       page put INSIDE it still has the height it was given for a small box.
+       Worth checking on every sheet with a scrolling list in it. */
+    [data-mobile-module="contracts"] .cv-modal-body {
+        display: flex;
+        flex-direction: column;
+    }
+    [data-mobile-module="contracts"] .cv-modal-body .form-group { flex: 0 0 auto; }
+    [data-mobile-module="contracts"] .asset-pick-results {
+        max-height: none;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    /* Thumb-sized rows in a list you are picking from. */
+    [data-mobile-module="contracts"] .asset-pick { padding: 12px 10px; min-height: 48px; }
+
+    /* --------------------------------------------------------------------
+       28o — The search sheet (Ed: "on contracts the search should open the
+       search form full screen as the screen gets a bit chaotic especially in
+       dark mode as it's a sea of yellow and black without clear borders").
+
+       `.search-modal` is a 500px box pinned at `top: 100px` with
+       `max-height: 80vh`, which on a phone is a floating panel with the page
+       showing round three of its edges — and contracts paints its header with
+       the module's amber, so on a dark theme you get an amber bar, a dark
+       panel and a dark page behind it with nothing separating them.
+
+       ⚠️⚠️ SCOPE — THIS ONE IS DELIBERATELY NOT SCOPED TO CONTRACTS, and the
+       precedent is fifteen lines up in this file. `.search-modal` is shared
+       by Tickets, Problem Management and Change Management as well, and when
+       the anti-zoom fix was written for it (#1193) the note says: "All three
+       were zooming for the same reason, so all three are fixed here rather
+       than scoping the fix to the one that got reported."
+
+       The same is true here. None of the four is usable as a floating box on
+       a phone, and LAYER 3 already makes every OTHER modal in the product a
+       full-screen sheet — this class was simply never taught the rule.
+       Scoping it to contracts would leave one of the four behaving unlike its
+       three siblings, which is the bespoke outcome [[Consistency over
+       bespoke]] exists to prevent. Flagged to Ed rather than assumed. */
+    .search-modal {
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        transform: none;
+        width: 100%;
+        max-width: 100%;
+        max-height: none;
+        height: 100dvh;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    .search-modal-header {
+        flex: 0 0 auto;
+        padding: 14px 16px;
+        font-size: 17px;
+    }
+    .search-modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 14px 16px;
+    }
+    /* A close control big enough to hit, in the corner a thumb expects. */
+    .search-modal-close { min-width: 44px; min-height: 44px; font-size: 26px; }
+
+    /* ---- and the borders Ed actually asked for ----
+       "a sea of yellow and black without clear borders". The results are
+       `.search-result-item`s which the page tints amber on hover — a state a
+       phone never enters — so on a touch screen they had no edges at all and
+       ran together. Each result becomes a bordered card, which is what makes
+       the list readable rather than a wall.
+       ⚠️ Scoped to contracts: the other three modules render their results
+       differently and have not been reported. The SHEET is shared because
+       every one of them needs it; the COLOURS are not, because only this one
+       paints itself amber. */
+    [data-mobile-module="contracts"] .search-result-item {
+        border: 1px solid var(--border, #ddd);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+        background: var(--surface, #fff);
+    }
+    [data-mobile-module="contracts"] .search-result-title { font-size: 15px; }
+    [data-mobile-module="contracts"] .search-field input {
+        min-height: 46px;
+        border-radius: 8px;
+    }
+
+    /* --------------------------------------------------------------------
+       28p — 30px off the top of three settings screens.
+
+       Ed asked for contracts' settings to be checked against the rules and
+       against the modules already done. The tables were already right —
+       every one is a sideways scroller with its header row, which is 15e and
+       Ed's own #1004 rule that every table on every settings screen behaves
+       the same way, and the scroll ratio (2.4x) sits between service-status
+       (2.2x) and calendar (1.7x).
+
+       What was NOT consistent was the top of the page. Measured across all
+       fourteen settings screens, `.container` starts at y=50 on eleven of
+       them and y=80 on three — asset-management, service-status and
+       contracts — because those three carry a `margin: 30px 0` of their own
+       that 15e sets padding against but never overrode.
+
+       30px is a fifth of the space above the fold on a phone, spent on
+       nothing, on some screens and not others. Fixed in the shared settings
+       block rather than in contracts, so all three come right together and
+       the next module cannot reintroduce it.
+       ⚠️ Mobile-only, inside the @media gate: the desktop margin is
+       deliberate breathing room on a wide screen and is untouched. */
+    body[data-mobile-page="settings"] .container { margin-top: 0; margin-bottom: 0; }
+
+    /* --------------------------------------------------------------------
+       28q — Overview / directory on suppliers and contacts (Ed, polish
+       pass 2), and a search pinned to the bottom of the directory.
+
+       The switch and the search bar are INJECTED by mobile.js, so there is
+       no desktop render to protect and nothing shipped in either page's
+       markup — see the note there for why injection beats hidden-at-source
+       when the desktop never needs the element at all.
+
+       The two views are driven by one attribute on <body>, the same device
+       LAYER 2 uses for the pane stack, so the whole of this is CSS reacting
+       to a single state.
+       -------------------------------------------------------------------- */
+
+    /* A segmented control, not tabs: two views of one screen, the shape the
+       Watchtower Mine/My team/Everyone toggle already uses. Sits above the
+       content so it reads as a property of the page rather than of the list
+       card underneath it. */
+    .con-viewswitch {
+        display: flex;
+        gap: 6px;
+        padding: 10px 12px 0;
+        flex: 0 0 auto;
+    }
+    .con-vs-btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 42px;
+        padding: 9px 10px;
+        font: inherit;
+        font-size: 14px;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 8px;
+        background: var(--surface, #fff);
+        color: var(--text-muted, #666);
+        cursor: pointer;
+        /* A translated label can be long ("Lieferanten", "Contactpersonen");
+           it shrinks rather than widening the control past the screen. */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .con-vs-btn.active {
+        background: var(--con-accent, #f59e0b);
+        border-color: var(--con-accent, #f59e0b);
+        color: #fff;
+        font-weight: 600;
+    }
+
+    /* ---- OVERVIEW: the figures, and only the figures ----
+       Ed, on seeing the first version: "please make the overview for suppliers
+       and contacts full screen - at the moment there is a section at the
+       bottom where you can see the listing of them."
+
+       Right, and it makes the two views mean something. The first version left
+       the list card below the figures, so Overview was "figures AND the list"
+       while Directory was "the list" — which is not two views, it is one view
+       and a slightly taller version of it. Hiding the list is what turns the
+       switch into a genuine choice: **figures, or records**.
+
+       🔑 And the strip has to become the SCROLLER when it is the whole page.
+       28a gives it `flex: 0 0 auto` because it normally sits above a pane that
+       does the scrolling; with that pane gone, a supplier list with a dozen
+       types would run off the bottom of a page that cannot scroll. Every
+       opted-in page must declare its own scroller — the rule the Calendar
+       round wrote down — and in this view the strip is it. */
+    body[data-contracts-view="overview"] .contracts-main { display: none; }
+    /* ⚠️ `html body … .contracts-layout .contracts-sidebar` = (0,3,2), and the
+       reach is deliberate. The collapsing hover rail's rule is
+       `html.contracts-sidebar-hover .contracts-layout .contracts-sidebar` at
+       (0,3,1) and it sets `overflow: visible` — and because header.php emits
+       it INSIDE <body>, it also wins every tie on document order (§24). The
+       plain `body[…] .contracts-sidebar` selector this started as is (0,2,1)
+       and lost, so `display: none` on the list applied while the scroll on
+       the strip silently did not: an overview taller than the screen simply
+       ran off the bottom with no way to reach it.
+       🔴 THIRD TIME THAT RULE HAS WON A FIGHT I DID NOT KNOW I WAS IN — it
+       took the hover neutralisation, then the strip's padding, now this.
+       🔑 Once a page carries a high-specificity mode rule, EVERY later rule
+       touching the same element is competing with it. Check the computed
+       value, not the rule you wrote. */
+    html body[data-contracts-view="overview"] .contracts-layout .contracts-sidebar {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        align-content: flex-start;
+        border-bottom: none;
+    }
+
+    /* ---- DIRECTORY: the list gets the screen ---- */
+    /* The figures are orientation, and in this view you have chosen to go
+       looking instead — the same argument 28m makes for a detail page. */
+    body[data-contracts-view="directory"] .contracts-sidebar { display: none; }
+    /* Room for the search bar, which floats over the page like the action
+       bars in 28j/28k and needs the last row to be able to scroll clear. */
+    body[data-contracts-view="directory"] .contracts-main {
+        padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    }
+    /* The card loses its own chrome — in this view it IS the screen, and a
+       heading that repeats the switch button above it is a wasted row. */
+    body[data-contracts-view="directory"] .contracts-main .section-card {
+        border-radius: 0;
+        box-shadow: none;
+        background: none;
+    }
+    body[data-contracts-view="directory"] .contracts-main .section-header { display: none; }
+
+    /* ---- the search bar ---- */
+    /* Hidden until the directory is showing: in overview it would be a
+       control that filters a list the eye has not gone looking through yet,
+       and it would sit on top of the figures. */
+    .con-dirsearch { display: none; }
+    body[data-contracts-view="directory"] .con-dirsearch {
+        display: block;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1200;
+        padding: 8px 12px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        background: var(--surface, #fff);
+        border-top: 1px solid var(--border, #e0e0e0);
+        box-shadow: 0 -2px 8px var(--shadow, rgba(0, 0, 0, 0.12));
+    }
+    .con-ds-input {
+        width: 100%;
+        min-height: 46px;
+        box-sizing: border-box;
+        padding: 10px 14px;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 10px;
+        background: var(--surface-2, #f7f7f8);
+        color: var(--text, #333);
+        /* 🔴 16px, and not for looks: under it iOS zooms on focus, the page
+           spills wide, Safari reflows to a desktop-width layout and the whole
+           `max-width: 768px` block stops matching (iOS lesson #1). A search
+           field is the single most-focused control on the screen, so this is
+           the worst possible place to get it wrong. */
+        font-size: 16px;
+        font-family: inherit;
+    }
+    .con-ds-input:focus {
+        outline: none;
+        border-color: var(--con-accent, #f59e0b);
+    }
+    /* ⚠️ KNOWN ROUGH EDGE, and Ed asked for the bar at the bottom knowing a
+       phone keyboard exists. The on-screen keyboard OVERLAYS a fixed element
+       rather than resizing it (iOS lesson #3), so while typing the bar can
+       sit behind the keyboard. A `visualViewport` handler was tried during
+       the Tickets round and made things worse, and was reverted; it is the
+       rollout's top outstanding rough edge rather than something specific to
+       this bar. Recorded here so the next person does not re-try the naive
+       fix. */
+
+    .con-ds-empty {
+        display: none;
+        padding: 24px 12px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--text-dim, #888);
+    }
+
+    /* --------------------------------------------------------------------
+       28r — Consolidated requirements: the pills get a row, the requirement
+       gets the width (Ed: "we have pills e.g. requirement then critical.
+       please can these pills have their own row and then the text that is
+       currently squished into the right hand column can use the full width
+       below them").
+
+       🔴 THE WORST CRUSH FOUND IN THIS MODULE, and it measured far worse than
+       it looks:
+
+           .req-row-text  =  104px wide x 801px TALL
+
+       `.req-row-top` is a single nowrap flex row holding a checkbox, two
+       pills, the requirement itself and three action buttons. Everything
+       except the text is `flex-shrink: 0` by content, so the text — the only
+       thing on the row anybody is reading — got whatever was left, which at
+       360px was 104px. A sentence rendered two or three words to a line for
+       eight hundred pixels.
+
+       §11's tell settles it without argument: the column holds PROSE. It
+       cannot be scrolled sideways and it cannot be squeezed. The pills are
+       metadata ABOUT the requirement, so they behave like the chips on the
+       `extracted` feed (28c) — a short labelled row above the thing they
+       describe, with the prose full width beneath.
+
+       ⚠️ `flex-wrap: wrap` on the row, then `flex: 1 1 100%` on the text.
+       NOT `display: block` on the text: a flex item's display is blockified
+       anyway, and the item needs a flex-basis of 100% to be pushed onto a
+       line of its own — the distinction LAYER 26 wrote up and 28c hit again.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="contracts"] .req-row { padding: 14px 12px; }
+    [data-mobile-module="contracts"] .req-row-top {
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+    [data-mobile-module="contracts"] .req-row-top .req-select,
+    [data-mobile-module="contracts"] .req-row-top .pill {
+        flex: 0 0 auto;
+        margin-top: 0;
+    }
+    /* The requirement takes the whole width, on its own line, wrapping
+       normally — which is all Ed asked for and all it ever needed. */
+    [data-mobile-module="contracts"] .req-row-text {
+        flex: 1 1 100%;
+        min-width: 0;
+        font-size: 14px;
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+    }
+
+    /* 🔴 AND A SECOND FAULT IN THE SAME ROW, WHICH NOBODY REPORTED BECAUSE
+       THERE WAS NOTHING TO SEE.
+
+           .req-row-actions        { opacity: 0; }
+           .req-row:hover .req-row-actions { opacity: 1; }
+
+       Edit, Split and Delete are revealed BY HOVER — and a touch screen never
+       hovers. So on a phone the three controls existed, occupied their share
+       of the row (squeezing the text further), and were permanently
+       invisible: you could tap one by accident but never on purpose.
+
+       ⭐ THE GENERAL FORM, and it is worth more than this row: **a
+       hover-revealed control is not a control on a phone.** It is the same
+       class of fault as the search results that separated themselves only by
+       a hover tint (28o), found in the same module a day apart. Anything
+       keyed on `:hover` needs a mobile answer — grep `:hover` for rules that
+       change `opacity`, `visibility` or `display` rather than just colour.
+
+       Given their own full-width row so they are reachable without covering
+       the requirement they act on. */
+    [data-mobile-module="contracts"] .req-row-actions {
+        opacity: 1;
+        flex: 1 1 100%;
+        gap: 8px;
+        margin-top: 4px;
+    }
+    [data-mobile-module="contracts"] .req-row-actions .icon-btn {
+        flex: 1 1 auto;
+        min-height: 40px;
+        font-size: 13px;
+        padding: 8px 10px;
+    }
+    /* The AI's reasoning sits under the requirement as a quiet second
+       paragraph, which is what it already is — it only needs the room. */
+    [data-mobile-module="contracts"] .req-row-rationale { font-size: 12.5px; }
 }
