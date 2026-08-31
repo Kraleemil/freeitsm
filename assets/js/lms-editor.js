@@ -18,6 +18,11 @@ const LMSEditor = (() => {
     let pendingBody = null;    // content that arrived before it could
     let articles = null;       // knowledge articles, loaded on first use
     let dragId = null;
+    /* What "unsaved changes" is measured against — see snapshotBaseline().
+       Taken FROM the editor, not from the API response, because TinyMCE
+       re-serialises whatever it is given. */
+    let baselineTitle = '';
+    let baselineBody = '';
 
     const esc = (s) => { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; };
 
@@ -75,7 +80,11 @@ const LMSEditor = (() => {
                 editor = ed;
                 ed.on('init', () => {
                     editorReady = true;
-                    if (pendingBody !== null) { ed.setContent(pendingBody); pendingBody = null; }
+                    if (pendingBody !== null) {
+                        ed.setContent(pendingBody);
+                        pendingBody = null;
+                        snapshotBaseline();
+                    }
                 });
             }
         });
@@ -85,8 +94,44 @@ const LMSEditor = (() => {
        caller goes through here so none of them has to know whether TinyMCE
        has finished starting up. */
     function setEditorBody(html) {
-        if (editor && editorReady) { editor.setContent(html); pendingBody = null; }
+        if (editor && editorReady) { editor.setContent(html); pendingBody = null; snapshotBaseline(); }
         else { pendingBody = html; }
+    }
+
+    /* 🔴 WHAT "UNSAVED CHANGES" IS MEASURED AGAINST.
+       It used to be the lesson as the API returned it, compared with
+       `editor.getContent()`. Those two are not the same kind of string:
+       TinyMCE RE-SERIALISES what you give it, and by default
+       (`entity_encoding: 'named'`) it writes non-ASCII characters back as
+       named entities. So a body stored as
+
+           example — a Customers table
+
+       comes back out of the editor as
+
+           example &mdash; a Customers table
+
+       and the two never match. The lesson is "modified" from the instant it
+       loads, and every attempt to move to another one asks whether you want
+       to discard changes you never made.
+
+       ⭐ It went unnoticed because content TYPED into the editor is saved in
+       the editor's own encoding, so it compares equal on the way back in.
+       Only text that reaches the database WITHOUT passing through TinyMCE is
+       affected — which is exactly what an AI draft is, and AI writing uses
+       real em dashes and curly quotes as a matter of course. Ed hit it on the
+       first course he had drafted.
+
+       The fix is to stop comparing two different representations. The
+       baseline is taken FROM THE EDITOR, immediately after the content lands
+       in it, so whatever normalising TinyMCE does has already happened on
+       both sides of the comparison. That is also why it is captured here and
+       in the `init` handler above rather than at the call site: the write can
+       be deferred, and the baseline has to follow the content, not the
+       request to set it. */
+    function snapshotBaseline() {
+        baselineTitle = document.getElementById('lessonTitle').value;
+        baselineBody  = editor ? editor.getContent() : '';
     }
 
     // ---------- lessons ----------
@@ -168,9 +213,9 @@ const LMSEditor = (() => {
     }
 
     function isDirty() {
-        const l = lessons.find(x => x.id === currentId);
-        if (!l || !editor) return false;
-        return l.title !== document.getElementById('lessonTitle').value || (l.body || '') !== editor.getContent();
+        if (currentId === null || !editor || !editorReady) return false;
+        return baselineTitle !== document.getElementById('lessonTitle').value
+            || baselineBody !== editor.getContent();
     }
 
     function newLesson() {
@@ -192,6 +237,11 @@ const LMSEditor = (() => {
 
         const d = await post('lessons.php', { id: currentId, course_id: COURSE_ID, title, body: editor.getContent() });
         if (!d.success) { showToast(d.error, 'error'); return; }
+
+        // What is on screen IS what is stored now, so it becomes the new
+        // baseline — otherwise the lesson stays "modified" after a save and
+        // asks about discarding changes that have just been written.
+        snapshotBaseline();
 
         document.getElementById('saveState').textContent = window.t('lms.editor.saved');
         showToast(window.t('lms.editor.saved'), 'success');

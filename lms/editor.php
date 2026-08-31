@@ -250,7 +250,7 @@ $translationNamespaces = ['common', 'lms'];
             'pass_mark'   => $course['pass_mark'] === null ? null : (int)$course['pass_mark'],
         ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;
     </script>
-    <script src="../assets/js/lms-editor.js?v=3"></script>
+    <script src="../assets/js/lms-editor.js?v=4"></script>
     <script src="../assets/js/mobile.js?v=46"></script>
 </body>
 </html>
