@@ -110,9 +110,35 @@ $translationNamespaces = ['common', 'system'];
         .contrast-note.ok   { color: var(--text-muted, #666); }
         .design-preview { position: sticky; top: 16px; }
         .preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; color: var(--text-muted, #666); }
-        /* 16:10 keeps the shape of a laptop screen, which is what most people
-           will actually see this on. */
-        #ln_preview { width: 100%; aspect-ratio: 16 / 10; border: 1px solid var(--border, #ddd); border-radius: 10px; background: var(--surface-2, #f4f5f7); }
+        /* 🔑 THE PREVIEW IS RENDERED AT A REAL DESKTOP SIZE AND THEN SCALED DOWN.
+
+           Left to fill the panel the iframe was about 640px wide, so the page
+           inside laid itself out for a tablet: the sign-in card filled the frame
+           and you scrolled to see any of it. A preview that reports a width
+           nobody uses is a preview of the wrong thing.
+
+           So the frame is fixed at 1280x800 — a laptop — and a CSS transform
+           shrinks the whole thing to fit whatever room the panel has. The page
+           inside still believes it is 1280 wide, which is the point.
+
+           ⚠️ `transform` does not affect layout, so the wrapper's height has to
+           be set to the SCALED height in JS or it reserves the full 800px and
+           leaves a gap underneath. */
+        .preview-frame {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid var(--border, #ddd);
+            border-radius: 10px;
+            background: var(--surface-2, #f4f5f7);
+        }
+        #ln_preview {
+            width: 1280px;
+            height: 800px;
+            border: 0;
+            transform-origin: top left;
+            display: block;
+        }
         .preview-note { margin-top: 8px; font-size: 12.5px; color: var(--text-muted, #666); }
         [data-hidden="1"] { display: none !important; }
 
@@ -488,7 +514,9 @@ $translationNamespaces = ['common', 'system'];
                                 <?php echo htmlspecialchars(t('system.branding.login_open_tab')); ?>
                             </a>
                         </div>
+                        <div class="preview-frame" id="ln_frame">
                         <iframe id="ln_preview" src="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php?preview=1" title="<?php echo htmlspecialchars(t('system.branding.login_preview')); ?>"></iframe>
+                        </div>
                         <p class="preview-note"><?php echo t('system.branding.login_safety', ['url' => '<code>?nobranding=1</code>']); ?></p>
                     </div>
                 </div>
@@ -636,11 +664,6 @@ $translationNamespaces = ['common', 'system'];
         showToast(window.t('system.branding.reset_hint'), 'info');
     });
 
-    document.getElementById('brandingForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const btn = this.querySelector('button[type="submit"]');
-        btn.disabled = true;
-
         /* =====================================================================
            LOGIN SCREEN DESIGNER
 
@@ -775,9 +798,34 @@ $translationNamespaces = ['common', 'system'];
             const el = lnEl(f);
             if (el) el.addEventListener('input', lnSync);
         }
+        /* Fit the 1280x800 frame into whatever width the panel has. Recomputed
+           on resize, because this panel is half of a two-column grid that
+           becomes one column on a narrow screen.
+           ⚠️ clientWidth, not getBoundingClientRect(): the wrapper is the
+           element being scaled INTO, and mixing scaled rects with unscaled
+           layout properties is how this codebase has produced four false
+           measurements before now. */
+        const LN_W = 1280, LN_H = 800;
+        function lnFit() {
+            const wrap = document.getElementById('ln_frame');
+            const frame = document.getElementById('ln_preview');
+            if (!wrap || !frame) return;
+            const scale = wrap.clientWidth / LN_W;
+            frame.style.transform = 'scale(' + scale + ')';
+            wrap.style.height = (LN_H * scale) + 'px';
+        }
+        if (window.ResizeObserver) new ResizeObserver(lnFit).observe(document.getElementById('ln_frame'));
+        window.addEventListener('resize', lnFit);
+        lnFit();
+
         // The preview iframe has to have loaded before it can be told anything.
         document.getElementById('ln_preview').addEventListener('load', lnBroadcast);
         lnWrite(LN_SAVED);
+
+    document.getElementById('brandingForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true;
 
         const fd = new FormData();
         // Every designer field, named exactly as the server's field table
