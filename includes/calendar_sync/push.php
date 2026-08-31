@@ -307,10 +307,17 @@ function calendarSyncEventFromTask(array $t, string $kind): ?array
 
     if ($kind === 'due') {
         if (empty($t['due_date'])) return null;
-        // ⚠️ ALL-DAY, and the end is the day AFTER the due date. iCalendar and
-        // Graph both treat an all-day end as EXCLUSIVE, so ending on the due
-        // date itself draws the banner on the day before and the deadline
-        // silently moves. Same trap in both providers.
+        // 🔴 ALL-DAY IS STORED ON ONE DAY: 00:00 to 23:59:59, the SAME date.
+        //
+        // Both serializers already convert that to the exclusive end their
+        // format wants — icsEvent() adds a day for DTEND;VALUE=DATE, and
+        // MicrosoftCalendarProvider::toGraphEvent() adds a day for isAllDay. So
+        // handing them a day-after end makes the day get added TWICE and a
+        // one-day deadline arrives in Outlook spanning two days. Ed caught this
+        // on a task due on the 5th that showed as the 5th and 6th.
+        //
+        // The convention is the ticket one; the conversion belongs to whoever is
+        // writing the wire format, never to the caller.
         $day = substr((string)$t['due_date'], 0, 10);
         return [
             // Named so it is obvious in a diary that this is a deadline rather
@@ -318,7 +325,7 @@ function calendarSyncEventFromTask(array $t, string $kind): ?array
             'subject'  => 'Due: ' . $title,
             'body'     => implode("\n", $bits),
             'start'    => $day . ' 00:00:00',
-            'end'      => date('Y-m-d', strtotime($day . ' +1 day')) . ' 00:00:00',
+            'end'      => $day . ' 23:59:59',
             'all_day'  => true,
             'timezone' => date_default_timezone_get(),
             'url'      => $url,

@@ -73,12 +73,39 @@ try {
         strpos($due['subject'], 'Due:') === 0, $due['subject']);
     ok('…and starts on the due date', substr($due['start'], 0, 10) === '2026-09-10');
 
-    // 🔴 The one that bites. An all-day END is EXCLUSIVE in both iCalendar and
-    // Graph, so it must be the day AFTER — otherwise the banner is drawn on the
-    // day before and the deadline silently moves by one day.
-    ok('…and ENDS THE FOLLOWING DAY, because an all-day end is exclusive',
-        substr($due['end'], 0, 10) === '2026-09-11',
-        'ends ' . substr($due['end'], 0, 10) . ' — the deadline would show a day early');
+    // 🔴 THE ONE THAT BIT. An earlier version of this file asserted the end was
+    // the day AFTER, on the reasoning that an all-day end is exclusive. It is —
+    // but BOTH serializers already do that conversion themselves, so passing a
+    // day-after end got the day added twice and a task due on the 5th arrived
+    // in Outlook spanning the 5th and 6th. Ed found it on a real task; this
+    // test had happily defended it.
+    //
+    // The lesson is in what is asserted, not just the value: a unit test of my
+    // own assumption proved nothing. So the check below runs the REAL
+    // serializer and measures the result.
+    ok('…and ends on the SAME day it starts, because the serializers add the exclusive day',
+        substr($due['end'], 0, 10) === '2026-09-10',
+        'ends ' . substr($due['end'], 0, 10) . ' — the day would be added twice');
+
+    echo "\nThrough the real serializer, a one-day deadline occupies ONE day:\n";
+    require_once __DIR__ . '/../includes/ics.php';
+    $ics = implode("\n", icsEvent($due, 'Europe/London'));
+    preg_match('/DTSTART;VALUE=DATE:(\d{8})/', $ics, $ds);
+    preg_match('/DTEND;VALUE=DATE:(\d{8})/',   $ics, $de);
+    ok('the feed emits DATE values for an all-day entry', !empty($ds[1]) && !empty($de[1]), $ics);
+    if (!empty($ds[1]) && !empty($de[1])) {
+        $span = (new DateTime($de[1]))->diff(new DateTime($ds[1]))->days;
+        ok('DTSTART is the due date', $ds[1] === '20260910', $ds[1]);
+        ok('…and DTEND is exactly ONE day later, i.e. a single-day event',
+            $span === 1, "spans {$span} day(s) — " . $ds[1] . ' to ' . $de[1]);
+    }
+
+    // The same arithmetic the Graph provider does, checked here rather than
+    // over the network: it takes the END DATE and adds a day.
+    $graphEnd = (new DateTime(substr($due['end'], 0, 10)))->modify('+1 day')->format('Y-m-d');
+    ok('the Graph conversion also yields a single day',
+        $graphEnd === '2026-09-11',
+        "start 2026-09-10, exclusive end {$graphEnd} — anything later spans extra days");
 
     echo "\nA task with nothing to say for a kind produces no event:\n";
     $bare = $task; $bare['work_start_datetime'] = null; $bare['due_date'] = null;
@@ -97,23 +124,41 @@ try {
     // ⚠️ With NO calendar connection configured, reconcile must be a safe no-op
     // rather than an error — that is the state every install is in until an
     // administrator sets one up, and saving a task must never depend on it.
-    echo "\nReconciling with no calendar connection configured:\n";
+    echo "\nReconciling a task nobody is holding:\n";
+    //
+    // 🔴 ASSIGNED TO NOBODY, DELIBERATELY. An earlier version of this file gave
+    // the harness task to analyst 1 and asserted that reconcile "writes
+    // nothing" — true only while nobody had switched tasks on. The moment Ed
+    // did, the test PUSHED A FAKE TASK INTO HIS REAL OUTLOOK, and the cleanup
+    // then deleted the task, which cascaded the mapping row away and left the
+    // event orphaned in his calendar with nothing able to remove it.
+    //
+    // A test must not depend on a live setting to stay harmless. Unassigned,
+    // there is no calendar it could ever reach, whatever anyone has chosen.
     $st = $conn->query("SELECT id FROM task_statuses WHERE COALESCE(is_closed,0)=0 ORDER BY id LIMIT 1");
     $openStatus = (int)$st->fetchColumn();
     $conn->prepare(
         "INSERT INTO tasks (title, status_id, due_date, assigned_analyst_id, created_datetime, updated_datetime)
-         VALUES ('ZZCAL harness task', ?, '2026-09-10', 1, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+         VALUES ('ZZCAL harness task', ?, '2026-09-10', NULL, UTC_TIMESTAMP(), UTC_TIMESTAMP())"
     )->execute([$openStatus]);
     $tid = (int)$conn->lastInsertId();
 
     $before = (int)$conn->query("SELECT COUNT(*) FROM calendar_sync_events")->fetchColumn();
     calendarSyncReconcileTask($conn, $tid);
     $after = (int)$conn->query("SELECT COUNT(*) FROM calendar_sync_events")->fetchColumn();
-    ok('it writes nothing and does not throw', $after === $before, "{$before} -> {$after}");
+    ok('an unassigned task reaches nobody\'s calendar', $after === $before, "{$before} -> {$after}");
 
     calendarSyncReconcileTask($conn, $tid, true);   // the delete path
     ok('the "gone" path is a no-op too',
         (int)$conn->query("SELECT COUNT(*) FROM calendar_sync_events")->fetchColumn() === $before);
+
+    // POSITIVE CONTROL: the rule above is about the ASSIGNEE, not about the
+    // feature being broken. Without this, "wrote nothing" would also pass if
+    // reconcile had stopped working entirely.
+    ok('POSITIVE CONTROL: an unassigned task is what makes that true, not a broken reconcile',
+        calendarSyncEventFromTask(['id' => $tid, 'title' => 'ZZCAL', 'due_date' => '2026-09-10',
+                                   'work_start_datetime' => null, 'work_end_datetime' => null,
+                                   'work_all_day' => 0], 'due') !== null);
 
     echo "\nThe audit trail tasks did not have before:\n";
     $conn->prepare(

@@ -200,9 +200,9 @@ foreach ($taskRows as $r) {
     }
 
     if (taskCalendarWantsDue($taskMode) && !empty($r['due_date'])) {
-        // ⚠️ The all-day END IS EXCLUSIVE in iCalendar, so it must be the day
-        // AFTER the due date. Ending on the due date itself draws the banner on
-        // the day before and the deadline silently moves.
+        // 🔴 SAME DAY, both ends. icsEvent() makes DTEND exclusive itself, so
+        // passing the day after gets it added twice and a one-day deadline
+        // spans two days in the reader's calendar.
         $day = substr((string)$r['due_date'], 0, 10);
         $lines = array_merge($lines, icsEvent([
             'uid'         => 'freeitsm-task-due-' . (int)$r['id'] . '@' . $domain,
@@ -210,7 +210,7 @@ foreach ($taskRows as $r) {
             'description' => $description,
             'url'         => $url,
             'start'       => $day . ' 00:00:00',
-            'end'         => date('Y-m-d', strtotime($day . ' +1 day')) . ' 00:00:00',
+            'end'         => $day . ' 23:59:59',
             'all_day'     => true,
             'stamp'       => $r['updated_datetime'],
         ], $tz));
