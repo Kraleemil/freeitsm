@@ -7270,4 +7270,60 @@
     /* The AI's reasoning sits under the requirement as a quiet second
        paragraph, which is what it already is — it only needs the room. */
     [data-mobile-module="contracts"] .req-row-rationale { font-size: 12.5px; }
+
+    /* --------------------------------------------------------------------
+       28s — The edit-requirement sheet (Ed: "currently it's all squished in
+       randomly").
+
+       "Randomly" is the exactly right word for it, and the measurement shows
+       why. `.form-row-grid` declares `1fr 1fr 1fr` for Type / Priority /
+       Category, and at 360px the three tracks came out:
+
+           133px   101px   74px
+
+       Not thirds. A `1fr` track is `minmax(auto, 1fr)`, and that `auto` floor
+       is the track's MIN-CONTENT width — so each column was sized by its own
+       longest option rather than by the share it was asked for, and Category
+       ended up a 74px dropdown. §14's `min-width: auto` in its grid form, and
+       the reason the layout looks arbitrary rather than merely tight: the
+       widths are driven by the words inside them.
+
+       One field per row, which is what every other paired-field fix in this
+       layer does (28f's `.contract-details`, 15e's inline settings grids) and
+       what the same three fields get on the desktop form when the window is
+       narrow. `minmax(0, 1fr)` rather than `1fr`, for the reason above.
+
+       ⚠️ `.form-row-grid` is contracts' own class and lives on exactly two
+       pages — consolidate (three columns) and the RFP suppliers screen (two).
+       Both stack, so the rule is written once against the class rather than
+       per page. Scoped through the module marker anyway: "only this module
+       uses this name today" is the state §15's faults start from. */
+    [data-mobile-module="contracts"] .form-row-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+    }
+    [data-mobile-module="contracts"] .form-row-grid .form-row { margin-bottom: 14px; }
+    [data-mobile-module="contracts"] .form-row-grid .form-row:last-child { margin-bottom: 0; }
+
+    /* The requirement itself is what this sheet is for, and a full-screen
+       sheet has the room the 640px desktop dialogue did not. Four rows of a
+       textarea is 114px of a 625px body; the sources and the rationale can
+       scroll. */
+    [data-mobile-module="contracts"] .edit-modal-body #editText { min-height: 150px; }
+
+    /* Fields the width of the sheet, and a comfortable target. The 16px is
+       already carried by 28g's anti-zoom rule for anything inside these
+       overlays — stated there rather than repeated here. */
+    [data-mobile-module="contracts"] .form-row input,
+    [data-mobile-module="contracts"] .form-row select,
+    [data-mobile-module="contracts"] .form-row textarea {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    [data-mobile-module="contracts"] .form-row select,
+    [data-mobile-module="contracts"] .form-row input { min-height: 44px; }
+    /* The uppercase micro-label is fine once it has a row to itself; it was
+       only ever unreadable because it was wrapping inside a 74px column. */
+    [data-mobile-module="contracts"] .form-row label { font-size: 12px; }
 }

@@ -370,7 +370,7 @@ $translationNamespaces = ['common', 'software'];
             gap: 10px;
         }
     </style>
-    <link rel="stylesheet" href="../../assets/css/mobile.css?v=99">
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=100">
 </head>
 <body data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
