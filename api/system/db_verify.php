@@ -86,8 +86,19 @@ $primaryKeys = [
     // announced themselves. The $schema array carries columns and nothing else.
     'morningChecks_Groups'      => 'GroupID',
     'morningChecks_ResultLinks' => 'LinkID',
-    'knowledge_article_tags'    => null, // composite PK: article_id, tag_id
-    'task_tag_map'              => null, // composite PK: task_id, tag_id
+    // Composite keys are an ARRAY. They used to be `null` here and then named
+    // again in an if/elseif chain inside the CREATE builder, which meant adding
+    // one was a code change in two places and forgetting the second half failed
+    // silently — the table simply fell through to PRIMARY KEY (`id`).
+    'knowledge_article_tags'    => ['article_id', 'tag_id'],
+    'task_tag_map'              => ['task_id', 'tag_id'],
+    // 🔴 GH #123. Both of these were missed, and the warning above is the one
+    // they were missed in spite of. A table is only safe to leave out of this
+    // map if its PK is literally `id`; neither of these has an `id` column at
+    // all, so verification could not create them on a fresh install and
+    // reported "Key column 'id' doesn't exist in table" twice, every run.
+    'knowledge_gap_tickets'         => 'ticket_id',
+    'knowledge_gap_cluster_tickets' => ['cluster_id', 'ticket_id'],
 ];
 
 try {
@@ -290,17 +301,13 @@ try {
                 $colDefs[] = "`$colName` $colDef";
             }
 
-            // Determine primary key
-            if ($tableName === 'knowledge_article_tags') {
-                $colDefs[] = "PRIMARY KEY (`article_id`, `tag_id`)";
-            } elseif ($tableName === 'task_tag_map') {
-                $colDefs[] = "PRIMARY KEY (`task_id`, `tag_id`)";
-            } elseif (isset($primaryKeys[$tableName])) {
-                $pkCol = $primaryKeys[$tableName];
-                $colDefs[] = "PRIMARY KEY (`$pkCol`)";
-            } else {
-                $colDefs[] = "PRIMARY KEY (`id`)";
-            }
+            /* Determine the primary key. One rule now, reading $primaryKeys:
+               an array is a composite, a string is one column, and absent means
+               `id`. The two composites used to be named here as well as in the
+               map, so a third one had to be added in both places to work. */
+            $pk = $primaryKeys[$tableName] ?? 'id';
+            $pkCols = is_array($pk) ? $pk : [$pk];
+            $colDefs[] = 'PRIMARY KEY (`' . implode('`, `', $pkCols) . '`)';
 
             $sql = "CREATE TABLE `$tableName` (\n    " . implode(",\n    ", $colDefs) . "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 

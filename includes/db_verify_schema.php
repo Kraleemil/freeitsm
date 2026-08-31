@@ -604,7 +604,11 @@ return [
     'ticket_audit' => [
         'id'                => 'INT NOT NULL AUTO_INCREMENT',
         'ticket_id'         => 'INT NOT NULL',
-        'analyst_id'        => 'INT NOT NULL',
+        // 🔴 NULLABLE. A workflow writes history entries that no analyst made,
+        // and #1391 made freeitsm.sql and the live migration agree on that while
+        // leaving THIS copy behind — so every verification run since has reported
+        // the two files disagreeing (GH #123, and Ed saw it on his own install).
+        'analyst_id'        => 'INT NULL',
         'field_name'        => 'VARCHAR(100) NOT NULL',
         'old_value'         => 'VARCHAR(500) NULL',
         'new_value'         => 'VARCHAR(500) NULL',
