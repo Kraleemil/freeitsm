@@ -1244,6 +1244,27 @@ return [
      * (Tickets → Settings → Merge behaviour). An admin who changes the policy next
      * month must not silently rewrite the history of merges done under the old one.
      */
+    // The AI-written ticket summary, kept as a history — see freeitsm.sql for why
+    // a refresh writes a new version instead of overwriting the old one.
+    'ticket_ai_summaries' => [
+        'id'            => 'INT NOT NULL AUTO_INCREMENT',
+        'ticket_id'     => 'INT NOT NULL',
+        'version'       => 'INT NOT NULL DEFAULT 1',
+        'summary'       => 'MEDIUMTEXT NOT NULL',
+        'provider'      => 'VARCHAR(32) NULL',
+        'model'         => 'VARCHAR(120) NULL',
+        'message_count' => 'INT NOT NULL DEFAULT 0',
+        'note_count'    => 'INT NOT NULL DEFAULT 0',
+        // The newest message this summary read: what makes "out of date" a fact.
+        'last_email_id' => 'INT NULL',
+        // NULL = FreeITSM refreshed it by itself; an id = somebody pressed the button.
+        'generated_by'  => 'INT NULL',
+        // Cut off before it finished — said out loud rather than served as if whole.
+        'truncated'     => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'tokens_in'     => 'INT NOT NULL DEFAULT 0',
+        'tokens_out'    => 'INT NOT NULL DEFAULT 0',
+        'created_at'    => 'DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ],
     'ticket_merges' => [
         'id'                   => 'INT NOT NULL AUTO_INCREMENT',
         'source_ticket_id'     => 'INT NOT NULL',

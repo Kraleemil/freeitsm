@@ -39,7 +39,8 @@ const AI_OPENROUTER_MODELS_TTL = 86400; // 24h
  * @param array $opts ['system','user','max_tokens'?=1024,'temperature'?=0.0,
  *                     'referer'?,'title'?]  (referer/title attribute the call on
  *                     OpenRouter's dashboard — defaults to FreeITSM)
- * @return array ['content','tokens_in','tokens_out','provider','model','duration_ms']
+ * @return array ['content','tokens_in','tokens_out','provider','model','duration_ms',
+ *                'finish_reason','reasoning_tokens']
  * @throws RuntimeException on misconfiguration or API/network failure.
  */
 function aiProviderChat(array $cfg, array $opts): array
@@ -116,6 +117,12 @@ function aiProviderCallAnthropic(string $model, string $apiKey, bool $verify, ar
         'content'    => trim($text),
         'tokens_in'  => $data['usage']['input_tokens']  ?? null,
         'tokens_out' => $data['usage']['output_tokens'] ?? null,
+        // Why it stopped. 'max_tokens' means the answer was CUT OFF, which
+        // reads as a short answer rather than as a failure — see the note on
+        // the OpenAI-compatible path below. Additive: every existing caller
+        // reads content/tokens_* and is unaffected.
+        'finish_reason' => $data['stop_reason'] ?? null,
+        'reasoning_tokens' => null,
     ];
 }
 
@@ -141,10 +148,26 @@ function aiProviderCallOpenAICompatible(string $base, string $model, string $api
 
     $text = $data['choices'][0]['message']['content'] ?? '';
 
+    /* ⚠️ A REASONING MODEL CAN RETURN NOTHING AND LOOK LIKE A SUCCESS.
+       OpenRouter serves plenty of them, and they spend `completion_tokens` on a
+       `reasoning` field before writing a single character of `content`. Ask one
+       a real question with a small max_tokens and the whole budget goes on
+       thinking: HTTP 200, usage full, content "". Every feature here then reports
+       its own generic failure for something that is neither a network problem nor
+       a bad key — it is a budget that ran out before the answer started.
+
+       So the reason is returned alongside the text. 'length' with no content and
+       a pile of reasoning tokens is a nameable case an administrator can act on
+       (raise the limit, or choose a model that does not think out loud), and a
+       caller that ignores these keys behaves exactly as it did before. */
+    $choice = $data['choices'][0] ?? [];
+
     return [
         'content'    => trim((string)$text),
         'tokens_in'  => $data['usage']['prompt_tokens']     ?? null,
         'tokens_out' => $data['usage']['completion_tokens'] ?? null,
+        'finish_reason' => $choice['finish_reason'] ?? null,
+        'reasoning_tokens' => $data['usage']['completion_tokens_details']['reasoning_tokens'] ?? null,
     ];
 }
 

@@ -1580,6 +1580,52 @@ $translationNamespaces = ['common', 'tickets'];
                     <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.flag_duplicates_help')); ?></small>
                 </div>
 
+                <!-- The two AI reading aids (#104, ideas 7 and 12).
+                     ⚠️ Both are OFF by default and that is deliberate. Every other
+                     setting on this page changes how something already free is
+                     displayed; these two spend money with the administrator's own
+                     API key, and a feature that starts billing on upgrade is not a
+                     good surprise. The provider itself is configured once, on the
+                     Reply cleanup tab. -->
+                <h3 style="margin-top: 34px;"><?php echo htmlspecialchars(t('tickets.settings.general.ai_heading')); ?></h3>
+                <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo htmlspecialchars(t('tickets.settings.general.ai_desc')); ?></p>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="aiSummaryEnabled">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.ai_summary_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.ai_summary_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="aiSummaryAutoAfter"><?php echo htmlspecialchars(t('tickets.settings.general.ai_auto_label')); ?></label>
+                    <input type="number" id="aiSummaryAutoAfter" min="0" max="100" step="1" style="max-width: 120px;">
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.ai_auto_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="aiSummaryMaxMessages"><?php echo htmlspecialchars(t('tickets.settings.general.ai_max_label')); ?></label>
+                    <input type="number" id="aiSummaryMaxMessages" min="5" max="200" step="1" style="max-width: 120px;">
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.ai_max_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="aiSummaryIncludeNotes">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.ai_notes_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.ai_notes_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="aiReadEnabled">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.ai_read_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.ai_read_help')); ?></small>
+                </div>
+
                 <div style="display: flex; gap: 10px; justify-content: flex-start; margin-top: 30px;">
                     <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
                 </div>
@@ -5586,12 +5632,24 @@ $translationNamespaces = ['common', 'tickets'];
                     const cb = (id, key, dflt) => document.getElementById(id).checked =
                         data.settings[key] === undefined ? dflt : data.settings[key] === '1';
                     cb('collapseEnabled',      'ticket_collapse_enabled',       true);
+                    // ⚠️ default FALSE, unlike everything around it. An unloaded
+                    // checkbox looks exactly like OFF, and for these two that is
+                    // the safe direction to be wrong in.
+                    cb('aiSummaryEnabled',     'ticket_ai_summary_enabled',     false);
+                    cb('aiSummaryIncludeNotes','ticket_ai_summary_include_notes', true);
+                    cb('aiReadEnabled',        'ticket_ai_read_enabled',        false);
                     cb('collapseExpandNewest', 'ticket_collapse_expand_newest', true);
                     cb('collapseQuoted',       'ticket_collapse_quoted',        true);
                     cb('collapseRemember',     'ticket_collapse_remember',      true);
                     cb('groupOlder',          'ticket_group_older',            true);
                     cb('flagDuplicates',      'ticket_flag_duplicates',        true);
                     document.getElementById('groupShow').value = parseInt(data.settings.ticket_group_show, 10) || 6;
+                    // ⚠️ '|| N' would turn a saved 0 into N, and 0 is the setting that
+                    // means "never refresh by itself" — the one an administrator is most
+                    // likely to have chosen deliberately.
+                    const autoAfter = parseInt(data.settings.ticket_ai_summary_auto_after, 10);
+                    document.getElementById('aiSummaryAutoAfter').value = Number.isInteger(autoAfter) ? String(autoAfter) : '0';
+                    document.getElementById('aiSummaryMaxMessages').value = parseInt(data.settings.ticket_ai_summary_max_messages, 10) || 60;
                     document.getElementById('collapseLines').value =
                         parseInt(data.settings.ticket_collapse_lines, 10) || 12;
 
@@ -5941,6 +5999,11 @@ $translationNamespaces = ['common', 'tickets'];
                 reopen_on_customer_reply: document.getElementById('reopenOnCustomerReply').checked ? '1' : '0',
                 snooze_wake_hour: document.getElementById('snoozeWakeHour').value,
                 ticket_collapse_enabled:       document.getElementById('collapseEnabled').checked ? '1' : '0',
+                ticket_ai_summary_enabled:       document.getElementById('aiSummaryEnabled').checked ? '1' : '0',
+                ticket_ai_summary_auto_after:    document.getElementById('aiSummaryAutoAfter').value,
+                ticket_ai_summary_max_messages:  document.getElementById('aiSummaryMaxMessages').value,
+                ticket_ai_summary_include_notes: document.getElementById('aiSummaryIncludeNotes').checked ? '1' : '0',
+                ticket_ai_read_enabled:          document.getElementById('aiReadEnabled').checked ? '1' : '0',
                 ticket_collapse_lines:         String(document.getElementById('collapseLines').value || 12),
                 ticket_collapse_expand_newest: document.getElementById('collapseExpandNewest').checked ? '1' : '0',
                 ticket_collapse_quoted:        document.getElementById('collapseQuoted').checked ? '1' : '0',

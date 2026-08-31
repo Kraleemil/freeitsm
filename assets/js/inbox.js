@@ -2506,6 +2506,7 @@ function displayEmail(email, recordings) {
         <div class="presence-strip" id="presenceStrip" hidden></div>
         ${buildLinksSection(email)}
         ${buildRecordingsStrip(currentRecordings)}
+        ${buildAiSummarySlot()}
         <div class="action-toolbar">
             <button class="action-btn" onclick="openNoteModal()">
                 <span class="action-btn-icon">📝</span>
@@ -2527,6 +2528,7 @@ function displayEmail(email, recordings) {
                 <span class="action-btn-icon">🤖</span>
                 <span>${escapeHtml(t('tickets.actions.ask_ai'))}</span>
             </button>
+            ${buildReadForMeButton()}
             <button class="action-btn" onclick="showAuditHistory()">
                 <span class="action-btn-icon">📋</span>
                 <span>${escapeHtml(t('tickets.actions.audit'))}</span>
@@ -2554,6 +2556,7 @@ function displayEmail(email, recordings) {
     // Isolate the just-rendered email body in a shadow root (see emailBodyHost).
     hydrateEmailBodies(readingPane);
 
+    loadAiSummary(email.ticket_id);
     // Load full correspondence thread, notes, attachments and linked CMDB objects after rendering
     loadCorrespondenceThread(email.ticket_id);
     loadNotes(email.ticket_id);
@@ -9567,4 +9570,276 @@ function pickSignature(id) {
     }
     const sig = (mySignatureCache || []).find(function (s) { return Number(s.id) === Number(id); });
     if (sig) setSignatureInEditor(sig);
+}
+
+/* =========================================================================
+   THE AI READING AIDS  (discussion #104, ideas 7 and 12)
+
+   Two separate things that happen to share a provider:
+
+     • THE MAINTAINED SUMMARY — a standing few lines at the top of the ticket
+       saying where it stands. Stored, versioned, and refreshed when the
+       conversation has moved on.
+     • READ THIS TICKET FOR ME — a briefing you ask for and read once. Stored
+       nowhere.
+
+   ⚠️ Both are OFF unless an administrator turned them on. window.TICKET_AI is
+   emitted by the page rather than fetched, so on an install that wants none of
+   this the buttons are never even built — there is nothing to click, nothing to
+   fail, and nothing to explain.
+
+   🔑 THE SUMMARY NEVER STANDS IN FOR THE TICKET. It carries the time it was
+   written, what it read, and — the part that matters — how far the conversation
+   has moved since. A summary that quietly describes a ticket as it was four
+   messages ago is worse than no summary, because it reads exactly like one that
+   is current.
+   ========================================================================= */
+
+let _aiSummaryTicketId = 0;
+let _aiSummaryState = null;
+let _aiSummaryBusy = false;
+
+function aiSummaryOn() { return !!(window.TICKET_AI && window.TICKET_AI.summary_enabled); }
+function aiReadOn()    { return !!(window.TICKET_AI && window.TICKET_AI.read_enabled); }
+
+/** The slot. Empty markup when the feature is off, so nothing reserves space. */
+function buildAiSummarySlot() {
+    if (!aiSummaryOn()) return '';
+    return '<div class="ai-summary" id="aiSummarySlot" hidden></div>';
+}
+
+function buildReadForMeButton() {
+    if (!aiReadOn()) return '';
+    return `            <button class="action-btn" onclick="openReadForMe()" title="${escapeHtml(t('tickets.ai.read_for_me_help'))}">
+                <span class="action-btn-icon">📖</span>
+                <span>${escapeHtml(t('tickets.ai.read_for_me'))}</span>
+            </button>
+`;
+}
+
+/* ── the standing summary ───────────────────────────────────────────────── */
+
+async function loadAiSummary(ticketId) {
+    if (!aiSummaryOn() || !ticketId) return;
+    _aiSummaryTicketId = ticketId;
+    _aiSummaryState = null;
+    try {
+        const r = await fetch(`../api/tickets/ai_summary.php?ticket_id=${encodeURIComponent(ticketId)}`);
+        const d = await r.json();
+        // The ticket may have changed underneath a slow request. Landing an old
+        // ticket's summary on a new ticket would be a quiet, confident lie.
+        if (!d.success || d.disabled || _aiSummaryTicketId !== ticketId) return;
+        _aiSummaryState = d;
+        renderAiSummary();
+
+        /* An automatic refresh, if the administrator asked for one and the
+           conversation has moved far enough. The SERVER decides — this only
+           asks, and asking twice cannot bill twice. */
+        if (d.auto_due && d.configured) refreshAiSummary(true);
+    } catch (e) {
+        // A summary that cannot load leaves the ticket exactly as it was.
+    }
+}
+
+function renderAiSummary() {
+    const slot = document.getElementById('aiSummarySlot');
+    if (!slot || !_aiSummaryState) return;
+    const st = _aiSummaryState;
+    const s = st.summary;
+
+    if (!s && !st.configured) {
+        // Turned on but never given a key. Say so where somebody can act on it,
+        // rather than showing an empty panel or nothing at all.
+        slot.hidden = false;
+        slot.innerHTML = `<div class="ai-summary-head">
+            <span class="ai-summary-badge">${escapeHtml(t('tickets.ai.badge'))}</span>
+            <span class="ai-summary-note">${escapeHtml(t('tickets.ai.not_configured'))}</span>
+        </div>`;
+        return;
+    }
+
+    slot.hidden = false;
+    const collapsed = localStorage.getItem('aiSummaryCollapsed') === '1';
+
+    if (!s) {
+        slot.innerHTML = `<div class="ai-summary-head">
+            <span class="ai-summary-badge">${escapeHtml(t('tickets.ai.badge'))}</span>
+            <span class="ai-summary-note">${escapeHtml(t('tickets.ai.none_yet'))}</span>
+            <button type="button" class="ai-summary-btn" onclick="refreshAiSummary(false)">${escapeHtml(t('tickets.ai.summarise'))}</button>
+        </div>`;
+        return;
+    }
+
+    /* "Written at, from N messages, and M have arrived since." All three, always.
+       The staleness line is the one that stops this becoming the only thing
+       anybody reads. */
+    const meta = [
+        t('tickets.ai.written_at').replace('{time}', formatFullDateTime(s.created_at)),
+        t('tickets.ai.read_n').replace('{n}', s.message_count),
+        'v' + s.version,
+    ].join(' · ');
+
+    /* Two different warnings, and the order matters: "this summary is
+       incomplete" is about the words you are looking at, while "the ticket has
+       moved on" is about everything below them. */
+    const cut = s.truncated
+        ? `<div class="ai-summary-stale">${escapeHtml(t('tickets.ai.cut_off'))}</div>`
+        : '';
+    const behind = st.behind > 0
+        ? `<div class="ai-summary-stale">${escapeHtml(
+              (st.behind === 1 ? t('tickets.ai.behind_one') : t('tickets.ai.behind_n')).replace('{n}', st.behind))}</div>`
+        : '';
+
+    slot.innerHTML = `
+        <div class="ai-summary-head">
+            <span class="ai-summary-badge">${escapeHtml(t('tickets.ai.badge'))}</span>
+            <span class="ai-summary-meta">${escapeHtml(meta)}</span>
+            <span class="ai-summary-actions">
+                ${s.version > 1 ? `<button type="button" class="ai-summary-link" onclick="showAiSummaryHistory()">${escapeHtml(t('tickets.ai.history'))}</button>` : ''}
+                <button type="button" class="ai-summary-btn" onclick="refreshAiSummary(false)">${escapeHtml(t('tickets.ai.refresh'))}</button>
+                <button type="button" class="ai-summary-link" onclick="toggleAiSummary()">${escapeHtml(collapsed ? t('tickets.ai.show') : t('tickets.ai.hide'))}</button>
+            </span>
+        </div>
+        ${cut}
+        ${behind}
+        <div class="ai-summary-body"${collapsed ? ' hidden' : ''}>${escapeHtml(s.text)}</div>`;
+}
+
+function toggleAiSummary() {
+    const body = document.querySelector('#aiSummarySlot .ai-summary-body');
+    if (!body) return;
+    body.hidden = !body.hidden;
+    try { localStorage.setItem('aiSummaryCollapsed', body.hidden ? '1' : '0'); } catch (e) {}
+    renderAiSummary();
+}
+
+async function refreshAiSummary(auto) {
+    if (_aiSummaryBusy || !_aiSummaryTicketId) return;
+    _aiSummaryBusy = true;
+    const ticketId = _aiSummaryTicketId;
+    const slot = document.getElementById('aiSummarySlot');
+    if (slot && !auto) {
+        slot.hidden = false;
+        slot.innerHTML = `<div class="ai-summary-head">
+            <span class="ai-summary-badge">${escapeHtml(t('tickets.ai.badge'))}</span>
+            <span class="ai-summary-note">${escapeHtml(t('tickets.ai.working'))}</span>
+        </div>`;
+    }
+    try {
+        const r = await fetch('../api/tickets/ai_summary.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket_id: ticketId, auto: !!auto }),
+        });
+        const d = await r.json();
+        if (_aiSummaryTicketId !== ticketId) return;
+        if (d.success) {
+            _aiSummaryState = { ...(_aiSummaryState || {}), summary: d.summary, behind: 0, configured: true };
+            renderAiSummary();
+        } else if (auto) {
+            // A refused automatic refresh is not an error anybody needs to see —
+            // it means the server decided it was not due, which is its job.
+            renderAiSummary();
+        } else {
+            const slot2 = document.getElementById('aiSummarySlot');
+            if (slot2) slot2.innerHTML = `<div class="ai-summary-head">
+                <span class="ai-summary-badge">${escapeHtml(t('tickets.ai.badge'))}</span>
+                <span class="ai-summary-note">${escapeHtml(aiErrorText(d.error))}</span>
+                <button type="button" class="ai-summary-btn" onclick="refreshAiSummary(false)">${escapeHtml(t('tickets.ai.try_again'))}</button>
+            </div>`;
+        }
+    } catch (e) {
+        if (!auto) renderAiSummary();
+    } finally {
+        _aiSummaryBusy = false;
+    }
+}
+
+/** Every version ever written, because nothing here is ever overwritten. */
+async function showAiSummaryHistory() {
+    if (!_aiSummaryTicketId) return;
+    const r = await fetch(`../api/tickets/ai_summary.php?ticket_id=${encodeURIComponent(_aiSummaryTicketId)}&history=1`);
+    const d = await r.json();
+    if (!d.success) return;
+
+    const rows = (d.versions || []).map(v => `
+        <div class="ai-history-item">
+            <div class="ai-history-meta">v${v.version} · ${escapeHtml(formatFullDateTime(v.created_at))}
+                ${v.generated_by_name ? '· ' + escapeHtml(v.generated_by_name) : '· ' + escapeHtml(t('tickets.ai.automatic'))}
+                · ${escapeHtml(t('tickets.ai.read_n').replace('{n}', v.message_count))}
+                ${v.model ? '· ' + escapeHtml(v.model) : ''}</div>
+            ${+v.truncated ? `<div class="ai-summary-stale">${escapeHtml(t('tickets.ai.cut_off'))}</div>` : ''}
+            <div class="ai-history-body">${escapeHtml(v.summary)}</div>
+        </div>`).join('');
+
+    showAiPanel(t('tickets.ai.history_title'), `<div class="ai-history">${rows}</div>`);
+}
+
+/* ── read this ticket for me ────────────────────────────────────────────── */
+
+async function openReadForMe() {
+    if (!currentEmail) return;
+    const ticketId = currentEmail.ticket_id || currentEmail.id;
+    showAiPanel(t('tickets.ai.read_for_me'),
+        `<div class="ai-read-working">${escapeHtml(t('tickets.ai.working'))}</div>`);
+    try {
+        const r = await fetch('../api/tickets/ai_read.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticket_id: ticketId }),
+        });
+        const d = await r.json();
+        const box = document.querySelector('#aiPanelModal .ai-panel-body');
+        if (!box) return;
+        if (!d.success) { box.innerHTML = `<div class="ai-read-working">${escapeHtml(aiErrorText(d.error))}</div>`; return; }
+        box.innerHTML = `
+            <div class="ai-summary-badge ai-badge-block">${escapeHtml(t('tickets.ai.badge'))}</div>
+            <div class="ai-read-body">${escapeHtml(d.briefing)}</div>
+            <div class="ai-read-foot">${escapeHtml(
+                t('tickets.ai.read_n').replace('{n}', d.messages) + (d.model ? ' · ' + d.model : ''))}</div>`;
+    } catch (e) {
+        const box = document.querySelector('#aiPanelModal .ai-panel-body');
+        if (box) box.innerHTML = `<div class="ai-read-working">${escapeHtml(t('tickets.ai.unreachable'))}</div>`;
+    }
+}
+
+/* ── the shared panel ───────────────────────────────────────────────────── */
+
+function showAiPanel(title, html) {
+    let m = document.getElementById('aiPanelModal');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'aiPanelModal';
+        m.className = 'ai-panel-overlay';
+        m.addEventListener('click', e => { if (e.target === m) closeAiPanel(); });
+        document.body.appendChild(m);
+    }
+    m.innerHTML = `
+        <div class="ai-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+            <div class="ai-panel-head">
+                <span>${escapeHtml(title)}</span>
+                <button type="button" class="ai-panel-close" onclick="closeAiPanel()" aria-label="${escapeHtml(t('common.close'))}">&times;</button>
+            </div>
+            <div class="ai-panel-body">${html}</div>
+        </div>`;
+    m.classList.add('active');
+}
+
+function closeAiPanel() {
+    const m = document.getElementById('aiPanelModal');
+    if (m) m.classList.remove('active');
+}
+
+/** Every failure this can have, said in words rather than as a code. */
+function aiErrorText(code) {
+    switch (code) {
+        case 'not_configured':       return t('tickets.ai.not_configured');
+        case 'provider_unreachable': return t('tickets.ai.unreachable');
+        case 'reasoning_overran':   return t('tickets.ai.reasoning_overran');
+        case 'nothing_to_summarise':
+        case 'nothing_to_read':      return t('tickets.ai.nothing_to_read');
+        case 'disabled':
+        case 'auto_disabled':        return t('tickets.ai.turned_off');
+        default:                     return t('tickets.ai.failed');
+    }
 }

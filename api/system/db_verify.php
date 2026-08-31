@@ -2673,6 +2673,7 @@ try {
         ['ticket_notes',        'fk_notes_tickets',           'ticket_id', 'tickets', "ALTER TABLE ticket_notes ADD CONSTRAINT fk_notes_tickets FOREIGN KEY (ticket_id) REFERENCES tickets (id)"],
         ['ticket_audit',        'fk_ticket_audit_ticket',     'ticket_id', 'tickets', "ALTER TABLE ticket_audit ADD CONSTRAINT fk_ticket_audit_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id)"],
         ['ticket_time_entries', 'fk_time_entries_tickets',    'ticket_id', 'tickets', "ALTER TABLE ticket_time_entries ADD CONSTRAINT fk_time_entries_tickets FOREIGN KEY (ticket_id) REFERENCES tickets (id)"],
+        ['ticket_ai_summaries', 'fk_ticket_ai_summaries_ticket', 'ticket_id', 'tickets', "ALTER TABLE ticket_ai_summaries ADD CONSTRAINT fk_ticket_ai_summaries_ticket FOREIGN KEY (ticket_id) REFERENCES tickets (id) ON DELETE CASCADE"],
     ];
     // Plain-English description of what an orphan in each table actually is.
     $orphanLabel = [
@@ -2680,6 +2681,7 @@ try {
         'ticket_notes'        => 'note(s) whose ticket no longer exists',
         'ticket_audit'        => 'audit record(s) whose ticket no longer exists',
         'ticket_time_entries' => 'time entry/entries whose ticket no longer exists',
+        'ticket_ai_summaries' => 'AI summary/summaries whose ticket no longer exists',
     ];
     foreach ($ticketChildFks as [$tbl, $name, $col, $parent, $sql]) {
         if (!$tableExists($tbl) || !$tableExists($parent) || $fkExists($tbl, $name)) continue;

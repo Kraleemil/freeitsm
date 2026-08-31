@@ -17,6 +17,33 @@
  *  - Settings/dashboard/calendar/rota/users/help pages
  */
 return [
+    // The AI reading aids (#104, ideas 7 and 12).
+    'ai' => [
+        'badge' => 'AI summary',
+        'none_yet' => 'No summary yet.',
+        'summarise' => 'Summarise',
+        'refresh' => 'Refresh',
+        'history' => 'History',
+        'history_title' => 'Earlier summaries',
+        'show' => 'Show',
+        'hide' => 'Hide',
+        'working' => 'Reading the ticket…',
+        'try_again' => 'Try again',
+        'automatic' => 'automatic',
+        'written_at' => 'Written {time}',
+        'read_n' => 'read {n} messages',
+        'behind_one' => '1 message has arrived since this was written.',
+        'behind_n' => '{n} messages have arrived since this was written.',
+        'read_for_me' => 'Read it for me',
+        'read_for_me_help' => 'Have the AI read the whole ticket and brief you on it',
+        'not_configured' => 'No AI provider is configured for Tickets. Set one up under Tickets → Settings → Reply cleanup.',
+        'unreachable' => 'Could not reach the AI provider.',
+        'reasoning_overran' => 'The AI model used its whole budget thinking and returned nothing. Try a model that does not reason at length, under Tickets → Settings → Reply cleanup.',
+        'cut_off' => 'This summary was cut off before it finished. Refresh it, or pick a model that does not think at length, under Tickets → Settings → Reply cleanup.',
+        'nothing_to_read' => 'There is nothing on this ticket to read yet.',
+        'turned_off' => 'This is switched off in Tickets → Settings → General.',
+        'failed' => 'That did not work. Nothing has been changed.',
+    ],
     // The reading pane's own words (discussion #104).
     'reading' => [
         'show_more' => 'Show more',
@@ -1486,6 +1513,18 @@ return [
             'group_show_label' => 'Keep this many recent messages open',
             'flag_duplicates_label' => 'Point out messages that have arrived before',
             'flag_duplicates_help' => 'A resend, a duplicate delivery or a bounce carrying the original back is folded away with a note saying which message it matches. Nothing is deleted.',
+            'ai_heading' => 'AI reading aids',
+            'ai_desc' => 'Optional, and off until you turn them on: unlike everything else on this page these use your own AI provider and cost money per use. The provider, model and API key are configured once on the Reply cleanup tab. Nothing an AI writes ever replaces the ticket — the conversation stays exactly where it is, in full.',
+            'ai_summary_label' => 'Keep a short AI summary at the top of each ticket',
+            'ai_summary_help' => 'A few lines saying where the ticket stands, written on request and kept up to date. It always shows when it was written, how much it read, and how far the conversation has moved on since. Every version is kept, so a worse summary never destroys a better one.',
+            'ai_auto_label' => 'Refresh it automatically after this many new messages',
+            'ai_auto_help' => '0 means never — the Refresh button is then the only way, and nothing is ever charged without somebody asking. A refresh only happens when an analyst opens the ticket, so a busy queue nobody is reading costs nothing.',
+            'ai_max_label' => 'Messages to read',
+            'ai_max_help' => 'How far back a summary reads. A longer ticket is read from its most recent end, and the summary says so rather than describing a beginning it never saw.',
+            'ai_notes_label' => 'Let it read internal notes',
+            'ai_notes_help' => 'Internal notes often hold what was actually tried. They are staff-only either way — the summary is never shown to a requester — but turn this off if notes on your desk hold things that should not leave it.',
+            'ai_read_label' => 'Offer "Read it for me" on a ticket',
+            'ai_read_help' => 'A button that reads the whole ticket and briefs you on it: what happened, what is unresolved, and what it would do next. Asked for and read once, stored nowhere.',
             'reopen_help'         => 'Applies wherever a requester comes back — the self-service portal, a reply to your notification email, WhatsApp or web chat. The ticket returns to your first open status. Only tickets in a status marked as closed are affected (set which those are under Statuses).',
         ],
 

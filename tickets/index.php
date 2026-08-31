@@ -7,6 +7,7 @@ session_start();
 require_once '../config.php';
 require_once '../includes/functions.php';
 require_once '../includes/ticket_display.php';   // message collapsing (#104)
+require_once '../includes/ticket_ai.php';        // AI summary + "read this for me" (#104)
 require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
 require_once '../includes/timezone.php';
@@ -33,7 +34,7 @@ $translationNamespaces = ['common', 'tickets'];
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars(t('tickets.title')); ?> - <?php echo htmlspecialchars(t('tickets.nav.inbox')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
-    <link rel="stylesheet" href="../assets/css/inbox.css?v=64">
+    <link rel="stylesheet" href="../assets/css/inbox.css?v=65">
     <link rel="stylesheet" href="../assets/css/mobile.css?v=126">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
@@ -899,6 +900,11 @@ $translationNamespaces = ['common', 'tickets'];
         // includes/ticket_display.php so the browser cannot disagree with the
         // server about what the settings say.
         window.MESSAGE_COLLAPSE = <?php echo json_encode(ticketDisplaySettings(connectToDatabase())); ?>;
+        // The two AI reading aids (#104, ideas 7 and 12). BOTH DEFAULT TO OFF:
+        // unlike everything else here they spend money with somebody's API key,
+        // so nothing appears until an administrator asks for it. Emitted rather
+        // than fetched so a disabled install never even renders the buttons.
+        window.TICKET_AI = <?php echo json_encode(ticketAiSettings(connectToDatabase())); ?>;
         window.INBOX_ROW_DISPLAY = <?php echo json_encode(inboxDisplayForAnalyst(connectToDatabase(), (int)($_SESSION['analyst_id'] ?? 0))); ?>;
     </script>
     <!-- Must load BEFORE inbox.js: it cleans every untrusted message body. -->
@@ -908,7 +914,7 @@ $translationNamespaces = ['common', 'tickets'];
          three because this page was the one that never loaded tz.js. -->
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/schedule.js?v=1"></script>
-    <script src="../assets/js/inbox.js?v=114"></script>
+    <script src="../assets/js/inbox.js?v=117"></script>
     <script src="../assets/js/mobile.js?v=49"></script>
     <script>
     // Auto-check mailboxes every 60 seconds

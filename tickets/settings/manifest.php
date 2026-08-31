@@ -200,7 +200,12 @@ return [
                                 'ticket_collapse_expand_newest', 'ticket_collapse_quoted',
                                 'ticket_collapse_remember',
                                 // Long TICKETS, as distinct from long messages.
-                                'ticket_group_older', 'ticket_group_show', 'ticket_flag_duplicates'],
+                                'ticket_group_older', 'ticket_group_show', 'ticket_flag_duplicates',
+                                // The two AI reading aids. Both default to OFF —
+                                // they are the only settings here that spend money.
+                                'ticket_ai_summary_enabled', 'ticket_ai_summary_auto_after',
+                                'ticket_ai_summary_max_messages', 'ticket_ai_summary_include_notes',
+                                'ticket_ai_read_enabled'],
         ],
         [
             'id'           => 'privacy',

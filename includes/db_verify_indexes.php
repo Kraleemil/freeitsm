@@ -66,6 +66,7 @@ return [
     ['ticket_splits', 'ix_ticket_splits_new', 'key', '(`new_ticket_id`)'],
     ['ticket_merges', 'ix_ticket_merges_source', 'key', '(`source_ticket_id`)'],
     ['ticket_merges', 'ix_ticket_merges_target', 'key', '(`target_ticket_id`)'],
+    ['ticket_ai_summaries', 'ix_ticket_ai_summaries_ticket', 'key', '(`ticket_id`,`version`)'],
     ['ticket_time_entries', 'ix_time_entries_ticket_id', 'key', '(`ticket_id`)'],
     ['ticket_time_entries', 'ix_time_entries_analyst_date', 'key', '(`analyst_id`,`entry_datetime`)'],
     ['tenant_domains', 'uq_tenant_domains_domain', 'unique', '(`domain`)'],

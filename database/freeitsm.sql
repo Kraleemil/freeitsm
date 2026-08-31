@@ -1002,6 +1002,48 @@ CREATE TABLE IF NOT EXISTS `ticket_merges` (
     CONSTRAINT `fk_ticket_merges_analyst` FOREIGN KEY (`merged_by_id`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ticket_ai_summaries: the AI-written summary of a ticket, kept as a HISTORY
+-- rather than one row that gets overwritten (discussion #104, idea 7).
+--
+-- Versioned deliberately. A summary is a machine's reading of somebody's
+-- conversation, and a later reading can be worse than an earlier one — a model
+-- changes, a prompt changes, a long thread pushes something out of scope. If
+-- the newest version were the only one, that loss would be silent and
+-- unrecoverable. So nothing is ever overwritten: a refresh writes version n+1
+-- and every earlier version stays readable.
+--
+-- last_email_id is the newest message the summary actually read. It is what
+-- makes "this summary is out of date" a FACT rather than a guess about
+-- timestamps, and it is how the optional auto-refresh knows how far behind it
+-- has fallen.
+--
+-- generated_by NULL means FreeITSM refreshed it by itself; an analyst id means
+-- somebody pressed the button.
+CREATE TABLE IF NOT EXISTS `ticket_ai_summaries` (
+    `id`            INT NOT NULL AUTO_INCREMENT,
+    `ticket_id`     INT NOT NULL,
+    `version`       INT NOT NULL DEFAULT 1,
+    `summary`       MEDIUMTEXT NOT NULL,
+    `provider`      VARCHAR(32) NULL,
+    `model`         VARCHAR(120) NULL,
+    -- What it was written from, so the panel can say "read 14 messages" and mean it.
+    `message_count` INT NOT NULL DEFAULT 0,
+    `note_count`    INT NOT NULL DEFAULT 0,
+    `last_email_id` INT NULL,
+    `generated_by`  INT NULL,
+    -- Whether the model ran out of room before it finished. A summary cut off
+    -- mid-sentence is the worst failure this feature has: it reads almost like
+    -- a complete one. Recorded so the panel can say so out loud rather than
+    -- presenting half an answer as the whole of one.
+    `truncated`     TINYINT(1) NOT NULL DEFAULT 0,
+    `tokens_in`     INT NOT NULL DEFAULT 0,
+    `tokens_out`    INT NOT NULL DEFAULT 0,
+    `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `ix_ticket_ai_summaries_ticket` (`ticket_id`, `version`),
+    CONSTRAINT `fk_ticket_ai_summaries_ticket` FOREIGN KEY (`ticket_id`) REFERENCES `tickets` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_ticket_ai_summaries_analyst` FOREIGN KEY (`generated_by`) REFERENCES `analysts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS `ticket_audit` (
     `id`                INT NOT NULL AUTO_INCREMENT,
     `ticket_id`         INT NOT NULL,
