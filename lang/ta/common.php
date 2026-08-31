@@ -44,6 +44,7 @@ return [
     'optional'     => 'விருப்பத்தேர்வு',
     'select_one'   => 'தேர்வு செய்க…',
     'search'       => 'தேடு',
+    'filter'       => 'வடிகட்டு',
 
     'error_generic'       => 'ஏதோ தவறு நடந்துள்ளது.',
     'error_network'       => 'பிணைய பிழை',

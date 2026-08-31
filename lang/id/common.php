@@ -49,6 +49,7 @@ return [
     'optional'     => 'Opsional',
     'select_one'   => 'Pilih…',
     'search'       => 'Cari',
+    'filter'       => 'Filter',
 
     // Errors
     'error_generic'        => 'Terjadi kesalahan.',

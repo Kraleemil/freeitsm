@@ -67,6 +67,7 @@ return [
         'heading'        => 'प्रगति',
         'all_courses'    => 'सभी कोर्स',
         'all_groups'     => 'सभी समूह',
+        'all_analysts'   => 'सभी विश्लेषक',
         'all_statuses'   => 'सभी स्थितियाँ',
         'col_analyst'    => 'विश्लेषक',
         'col_course'     => 'कोर्स',

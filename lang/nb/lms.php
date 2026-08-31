@@ -181,6 +181,7 @@ return [
         'heading'        => 'Fremdrift',
         'all_courses'    => 'Alle kurs',
         'all_groups'     => 'Alle grupper',
+        'all_analysts'   => 'Alle analytikere',
         'all_statuses'   => 'Alle statuser',
         'col_analyst'    => 'Analytiker',
         'col_course'     => 'Kurs',

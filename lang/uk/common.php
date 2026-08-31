@@ -82,6 +82,7 @@ return [
     'optional'     => 'Необов\'язково',
     'select_one'   => 'Оберіть…',
     'search'       => 'Пошук',
+    'filter'       => 'Фільтр',
 
     // Errors
     'error_generic'        => 'Щось пішло не так.',

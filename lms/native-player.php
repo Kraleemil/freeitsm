@@ -23,9 +23,9 @@ $translationNamespaces = ['common', 'lms'];
     <title><?php echo htmlspecialchars($course['title']); ?> - <?php echo htmlspecialchars(t('lms.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/lms.css?v=5">
+    <link rel="stylesheet" href="../assets/css/lms.css?v=6">
     <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=110">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=116">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -42,7 +42,7 @@ $translationNamespaces = ['common', 'lms'];
                     <div class="lms-native-progress-fill" id="progressFill"></div>
                 </div>
                 <span class="lms-native-step" id="stepLabel"></span>
-                <a href="./" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;"><?php echo htmlspecialchars(t('lms.player.back')); ?></a>
+                <a href="<?php echo htmlspecialchars($backHref ?? './'); ?>" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;"><?php echo htmlspecialchars($backLabel ?? t('lms.player.back')); ?></a>
             </div>
         </div>
 
@@ -69,6 +69,6 @@ $translationNamespaces = ['common', 'lms'];
         window.COURSE_ID = <?php echo (int)$courseId; ?>;
     </script>
     <script src="../assets/js/lms-native-player.js?v=1"></script>
-    <script src="../assets/js/mobile.js?v=42"></script>
+    <script src="../assets/js/mobile.js?v=45"></script>
 </body>
 </html>

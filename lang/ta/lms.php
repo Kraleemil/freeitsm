@@ -67,6 +67,7 @@ return [
         'heading'        => 'முன்னேற்றம்',
         'all_courses'    => 'அனைத்து பாடநெறிகள்',
         'all_groups'     => 'அனைத்து குழுக்கள்',
+        'all_analysts'   => 'அனைத்து ஆய்வாளர்கள்',
         'all_statuses'   => 'அனைத்து நிலைகள்',
         'col_analyst'    => 'பகுப்பாய்வாளர்',
         'col_course'     => 'பாடநெறி',

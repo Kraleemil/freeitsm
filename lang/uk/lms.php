@@ -75,6 +75,7 @@ return [
         'heading'        => 'Прогрес',
         'all_courses'    => 'Усі курси',
         'all_groups'     => 'Усі групи',
+        'all_analysts'   => 'Усі аналітики',
         'all_statuses'   => 'Усі статуси',
         'col_analyst'    => 'Аналітик',
         'col_course'     => 'Курс',

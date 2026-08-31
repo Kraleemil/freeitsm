@@ -83,6 +83,7 @@ return [
     'optional'     => 'Pilihan',
     'select_one'   => 'Pilih…',
     'search'       => 'Cari',
+    'filter'       => 'Tapis',
 
     // Ralat
     'error_generic'        => 'Sesuatu telah berlaku ralat.',

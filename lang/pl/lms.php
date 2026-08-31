@@ -67,6 +67,7 @@ return [
         'heading'        => 'Postęp',
         'all_courses'    => 'Wszystkie kursy',
         'all_groups'     => 'Wszystkie grupy',
+        'all_analysts'   => 'Wszyscy analitycy',
         'all_statuses'   => 'Wszystkie statusy',
         'col_analyst'    => 'Analityk',
         'col_course'     => 'Kurs',

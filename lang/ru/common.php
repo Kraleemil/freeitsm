@@ -44,6 +44,7 @@ return [
     'optional'     => 'Необязательно',
     'select_one'   => 'Выбрать…',
     'search'       => 'Поиск',
+    'filter'       => 'Фильтр',
 
     'error_generic'       => 'Что-то пошло не так.',
     'error_network'       => 'Ошибка сети',

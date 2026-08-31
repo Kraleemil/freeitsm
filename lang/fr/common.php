@@ -44,6 +44,7 @@ return [
     'optional'     => 'Facultatif',
     'select_one'   => 'Sélectionner…',
     'search'       => 'Rechercher',
+    'filter'       => 'Filtrer',
 
     'error_generic'       => 'Une erreur est survenue.',
     'error_network'       => 'Erreur réseau',

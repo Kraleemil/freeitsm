@@ -44,6 +44,7 @@ return [
     'optional'     => 'वैकल्पिक',
     'select_one'   => 'चुनें…',
     'search'       => 'खोजें',
+    'filter'       => 'फ़िल्टर',
 
     'error_generic'       => 'कुछ ग़लत हो गया।',
     'error_network'       => 'नेटवर्क त्रुटि',

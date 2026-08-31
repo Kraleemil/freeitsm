@@ -107,6 +107,15 @@ body {
     border-bottom: none;
 }
 
+/* An overdue progress row. The colour is exactly what lms.js used to write as
+   an inline style — this is a move, not a redesign, so the desktop is
+   unchanged. It is a class now because an inline style cannot be overridden
+   without `!important`, and the mobile layer turns this row into a card where
+   a near-white block needs a theme-aware answer. */
+.lms-table tbody tr.lms-row-overdue {
+    background: #fff5f5;
+}
+
 .lms-empty {
     text-align: center;
     color: var(--text-faint, #999);

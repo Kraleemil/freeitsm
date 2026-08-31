@@ -181,6 +181,7 @@ return [
         'heading'        => 'Progress',
         'all_courses'    => 'All courses',
         'all_groups'     => 'All groups',
+        'all_analysts'   => 'All analysts',
         'all_statuses'   => 'All statuses',
         'col_analyst'    => 'Analyst',
         'col_course'     => 'Course',

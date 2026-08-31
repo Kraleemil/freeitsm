@@ -67,6 +67,7 @@ return [
         'heading'        => 'Progreso',
         'all_courses'    => 'Todos los cursos',
         'all_groups'     => 'Todos los grupos',
+        'all_analysts'   => 'Todos los analistas',
         'all_statuses'   => 'Todos los estados',
         'col_analyst'    => 'Analista',
         'col_course'     => 'Curso',

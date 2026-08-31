@@ -44,6 +44,7 @@ return [
     'optional'     => 'ഓപ്ഷണൽ',
     'select_one'   => 'തിരഞ്ഞെടുക്കുക…',
     'search'       => 'തിരയുക',
+    'filter'       => 'ഫിൽട്ടർ',
 
     'error_generic'       => 'എന്തോ കുഴപ്പം സംഭവിച്ചു.',
     'error_network'       => 'നെറ്റ്‌വർക്ക് പിശക്',

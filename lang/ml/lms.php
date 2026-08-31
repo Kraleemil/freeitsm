@@ -67,6 +67,7 @@ return [
         'heading'        => 'പുരോഗതി',
         'all_courses'    => 'എല്ലാ കോഴ്സുകളും',
         'all_groups'     => 'എല്ലാ ഗ്രൂപ്പുകളും',
+        'all_analysts'   => 'എല്ലാ അനലിസ്റ്റുകളും',
         'all_statuses'   => 'എല്ലാ നിലകളും',
         'col_analyst'    => 'അനലിസ്റ്റ്',
         'col_course'     => 'കോഴ്സ്',

@@ -181,6 +181,7 @@ return [
         'heading'        => 'Kemajuan',
         'all_courses'    => 'Semua kursus',
         'all_groups'     => 'Semua kumpulan',
+        'all_analysts'   => 'Semua penganalisis',
         'all_statuses'   => 'Semua status',
         'col_analyst'    => 'Penganalisis',
         'col_course'     => 'Kursus',

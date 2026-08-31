@@ -22,6 +22,11 @@ $conn = connectToDatabase();
 $courseId = $_GET['course_id'] ?? '';
 $groupId = $_GET['group_id'] ?? '';
 $status = $_GET['status'] ?? '';
+// One person's row across every course they have been assigned. It composes
+// with the group filter rather than competing with it: the two narrow
+// different joins, so picking an analyst who is not in the chosen group
+// correctly returns nothing rather than quietly ignoring one of them.
+$analystId = $_GET['analyst_id'] ?? '';
 
 $sql = "SELECT DISTINCT
             a.id as analyst_id, a.full_name as analyst_name,
@@ -49,6 +54,17 @@ if ($courseId) {
 if ($groupId) {
     $sql .= " AND g.id = ?";
     $params[] = (int)$groupId;
+}
+
+// The analyst list for the dropdown is built from the SAME joins with the
+// course and group filters applied but NOT this one — otherwise choosing a
+// person removes everyone else from the list you chose them from.
+$analystListSql = $sql;
+$analystListParams = $params;
+
+if ($analystId) {
+    $sql .= " AND a.id = ?";
+    $params[] = (int)$analystId;
 }
 
 $sql .= " ORDER BY a.full_name, c.title";
@@ -80,4 +96,9 @@ foreach ($rows as &$row) {
     $filtered[] = $row;
 }
 
-echo json_encode(['success' => true, 'data' => $filtered]);
+// Who the current course/group selection covers, for the analyst dropdown.
+$alStmt = $conn->prepare("SELECT DISTINCT a.id, a.full_name" . substr($analystListSql, strpos($analystListSql, ' FROM ')) . " ORDER BY a.full_name");
+$alStmt->execute($analystListParams);
+$analysts = $alStmt->fetchAll(PDO::FETCH_ASSOC);
+
+echo json_encode(['success' => true, 'data' => $filtered, 'analysts' => $analysts]);

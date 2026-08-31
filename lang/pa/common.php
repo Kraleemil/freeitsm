@@ -44,6 +44,7 @@ return [
     'optional'     => 'ਵਿਕਲਪਿਕ',
     'select_one'   => 'ਚੁਣੋ…',
     'search'       => 'ਖੋਜੋ',
+    'filter'       => 'ਫਿਲਟਰ',
 
     'error_generic'       => 'ਕੁਝ ਗਲਤ ਹੋਇਆ।',
     'error_network'       => 'ਨੈੱਟਵਰਕ ਗਲਤੀ',

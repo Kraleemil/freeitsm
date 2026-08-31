@@ -44,6 +44,7 @@ return [
     'optional'     => 'ఐచ్ఛికం',
     'select_one'   => 'ఎంచుకోండి…',
     'search'       => 'శోధన',
+    'filter'       => 'ఫిల్టర్',
 
     'error_generic'       => 'ఏదో తప్పు జరిగింది.',
     'error_network'       => 'నెట్‌వర్క్ లోపం',

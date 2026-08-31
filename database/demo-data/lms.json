@@ -1,7 +1,11 @@
 {
     "tier1": {
         "analysts": [
-            { "_ref": "admin", "_skip_insert": true, "_match_by": "username", "_match_value": "admin" }
+            { "_ref": "admin", "_skip_insert": true, "_match_by": "username", "_match_value": "admin" },
+            { "_ref": "jsmith", "_skip_insert": true, "_match_by": "username", "_match_value": "jsmith" },
+            { "_ref": "swilliams", "_skip_insert": true, "_match_by": "username", "_match_value": "swilliams" },
+            { "_ref": "mjones", "_skip_insert": true, "_match_by": "username", "_match_value": "mjones" },
+            { "_ref": "lbrown", "_skip_insert": true, "_match_by": "username", "_match_value": "lbrown" }
         ]
     },
     "tier2": {
@@ -22,6 +26,24 @@
                 "description": "Everything a new first-line analyst needs on day one: how to work a ticket in FreeITSM, the tone we use with customers, and what our SLAs actually mean.",
                 "content_type": "native",
                 "pass_mark": null,
+                "is_active": 1,
+                "created_by_id": "@analysts.admin",
+                "created_datetime": "__RELATIVE_DATE:-25d__"
+            }
+        ],
+        "lms_learning_groups": [
+            {
+                "_ref": "allstaff",
+                "name": "All staff",
+                "description": "Everyone in the organisation. Used for the training everybody has to do, whatever their job.",
+                "is_active": 1,
+                "created_by_id": "@analysts.admin",
+                "created_datetime": "__RELATIVE_DATE:-40d__"
+            },
+            {
+                "_ref": "newstarters",
+                "name": "New starters",
+                "description": "Anyone in their first month. Members are added on their start date and removed once their induction is signed off.",
                 "is_active": 1,
                 "created_by_id": "@analysts.admin",
                 "created_datetime": "__RELATIVE_DATE:-25d__"
@@ -71,6 +93,78 @@
                 "title": "What an SLA means",
                 "body": "<p>A Service Level Agreement is a promise about <em>time</em>: how quickly we will first respond, and how quickly we aim to resolve, based on the ticket's priority. The clock only runs during business hours. If a ticket is at risk of breaching, escalate early — an SLA is a commitment to the customer, not a target to quietly miss.</p>",
                 "display_order": 3
+            }
+        ],
+        "lms_learning_group_members": [
+            { "group_id": "@lms_learning_groups.allstaff", "analyst_id": "@analysts.admin" },
+            { "group_id": "@lms_learning_groups.allstaff", "analyst_id": "@analysts.jsmith" },
+            { "group_id": "@lms_learning_groups.allstaff", "analyst_id": "@analysts.swilliams" },
+            { "group_id": "@lms_learning_groups.allstaff", "analyst_id": "@analysts.mjones" },
+            { "group_id": "@lms_learning_groups.allstaff", "analyst_id": "@analysts.lbrown" },
+            { "group_id": "@lms_learning_groups.newstarters", "analyst_id": "@analysts.mjones" },
+            { "group_id": "@lms_learning_groups.newstarters", "analyst_id": "@analysts.lbrown" }
+        ],
+        "lms_course_assignments": [
+            {
+                "course_id": "@lms_courses.sec",
+                "group_id": "@lms_learning_groups.allstaff",
+                "deadline": "__RELATIVE_DATE:+14d__",
+                "assigned_by_id": "@analysts.admin",
+                "created_datetime": "__RELATIVE_DATE:-30d__"
+            },
+            {
+                "course_id": "@lms_courses.induction",
+                "group_id": "@lms_learning_groups.newstarters",
+                "deadline": "__RELATIVE_DATE:-3d__",
+                "assigned_by_id": "@analysts.admin",
+                "created_datetime": "__RELATIVE_DATE:-20d__"
+            }
+        ],
+        "lms_progress": [
+            {
+                "analyst_id": "@analysts.admin",
+                "course_id": "@lms_courses.sec",
+                "status": "passed",
+                "score_raw": 90.00,
+                "score_min": 0.00,
+                "score_max": 100.00,
+                "total_time": "00:24:10",
+                "completion_datetime": "__RELATIVE_DATE:-2d__",
+                "first_access": "__RELATIVE_DATE:-3d__",
+                "last_access": "__RELATIVE_DATE:-2d__",
+                "attempt_count": 1
+            },
+            {
+                "analyst_id": "@analysts.jsmith",
+                "course_id": "@lms_courses.sec",
+                "status": "failed",
+                "score_raw": 45.00,
+                "score_min": 0.00,
+                "score_max": 100.00,
+                "total_time": "00:11:47",
+                "completion_datetime": "__RELATIVE_DATE:-5d__",
+                "first_access": "__RELATIVE_DATE:-5d__",
+                "last_access": "__RELATIVE_DATE:-5d__",
+                "attempt_count": 2
+            },
+            {
+                "analyst_id": "@analysts.swilliams",
+                "course_id": "@lms_courses.sec",
+                "status": "incomplete",
+                "total_time": "00:06:32",
+                "first_access": "__RELATIVE_DATE:-1d__",
+                "last_access": "__RELATIVE_DATE:-1d__",
+                "attempt_count": 1
+            },
+            {
+                "analyst_id": "@analysts.mjones",
+                "course_id": "@lms_courses.induction",
+                "status": "completed",
+                "total_time": "00:18:05",
+                "completion_datetime": "__RELATIVE_DATE:-8d__",
+                "first_access": "__RELATIVE_DATE:-9d__",
+                "last_access": "__RELATIVE_DATE:-8d__",
+                "attempt_count": 1
             }
         ]
     },

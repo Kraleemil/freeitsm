@@ -44,6 +44,7 @@ return [
     'optional'     => 'ಐಚ್ಛಿಕ',
     'select_one'   => 'ಆಯ್ಕೆ ಮಾಡಿ…',
     'search'       => 'ಹುಡುಕಿ',
+    'filter'       => 'ಫಿಲ್ಟರ್',
 
     'error_generic'       => 'ಏನೋ ತಪ್ಪಾಯಿತು.',
     'error_network'       => 'ನೆಟ್‌ವರ್ಕ್ ದೋಷ',

@@ -67,6 +67,7 @@ return [
         'heading'        => 'Kemajuan',
         'all_courses'    => 'Semua kursus',
         'all_groups'     => 'Semua grup',
+        'all_analysts'   => 'Semua analis',
         'all_statuses'   => 'Semua status',
         'col_analyst'    => 'Analis',
         'col_course'     => 'Kursus',

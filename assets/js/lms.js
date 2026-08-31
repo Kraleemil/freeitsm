@@ -425,16 +425,43 @@ const LMS = (() => {
         const params = new URLSearchParams();
         const courseId = document.getElementById('filterCourse').value;
         const groupId = document.getElementById('filterGroup').value;
+        const analystId = document.getElementById('filterAnalyst').value;
         const status = document.getElementById('filterStatus').value;
         if (courseId) params.set('course_id', courseId);
         if (groupId) params.set('group_id', groupId);
+        if (analystId) params.set('analyst_id', analystId);
         if (status) params.set('status', status);
 
         try {
             const r = await fetch(API_BASE + 'progress.php?' + params.toString());
             const d = await r.json();
-            if (d.success) renderProgress(d.data);
+            if (d.success) {
+                fillAnalystFilter(d.analysts || [], analystId);
+                renderProgress(d.data);
+            }
         } catch (e) { console.error(e); }
+    }
+
+    /* The analyst list comes back WITH the data rather than from a list of
+       every analyst in the system: it is the people the current course and
+       group selection actually covers, which is both shorter and more
+       truthful. The API builds it with those two filters applied but not the
+       analyst one, so choosing somebody does not empty the list you chose
+       them from.
+
+       Rebuilt on each load, so the current choice is re-selected by hand —
+       and kept in the list even when it has dropped out of it (a course
+       filter that excludes them), because quietly resetting to "All
+       analysts" would show rows nobody asked for. */
+    function fillAnalystFilter(analysts, current) {
+        const fa = document.getElementById('filterAnalyst');
+        if (!fa) return;
+        const chosen = fa.options[fa.selectedIndex];
+        const missing = current && !analysts.some(a => String(a.id) === String(current));
+        const keep = missing ? [{ id: current, full_name: chosen ? chosen.text : current }] : [];
+        fa.innerHTML = '<option value="">' + esc(window.t('lms.progress.all_analysts')) + '</option>' +
+            keep.concat(analysts).map(a => '<option value="' + a.id + '">' + esc(a.full_name) + '</option>').join('');
+        fa.value = current || '';
     }
 
     function renderProgress(data) {
@@ -454,7 +481,13 @@ const LMS = (() => {
             const score = row.score_raw !== null ? row.score_raw + (row.score_max ? '/' + row.score_max : '') : '';
             const deadline = row.deadline ? fmtNaiveDate(row.deadline) : '';
             const lastAccess = row.last_access ? fmtDateTime(row.last_access) : '';
-            const trStyle = row.is_overdue ? ' style="background: #fff5f5;"' : '';
+            /* An overdue row is marked with a CLASS, not an inline style. The
+               colour is unchanged (lms.css carries the same #fff5f5), but an
+               inline style cannot be overridden without `!important`, and the
+               mobile layer turns this row into a CARD where a near-white block
+               with the theme's own light text on it is unreadable in a dark
+               theme. A class lets each layer state its own answer. */
+            const trStyle = row.is_overdue ? ' class="lms-row-overdue"' : '';
 
             const viewBtn = row.status !== 'not_started'
                 ? `<button class="table-action-btn" onclick="LMS.viewLearnerData(${row.analyst_id}, ${row.course_id})" title="${esc(window.t('lms.progress.view'))}">${ICON_VIEW}</button>`

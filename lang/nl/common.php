@@ -44,6 +44,7 @@ return [
     'optional'     => 'Optioneel',
     'select_one'   => 'Selecteer…',
     'search'       => 'Zoeken',
+    'filter'       => 'Filteren',
 
     'error_generic'       => 'Er is iets misgegaan.',
     'error_network'       => 'Netwerkfout',

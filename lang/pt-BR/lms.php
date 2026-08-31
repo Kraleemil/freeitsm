@@ -173,6 +173,7 @@ return [
         'heading'        => 'Progresso',
         'all_courses'    => 'Todos os cursos',
         'all_groups'     => 'Todos os grupos',
+        'all_analysts'   => 'Todos os analistas',
         'all_statuses'   => 'Todos os status',
         'col_analyst'    => 'Analista',
         'col_course'     => 'Curso',

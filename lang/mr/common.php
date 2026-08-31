@@ -44,6 +44,7 @@ return [
     'optional'     => 'पर्यायी',
     'select_one'   => 'निवडा…',
     'search'       => 'शोधा',
+    'filter'       => 'फिल्टर',
 
     'error_generic'       => 'काहीतरी चूक झाली.',
     'error_network'       => 'नेटवर्क त्रुटी',

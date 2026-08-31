@@ -82,6 +82,7 @@ return [
     'optional'     => 'Valfritt',
     'select_one'   => 'Vel…',
     'search'       => 'Søk',
+    'filter'       => 'Filtrer',
 
     // Errors
     'error_generic'        => 'Noko gjekk gale.',

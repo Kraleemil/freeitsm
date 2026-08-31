@@ -67,6 +67,7 @@ return [
         'heading'        => 'Vordering',
         'all_courses'    => 'Alle kursusse',
         'all_groups'     => 'Alle groepe',
+        'all_analysts'   => 'Alle ontleders',
         'all_statuses'   => 'Alle statusse',
         'col_analyst'    => 'Analis',
         'col_course'     => 'Kursus',

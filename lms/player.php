@@ -42,6 +42,24 @@ if (!lmsCanAccessCourse($conn, (int)$_SESSION['analyst_id'], $courseId)) {
     exit;
 }
 
+/* Where "back" goes, and what it says.
+   Preview in the course editor opens the REAL player, in the same tab, and the
+   player's own back link went to the console — so previewing a lesson dropped
+   you three clicks away from the lesson you were editing, which is where the
+   confusion comes from. `from=editor` sends you back to the editor instead.
+
+   ⚠️ Checked against the capability, not just the parameter: anyone can type
+   `&from=editor`, and a learner must not be handed a link to an authoring
+   screen they cannot open. `common.back` is reused rather than a new string
+   being invented for it — it is accurate, and already translated everywhere.
+
+   Computed HERE, above the native handoff, so the authored-course player
+   (which is included below and draws its own toolbar) gets the same answer. */
+$fromEditor = (($_GET['from'] ?? '') === 'editor')
+    && analystHasCapability($conn, (int)$_SESSION['analyst_id'], Cap::LMS_MANAGE);
+$backHref  = $fromEditor ? ('editor.php?course_id=' . (int)$courseId) : './';
+$backLabel = $fromEditor ? t('common.back') : t('lms.player.back');
+
 // An authored course has no package and no launch URL — it is rendered by our
 // own player from the database. Hand off before the SCORM checks below, which
 // would (correctly) reject it.
@@ -69,9 +87,9 @@ $translationNamespaces = ['common', 'lms'];
     <title><?php echo htmlspecialchars($course['title']); ?> - <?php echo htmlspecialchars(t('lms.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/lms.css?v=5">
+    <link rel="stylesheet" href="../assets/css/lms.css?v=6">
     <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=110">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=116">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -85,7 +103,7 @@ $translationNamespaces = ['common', 'lms'];
             <span class="course-title"><?php echo htmlspecialchars($course['title']); ?></span>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <span style="font-size: 12px; color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('lms.player.scorm_version', ['version' => $course['scorm_version'] ?? '?'])); ?></span>
-                <a href="./" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;"><?php echo htmlspecialchars(t('lms.player.back')); ?></a>
+                <a href="<?php echo htmlspecialchars($backHref); ?>" class="btn btn-secondary" style="font-size: 12px; padding: 5px 12px;"><?php echo htmlspecialchars($backLabel); ?></a>
             </div>
         </div>
         <iframe id="scormFrame" class="lms-player-frame" src="<?php echo htmlspecialchars($launchUrl); ?>" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
@@ -115,6 +133,6 @@ $translationNamespaces = ['common', 'lms'];
         }
     });
     </script>
-    <script src="../assets/js/mobile.js?v=42"></script>
+    <script src="../assets/js/mobile.js?v=45"></script>
 </body>
 </html>

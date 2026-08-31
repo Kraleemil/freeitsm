@@ -44,6 +44,7 @@ return [
     'optional'     => 'ঐচ্ছিক',
     'select_one'   => 'নির্বাচন…',
     'search'       => 'অনুসন্ধান',
+    'filter'       => 'ফিল্টার',
 
     'error_generic'       => 'কিছু একটা ভুল হয়েছে।',
     'error_network'       => 'নেটওয়ার্ক ত্রুটি',

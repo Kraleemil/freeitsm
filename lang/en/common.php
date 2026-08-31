@@ -94,6 +94,7 @@ return [
     'optional'     => 'Optional',
     'select_one'   => 'Select…',
     'search'       => 'Search',
+    'filter'       => 'Filter',
 
     // Errors
     'error_generic'        => 'Something went wrong.',

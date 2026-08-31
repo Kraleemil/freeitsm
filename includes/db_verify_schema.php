@@ -2429,6 +2429,7 @@ return [
         'created_by_id'         => 'INT NULL',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'lms_learning_group_members' => [
@@ -2436,6 +2437,7 @@ return [
         'group_id'              => 'INT NOT NULL',
         'analyst_id'            => 'INT NOT NULL',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'lms_course_assignments' => [
@@ -2445,6 +2447,7 @@ return [
         'deadline'              => 'DATETIME NULL',
         'assigned_by_id'        => 'INT NULL',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'lms_progress' => [
@@ -2464,6 +2467,7 @@ return [
         'attempt_count'         => 'INT NOT NULL DEFAULT 0',
         'created_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
         'updated_datetime'      => 'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+        'is_demo'           => 'TINYINT(1) NOT NULL DEFAULT 0',   // set by the demo data importer (#1297)
     ],
 
     'lms_cmi_data' => [

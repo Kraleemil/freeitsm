@@ -67,6 +67,7 @@ return [
         'heading'        => 'Voortgang',
         'all_courses'    => 'Alle cursussen',
         'all_groups'     => 'Alle groepen',
+        'all_analysts'   => 'Alle analisten',
         'all_statuses'   => 'Alle statussen',
         'col_analyst'    => 'Analist',
         'col_course'     => 'Cursus',

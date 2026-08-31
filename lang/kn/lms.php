@@ -67,6 +67,7 @@ return [
         'heading'        => 'ಪ್ರಗತಿ',
         'all_courses'    => 'ಎಲ್ಲಾ ಕೋರ್ಸ್‌ಗಳು',
         'all_groups'     => 'ಎಲ್ಲಾ ಗುಂಪುಗಳು',
+        'all_analysts'   => 'ಎಲ್ಲಾ ವಿಶ್ಲೇಷಕರು',
         'all_statuses'   => 'ಎಲ್ಲಾ ಸ್ಥಿತಿಗಳು',
         'col_analyst'    => 'ವಿಶ್ಲೇಷಕ',
         'col_course'     => 'ಕೋರ್ಸ್',

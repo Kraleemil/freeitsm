@@ -91,6 +91,7 @@ return [
     'optional'     => 'Valgfrit',
     'select_one'   => 'Vælg…',
     'search'       => 'Søg',
+    'filter'       => 'Filter',
 
     // Errors
     'error_generic'        => 'Noget gik galt.',

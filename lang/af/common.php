@@ -48,6 +48,7 @@ return [
     'optional'     => 'Opsioneel',
     'select_one'   => 'Kies...',
     'search'       => 'Soek',
+    'filter'       => 'Filter',
 
     // Errors
     'error_generic'        => 'Iets het verkeerd gegaan.',

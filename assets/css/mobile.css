@@ -7558,7 +7558,33 @@
     /* --------------------------------------------------------------------
        29a — Shell: the console's padding and its tab strip.
        -------------------------------------------------------------------- */
-    [data-mobile-module="lms"] .lms-container { padding: 12px; }
+    /* 🔴🔴 THE CONSOLE COULD NOT BE SCROLLED AT ALL (#1403, Ed: "on courses
+       and progress screens I can't scroll at all").
+
+       LAYER 2 makes `<body>` `display: flex; flex-direction: column;
+       height: 100dvh`. That is what lets a wrapped header take its natural
+       height and the pane below it fill the rest — but it also means EVERY
+       direct child of `<body>` is now a flex item, and a flex item's default
+       is `flex: 0 1 auto`: it SHRINKS to fit. `.lms-container` is a plain
+       `padding: 20px` div, so it was squeezed to the viewport, its content
+       spilled out of it with `overflow: visible`, and there was nothing to
+       scroll: not the container (no overflow set) and not the document
+       (already exactly 100dvh).
+
+       ⭐ The page LOOKED right, which is why four rounds of measurement
+       missed it — every card rendered, in the right place, at the right
+       width. The whole verification harness asks "is anything wider than the
+       screen?" and never once asked "can you reach the bottom of it?".
+       The three shells in 29e were given this treatment explicitly; the
+       console was opted in and assumed to inherit it, and it does not.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="lms"] .lms-container {
+        padding: 12px;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 
     /* Four tabs (Courses / Groups / Assignments / Progress) do not fit at
        360px. A one-line horizontal scroller rather than a wrapped block, the
@@ -7618,29 +7644,46 @@
 
          #progressBody     Analyst · Course · Group · Status · Score ·
                            Deadline · Last access
-             → SCROLLER. Seven columns, and it is a REPORT: you read it down
-               the Status and Score columns across people, which is the exact
-               case a card feed destroys. Reading order cannot carry seven.
+             → 🔴 WAS A SCROLLER. NOW A FEED — Ed asked for it directly
+               ("make it so there's no left right scrolling"), and he is
+               right. The original reasoning was that this is a REPORT you
+               read DOWN the Status column across people, which a card feed
+               destroys. That holds on a desktop. On a phone it does not:
+               at 360px the scroller shows three of the eight columns, so
+               "reading down Status across people" means dragging sideways
+               to find Status and then scrolling vertically while holding
+               that position in your head. The comparison the scroller was
+               protecting is not available on a phone either way.
+               ⭐ §11 asks "would you compare rows here?" — the honest
+               follow-up is "CAN you, on this screen?" Seven columns cannot
+               be carried by reading order, so all five bare values take
+               §21 labels instead.
        -------------------------------------------------------------------- */
 
-    /* ---- the three feeds ---- */
+    /* ---- the four feeds ---- */
     [data-mobile-module="lms"] #coursesBody,
     [data-mobile-module="lms"] #groupsBody,
-    [data-mobile-module="lms"] #assignmentsBody { display: block; width: 100%; }
+    [data-mobile-module="lms"] #assignmentsBody,
+    [data-mobile-module="lms"] #progressBody { display: block; width: 100%; }
 
-    /* ⚠️ The head is hidden per table, NOT with a blanket `.lms-table thead`,
-       or the progress scroller would lose the header row that is the whole
-       reason it stays a table. */
+    /* The head is hidden per table rather than with a blanket
+       `.lms-table thead`. All four are feeds now, so a blanket rule would
+       reach the same cells today — but §21 reads its labels OUT of these
+       header cells, so the list of tables the harvester knows about and the
+       list whose head is hidden have to stay the same list, visibly. */
     [data-mobile-module="lms"] .lms-table:has(#coursesBody) thead,
     [data-mobile-module="lms"] .lms-table:has(#groupsBody) thead,
-    [data-mobile-module="lms"] .lms-table:has(#assignmentsBody) thead { display: none; }
+    [data-mobile-module="lms"] .lms-table:has(#assignmentsBody) thead,
+    [data-mobile-module="lms"] .lms-table:has(#progressBody) thead { display: none; }
     [data-mobile-module="lms"] .lms-table:has(#coursesBody),
     [data-mobile-module="lms"] .lms-table:has(#groupsBody),
-    [data-mobile-module="lms"] .lms-table:has(#assignmentsBody) { display: block; width: 100%; }
+    [data-mobile-module="lms"] .lms-table:has(#assignmentsBody),
+    [data-mobile-module="lms"] .lms-table:has(#progressBody) { display: block; width: 100%; }
 
     [data-mobile-module="lms"] #coursesBody tr,
     [data-mobile-module="lms"] #groupsBody tr,
-    [data-mobile-module="lms"] #assignmentsBody tr {
+    [data-mobile-module="lms"] #assignmentsBody tr,
+    [data-mobile-module="lms"] #progressBody tr {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -7659,7 +7702,8 @@
     }
     [data-mobile-module="lms"] #coursesBody td,
     [data-mobile-module="lms"] #groupsBody td,
-    [data-mobile-module="lms"] #assignmentsBody td {
+    [data-mobile-module="lms"] #assignmentsBody td,
+    [data-mobile-module="lms"] #progressBody td {
         display: block;
         flex: 1 1 100%;
         /* 🔴 Load-bearing. A flex item's automatic minimum size is its content
@@ -7678,7 +7722,8 @@
        lets every other short cell join the line and crush the title. */
     [data-mobile-module="lms"] #coursesBody td:nth-child(1),
     [data-mobile-module="lms"] #groupsBody td:nth-child(1),
-    [data-mobile-module="lms"] #assignmentsBody td:nth-child(1) {
+    [data-mobile-module="lms"] #assignmentsBody td:nth-child(1),
+    [data-mobile-module="lms"] #progressBody td:nth-child(1) {
         flex: 1 1 60%;
         order: -2;
         font-size: 15px;
@@ -7714,7 +7759,8 @@
        a row of buttons instead of the sentence it is. */
     [data-mobile-module="lms"] #coursesBody td:last-child:not(:first-child),
     [data-mobile-module="lms"] #groupsBody td:last-child:not(:first-child),
-    [data-mobile-module="lms"] #assignmentsBody td:last-child:not(:first-child) {
+    [data-mobile-module="lms"] #assignmentsBody td:last-child:not(:first-child),
+    [data-mobile-module="lms"] #progressBody td:last-child:not(:first-child) {
         flex: 1 1 100%;
         display: flex;
         flex-wrap: wrap;
@@ -7723,7 +7769,8 @@
     }
     [data-mobile-module="lms"] #coursesBody td:last-child:not(:first-child) > *,
     [data-mobile-module="lms"] #groupsBody td:last-child:not(:first-child) > *,
-    [data-mobile-module="lms"] #assignmentsBody td:last-child:not(:first-child) > * {
+    [data-mobile-module="lms"] #assignmentsBody td:last-child:not(:first-child) > *,
+    [data-mobile-module="lms"] #progressBody td:last-child:not(:first-child) > * {
         flex: 1 1 auto;
         min-height: 40px;
         justify-content: center;
@@ -7732,7 +7779,8 @@
        has to leave alone. */
     [data-mobile-module="lms"] #coursesBody td:only-child,
     [data-mobile-module="lms"] #groupsBody td:only-child,
-    [data-mobile-module="lms"] #assignmentsBody td:only-child {
+    [data-mobile-module="lms"] #assignmentsBody td:only-child,
+    [data-mobile-module="lms"] #progressBody td:only-child {
         flex: 1 1 100%;
         order: 0;
         margin: 0;
@@ -7744,16 +7792,166 @@
        mobile.js stamps. The rule is general since the contracts round; only
        cells it has been pointed at carry the attribute. */
 
-    /* ---- the one scroller ---- */
-    /* Same idiom as the settings tables and the contracts comparison grids:
-       the table itself becomes the scroller and keeps its header row. */
-    [data-mobile-module="lms"] .lms-table:has(#progressBody) {
-        display: block;
-        overflow-x: auto;
-        overscroll-behavior-x: contain;
-        -webkit-overflow-scrolling: touch;
-        white-space: nowrap;
-        max-width: 100%;
+    /* ---- progress: the fourth feed (#1401, Ed asked for no sideways scroll)
+       The analyst is the card's name and the status rides beside it, the same
+       shape as every other card in this module — you are looking down a list
+       of PEOPLE, so the person is the heading and their state is the fact you
+       scan for.
+
+       Course, group, score, deadline and last access follow as labelled
+       lines. Five labels is more than any other feed here carries, and that
+       is the honest cost of a seven-column report: two of them are NAMES side
+       by side and two are DATES side by side, and neither pair can be told
+       apart by position once the header row is gone. */
+    [data-mobile-module="lms"] #progressBody td:nth-child(4) {
+        flex: 0 0 auto;
+        order: -1;
+        text-align: right;
+    }
+    /* 🔴 A not-started row has NO score, NO last access and NO action button,
+       and an empty cell that has been given a §21 label prints the label with
+       nothing after it — a card reading "Score" and then nothing. `:empty` is
+       exact here: these cells are rendered as `<td></td>` with not even a
+       space in them. mobile.js also declines to label an empty cell, so this
+       is the second of the two guards, not the only one.
+
+       ⚠️ `tr td:empty:not(:first-child)` and not the plain `td:empty` I wrote
+       first: the actions rule above is `td:last-child:not(:first-child)`,
+       which is MORE SPECIFIC than a bare `td:empty`, so its `display: flex`
+       won and the empty action cell stayed — leaving a 26px gap under every
+       not-started card. The other empty cells vanished correctly, which is
+       what made it look like the rule worked. */
+    [data-mobile-module="lms"] #progressBody tr td:empty:not(:first-child) { display: none; }
+
+    /* The eye sits in the card's BOTTOM-RIGHT CORNER, not on a row of its own
+       (Ed's second polish note). Every other cell in the card is a full-width
+       line, so a button left in the flow claimed a whole 40px row to hold one
+       20px icon.
+
+       Taken out of the flow instead: the row is the positioning context and
+       the button is pinned to its corner. The two DATE cells — deadline and
+       last access, one of which is always the card's last line — reserve room
+       for it on the right so a long "Last Access 30.08.2026 17:52" can never
+       run under it. ⚠️ Score is never last, so it is deliberately not padded. */
+    [data-mobile-module="lms"] #progressBody tr { position: relative; }
+    [data-mobile-module="lms"] #progressBody td:nth-child(6),
+    [data-mobile-module="lms"] #progressBody td:nth-child(7) { padding-right: 62px; }
+    /* ⚠️ Inset by the CARD'S OWN PADDING, not pinned to the corner. `right: 0`
+       aligns to the padding box, so the button sat hard against the card's
+       edge while every other thing on the card — the status pill, the text —
+       stopped 14px short of it. Ed asked for the pill's spacing, and the
+       pill's spacing is simply the card's padding, so that is what this uses
+       rather than a number chosen to look about right. */
+    [data-mobile-module="lms"] #progressBody td:last-child:not(:first-child) {
+        position: absolute;
+        right: 14px;
+        bottom: 12px;
+        flex: 0 0 auto;
+        width: auto;
+        margin: 0;
+    }
+    [data-mobile-module="lms"] #progressBody td:last-child:not(:first-child) > * {
+        flex: 0 0 auto;
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    /* 🔴 THE OVERDUE CARD WAS UNREADABLE IN A DARK THEME. As a desktop table
+       row, `background: #fff5f5` is a pale tint behind dark text. As a CARD it
+       is a near-white block filling the width of the screen, and in a dark
+       theme the text on it is the theme's own light grey — so the analyst's
+       name all but vanished, on the one row of the list that is trying to
+       shout at you.
+
+       The tokens are theme-aware and paired, so this comes right in every
+       palette rather than in the two I happened to look at.
+       ⚠️ Mobile only. lms.css keeps `#fff5f5`, so the desktop table is
+       unchanged — the same latent problem is there in a dark theme, but it
+       is a much smaller area and not something to fix as a side effect of
+       mobile work.
+
+       ⭐ And the answer is an EDGE, not a tint. Tinting the card with
+       `--danger-bg` was legible, but it put the "Overdue" pill — which is
+       painted from the same danger pair — on a background of its own colour,
+       so the badge stopped reading as a badge. A 4px left edge marks the card
+       without touching a single one of its own colours, so every label, pill
+       and value reads exactly as it does on the six cards around it. */
+    [data-mobile-module="lms"] #progressBody tr.lms-row-overdue {
+        background: var(--surface, #fff);
+        border-left: 4px solid var(--danger-accent, #d13438);
+        padding-left: 10px;              /* 14 - the 4px edge: text stays in line */
+    }
+
+    /* --------------------------------------------------------------------
+       29h — The progress filters behind one icon on a bottom bar (#1402).
+
+       Three selects — course, group, status — sat in the panel header and
+       stacked into three full-width rows at 360px, spending ~140px before a
+       single result. They move into a LAYER 7 sheet; the bar carries the one
+       icon that opens it.
+
+       Same chrome as the action bars in 29f, 28j and 17k, so it reads like
+       the rest of the product — but a single control, so it is CENTRED
+       rather than stretched: a filter button 360px wide would look like a
+       primary action, which it is not.
+       -------------------------------------------------------------------- */
+    .lms-progress-bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1200;
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px 10px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+        background: var(--surface, #fff);
+        border-top: 1px solid var(--border, #e0e0e0);
+        box-shadow: 0 -2px 8px var(--shadow, rgba(0, 0, 0, 0.12));
+    }
+    .lms-filter-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 56px;
+        min-height: 44px;
+        padding: 8px 18px;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 10px;
+        background: var(--surface, #fff);
+        color: var(--text, #333);
+        cursor: pointer;
+    }
+    /* Filters applied — the icon says so, since the selects it drives are now
+       out of sight behind it. Set by nothing yet; reserved so the state has a
+       home when it is wanted. */
+    .lms-filter-btn[data-active="1"] {
+        background: var(--accent, #0078d4);
+        border-color: var(--accent, #0078d4);
+        color: var(--on-accent, #fff);
+    }
+    /* Room to scroll the last card clear of the bar — only while the bar is
+       actually up. ⚠️ BOTH attributes are on `<body>`, so they are chained on
+       one selector: written as a descendant pair the rule can never match,
+       which is a mistake this module has already produced once. */
+    body[data-mobile-module="lms"][data-lms-progress-bar="on"] #panel-progress {
+        padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
+    /* In the sheet the three selects are the whole screen, so they stack full
+       width at a size worth tapping — and at 16px, which is the anti-zoom
+       floor iOS enforces by reflowing the page to desktop width. */
+    .mobile-sheet-lmsfilter .lms-filters {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+    }
+    .mobile-sheet-lmsfilter .lms-filters select {
+        width: 100%;
+        min-height: 46px;
+        font-size: 16px;
+        padding: 10px 12px;
     }
 
     /* --------------------------------------------------------------------

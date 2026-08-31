@@ -36,9 +36,9 @@ $translationNamespaces = ['common', 'lms'];
     <title>Service Desk - <?php echo htmlspecialchars(t('lms.title')); ?></title>
     <link rel="stylesheet" href="../assets/css/theme.css?v=23">
     <link rel="stylesheet" href="../assets/css/inbox.css?v=62">
-    <link rel="stylesheet" href="../assets/css/lms.css?v=5">
+    <link rel="stylesheet" href="../assets/css/lms.css?v=6">
     <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=110">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=116">
     <script>window.translations = <?php echo json_encode(I18n::exportForJs($translationNamespaces), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE); ?>;</script>
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
@@ -134,6 +134,9 @@ $translationNamespaces = ['common', 'lms'];
                     </select>
                     <select id="filterGroup" onchange="LMS.loadProgress()">
                         <option value=""><?php echo htmlspecialchars(t('lms.progress.all_groups')); ?></option>
+                    </select>
+                    <select id="filterAnalyst" onchange="LMS.loadProgress()">
+                        <option value=""><?php echo htmlspecialchars(t('lms.progress.all_analysts')); ?></option>
                     </select>
                     <select id="filterStatus" onchange="LMS.loadProgress()">
                         <option value=""><?php echo htmlspecialchars(t('lms.progress.all_statuses')); ?></option>
@@ -290,7 +293,7 @@ $translationNamespaces = ['common', 'lms'];
 
     <!-- Toast -->
     <script>window.API_BASE = '../api/lms/';</script>
-    <script src="../assets/js/lms.js?v=4"></script>
-    <script src="../assets/js/mobile.js?v=42"></script>
+    <script src="../assets/js/lms.js?v=5"></script>
+    <script src="../assets/js/mobile.js?v=45"></script>
 </body>
 </html>

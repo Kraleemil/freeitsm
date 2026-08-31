@@ -67,6 +67,7 @@ return [
         'heading'        => 'పురోగతి',
         'all_courses'    => 'అన్ని కోర్సులు',
         'all_groups'     => 'అన్ని గ్రూపులు',
+        'all_analysts'   => 'అన్ని విశ్లేషకులు',
         'all_statuses'   => 'అన్ని స్థితులు',
         'col_analyst'    => 'అనలిస్ట్',
         'col_course'     => 'కోర్సు',

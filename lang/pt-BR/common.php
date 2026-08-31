@@ -73,6 +73,7 @@ return [
     'optional'     => 'Opcional',
     'select_one'   => 'Selecionar…',
     'search'       => 'Pesquisar',
+    'filter'       => 'Filtrar',
 
     'error_generic'       => 'Algo deu errado.',
     'error_network'       => 'Erro de rede',

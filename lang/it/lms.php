@@ -67,6 +67,7 @@ return [
         'heading'        => 'Avanzamento',
         'all_courses'    => 'Tutti i corsi',
         'all_groups'     => 'Tutti i gruppi',
+        'all_analysts'   => 'Tutti gli analisti',
         'all_statuses'   => 'Tutti gli stati',
         'col_analyst'    => 'Analista',
         'col_course'     => 'Corso',

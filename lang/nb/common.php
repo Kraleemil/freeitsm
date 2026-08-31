@@ -82,6 +82,7 @@ return [
     'optional'     => 'Valgfritt',
     'select_one'   => 'Velg…',
     'search'       => 'Søk',
+    'filter'       => 'Filtrer',
 
     // Feil
     'error_generic'        => 'Noe gikk galt.',

@@ -1791,11 +1791,12 @@
                                             Department and Type read as the
                                             tags they are */
 
-        /* ---- LMS (LAYER 29b, #1392) ----
-           Three feeds on one console, told apart by the tbody ids the page
-           already gives them. The fourth table there — progress — stays a
-           scroller and keeps its real header row, so it is deliberately
-           absent from this list. */
+        /* ---- LMS (LAYER 29b, #1392; progress added #1401) ----
+           FOUR feeds on one console, told apart by the tbody ids the page
+           already gives them. Progress was a scroller until Ed asked for no
+           sideways scrolling — see the note in mobile.css, and note it is by
+           some way the hungriest for labels here: seven columns, of which two
+           are names side by side and two are dates side by side. */
         { table: 'body[data-mobile-module="lms"] .lms-table:has(#coursesBody)',
           columns: [2] },                /* uploaded. A bare date. The version
                                             column beside it is a badge
@@ -1804,13 +1805,22 @@
         { table: 'body[data-mobile-module="lms"] .lms-table:has(#groupsBody)',
           columns: [2] },                /* member count — a bare number */
         { table: 'body[data-mobile-module="lms"] .lms-table:has(#assignmentsBody)',
-          columns: [1, 2, 3] }           /* group, deadline, assigned by.
+          columns: [1, 2, 3] },          /* group, deadline, assigned by.
                                             Course and Group are TWO NAMES
                                             side by side and "assigned by" a
                                             third — the contracts round's
                                             finding that a pair of names is
                                             unreadable unlabelled, whatever
                                             the column count says */
+        { table: 'body[data-mobile-module="lms"] .lms-table:has(#progressBody)',
+          columns: [1, 2, 4, 5, 6] }     /* course, group, score, deadline,
+                                            last access. The analyst is the
+                                            card's heading and the status is a
+                                            pill, so those two speak for
+                                            themselves; the other five are two
+                                            names, a bare number and two dates
+                                            — nothing a reader can place once
+                                            the header row is gone */
     ];
 
     function labelCardFeed(table, columns) {
@@ -1831,6 +1841,17 @@
                 // — but a two-cell variant would put the label on the
                 // wrong thing. Skip any row that is not the full width.
                 if (row.cells.length !== headCells.length) continue;
+
+                // 🔴 An EMPTY cell must not be labelled. A progress row for
+                // someone who has not started has no score, no deadline and
+                // no last access, and a label on nothing renders as the word
+                // "Score" followed by silence — a heading for a fact that is
+                // not there. Every feed before this one happened to have no
+                // empty labelled columns, which is why it never showed.
+                if (!(cell.textContent || '').trim()) {
+                    cell.removeAttribute('data-mobile-label');
+                    continue;
+                }
 
                 // The header carries a sort-arrow span; take the text
                 // nodes only so the arrow glyphs do not come with it.
@@ -2630,6 +2651,132 @@
             bar.style.display = 'none';
             pane.removeAttribute('data-lms-page');
         }
+    }
+    sync();
+    if (mq.addEventListener) { mq.addEventListener('change', sync); }
+    else if (mq.addListener) { mq.addListener(sync); }
+})();
+
+/* ====================================================================
+   LMS PROGRESS — the filters behind one icon on a bottom bar
+   (#1402, Ed's request)
+
+   ITS OWN top-level IIFE, for the reason the blocks above document.
+
+   > "at the bottom of the progress screen let's have a bar with icons -
+   >  actually will only have one icon which will be a filter icon and
+   >  then open a screen with the dropdowns"
+
+   The Progress tab carries three `<select>`s — course, group, status —
+   in the panel header. On a desktop they sit on one line beside the
+   heading. At 360px they stack into three full-width rows and spend
+   about 140px before a single result, which is most of the screen given
+   to controls you touch once and then read past.
+
+   So: the three selects are MOVED into a LAYER 7 sheet and the bar
+   carries one icon to open it. Moved, not rebuilt — each select keeps
+   its id and its inline `onchange="LMS.loadProgress()"`, so the page's
+   own filtering keeps working with nothing rewired.
+
+   ⭐ ZERO NEW LMS KEYS. The one word this needs is `common.filter`,
+   added to all 25 locales in the same change — a generic word that
+   belongs in `common` rather than a fourteenth private copy of "Filter"
+   in a module namespace.
+
+   ⚠️ The bar is shown only while the Progress TAB is the visible one.
+   The four tabs are panels the page shows and hides by inline style, so
+   the panel is observed rather than LMS.switchTab() being wrapped —
+   27c's reasoning, and it cannot get out of step with a function this
+   file does not own.
+   ==================================================================== */
+(function () {
+    var panel = document.getElementById('panel-progress');
+    if (!panel) return;                      // not the LMS console
+    var filters = panel.querySelector('.lms-filters');
+    if (!filters) return;
+
+    var mq = window.matchMedia('(max-width: 768px)');
+
+    function tr(key, fallback) {
+        if (typeof window.t !== 'function') return fallback;
+        var v = window.t(key);
+        return (!v || v === key) ? fallback : v;   // a missing key returns the KEY, which is truthy
+    }
+    var label = tr('common.filter', 'Filter');
+
+    /* ---- the bar ---- */
+    var bar = document.createElement('div');
+    bar.className = 'lms-progress-bar';
+    bar.style.display = 'none';              // injected chrome: @media CSS cannot hide it
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lms-filter-btn';
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+    btn.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" ' +
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+
+    /* ---- the sheet (LAYER 7's .mobile-sheet chrome) ---- */
+    var sheet = document.createElement('div');
+    sheet.className = 'mobile-sheet mobile-sheet-lmsfilter';
+    sheet.style.display = 'none';
+    sheet.innerHTML =
+        '<div class="ms-head"><span class="ms-title"></span>' +
+        '<button type="button" class="ms-close"></button></div>' +
+        '<div class="ms-body"></div>';
+    sheet.querySelector('.ms-title').textContent = label;
+    sheet.querySelector('.ms-close').textContent = tr('common.close', 'Close');
+    document.body.appendChild(sheet);
+
+    /* Where the selects came from, so they go back EXACTLY there. */
+    var home = filters.parentNode, homeNext = filters.nextSibling;
+
+    function filtersIntoSheet() {
+        if (filters.parentNode !== sheet.querySelector('.ms-body')) {
+            sheet.querySelector('.ms-body').appendChild(filters);
+        }
+    }
+    function filtersBackToPage() {
+        if (filters.parentNode === home) return;
+        if (homeNext && homeNext.parentNode === home) home.insertBefore(filters, homeNext);
+        else home.appendChild(filters);
+    }
+
+    function openSheet() {
+        filtersIntoSheet();
+        sheet.style.display = 'flex';
+        history.pushState({ lmsFilter: true }, '');
+    }
+    function hideSheet() { sheet.style.display = 'none'; }
+    function closeSheet() {
+        if (history.state && history.state.lmsFilter) history.back();
+        else hideSheet();
+    }
+    btn.addEventListener('click', openSheet);
+    sheet.querySelector('.ms-close').addEventListener('click', closeSheet);
+    window.addEventListener('popstate', hideSheet);
+
+    /* ---- shown only on the Progress tab, and only on a phone ---- */
+    function progressVisible() {
+        return panel.style.display !== 'none';
+    }
+    function sync() {
+        if (mq.matches && progressVisible()) {
+            filtersIntoSheet();
+            bar.style.display = '';
+            document.body.setAttribute('data-lms-progress-bar', 'on');
+        } else {
+            hideSheet();
+            filtersBackToPage();
+            bar.style.display = 'none';
+            document.body.removeAttribute('data-lms-progress-bar');
+        }
+    }
+    if (window.MutationObserver) {
+        new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['style'] });
     }
     sync();
     if (mq.addEventListener) { mq.addEventListener('change', sync); }

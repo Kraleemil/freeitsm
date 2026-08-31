@@ -181,6 +181,7 @@ return [
         'heading'        => 'Framgang',
         'all_courses'    => 'Alle kurs',
         'all_groups'     => 'Alle grupper',
+        'all_analysts'   => 'Alle analytikarar',
         'all_statuses'   => 'Alle statusar',
         'col_analyst'    => 'Analytikar',
         'col_course'     => 'Kurs',

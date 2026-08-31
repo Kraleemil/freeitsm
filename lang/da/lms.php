@@ -163,6 +163,7 @@ return [
         'heading' => 'Fremskridt',
         'all_courses' => 'Alle kurser',
         'all_groups' => 'Alle grupper',
+        'all_analysts' => 'Alle analytikere',
         'all_statuses' => 'Alle statusser',
         'col_analyst' => 'Medarbejder',
         'col_course' => 'Kursus',

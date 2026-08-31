@@ -67,6 +67,7 @@ return [
         'heading'        => 'ਤਰੱਕੀ',
         'all_courses'    => 'ਸਾਰੇ ਕੋਰਸ',
         'all_groups'     => 'ਸਾਰੇ ਗਰੁੱਪ',
+        'all_analysts'   => 'ਸਾਰੇ ਵਿਸ਼ਲੇਸ਼ਕ',
         'all_statuses'   => 'ਸਾਰੀਆਂ ਸਥਿਤੀਆਂ',
         'col_analyst'    => 'ਵਿਸ਼ਲੇਸ਼ਕ',
         'col_course'     => 'ਕੋਰਸ',

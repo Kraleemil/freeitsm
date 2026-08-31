@@ -46,6 +46,7 @@ return [
     'optional'            => 'Optional',
     'select_one'          => 'Auswählen…',
     'search'              => 'Suchen',
+    'filter'              => 'Filter',
     'error_generic'       => 'Etwas ist schiefgelaufen.',
     'error_network'       => 'Netzwerkfehler',
     'error_not_logged_in' => 'Sie müssen angemeldet sein.',

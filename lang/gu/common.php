@@ -44,6 +44,7 @@ return [
     'optional'     => 'વૈકલ્પિક',
     'select_one'   => 'પસંદ કરો…',
     'search'       => 'શોધો',
+    'filter'       => 'ફિલ્ટર',
 
     'error_generic'       => 'કંઈક ખોટું થયું.',
     'error_network'       => 'નેટવર્ક ભૂલ',

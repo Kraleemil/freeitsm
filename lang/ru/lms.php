@@ -67,6 +67,7 @@ return [
         'heading'        => 'Прогресс',
         'all_courses'    => 'Все курсы',
         'all_groups'     => 'Все группы',
+        'all_analysts'   => 'Все аналитики',
         'all_statuses'   => 'Все статусы',
         'col_analyst'    => 'Аналитик',
         'col_course'     => 'Курс',

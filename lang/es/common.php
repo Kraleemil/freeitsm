@@ -46,6 +46,7 @@ return [
     'optional'            => 'Opcional',
     'select_one'          => 'Seleccionar…',
     'search'              => 'Buscar',
+    'filter'              => 'Filtrar',
     'error_generic'       => 'Algo salió mal.',
     'error_network'       => 'Error de red',
     'error_not_logged_in' => 'Debe iniciar sesión.',

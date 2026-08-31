@@ -67,6 +67,7 @@ return [
         'heading'        => 'অগ্রগতি',
         'all_courses'    => 'সব কোর্স',
         'all_groups'     => 'সব গ্রুপ',
+        'all_analysts'   => 'সব বিশ্লেষক',
         'all_statuses'   => 'সব স্ট্যাটাস',
         'col_analyst'    => 'বিশ্লেষক',
         'col_course'     => 'কোর্স',
