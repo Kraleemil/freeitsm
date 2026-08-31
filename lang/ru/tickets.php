@@ -1,6 +1,11 @@
 <?php
 /** Русский (ru) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Показать больше',
+        'show_less' => 'Показать меньше',
+    ],
     'title' => 'Заявки',
     'nav' => [
         'inbox'     => 'Входящие',

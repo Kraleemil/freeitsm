@@ -1,6 +1,11 @@
 <?php
 /** Polski (pl) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Pokaż więcej',
+        'show_less' => 'Pokaż mniej',
+    ],
     'title' => 'Zgłoszenia',
     'nav' => [
         'inbox'     => 'Skrzynka odbiorcza',

@@ -6,6 +6,11 @@
  * dengan fail Inggeris; hanya nilainya diterjemahkan.
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Tunjuk lagi',
+        'show_less' => 'Tunjuk kurang',
+    ],
     'title' => 'Tiket',
 
     'nav' => [

@@ -1,6 +1,11 @@
 <?php
 /** ಕನ್ನಡ (kn) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'ಇನ್ನಷ್ಟು ತೋರಿಸಿ',
+        'show_less' => 'ಕಡಿಮೆ ತೋರಿಸಿ',
+    ],
     'title' => 'ಟಿಕೆಟ್‌ಗಳು',
     'nav' => [
         'inbox'     => 'ಇನ್‌ಬಾಕ್ಸ್',

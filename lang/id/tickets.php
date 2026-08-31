@@ -5,6 +5,11 @@
  * Mirrors lang/en/tickets.php structure exactly. Only values change.
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Tampilkan lebih',
+        'show_less' => 'Tampilkan lebih sedikit',
+    ],
     'title' => 'Tiket',
 
     'nav' => [

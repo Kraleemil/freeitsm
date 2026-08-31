@@ -1,6 +1,11 @@
 <?php
 /** Nederlands (nl) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Meer tonen',
+        'show_less' => 'Minder tonen',
+    ],
     'title' => 'Tickets',
     'nav' => [
         'inbox'     => 'Postvak IN',

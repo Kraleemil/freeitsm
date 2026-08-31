@@ -5,6 +5,11 @@
  * Key order mirrors lang/en/tickets.php.
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Ver mais',
+        'show_less' => 'Ver menos',
+    ],
     'title' => 'Tickets',
     'nav' => [
         'inbox' => 'Caixa de entrada',

@@ -1,6 +1,11 @@
 <?php
 /** தமிழ் (ta) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'மேலும் காட்டு',
+        'show_less' => 'குறைவாக காட்டு',
+    ],
     'title' => 'டிக்கெட்டுகள்',
     'nav' => [
         'inbox'     => 'உள்வரும்',

@@ -1,6 +1,11 @@
 <?php
 /** বাংলা (bn) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'আরও দেখান',
+        'show_less' => 'কম দেখান',
+    ],
     'title' => 'টিকিট',
     'nav' => [
         'inbox'     => 'ইনবক্স',

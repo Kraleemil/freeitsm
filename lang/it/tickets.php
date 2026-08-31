@@ -1,6 +1,11 @@
 <?php
 /** Italiano (it) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Mostra altro',
+        'show_less' => 'Mostra meno',
+    ],
     'title' => 'Ticket',
     'nav' => [
         'inbox'     => 'Posta in arrivo',

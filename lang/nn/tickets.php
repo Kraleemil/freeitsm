@@ -16,6 +16,11 @@
  * «lesefelt».
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Vis meir',
+        'show_less' => 'Vis mindre',
+    ],
     'title' => 'Saker',
 
     'nav' => [

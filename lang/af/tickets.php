@@ -4,6 +4,11 @@
  * Falls back per-key to lang/en/tickets.php for anything missing.
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Wys meer',
+        'show_less' => 'Wys minder',
+    ],
     'title' => 'Kaartjies',
 
     'nav' => [

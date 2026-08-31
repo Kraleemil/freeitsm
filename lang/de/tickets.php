@@ -1,6 +1,11 @@
 <?php
 /** Deutsch (de) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Mehr anzeigen',
+        'show_less' => 'Weniger anzeigen',
+    ],
     'title' => 'Tickets',
     'nav' => [
         'inbox'     => 'Posteingang',
@@ -965,6 +970,17 @@ Das lässt sich nicht rückgängig machen. Fortfahren?',
             'reopen_toggle'           => 'Ein geschlossenes Ticket wieder öffnen, wenn der Anfragende antwortet',
             'snooze_hour_label'       => 'Beginn des Arbeitstags',
             'snooze_hour_help'        => 'Der Zeitpunkt, zu dem ein auf „Morgen“ oder „Nächste Woche“ zurückgestelltes Ticket zurückkommt. Wird in der eigenen Zeitzone jedes Analysten gelesen, sodass ein über mehrere Zeitzonen verteilter Desk jeweils seinen eigenen Morgen bekommt.',
+            'collapse_heading' => 'Lange Nachrichten',
+            'collapse_desc' => 'Lange E-Mails verdecken das, wofür Sie das Ticket geöffnet haben. Nachrichten, die höher als das Limit sind, werden mit einem Mehr-anzeigen-Link gekürzt. Nichts wird gelöscht — die vollständige Nachricht ist immer einen Klick entfernt.',
+            'collapse_enabled_label' => 'Lange Nachrichten kürzen',
+            'collapse_lines_label' => 'Nachrichten kürzen, die höher sind als etwa',
+            'collapse_lines_help' => 'Zeilen. Eine Nachricht knapp über dem Limit bleibt unangetastet, damit der Link nicht wegen zwei Wörtern erscheint.',
+            'collapse_newest_label' => 'Neueste Nachricht immer vollständig anzeigen',
+            'collapse_newest_help' => 'Die Nachricht, für die Sie gekommen sind, wird nie gekürzt.',
+            'collapse_quoted_label' => 'Zitierten Verlauf kürzen',
+            'collapse_quoted_help' => 'Eine kurze Antwort mit einem langen zitierten Verlauf darunter ist nach jeder Zeilenzählung kurz und trotzdem unlesbar, daher wird der zitierte Verlauf separat gekürzt.',
+            'collapse_remember_label' => 'Merken, was ich geöffnet habe',
+            'collapse_remember_help' => 'Aufgeklappte Nachrichten bleiben auf diesem Gerät aufgeklappt, damit sich das Durcharbeiten eines Verlaufs nicht bei jeder Aktualisierung zurücksetzt.',
             'reopen_help'             => 'Gilt überall, wo ein Anfragender zurückkommt — das Self-Service-Portal, eine Antwort auf Ihre Benachrichtigungs-E-Mail, WhatsApp oder Web-Chat. Das Ticket kehrt in Ihren ersten offenen Status zurück. Nur Tickets in einem als geschlossen gekennzeichneten Status sind betroffen (unter Status einstellbar, welche das sind).',
         ],
         'privacy' => [

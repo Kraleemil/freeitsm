@@ -17,6 +17,11 @@
  *  - Sidene for innstillinger/dashbord/kalender/vaktliste/brukere/hjelp
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Vis mer',
+        'show_less' => 'Vis mindre',
+    ],
     'title' => 'Saker',
 
     'nav' => [
@@ -1150,6 +1155,17 @@ return [
             'reopen_toggle'       => 'Gjenåpne en lukket sak når innmelderen svarer',
             'snooze_hour_label'   => 'Arbeidsdagens start',
             'snooze_hour_help'    => 'Tidspunktet en sak som er satt på vent til «I morgen» eller «Neste uke», kommer tilbake. Leses i hver analytikers egen tidssone, så en servicedesk spredt over flere soner får hver sin morgen.',
+            'collapse_heading' => 'Lange meldinger',
+            'collapse_desc' => 'Lange e-poster begraver det du åpnet saken for å lese. Meldinger som er høyere enn grensen, forkortes med en Vis mer-lenke. Ingenting slettes — hele meldingen er alltid ett trykk unna.',
+            'collapse_enabled_label' => 'Forkort lange meldinger',
+            'collapse_lines_label' => 'Forkort meldinger som er høyere enn omtrent',
+            'collapse_lines_help' => 'linjer. En melding så vidt over grensen får stå, så lenken ikke dukker opp for to ords skyld.',
+            'collapse_newest_label' => 'Vis alltid den nyeste meldingen i sin helhet',
+            'collapse_newest_help' => 'Meldingen du kom for å lese, forkortes aldri.',
+            'collapse_quoted_label' => 'Forkort sitert historikk',
+            'collapse_quoted_help' => 'Et kort svar med en lang sitert tråd under seg er kort etter enhver linjetelling og likevel uleselig, så sitert historikk forkortes separat.',
+            'collapse_remember_label' => 'Husk hva jeg har åpnet',
+            'collapse_remember_help' => 'Meldinger du utvider, forblir utvidet på denne enheten.',
             'reopen_help'         => 'Gjelder uansett hvor en innmelder kommer tilbake — selvbetjeningsportalen, et svar på varslings-e-posten din, WhatsApp eller nettprat. Saken går tilbake til den første åpne statusen din. Bare saker med en status som er merket som lukket, berøres (sett hvilke det er under Statuser).',
         ],
 

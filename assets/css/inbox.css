@@ -4410,3 +4410,48 @@ body .tox-tinymce-aux {
 }
 .tt-load-error[hidden] { display: none; }
 .tt-load-error span { flex: 1; min-width: 220px; }
+
+/* =====================================================================
+   COLLAPSING LONG MESSAGES  (discussion #104, #1429)
+
+   The message keeps its full height in the document and is clipped by
+   `max-height`, so "Show more" is a class toggle and nothing is ever
+   removed from the page. The fade is the affordance: a hard cut looks
+   like a rendering fault, a fade reads as "there is more".
+   ===================================================================== */
+.mc-wrap { position: relative; }
+.mc-wrap.mc-collapsed > .thread-message-body,
+.mc-wrap.mc-collapsed > .email-body-content {
+    max-height: var(--mc-max, 264px);
+    overflow: hidden;
+}
+/* ⚠️ The fade sits on the WRAPPER, not the body: the body is a shadow
+   host and a ::after inside it would be behind the shadow content. */
+.mc-wrap.mc-collapsed::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 30px;
+    height: 56px;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--surface, #fff));
+}
+.mc-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 999px;
+    background: var(--surface, #fff);
+    color: var(--accent, #2b88d8);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+}
+.mc-toggle:hover { border-color: var(--accent, #2b88d8); }

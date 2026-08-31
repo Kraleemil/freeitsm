@@ -1,6 +1,11 @@
 <?php
 /** മലയാളം (ml) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'കൂടുതൽ കാണിക്കുക',
+        'show_less' => 'കുറച്ച് കാണിക്കുക',
+    ],
     'title' => 'ടിക്കറ്റുകൾ',
     'nav' => [
         'inbox'     => 'ഇൻബോക്സ്',

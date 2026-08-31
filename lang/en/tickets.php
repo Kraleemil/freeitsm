@@ -17,6 +17,11 @@
  *  - Settings/dashboard/calendar/rota/users/help pages
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Show more',
+        'show_less' => 'Show less',
+    ],
     'title' => 'Tickets',
 
     'nav' => [
@@ -1461,6 +1466,17 @@ return [
             'reopen_toggle'       => 'Reopen a closed ticket when the requester replies',
             'snooze_hour_label'   => 'Start of the working day',
             'snooze_hour_help'    => 'The time a ticket snoozed until "Tomorrow" or "Next week" comes back. Read in each analyst\'s own timezone, so a desk spread across zones each gets their own morning.',
+            'collapse_heading' => 'Long messages',
+            'collapse_desc' => 'Long emails bury the thing you opened the ticket to read. Messages taller than the limit below are shortened with a Show more link. Nothing is deleted — the full message is always one tap away.',
+            'collapse_enabled_label' => 'Shorten long messages',
+            'collapse_lines_label' => 'Shorten messages taller than about',
+            'collapse_lines_help' => 'lines. A message only a little over the limit is left alone, so the link never appears for the sake of two words.',
+            'collapse_newest_label' => 'Always show the newest message in full',
+            'collapse_newest_help' => 'The message you came to read is never shortened.',
+            'collapse_quoted_label' => 'Shorten quoted history',
+            'collapse_quoted_help' => 'A short reply with a long quoted chain under it is brief by any line count and still unreadable, so quoted history is shortened separately.',
+            'collapse_remember_label' => 'Remember what I opened',
+            'collapse_remember_help' => 'Messages you expand stay expanded on this device, so working through a thread does not undo itself on every refresh.',
             'reopen_help'         => 'Applies wherever a requester comes back — the self-service portal, a reply to your notification email, WhatsApp or web chat. The ticket returns to your first open status. Only tickets in a status marked as closed are affected (set which those are under Statuses).',
         ],
 

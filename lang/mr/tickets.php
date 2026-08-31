@@ -1,6 +1,11 @@
 <?php
 /** मराठी (mr) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'अधिक दाखवा',
+        'show_less' => 'कमी दाखवा',
+    ],
     'title' => 'तिकिटे',
     'nav' => [
         'inbox'     => 'इनबॉक्स',

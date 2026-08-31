@@ -194,7 +194,11 @@ return [
             'cap'          => Cap::TICKETS_GENERAL,
             'label_key'    => 'tickets.settings.tabs.general',
             'grant'        => 'Manage general ticket settings',
-            'setting_keys' => ['system_name', 'reopen_on_customer_reply', 'snooze_wake_hour'],
+            'setting_keys' => ['system_name', 'reopen_on_customer_reply', 'snooze_wake_hour',
+                                // How long messages are displayed (discussion #104).
+                                'ticket_collapse_enabled', 'ticket_collapse_lines',
+                                'ticket_collapse_expand_newest', 'ticket_collapse_quoted',
+                                'ticket_collapse_remember'],
         ],
         [
             'id'           => 'privacy',

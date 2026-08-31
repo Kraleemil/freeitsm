@@ -1,6 +1,11 @@
 <?php
 /** తెలుగు (te) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'మరిన్ని చూపు',
+        'show_less' => 'తక్కువ చూపు',
+    ],
     'title' => 'టికెట్లు',
     'nav' => [
         'inbox'     => 'ఇన్‌బాక్స్',

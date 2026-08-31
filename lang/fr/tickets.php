@@ -1,6 +1,11 @@
 <?php
 /** Français (fr) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Afficher plus',
+        'show_less' => 'Afficher moins',
+    ],
     'title' => 'Tickets',
     'nav' => [
         'inbox'     => 'Boîte de réception',

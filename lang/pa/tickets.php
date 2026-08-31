@@ -1,6 +1,11 @@
 <?php
 /** ਪੰਜਾਬੀ (pa) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'ਹੋਰ ਦਿਖਾਓ',
+        'show_less' => 'ਘੱਟ ਦਿਖਾਓ',
+    ],
     'title' => 'ਟਿਕਟਾਂ',
     'nav' => [
         'inbox'     => 'ਇਨਬਾਕਸ',

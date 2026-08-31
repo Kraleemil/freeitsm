@@ -1317,6 +1317,48 @@ $translationNamespaces = ['common', 'tickets'];
                     <small><?php echo t('tickets.settings.merge.note'); ?></small>
                 </div>
 
+                <!-- Long messages (discussion #104). Five knobs rather than one
+                     switch, because a service desk that lives in email and one
+                     that barely touches it want opposite defaults. -->
+                <h3 style="margin-top: 34px;"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_heading')); ?></h3>
+                <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_desc')); ?></p>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseEnabled">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_enabled_label')); ?>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="collapseLines"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_lines_label')); ?></label>
+                    <input type="number" id="collapseLines" min="4" max="80" step="1" style="max-width: 120px;">
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_lines_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseExpandNewest">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_newest_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_newest_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseQuoted">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_quoted_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_quoted_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseRemember">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_remember_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_remember_help')); ?></small>
+                </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-start; margin-top: 30px;">
                     <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
                 </div>
@@ -5516,6 +5558,18 @@ $translationNamespaces = ['common', 'tickets'];
                         (reopen === null || reopen === undefined || reopen === '') ? true : (reopen === '1');
                     // Snooze wake hour (#933) — 09:00 when never saved, matching
                     // snoozeWakeHour() in includes/ticket_snooze.php.
+                    // Long-message display (#104). Defaults mirror
+                    // ticketDisplaySettings() so an install that has never saved
+                    // these sees the same thing the reading pane is doing.
+                    const cb = (id, key, dflt) => document.getElementById(id).checked =
+                        data.settings[key] === undefined ? dflt : data.settings[key] === '1';
+                    cb('collapseEnabled',      'ticket_collapse_enabled',       true);
+                    cb('collapseExpandNewest', 'ticket_collapse_expand_newest', true);
+                    cb('collapseQuoted',       'ticket_collapse_quoted',        true);
+                    cb('collapseRemember',     'ticket_collapse_remember',      true);
+                    document.getElementById('collapseLines').value =
+                        parseInt(data.settings.ticket_collapse_lines, 10) || 12;
+
                     const wakeHour = parseInt(data.settings.snooze_wake_hour, 10);
                     document.getElementById('snoozeWakeHour').value =
                         (Number.isInteger(wakeHour) && wakeHour >= 0 && wakeHour <= 23) ? String(wakeHour) : '9';
@@ -5860,7 +5914,12 @@ $translationNamespaces = ['common', 'tickets'];
             const settings = {
                 system_name: document.getElementById('systemName').value,
                 reopen_on_customer_reply: document.getElementById('reopenOnCustomerReply').checked ? '1' : '0',
-                snooze_wake_hour: document.getElementById('snoozeWakeHour').value
+                snooze_wake_hour: document.getElementById('snoozeWakeHour').value,
+                ticket_collapse_enabled:       document.getElementById('collapseEnabled').checked ? '1' : '0',
+                ticket_collapse_lines:         String(document.getElementById('collapseLines').value || 12),
+                ticket_collapse_expand_newest: document.getElementById('collapseExpandNewest').checked ? '1' : '0',
+                ticket_collapse_quoted:        document.getElementById('collapseQuoted').checked ? '1' : '0',
+                ticket_collapse_remember:      document.getElementById('collapseRemember').checked ? '1' : '0'
             };
 
             try {

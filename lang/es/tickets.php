@@ -1,6 +1,11 @@
 <?php
 /** Español (es) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Ver más',
+        'show_less' => 'Ver menos',
+    ],
     'title' => 'Tickets',
     'nav' => [
         'inbox'     => 'Bandeja de entrada',
@@ -944,6 +949,17 @@ Esto no se puede deshacer. ¿Continuar?',
             'reopen_toggle'           => 'Reabrir un ticket cerrado cuando el solicitante responde',
             'snooze_hour_label'       => 'Inicio de la jornada laboral',
             'snooze_hour_help'        => 'La hora a la que vuelve un ticket pospuesto hasta «Mañana» o «La próxima semana». Se interpreta en la zona horaria de cada analista, así que una mesa repartida entre varias zonas tiene su propia mañana cada una.',
+            'collapse_heading' => 'Mensajes largos',
+            'collapse_desc' => 'Los correos largos entierran aquello por lo que abrió el ticket. Los mensajes más altos que el límite se acortan con un enlace Ver más. No se elimina nada: el mensaje completo está siempre a un toque.',
+            'collapse_enabled_label' => 'Acortar los mensajes largos',
+            'collapse_lines_label' => 'Acortar los mensajes de más de aproximadamente',
+            'collapse_lines_help' => 'líneas. Un mensaje que apenas supera el límite se deja igual, para que el enlace no aparezca por dos palabras.',
+            'collapse_newest_label' => 'Mostrar siempre el mensaje más reciente completo',
+            'collapse_newest_help' => 'El mensaje que vino a leer nunca se acorta.',
+            'collapse_quoted_label' => 'Acortar el historial citado',
+            'collapse_quoted_help' => 'Una respuesta breve con una larga cadena citada debajo es corta según cualquier recuento de líneas y sigue siendo ilegible, así que el historial citado se acorta aparte.',
+            'collapse_remember_label' => 'Recordar lo que he abierto',
+            'collapse_remember_help' => 'Los mensajes que despliegue seguirán desplegados en este dispositivo.',
             'reopen_help'             => 'Se aplica siempre que un solicitante vuelve a escribir — el portal de autoservicio, una respuesta a su correo de notificación, WhatsApp o el chat web. El ticket vuelve a su primer estado abierto. Solo afecta a los tickets en un estado marcado como cerrado (defina cuáles son en Estados).',
         ],
         'privacy' => [

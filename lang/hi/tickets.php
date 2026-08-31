@@ -1,6 +1,11 @@
 <?php
 /** हिन्दी (hi) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'और दिखाएँ',
+        'show_less' => 'कम दिखाएँ',
+    ],
     'title' => 'टिकट',
     'nav' => [
         'inbox'     => 'इनबॉक्स',

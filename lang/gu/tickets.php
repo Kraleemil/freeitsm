@@ -1,6 +1,11 @@
 <?php
 /** ગુજરાતી (gu) — Tickets module strings (phase 1a). */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'વધુ બતાવો',
+        'show_less' => 'ઓછું બતાવો',
+    ],
     'title' => 'ટિકિટ',
     'nav' => [
         'inbox'     => 'ઇનબોક્સ',

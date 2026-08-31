@@ -103,6 +103,114 @@ function hydrateEmailBodies(root) {
             host.innerHTML = bodyHtml;
         }
     });
+    /* …and now they are in the document, so they can be measured. One
+       call here covers the thread view and the single-email view, because
+       both go through this function. */
+    mcSweep(root);
+}
+
+/* =====================================================================
+   COLLAPSING LONG MESSAGES  (discussion #104)
+
+   A long email buries the thing you opened the ticket to read. Gmail's
+   "···" is the shape everybody knows, so this is that.
+
+   🔑 MEASURED, NOT COUNTED. The request asked for a line threshold; real
+   inbound mail says lines are the wrong unit. A vendor notification laid
+   out in a <table> is a handful of source lines and renders about a metre
+   tall. So the trigger is the message's RENDERED height — the only number
+   that matches what somebody has to scroll past. The SETTING is still
+   phrased in lines because that is a sentence an administrator can reason
+   about; includes/ticket_display.php does the conversion, once.
+
+   ⚠️ NOTHING IS REMOVED. The whole message is in the page the whole time,
+   behind a `max-height`. Boundary detection for quoted text is genuinely
+   hard — the best-known solver quotes 98% on ordinary replies and names
+   forwarded HTML as its weak spot — so being wrong here costs a tap, and
+   can never cost a fact. That is the difference between this and stripping.
+   ===================================================================== */
+const MC = window.MESSAGE_COLLAPSE || {};
+const MC_KEY = 'freeitsm_expanded_messages';
+
+/* Which messages this analyst has opened, so a thread they are working
+   through does not re-collapse under them on every refresh. Per browser,
+   deliberately: it is a reading position, not a preference worth a round
+   trip. ⚠️ Wrapped, because localStorage THROWS in a private window rather
+   than returning null. */
+function mcOpened() {
+    if (!MC.collapse_remember) return new Set();
+    try { return new Set(JSON.parse(localStorage.getItem(MC_KEY) || '[]')); }
+    catch (e) { return new Set(); }
+}
+function mcRemember(id, open) {
+    if (!MC.collapse_remember || !id) return;
+    try {
+        const set = mcOpened();
+        open ? set.add(id) : set.delete(id);
+        // Keep the last 400: a reading position from six months ago is not
+        // worth carrying, and localStorage has a hard quota that throws.
+        localStorage.setItem(MC_KEY, JSON.stringify([...set].slice(-400)));
+    } catch (e) { /* private window — the setting simply does not persist */ }
+}
+
+/**
+ * Collapse one rendered message if it is taller than the threshold.
+ *
+ * `host` is the div a message was hydrated into; `opts.newest` marks the
+ * message the reader actually came for.
+ */
+function mcApply(host, opts) {
+    opts = opts || {};
+    if (!MC.collapse_enabled) return;
+    if (host.dataset.mcDone) return;              // rendered twice; measure once
+
+    /* ⚠️ Measured AFTER the body is in the document. The HOST is what to
+       measure: its height comes from its shadow content, so it reports the
+       real rendered height while the shadow root itself has no scrollHeight
+       and its first child is the injected <style> — which is 0 tall and would
+       quietly make every message look short enough to leave alone. */
+    const full = Math.max(host.scrollHeight, host.offsetHeight);
+    const limit = MC.collapse_px || 264;
+    if (full <= limit + 40) return;               // a shade over is not worth a control
+
+    host.dataset.mcDone = '1';
+
+    const id = opts.id || '';
+    const startOpen = (opts.newest && MC.collapse_expand_newest) || mcOpened().has(id);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'mc-wrap';
+    host.parentNode.insertBefore(wrap, host);
+    wrap.appendChild(host);
+    wrap.style.setProperty('--mc-max', limit + 'px');
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mc-toggle';
+
+    function paint(open) {
+        wrap.classList.toggle('mc-collapsed', !open);
+        btn.textContent = open ? t('tickets.reading.show_less') : t('tickets.reading.show_more');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    btn.addEventListener('click', () => {
+        const open = wrap.classList.contains('mc-collapsed');
+        paint(open);
+        mcRemember(id, open);
+    });
+    wrap.appendChild(btn);
+    paint(startOpen);
+}
+
+/* Sweep a freshly rendered thread. The LAST message host is the newest —
+   the thread renders oldest-first — and is the one that stays open. */
+function mcSweep(root) {
+    if (!MC.collapse_enabled || !root || !root.querySelectorAll) return;
+    const hosts = root.querySelectorAll('.thread-message-body, .email-body-content');
+    hosts.forEach((h, i) => mcApply(h, {
+        newest: i === hosts.length - 1,
+        id: h.closest('[data-email-id]') ? h.closest('[data-email-id]').getAttribute('data-email-id') : ''
+    }));
 }
 
 let departments = [];

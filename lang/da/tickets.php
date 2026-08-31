@@ -7,6 +7,11 @@
  * exactly, because I18n::t() splits on every dot.
  */
 return [
+    // The reading pane's own words (discussion #104).
+    'reading' => [
+        'show_more' => 'Vis mere',
+        'show_less' => 'Vis mindre',
+    ],
     'title' => 'Sager',
     'nav' => [
         'inbox' => 'Indbakke',
@@ -1244,6 +1249,17 @@ Dette kan ikke fortrydes. Vil du fortsætte?',
             'reopen_toggle' => 'Genåbn en lukket sag, når anmelderen svarer',
             'snooze_hour_label' => 'Start på arbejdsdagen',
             'snooze_hour_help' => 'Tidspunktet, hvor en sag, der er udsat til "I morgen" eller "Næste uge", kommer tilbage. Læses i hver medarbejders egen tidszone, så en service desk spredt over flere tidszoner hver får deres egen morgen.',
+            'collapse_heading' => 'Lange beskeder',
+            'collapse_desc' => 'Lange e-mails begraver det, du åbnede sagen for at læse. Beskeder, der er højere end grænsen, forkortes med et Vis mere-link. Intet slettes — hele beskeden er altid ét tryk væk.',
+            'collapse_enabled_label' => 'Forkort lange beskeder',
+            'collapse_lines_label' => 'Forkort beskeder, der er højere end ca.',
+            'collapse_lines_help' => 'linjer. En besked lige over grænsen får lov at være, så linket ikke dukker op for to ords skyld.',
+            'collapse_newest_label' => 'Vis altid den nyeste besked fuldt ud',
+            'collapse_newest_help' => 'Den besked, du kom for at læse, forkortes aldrig.',
+            'collapse_quoted_label' => 'Forkort citeret historik',
+            'collapse_quoted_help' => 'Et kort svar med en lang citeret tråd under sig er kort efter enhver linjetælling og stadig ulæseligt, så citeret historik forkortes separat.',
+            'collapse_remember_label' => 'Husk hvad jeg har åbnet',
+            'collapse_remember_help' => 'Beskeder, du folder ud, forbliver foldet ud på denne enhed.',
             'reopen_help' => 'Gælder, uanset hvor anmelderen kommer tilbage — selvbetjeningsportalen, et svar på din notifikations-e-mail, WhatsApp eller webchat. Sagen vender tilbage til din første åbne status. Kun sager i en status markeret som lukket påvirkes (angiv, hvilke det er, under Statusser).',
         ],
         'privacy' => [
