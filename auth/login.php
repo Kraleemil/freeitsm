@@ -1157,11 +1157,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             tag.textContent = d.subheading;
         } else if (tag) { tag.remove(); }
     }
+    /* The heading the page uses when the designer supplies none — printed
+       here because only the server knows the translated default. */
+    var DEFAULT_HEADING = <?php echo json_encode(tr('heading', 'ITSM Login')); ?>;
+
     function setText(sel, v) {
         var el = document.querySelector('.login-header ' + sel);
+        if (!el) return;
+        /* 🔴 AN EMPTY HEADLINE IS A VALUE, NOT AN ABSENCE. Written as
+           `if (el && v)`, clearing the field left the last non-empty text on
+           screen — type HELLO, backspace it away, and the preview still says
+           'H', because that was the last update it accepted. Falling back to
+           the default is what the SERVER does when the setting is empty, so
+           doing anything else here would make the preview disagree with the
+           page. Reported by Ed. */
         /* textContent, never innerHTML — the whole point of the file this
            mirrors is that branding text is text. */
-        if (el && v) el.textContent = v;
+        el.textContent = (v && String(v).trim() !== '') ? v : DEFAULT_HEADING;
     }
     function strip(kind, text, at) {
         var el = document.querySelector('.login-strip-' + kind);
