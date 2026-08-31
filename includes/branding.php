@@ -101,6 +101,34 @@ function brandingPathIsSafe(string $rel): bool
 }
 
 /**
+ * THE THREE SCREENS, and what each one has to style.
+ *
+ * They are not identical: a landing page has no sign-in form, so asking where
+ * to put one — or whether its panel should be frosted glass — is a control that
+ * cannot do anything. `only` names the fields a scope leaves out.
+ *
+ * ⚠️ The KEY PREFIX for the analyst login stays `branding_login_` rather than
+ * becoming `branding_analyst_`. Renaming it would orphan the settings of anyone
+ * who has already used the designer, for tidiness.
+ */
+function brandingScopes(): array
+{
+    return [
+        'login'  => ['prefix' => 'branding_login_',  'page' => 'auth/login.php'],
+        'portal' => ['prefix' => 'branding_portal_', 'page' => 'self-service/login.php'],
+        // No form on this one, so no form position and no panel style.
+        'home'   => ['prefix' => 'branding_home_',   'page' => 'index.php',
+                     'omit'   => ['form_position', 'card_style'],
+                     // …and it keeps the theme's own background unless asked otherwise.
+                     'defaults' => ['bg_style' => 'theme']],
+    ];
+}
+
+function brandingScopeValid(string $scope): string
+{
+    return isset(brandingScopes()[$scope]) ? $scope : 'login';
+}
+/**
  * THE VALIDATION TABLE — the single source of truth for the login designer.
  *
  * 🔑 One table drives the save endpoint, the renderer AND the settings form, so
@@ -115,15 +143,23 @@ function brandingPathIsSafe(string $rel): bool
  *   text   plain text, trimmed, cut to `max` characters — NEVER HTML
  *   upload a path inside the branding directory that still exists
  */
-function brandingLoginFields(): array
+function brandingLoginFields(string $scope = 'login'): array
 {
-    return [
+    $spec     = brandingScopes()[brandingScopeValid($scope)];
+    $omit     = $spec['omit'] ?? [];
+    $defaults = $spec['defaults'] ?? [];
+    $fields = [
         // ---- layout ----
         'form_position'   => ['type' => 'enum',   'default' => 'centre', 'values' => ['left', 'centre', 'right']],
         'card_style'      => ['type' => 'enum',   'default' => 'solid',  'values' => ['solid', 'glass', 'flat']],
 
         // ---- background ----
-        'bg_style'        => ['type' => 'enum',   'default' => 'gradient', 'values' => ['gradient', 'solid', 'image']],
+        // ⭐ `theme` means "do not set a background at all", which is the default
+        // on the landing page: that page already has a theme-aware background WITH
+        // a dark-mode variant, and overriding it by default would break dark mode
+        // for every install as a side effect of adding a setting. Opt in, do not
+        // opt out.
+        'bg_style'        => ['type' => 'enum',   'default' => 'gradient', 'values' => ['theme', 'gradient', 'solid', 'image']],
         // 🔑 The defaults ARE the gradient login.php used to hardcode, so an
         // install that never opens the designer looks exactly as it always did.
         // Shipping a new look to everybody as a side effect of adding a setting
@@ -157,12 +193,15 @@ function brandingLoginFields(): array
         'footer_text'     => ['type' => 'text',   'default' => '', 'max' => 200],
         'footer_fg'       => ['type' => 'colour', 'default' => '#ffffff'],
     ];
+    foreach ($omit as $f) unset($fields[$f]);
+    foreach ($defaults as $f => $v) if (isset($fields[$f])) $fields[$f]['default'] = $v;
+    return $fields;
 }
 
-/** `form_position` → the settings key it is stored under. */
-function brandingLoginKey(string $field): string
+/** `form_position` → the settings key it is stored under, for this screen. */
+function brandingLoginKey(string $field, string $scope = 'login'): string
 {
-    return 'branding_login_' . $field;
+    return brandingScopes()[brandingScopeValid($scope)]['prefix'] . $field;
 }
 
 /**
@@ -207,15 +246,16 @@ function brandingLoginValidate(string $field, $raw, array $spec)
  * The whole design, validated. Safe to call on the login page: it swallows any
  * database failure and returns the defaults.
  */
-function brandingLoginDesign(?PDO $conn = null): array
+function brandingLoginDesign(?PDO $conn = null, string $scope = 'login'): array
 {
-    $fields = brandingLoginFields();
+    $scope  = brandingScopeValid($scope);
+    $fields = brandingLoginFields($scope);
     $out = [];
     foreach ($fields as $f => $spec) $out[$f] = $spec['default'];
 
     try {
         $conn = $conn ?: connectToDatabase();
-        $keys = array_map('brandingLoginKey', array_keys($fields));
+        $keys = array_map(fn($f) => brandingLoginKey($f, $scope), array_keys($fields));
         $place = implode(',', array_fill(0, count($keys), '?'));
         // ⚠️ Only these keys. system_settings also holds encrypted SMTP and OAuth
         // credentials; a widened query here would be a leak on the most public
@@ -223,7 +263,8 @@ function brandingLoginDesign(?PDO $conn = null): array
         $stmt = $conn->prepare("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ($place)");
         $stmt->execute($keys);
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $field = substr($row['setting_key'], strlen('branding_login_'));
+            $prefix = brandingScopes()[$scope]['prefix'];
+            $field  = substr($row['setting_key'], strlen($prefix));
             if (!isset($fields[$field])) continue;
             $out[$field] = brandingLoginValidate($field, $row['setting_value'], $fields[$field]);
         }
@@ -258,7 +299,12 @@ function brandingLoginCss(array $d): string
         'radial'      => 'radial-gradient(circle at 30%% 30%%, %1$s, %2$s)',
     ];
 
-    if ($d['bg_style'] === 'solid') {
+    // `theme` emits no background at all, leaving the page's own — including
+    // its dark-mode variant — exactly as it was.
+    $css = [];
+    if ($d['bg_style'] === 'theme') {
+        $bg = null;
+    } elseif ($d['bg_style'] === 'solid') {
         $bg = $d['bg_from'];
     } elseif ($d['bg_style'] === 'image' && $d['bg_image_path'] !== '') {
         $base = defined('BASE_URL') ? BASE_URL : '/';
@@ -269,8 +315,8 @@ function brandingLoginCss(array $d): string
         $bg = sprintf($dirs[$d['bg_direction']] ?? $dirs['diagonal'], $d['bg_from'], $d['bg_to']);
     }
 
-    $css = [
-        '--login-bg: ' . $bg,
+    if ($bg !== null) $css[] = '--login-bg: ' . $bg;
+    $css = array_merge($css, [
         '--login-accent: ' . $d['accent'],
         '--login-logo-size: ' . (int)$d['logo_size'] . 'px',
         // ⚠️ ONLY over an image. The dim exists so a form stays legible on top
@@ -282,7 +328,7 @@ function brandingLoginCss(array $d): string
         '--login-banner-bg: ' . $d['banner_bg'],
         '--login-banner-fg: ' . $d['banner_fg'],
         '--login-footer-fg: ' . $d['footer_fg'],
-    ];
+    ]);
     return implode('; ', $css) . ';';
 }
 

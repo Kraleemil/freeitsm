@@ -5,7 +5,9 @@
 session_start();
 
 // Already logged in - redirect to dashboard
-if (isset($_SESSION['ss_user_id'])) {
+/* …unless an administrator is previewing this page — see auth/login.php for
+   why that exemption exists. */
+if (isset($_SESSION['ss_user_id']) && !(isset($_GET['preview']) && !empty($_SESSION['is_admin']))) {
     header('Location: index.php');
     exit;
 }
@@ -13,6 +15,14 @@ if (isset($_SESSION['ss_user_id'])) {
 require_once '../config.php';
 require_once '../includes/functions.php';
 require_once '../includes/branding.php';   // the organisation's logo (GH #87)
+
+/* The portal sign-in screen's appearance. Same rules as the analyst one:
+   read from the database, validated in includes/branding.php, never taken
+   from the request. ?nobranding=1 is the same safety valve. */
+$brandNone    = isset($_GET['nobranding']);
+$brandPreview = isset($_GET['preview']) && !empty($_SESSION['is_admin']);
+$brand        = $brandNone ? null : brandingLoginDesign(null, 'portal');
+$brandLogo    = $brandNone ? ((defined('BASE_URL') ? BASE_URL : '/') . BRANDING_DEFAULT_LOGO) : brandingLogoUrl();
 require_once '../includes/tenancy.php';
 require_once '../includes/i18n.php';
 I18n::initFromSession();
@@ -79,12 +89,55 @@ $localAllowed = $localOn || $forceLocal;
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
+            /* The default IS the gradient this page already used. */
+            background: var(--login-bg, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
         }
+
+        /* ---- branding designer hooks (#1427) ---- */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, var(--login-dim, 0));
+            pointer-events: none;
+            z-index: 0;
+        }
+        .login-strip {
+            position: fixed;
+            left: 0;
+            right: 0;
+            z-index: 5;
+            padding: 10px 16px;
+            text-align: center;
+            font-size: 13.5px;
+            line-height: 1.4;
+        }
+        .login-strip-banner { background: var(--login-banner-bg, #111827); color: var(--login-banner-fg, #fff); font-weight: 600; }
+        .login-strip-banner[data-at="top"]    { top: 0; }
+        .login-strip-banner[data-at="bottom"] { bottom: 0; }
+        .login-strip-footer {
+            bottom: 0;
+            color: var(--login-footer-fg, #fff);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+            font-size: 12.5px;
+        }
+        /* …and they must not sit on top of each other. */
+        body:has(.login-strip-banner[data-at="bottom"]) .login-strip-footer { bottom: 42px; }
+        .login-tagline { margin: -14px 0 22px; color: #555; font-size: 14px; text-align: center; }
+        body[data-logo-pos="hidden"] .login-header img,
+        body[data-logo-pos="hidden"] .company-logo { display: none; }
+        body[data-form-pos="left"]  .login-container { margin-right: auto; margin-left: 6vw; }
+        body[data-form-pos="right"] .login-container { margin-left: auto; margin-right: 6vw; }
+        body[data-card="glass"] .login-container {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        body[data-card="flat"] .login-container { box-shadow: none; border: 1px solid rgba(0, 0, 0, 0.12); }
         .login-container {
             background: white;
             padding: 40px;
@@ -239,11 +292,15 @@ $localAllowed = $localOn || $forceLocal;
         .ss-text-link:hover { color: #666; }
     </style>
 </head>
-<body>
+<body<?php if ($brand): ?> data-form-pos="<?php echo htmlspecialchars($brand['form_position']); ?>" data-card="<?php echo htmlspecialchars($brand['card_style']); ?>" data-logo-pos="<?php echo htmlspecialchars($brand['logo_position']); ?>" style="<?php echo htmlspecialchars(brandingLoginCss($brand)); ?>"<?php endif; ?>>
+<?php if ($brand && $brand['banner_position'] !== 'off' && $brand['banner_text'] !== ''): ?>
+    <div class="login-strip login-strip-banner" data-at="<?php echo htmlspecialchars($brand['banner_position']); ?>"><?php echo htmlspecialchars($brand['banner_text']); ?></div>
+<?php endif; ?>
     <div class="login-container">
         <div class="login-header">
             <img src="<?php echo htmlspecialchars(brandingLogoUrl()); ?>" alt="Company Logo">
-            <h1><?php echo htmlspecialchars(t('self-service.login.heading')); ?></h1>
+            <h1><?php echo htmlspecialchars($brand && $brand['heading'] !== '' ? $brand['heading'] : t('self-service.login.heading')); ?></h1>
+            <?php if ($brand && $brand['subheading'] !== ''): ?><p class="login-tagline"><?php echo htmlspecialchars($brand['subheading']); ?></p><?php endif; ?>
             <p id="loginSubtitle"><?php echo htmlspecialchars(t('self-service.login.subtitle')); ?></p>
         </div>
 
@@ -507,5 +564,9 @@ $localAllowed = $localOn || $forceLocal;
     })();
 <?php endif; ?>
     </script>
+<?php if ($brand && $brand['footer_text'] !== ''): ?>
+    <div class="login-strip login-strip-footer"><?php echo htmlspecialchars($brand['footer_text']); ?></div>
+<?php endif; ?>
+<?php if ($brandPreview) { $previewDefaultHeading = t('self-service.login.heading'); require __DIR__ . '/../includes/branding_preview.php'; } ?>
 </body>
 </html>

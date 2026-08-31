@@ -160,6 +160,20 @@ try {
        arrive some other way. The login screen is not the place to rely on
        one of them.
        --------------------------------------------------------------------- */
+    // All three screens. The POST names them by scope (login_… / portal_… /
+    // home_…), and each is validated against ITS OWN field table — the landing
+    // page has no form position, so a request that tries to set one is ignored
+    // rather than stored.
+    foreach (array_keys(brandingScopes()) as $scope) {
+        $scopeFields = brandingLoginFields($scope);
+        foreach ($scopeFields as $field => $spec) {
+            if ($field === 'bg_image_path') continue;   // owned by the upload branch
+            $postKey = $scope . '_' . $field;
+            if (!array_key_exists($postKey, $_POST)) continue;
+            $upsert($conn, brandingLoginKey($field, $scope), (string)brandingLoginValidate($field, $_POST[$postKey], $spec));
+        }
+    }
+
     $loginFields = brandingLoginFields();
 
     // The background image, if one was chosen. Same upload pipeline as the

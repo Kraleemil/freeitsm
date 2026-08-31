@@ -84,6 +84,18 @@ $translationNamespaces = ['common', 'system'];
 
         /* Logo block */
         /* ---- login screen designer ---- */
+        .scope-row { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+        .scope {
+            padding: 8px 16px; border: 1px solid var(--border, #ddd); border-radius: 999px;
+            background: var(--surface, #fff); color: var(--text-muted, #666);
+            font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .scope.active { background: var(--accent, #2b88d8); border-color: var(--accent, #2b88d8); color: var(--on-accent, #fff); }
+        /* A control for a field the current screen does not have — a landing page
+           has no sign-in form to position — is hidden rather than shown doing
+           nothing. */
+        [data-field-hidden="1"] { display: none !important; }
+
         .preset-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 20px; }
         .preset {
             display: flex; align-items: center; gap: 8px;
@@ -374,6 +386,20 @@ $translationNamespaces = ['common', 'system'];
 
                 <!-- Presets. The quickest way from "eighteen empty controls"
                      to something that looks deliberate. -->
+                <!-- WHICH SCREEN. One set of controls, three sets of values —
+                     you edit one screen at a time and the preview follows. -->
+                <div class="scope-row" role="tablist">
+                    <?php foreach (['login', 'portal', 'home'] as $sc): ?>
+                        <button type="button" class="scope<?php echo $sc === 'login' ? ' active' : ''; ?>" data-scope="<?php echo $sc; ?>" role="tab">
+                            <?php echo htmlspecialchars(t('system.branding.scope_' . $sc)); ?>
+                        </button>
+                    <?php endforeach; ?>
+                    <button type="button" class="btn btn-link" id="ln_copy" style="margin-left:auto;">
+                        <?php echo htmlspecialchars(t('system.branding.login_copy')); ?>
+                    </button>
+                </div>
+                <p class="card-desc" id="ln_scope_desc"></p>
+
                 <div class="preset-row">
                     <?php foreach (brandingLoginPresets() as $id => $preset): ?>
                         <button type="button" class="preset" data-preset="<?php echo htmlspecialchars($id); ?>"
@@ -391,6 +417,15 @@ $translationNamespaces = ['common', 'system'];
                             <h4><?php echo htmlspecialchars(t('system.branding.login_group_background')); ?></h4>
                             <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_bg_style')); ?>
                                 <select id="ln_bg_style" class="slot-input">
+                                    <!-- 🔴 "theme" must be here or setting it in JS
+                                         silently does nothing: assigning a value a
+                                         <select> has no option for leaves the old one
+                                         selected. The landing page defaults to theme,
+                                         so without this option it saved a gradient it
+                                         had never been given — overriding the very
+                                         dark-mode background that default exists to
+                                         protect. -->
+                                    <option value="theme"><?php echo htmlspecialchars(t('system.branding.login_bg_theme')); ?></option>
                                     <option value="gradient"><?php echo htmlspecialchars(t('system.branding.login_bg_gradient')); ?></option>
                                     <option value="solid"><?php echo htmlspecialchars(t('system.branding.login_bg_solid')); ?></option>
                                     <option value="image"><?php echo htmlspecialchars(t('system.branding.login_bg_image')); ?></option>
@@ -671,9 +706,16 @@ $translationNamespaces = ['common', 'system'];
            which PHP prints from includes/branding.php — so the browser cannot
            know about a control the server does not.
            ===================================================================== */
-        const LN_FIELDS   = <?php echo json_encode(brandingLoginFields(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        let   LN_FIELDS   = <?php echo json_encode(brandingLoginFields('login'), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
         const LN_PRESETS  = <?php echo json_encode(brandingLoginPresets(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
-        const LN_SAVED    = <?php echo json_encode(brandingLoginDesign(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        /* One field table per screen, and the values for all three, so switching
+           between them needs no round trip and nothing is lost until you save. */
+        const LN_SCOPES   = ['login', 'portal', 'home'];
+        const LN_PAGES    = <?php echo json_encode(array_map(fn($x) => $x['page'], brandingScopes()), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        const LN_FIELDSET = <?php echo json_encode(['login' => brandingLoginFields('login'), 'portal' => brandingLoginFields('portal'), 'home' => brandingLoginFields('home')], JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        const LN_ALL      = <?php echo json_encode(['login' => brandingLoginDesign(null, 'login'), 'portal' => brandingLoginDesign(null, 'portal'), 'home' => brandingLoginDesign(null, 'home')], JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        let   LN_SCOPE    = 'login';
+        const LN_SAVED    = LN_ALL[LN_SCOPE];
         const LN_LOGO     = <?php echo json_encode(brandingLogoUrl(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
 
         /* Same-origin only, which is what makes it safe to let the preview tab
@@ -818,9 +860,64 @@ $translationNamespaces = ['common', 'system'];
         window.addEventListener('resize', lnFit);
         lnFit();
 
+        /* Switching screens keeps whatever you have typed on the one you are
+           leaving — in memory, not saved — so flicking between the three to
+           compare them does not throw work away. */
+        let lnStarted = false;
+        function lnSwitch(scope) {
+            /* 🔴 NOT ON THE FIRST CALL. There is no outgoing screen to remember
+               when the page opens, and the controls are still empty — capturing
+               them here overwrote everything just loaded from the database with
+               a blank form.
+
+               It hid for hours because the first <option> used to be `gradient`,
+               which is also the default, so the clobbered value happened to
+               match. Adding a `theme` option in front of it made the same bug
+               save `theme` for a screen whose default is a gradient. ⭐ A bug
+               masked by a coincidence is still a bug, and it surfaces when
+               something unrelated changes. */
+            if (lnStarted) LN_ALL[LN_SCOPE] = lnRead();   // remember the outgoing one
+            lnStarted = true;
+            LN_SCOPE  = scope;
+            LN_FIELDS = LN_FIELDSET[scope];
+
+            document.querySelectorAll('.scope').forEach(b =>
+                b.classList.toggle('active', b.dataset.scope === scope));
+            document.getElementById('ln_scope_desc').textContent =
+                t('system.branding.scope_' + scope + '_desc');
+
+            // Hide the controls this screen has no use for.
+            for (const f of Object.keys(LN_FIELDSET.login)) {
+                const el = lnEl(f);
+                if (!el) continue;
+                const holder = el.closest('.dlabel') || el.parentElement;
+                if (holder) holder.setAttribute('data-field-hidden', LN_FIELDS[f] ? '0' : '1');
+            }
+
+            const frame = document.getElementById('ln_preview');
+            const base  = <?php echo json_encode(defined('BASE_URL') ? BASE_URL : '/'); ?>;
+            frame.src = base + LN_PAGES[scope] + '?preview=1';
+            document.getElementById('ln_open_tab').href = frame.src;
+
+            lnWrite(LN_ALL[scope]);
+        }
+
+        document.querySelectorAll('.scope').forEach(b =>
+            b.addEventListener('click', () => lnSwitch(b.dataset.scope)));
+
+        /* "Copy from the analyst sign-in screen" — most installs want the three to
+           match, and typing the same six colours three times is nobody's idea of
+           a good afternoon. Only the fields the target screen actually has. */
+        document.getElementById('ln_copy').addEventListener('click', () => {
+            if (LN_SCOPE === 'login') return;
+            const from = LN_ALL.login, into = { ...lnRead() };
+            for (const f in LN_FIELDS) if (from[f] !== undefined) into[f] = from[f];
+            lnWrite(into);
+        });
+
         // The preview iframe has to have loaded before it can be told anything.
         document.getElementById('ln_preview').addEventListener('load', lnBroadcast);
-        lnWrite(LN_SAVED);
+        lnSwitch('login');
 
     document.getElementById('brandingForm').addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -830,8 +927,12 @@ $translationNamespaces = ['common', 'system'];
         const fd = new FormData();
         // Every designer field, named exactly as the server's field table
         // names it, so save_branding.php can loop the same list.
-        const lnNow = lnRead();
-        for (const f in LN_FIELDS) fd.append('login_' + f, lnNow[f]);
+        // Every screen, not just the one on display: switching tabs keeps edits
+        // in memory, so Save has to persist all three or the other two are lost.
+        LN_ALL[LN_SCOPE] = lnRead();
+        for (const sc of LN_SCOPES) {
+            for (const f in LN_FIELDSET[sc]) fd.append(sc + '_' + f, LN_ALL[sc][f]);
+        }
         const lnBg = document.getElementById('ln_bg_file');
         if (lnBg && lnBg.files[0]) fd.append('login_bg', lnBg.files[0]);
         fd.append('header_left',   document.getElementById('headerLeft').value);

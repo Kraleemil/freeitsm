@@ -6,7 +6,16 @@
 session_start();
 require_once 'config.php';
 require_once 'includes/functions.php';
-require_once 'includes/branding.php';   // the organisation's logo (GH #87) // sessionIsAdmin() — gates the System card below
+require_once 'includes/branding.php';   // the organisation's logo (GH #87)
+
+/* The landing page's appearance. Same rules as the two sign-in screens.
+   ⚠️ This one defaults to `bg_style = theme`, meaning it emits NO background
+   and the page keeps its own — which has a dark-mode variant. Overriding
+   that by default would have broken dark mode for every install as a side
+   effect of adding a setting. */
+$brandNone    = isset($_GET['nobranding']);
+$brandPreview = isset($_GET['preview']) && !empty($_SESSION['is_admin']);
+$brand        = $brandNone ? null : brandingLoginDesign(null, 'home'); // sessionIsAdmin() — gates the System card below
 require_once 'includes/landing.php';   // where an unauthenticated visitor goes (discussion #63)
 
 // Check if user is logged in
@@ -53,7 +62,7 @@ $translationNamespaces = ['common'];
     <link rel="stylesheet" href="assets/css/inbox.css?v=62">
     <style>
         body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            background: var(--login-bg, linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%));
             min-height: 100vh;
             height: auto;
             overflow: auto;
@@ -64,7 +73,7 @@ $translationNamespaces = ['common'];
         /* Dark palettes: swap the light-grey wash for the dark app surfaces
            (light mode keeps its original gradient, pixel-identical). */
         [data-theme-mode="dark"] body {
-            background: linear-gradient(135deg, var(--app-bg, #14171c) 0%, var(--surface-2, #232830) 100%);
+            background: var(--login-bg, linear-gradient(135deg, var(--app-bg, #14171c) 0%, var(--surface-2, #232830) 100%));
         }
 
         .landing-header {
@@ -88,6 +97,41 @@ $translationNamespaces = ['common'];
             font-weight: 600;
             margin: 0;
         }
+        /* ---- branding designer hooks (#1427) ----
+           ⚠️ `--login-bg` is NOT set on this page unless an administrator has
+           chosen a background, so the theme-aware default below — including its
+           dark-mode variant — is what renders out of the box. */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, var(--login-dim, 0));
+            pointer-events: none;
+            z-index: 0;
+        }
+        .login-strip {
+            position: fixed;
+            left: 0;
+            right: 0;
+            z-index: 5;
+            padding: 10px 16px;
+            text-align: center;
+            font-size: 13.5px;
+            line-height: 1.4;
+        }
+        .login-strip-banner { background: var(--login-banner-bg, #111827); color: var(--login-banner-fg, #fff); font-weight: 600; }
+        .login-strip-banner[data-at="top"]    { top: 0; }
+        .login-strip-banner[data-at="bottom"] { bottom: 0; }
+        .login-strip-footer {
+            bottom: 0;
+            color: var(--login-footer-fg, #fff);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+            font-size: 12.5px;
+        }
+        body:has(.login-strip-banner[data-at="bottom"]) .login-strip-footer { bottom: 42px; }
+        body[data-logo-pos="hidden"] .company-logo { display: none; }
+        .company-logo { width: var(--login-logo-size, 300px); max-width: 100%; }
+
 
         .company-logo {
             width: 300px;
@@ -224,7 +268,10 @@ $translationNamespaces = ['common'];
         }
     </style>
 </head>
-<body>
+<body<?php if ($brand): ?> data-logo-pos="<?php echo htmlspecialchars($brand['logo_position']); ?>" style="<?php echo htmlspecialchars(brandingLoginCss($brand)); ?>"<?php endif; ?>>
+<?php if ($brand && $brand['banner_position'] !== 'off' && $brand['banner_text'] !== ''): ?>
+    <div class="login-strip login-strip-banner" data-at="<?php echo htmlspecialchars($brand['banner_position']); ?>"><?php echo htmlspecialchars($brand['banner_text']); ?></div>
+<?php endif; ?>
     <div class="landing-header">
         <h1><?php echo htmlspecialchars(t('common.home.header_title')); ?></h1>
         <?php renderHeaderRight($analyst_name, ''); ?>
@@ -234,8 +281,8 @@ $translationNamespaces = ['common'];
     <div class="landing-container">
         <img src="<?php echo htmlspecialchars(brandingLogoUrl()); ?>" alt="Company Logo" class="company-logo">
         <div class="welcome-text">
-            <h2><?php echo htmlspecialchars(t('common.home.welcome_heading')); ?></h2>
-            <p><?php echo htmlspecialchars(t('common.home.welcome_subtitle')); ?></p>
+            <h2><?php echo htmlspecialchars($brand && $brand['heading'] !== '' ? $brand['heading'] : t('common.home.welcome_heading')); ?></h2>
+            <p><?php echo htmlspecialchars($brand && $brand['subheading'] !== '' ? $brand['subheading'] : t('common.home.welcome_subtitle')); ?></p>
         </div>
 
         <div class="modules-grid">
@@ -540,5 +587,9 @@ $translationNamespaces = ['common'];
          double-loading.) -->
     <script src="assets/js/toast.js"></script>
     <script src="assets/js/confirm.js"></script>
+<?php if ($brand && $brand['footer_text'] !== ''): ?>
+    <div class="login-strip login-strip-footer"><?php echo htmlspecialchars($brand['footer_text']); ?></div>
+<?php endif; ?>
+<?php if ($brandPreview) { $previewDefaultHeading = t('common.home.welcome_heading'); require __DIR__ . '/includes/branding_preview.php'; } ?>
 </body>
 </html>
