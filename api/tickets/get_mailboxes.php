@@ -24,6 +24,7 @@ try {
     $sql = "SELECT id, name, provider, azure_tenant_id, azure_client_id, azure_client_secret,
                    oauth_redirect_uri, oauth_scopes, imap_server, imap_port, imap_encryption,
                    imap_username, imap_password, smtp_server, smtp_port, smtp_encryption,
+                   smtp_username, smtp_password,
                    target_mailbox, auth_mode, authenticated_as, authenticated_addresses, email_folder, max_emails_per_check, mark_as_read,
                    rejected_action, imported_action, imported_folder,
                    is_active, tenant_id, default_origin_id, health_dismissed, created_datetime, last_checked_datetime,
@@ -79,6 +80,13 @@ try {
         // Mask the IMAP password and never ship the plaintext to the browser.
         $mailbox['imap_password_set'] = !empty($mailbox['imap_password']);
         unset($mailbox['imap_password']);
+
+        // The SMTP password gets exactly the same treatment. 🔴 The USERNAME is
+        // returned in full and the password is not, which is the same asymmetry as
+        // the IMAP pair above: the form has to redisplay the username or saving the
+        // mailbox would wipe it, and a password never needs to travel back at all.
+        $mailbox['smtp_password_set'] = !empty($mailbox['smtp_password']);
+        unset($mailbox['smtp_password']);
 
         // Default + normalise the auth mode.
         $mailbox['auth_mode'] = ($mailbox['auth_mode'] ?? 'delegated') === 'app_only' ? 'app_only' : 'delegated';

@@ -414,8 +414,23 @@ function imapSmtpSend(array $mailbox, string $to, string $cc, string $subject, s
     $host = $mailbox['smtp_server'] ?? '';
     $port = (int) ($mailbox['smtp_port'] ?? 587);
     $enc  = strtolower($mailbox['smtp_encryption'] ?? 'tls');
-    $user = $mailbox['imap_username'] ?? '';
-    $pass = $mailbox['imap_password'] ?? '';
+
+    // Sending credentials, falling back to the reading ones. A provider that
+    // issues one login for IMAP and another for SMTP is common enough to be
+    // worth its own pair of columns; a mailbox that uses the same account for
+    // both — and every mailbox saved before those columns existed — leaves them
+    // blank and lands here exactly as it did before.
+    //
+    // ⚠️ Blank means "same as IMAP", NOT "send without authenticating". The
+    // AUTH LOGIN below is still skipped when the resolved username is empty, but
+    // an IMAP mailbox always has one, so an unauthenticated relay is not
+    // reachable through these fields and the help text does not claim it is.
+    $user = trim((string) ($mailbox['smtp_username'] ?? ''));
+    $pass = (string) ($mailbox['smtp_password'] ?? '');
+    if ($user === '') {
+        $user = $mailbox['imap_username'] ?? '';
+        $pass = $mailbox['imap_password'] ?? '';
+    }
     $from = $mailbox['target_mailbox'] ?? $user;
 
     if ($host === '') {

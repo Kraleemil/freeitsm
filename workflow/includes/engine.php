@@ -1758,7 +1758,18 @@ class WorkflowEngine
 
         $provider  = $mailbox['provider'] ?? 'microsoft';
         $graphBase = '/me';
-        if ($provider === 'google') {
+        $accessToken = null;
+
+        // 🔴 A basic IMAP/SMTP mailbox has NO OAuth token and never will. Without
+        // this branch it fell through to the Microsoft path below, which asked
+        // templateGraphContext() for a token it could not possibly have and threw
+        // "Failed to obtain a valid access token" — so a workflow that emails from
+        // a basic mailbox failed every time, with a message pointing at OAuth.
+        // template_email.php has had the equivalent branch all along; this one was
+        // simply never given it. Reported by Kraleemil in GH #119.
+        if ($provider === 'imap') {
+            require_once dirname(dirname(__DIR__)) . '/includes/mailbox_imap.php';
+        } elseif ($provider === 'google') {
             $tokenJson = preg_replace('/[\x00-\x1F\x7F]/', '', $mailbox['token_data'] ?? '');
             $tokenData = $tokenJson ? json_decode($tokenJson, true) : null;
             if (!$tokenData || !isset($tokenData['access_token'])) {
@@ -1766,6 +1777,7 @@ class WorkflowEngine
             }
             require_once dirname(dirname(__DIR__)) . '/includes/gmail.php';
             $accessToken = gmailGetValidAccessToken($conn, $mailbox, $tokenData);
+            if (!$accessToken) throw new Exception('Failed to obtain a valid access token');
         } else {
             // Microsoft: templateGraphContext() picks the token source AND the send
             // endpoint from auth_mode. An app-only mailbox has no stored token until it
@@ -1774,15 +1786,22 @@ class WorkflowEngine
             if (!$graph) throw new Exception('Failed to obtain a valid access token');
             $accessToken = $graph['token'];
             $graphBase   = $graph['base'];
+            if (!$accessToken) throw new Exception('Failed to obtain a valid access token');
         }
-        if (!$accessToken) throw new Exception('Failed to obtain a valid access token');
+        // ⚠️ The token check moved INTO the two OAuth branches. Left where it was,
+        // it would fire for the IMAP path, which legitimately has no token at all.
 
         $ticketRef = $merge['ticket_reference'] ?? '';
         $fullSubject = $ticketRef !== '' ? "[SDREF:{$ticketRef}] {$subject}" : $subject;
         $fullBody    = buildTemplateEmailBody($body, $ticketRef);
 
         try {
-            if ($provider === 'google') {
+            if ($provider === 'imap') {
+                // SMTP, using this mailbox's own sending credentials (or the IMAP
+                // ones when it has none). HTML body, no attachments — the same
+                // parity note as the reply path in send_email.php.
+                imapSmtpSend($mailbox, $recipient, '', $fullSubject, $fullBody);
+            } elseif ($provider === 'google') {
                 $fromAddress = $mailbox['target_mailbox'] ?? '';
                 gmailSendEmail($accessToken, $recipient, $fullSubject, $fullBody, $fromAddress);
             } else {

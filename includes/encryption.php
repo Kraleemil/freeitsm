@@ -124,6 +124,15 @@ define('ENCRYPTED_MAILBOX_COLUMNS', [
     'imap_username',
     'imap_password',
     'smtp_server',
+    // Separate SMTP credentials, for the same reason as the IMAP pair above: a
+    // plaintext sending login in a backup, a replica or a dump is send-as access
+    // to the organisation's own mail domain, which is worth rather more to an
+    // attacker than read access. Adding them here is ALL that is needed —
+    // decryptMailboxRow() reverses this list, and db_verify's backfill walks it
+    // column by column, so an install carrying plaintext values re-encrypts them
+    // on the next verification run.
+    'smtp_username',
+    'smtp_password',
     // The OAuth access + refresh tokens, as JSON. This column was missing from the
     // list, so azure_client_secret was encrypted while the tokens minted WITH it sat
     // in the next column in the clear. That inversion matters: a refresh token is

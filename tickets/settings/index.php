@@ -2026,6 +2026,36 @@ $translationNamespaces = ['common', 'tickets'];
                         </select>
                     </div>
 
+                    <!-- Sending credentials, asked the way an online checkout asks about a
+                         billing address: a toggle that says "same as the IMAP login", and
+                         the two fields only when it is turned off. Stating the default
+                         beats inferring it from two empty boxes, which cannot tell
+                         "nothing is set" apart from "this failed to load". -->
+                    <div class="form-group provider-imap" style="grid-column: span 2;">
+                        <label style="display: flex; align-items: center; gap: 10px;"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.smtp_same_as_imap')); ?>
+                            <label class="toggle-switch" style="margin: 0;">
+                                <input type="checkbox" id="mailboxSmtpSameAsImap" checked onchange="toggleSmtpCredentials()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </label>
+                        <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.smtp_same_as_imap_help')); ?></small>
+                    </div>
+
+                    <!-- ⚠️ These two carry `smtp-creds` and NOT `provider-imap`:
+                         toggleProviderFields() writes `display` on every .provider-imap
+                         element, so a row in both classes would have two functions
+                         fighting over it. toggleSmtpCredentials() owns them outright and
+                         checks the provider itself. -->
+                    <div class="form-group smtp-creds" style="display: none;">
+                        <label for="mailboxSmtpUsername"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.smtp_username')); ?></label>
+                        <input type="text" id="mailboxSmtpUsername" autocomplete="off" placeholder="you@example.com">
+                    </div>
+
+                    <div class="form-group smtp-creds" style="display: none;">
+                        <label for="mailboxSmtpPassword"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.smtp_password')); ?></label>
+                        <input type="password" id="mailboxSmtpPassword" autocomplete="new-password" placeholder="<?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.imap_password_placeholder')); ?>">
+                    </div>
+
                     <div class="form-group">
                         <label for="mailboxFolder"><?php echo htmlspecialchars(t('tickets.settings.modals.mailbox.email_folder')); ?></label>
                         <!-- The folder mail is READ from had no Verify, while the folder
@@ -4470,6 +4500,19 @@ $translationNamespaces = ['common', 'tickets'];
             document.getElementById('mailboxSmtpServer').value = mailbox ? (mailbox.smtp_server || '') : '';
             document.getElementById('mailboxSmtpPort').value = mailbox ? (mailbox.smtp_port || 587) : 587;
             document.getElementById('mailboxSmtpEncryption').value = mailbox ? (mailbox.smtp_encryption || 'tls') : 'tls';
+            // 🔴 The SMTP username MUST be redisplayed. The save writes what this field
+            // holds, so a box that came up empty on an edit would quietly replace a
+            // working SMTP login with nothing — and because sending then falls back to
+            // the IMAP credentials, it would go on looking like it worked.
+            const smtpUser = mailbox ? (mailbox.smtp_username || '') : '';
+            document.getElementById('mailboxSmtpUsername').value = smtpUser;
+            document.getElementById('mailboxSmtpSameAsImap').checked = smtpUser.trim() === '';
+            document.getElementById('mailboxSmtpPassword').value = '';
+            // Same masked hint as the IMAP password: say when one is already stored, so
+            // a blank box reads as "unchanged" rather than "none set".
+            document.getElementById('mailboxSmtpPassword').placeholder = (mailbox && mailbox.smtp_password_set)
+                ? '••••••••  (' + t('tickets.settings.modals.mailbox.imap_password_kept') + ')'
+                : t('tickets.settings.modals.mailbox.imap_password_placeholder');
             toggleProviderFields();
             toggleAuthModeFields();
             document.getElementById('mailboxFolder').value = mailbox ? mailbox.email_folder : 'INBOX';
@@ -4543,6 +4586,19 @@ $translationNamespaces = ['common', 'tickets'];
             if (scopesGroup) scopesGroup.style.display = isAppOnly ? 'none' : '';
         }
 
+        /* Show the SMTP credential fields only when the toggle above them is off —
+           and only on a basic IMAP mailbox, since it owns their `display` outright
+           (see the markup note). Called from toggleProviderFields() as well as from
+           the toggle itself, because that function rewrites the whole IMAP block
+           every time the provider changes. */
+        function toggleSmtpCredentials() {
+            const isImap = document.getElementById('mailboxProvider').value === 'imap';
+            const sameAsImap = document.getElementById('mailboxSmtpSameAsImap').checked;
+            document.querySelectorAll('.smtp-creds').forEach(el => {
+                el.style.display = (isImap && !sameAsImap) ? '' : 'none';
+            });
+        }
+
         function toggleProviderFields() {
             const provider = document.getElementById('mailboxProvider').value;
             const isMicrosoft = provider === 'microsoft';
@@ -4561,6 +4617,10 @@ $translationNamespaces = ['common', 'tickets'];
             document.querySelectorAll('.provider-imap').forEach(el => {
                 el.style.display = isImap ? '' : 'none';
             });
+            // The SMTP credential rows are deliberately NOT in that class — they
+            // answer to the "same as the IMAP login" toggle as well as to the
+            // provider, so one function owns them rather than two.
+            toggleSmtpCredentials();
 
             // A hidden `required` input still blocks form submit — toggle required to match
             // visibility so, e.g., an IMAP mailbox can save without OAuth client id/secret.
@@ -4931,6 +4991,9 @@ $translationNamespaces = ['common', 'tickets'];
                 smtp_server: document.getElementById('mailboxSmtpServer').value,
                 smtp_port: parseInt(document.getElementById('mailboxSmtpPort').value) || 587,
                 smtp_encryption: document.getElementById('mailboxSmtpEncryption').value,
+                smtp_same_as_imap: document.getElementById('mailboxSmtpSameAsImap').checked,
+                smtp_username: document.getElementById('mailboxSmtpUsername').value,
+                smtp_password: document.getElementById('mailboxSmtpPassword').value,
                 email_folder: document.getElementById('mailboxFolder').value,
                 max_emails_per_check: parseInt(document.getElementById('mailboxMaxEmails').value),
                 rejected_action: document.getElementById('mailboxRejectedAction').value,

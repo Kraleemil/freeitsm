@@ -93,6 +93,12 @@ try {
     $smtp_server = encryptValue($data['smtp_server'] ?? '');
     $smtp_port = $data['smtp_port'] ?? 587;
     $smtp_encryption = $data['smtp_encryption'] ?? 'tls';
+    // Sending credentials, for providers that issue a different login for SMTP
+    // than for IMAP. The UI asks the question the way an online checkout asks
+    // about a billing address: a toggle that says "same as the IMAP login",
+    // with the two fields revealed only when it is turned off.
+    $smtp_username_plain = $data['smtp_username'] ?? '';
+    $smtp_password_plain = $data['smtp_password'] ?? '';
     $target_mailbox = encryptValue($data['target_mailbox']);
     $email_folder = $data['email_folder'] ?? 'INBOX';
     $max_emails_per_check = $data['max_emails_per_check'] ?? 10;
@@ -206,6 +212,31 @@ try {
     $passwordProvided = !(empty($imap_password_plain)   || preg_match('/^\*+/', $imap_password_plain));
     if ($secretProvided)   $cols['azure_client_secret'] = encryptValue($azure_client_secret);
     if ($passwordProvided) $cols['imap_password']        = encryptValue($imap_password_plain);
+
+    /* SMTP credentials.
+
+       🔴 Only touched when the caller actually SENT the toggle. An API client
+       written against the previous shape of this endpoint does not know these
+       columns exist, and treating its silence as "same as IMAP" would erase a
+       working SMTP login — after which sending falls back to the IMAP credentials
+       and carries on looking healthy, which is the worst way for a credential to
+       disappear. Absent means unchanged, exactly as a blank password does. */
+    if (array_key_exists('smtp_same_as_imap', $data)) {
+        if (!empty($data['smtp_same_as_imap'])) {
+            // The toggle is on: sending uses the IMAP login, so both columns go
+            // back to empty rather than lingering as credentials nothing reads.
+            $cols['smtp_username'] = '';
+            $cols['smtp_password'] = '';
+        } else {
+            $cols['smtp_username'] = encryptValue(trim($smtp_username_plain));
+            // …and the password only when one was typed, so reopening the mailbox
+            // and saving it does not blank a stored password. Same masked-value
+            // guard as imap_password above.
+            if (!(empty($smtp_password_plain) || preg_match('/^\*+/', $smtp_password_plain))) {
+                $cols['smtp_password'] = encryptValue($smtp_password_plain);
+            }
+        }
+    }
 
     if ($id) {
         // Update existing mailbox — write every provided column.
