@@ -24,9 +24,10 @@
  *
  * ⚠️ Nothing here deletes anything. Collapsing is presentation: the full message
  * is in the page, one tap away, always. That matters because the quote-boundary
- * problem is genuinely hard (Mailgun's talon, the best-known solver, quotes
- * 98% on ordinary replies and names forwarded HTML as its weak spot) — and a
- * wrong boundary should cost a click, never a fact.
+ * problem is genuinely hard — every mail client marks a quoted chain differently,
+ * plenty do not mark it at all, and a forward can look identical to a reply — so
+ * any approach is wrong some of the time, and a wrong boundary should cost a
+ * click, never a fact.
  */
 
 /** Roughly what one line of message text occupies once rendered. */
