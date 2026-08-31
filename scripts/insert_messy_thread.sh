@@ -97,6 +97,14 @@ Received: from EX19-MBX-04.contoso.example (10.44.19.22) by
  Tue, 12 Aug 2026 09:14:22 +0100</pre>$C5" "postmaster@contoso.example"
 add Inbound  "RE: Expenses portal rejecting receipts"      "<div style=\"font-family:Arial\">Understood, thank you.</div>$MOBILE_SIG" "k.whitfield@contoso.example"
 
+# Two real duplicates, because a long ticket is more often the same message
+# five times than one long message. The first is a distribution list
+# delivering twice — byte-identical. The second is the sender resending
+# after hearing nothing, identical but for one appended line, which is the
+# case an exact hash would miss.
+add Inbound  "Expenses portal rejecting receipts"          "$BANNER$C5$DISCLAIMER" "k.whitfield@contoso.example"
+add Inbound  "Expenses portal rejecting receipts (resend)" "$BANNER$C5$DISCLAIMER<div>Resending as I have not heard back.</div>" "k.whitfield@contoso.example"
+
 echo
 run "SELECT CONCAT('  ', id, '  ', direction, '  ', CHAR_LENGTH(body_content), ' chars  ', LEFT(subject, 46)) FROM emails WHERE subject LIKE '[MESSY-TEST]%' ORDER BY id;"
 echo

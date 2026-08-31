@@ -11,6 +11,10 @@ return [
     'reading' => [
         'show_more' => 'Vis mere',
         'show_less' => 'Vis mindre',
+        'older_messages' => '{n} ældre beskeder',
+        'hide_older' => 'Skjul ældre beskeder',
+        'same_as_identical' => 'Identisk med beskeden fra {time}',
+        'same_as_near' => 'Næsten identisk med beskeden fra {time}',
     ],
     'title' => 'Sager',
     'nav' => [
@@ -1260,6 +1264,11 @@ Dette kan ikke fortrydes. Vil du fortsætte?',
             'collapse_quoted_help' => 'Et kort svar med en lang citeret tråd under sig er kort efter enhver linjetælling og stadig ulæseligt, så citeret historik forkortes separat.',
             'collapse_remember_label' => 'Husk hvad jeg har åbnet',
             'collapse_remember_help' => 'Beskeder, du folder ud, forbliver foldet ud på denne enhed.',
+            'group_older_label' => 'Fold ældre beskeder sammen',
+            'group_older_help' => 'Ud over antallet nedenfor foldes ældre beskeder sammen til én linje, du kan åbne.',
+            'group_show_label' => 'Hold så mange nye beskeder åbne',
+            'flag_duplicates_label' => 'Gør opmærksom på beskeder der er ankommet før',
+            'flag_duplicates_help' => 'En gensendelse, en dobbelt levering eller en returmail foldes sammen med en note. Intet slettes.',
             'reopen_help' => 'Gælder, uanset hvor anmelderen kommer tilbage — selvbetjeningsportalen, et svar på din notifikations-e-mail, WhatsApp eller webchat. Sagen vender tilbage til din første åbne status. Kun sager i en status markeret som lukket påvirkes (angiv, hvilke det er, under Statusser).',
         ],
         'privacy' => [

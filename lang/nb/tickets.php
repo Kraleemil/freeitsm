@@ -21,6 +21,10 @@ return [
     'reading' => [
         'show_more' => 'Vis mer',
         'show_less' => 'Vis mindre',
+        'older_messages' => '{n} eldre meldinger',
+        'hide_older' => 'Skjul eldre meldinger',
+        'same_as_identical' => 'Identisk med meldingen fra {time}',
+        'same_as_near' => 'Nesten identisk med meldingen fra {time}',
     ],
     'title' => 'Saker',
 
@@ -1166,6 +1170,11 @@ return [
             'collapse_quoted_help' => 'Et kort svar med en lang sitert tråd under seg er kort etter enhver linjetelling og likevel uleselig, så sitert historikk forkortes separat.',
             'collapse_remember_label' => 'Husk hva jeg har åpnet',
             'collapse_remember_help' => 'Meldinger du utvider, forblir utvidet på denne enheten.',
+            'group_older_label' => 'Fold sammen eldre meldinger',
+            'group_older_help' => 'Utover antallet nedenfor foldes eldre meldinger sammen til én linje du kan åpne.',
+            'group_show_label' => 'Hold så mange nye meldinger åpne',
+            'flag_duplicates_label' => 'Pek ut meldinger som har kommet før',
+            'flag_duplicates_help' => 'En ny sending, en dobbel levering eller en returmelding foldes sammen med en merknad. Ingenting slettes.',
             'reopen_help'         => 'Gjelder uansett hvor en innmelder kommer tilbake — selvbetjeningsportalen, et svar på varslings-e-posten din, WhatsApp eller nettprat. Saken går tilbake til den første åpne statusen din. Bare saker med en status som er merket som lukket, berøres (sett hvilke det er under Statuser).',
         ],
 

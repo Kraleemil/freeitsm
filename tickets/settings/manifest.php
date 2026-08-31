@@ -198,7 +198,9 @@ return [
                                 // How long messages are displayed (discussion #104).
                                 'ticket_collapse_enabled', 'ticket_collapse_lines',
                                 'ticket_collapse_expand_newest', 'ticket_collapse_quoted',
-                                'ticket_collapse_remember'],
+                                'ticket_collapse_remember',
+                                // Long TICKETS, as distinct from long messages.
+                                'ticket_group_older', 'ticket_group_show', 'ticket_flag_duplicates'],
         ],
         [
             'id'           => 'privacy',

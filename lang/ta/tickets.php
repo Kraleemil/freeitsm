@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'மேலும் காட்டு',
         'show_less' => 'குறைவாக காட்டு',
+        'older_messages' => '{n} பழைய செய்திகள்',
+        'hide_older' => 'பழைய செய்திகளை மறை',
+        'same_as_identical' => '{time} இன் செய்தியைப் போலவே',
+        'same_as_near' => '{time} இன் செய்தியைப் போல கிட்டத்தட்ட',
     ],
     'title' => 'டிக்கெட்டுகள்',
     'nav' => [

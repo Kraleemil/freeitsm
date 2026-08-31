@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'વધુ બતાવો',
         'show_less' => 'ઓછું બતાવો',
+        'older_messages' => '{n} જૂના સંદેશા',
+        'hide_older' => 'જૂના સંદેશા છુપાવો',
+        'same_as_identical' => '{time} ના સંદેશા જેવો જ',
+        'same_as_near' => '{time} ના સંદેશા જેવો લગભગ સમાન',
     ],
     'title' => 'ટિકિટ',
     'nav' => [

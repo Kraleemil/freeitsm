@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'Meer tonen',
         'show_less' => 'Minder tonen',
+        'older_messages' => '{n} oudere berichten',
+        'hide_older' => 'Oudere berichten verbergen',
+        'same_as_identical' => 'Identiek aan het bericht van {time}',
+        'same_as_near' => 'Vrijwel identiek aan het bericht van {time}',
     ],
     'title' => 'Tickets',
     'nav' => [

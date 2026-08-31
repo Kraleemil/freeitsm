@@ -20,6 +20,10 @@ return [
     'reading' => [
         'show_more' => 'Vis meir',
         'show_less' => 'Vis mindre',
+        'older_messages' => '{n} eldre meldingar',
+        'hide_older' => 'Skjul eldre meldingar',
+        'same_as_identical' => 'Identisk med meldinga frå {time}',
+        'same_as_near' => 'Nesten identisk med meldinga frå {time}',
     ],
     'title' => 'Saker',
 

@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'మరిన్ని చూపు',
         'show_less' => 'తక్కువ చూపు',
+        'older_messages' => '{n} పాత సందేశాలు',
+        'hide_older' => 'పాత సందేశాలను దాచు',
+        'same_as_identical' => '{time} నాటి సందేశం వలెనే',
+        'same_as_near' => '{time} నాటి సందేశం వలె దాదాపు',
     ],
     'title' => 'టికెట్లు',
     'nav' => [

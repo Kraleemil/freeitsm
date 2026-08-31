@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'Показать больше',
         'show_less' => 'Показать меньше',
+        'older_messages' => '{n} более старых сообщений',
+        'hide_older' => 'Скрыть старые сообщения',
+        'same_as_identical' => 'Идентично сообщению от {time}',
+        'same_as_near' => 'Почти идентично сообщению от {time}',
     ],
     'title' => 'Заявки',
     'nav' => [

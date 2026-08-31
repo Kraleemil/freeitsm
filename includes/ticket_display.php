@@ -55,6 +55,15 @@ function ticketDisplaySettings(?PDO $conn = null): array
         'collapse_quoted'       => 1,
         // Remember, per analyst, which messages they opened.
         'collapse_remember'     => 1,
+
+        // Fold the older part of a long ticket into a list you can open.
+        // A long ticket is a different problem from a long message and needs
+        // its own answer (idea #4).
+        'group_older'           => 1,
+        // How many of the most recent messages stay expanded as messages.
+        'group_show'            => 6,
+        // Point out a message that has arrived before (idea #10).
+        'flag_duplicates'       => 1,
     ];
 
     try {
@@ -66,10 +75,10 @@ function ticketDisplaySettings(?PDO $conn = null): array
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $k = substr($row['setting_key'], strlen('ticket_'));
             if (!array_key_exists($k, $defaults)) continue;
-            $defaults[$k] = ($k === 'collapse_lines')
+            $defaults[$k] = in_array($k, ['collapse_lines', 'group_show'], true)
                 // Clamped, not trusted. 4 lines is a peephole and 80 is no
                 // collapsing at all; both are worse than the default.
-                ? max(4, min(80, (int)$row['setting_value']))
+                ? max($k === 'group_show' ? 2 : 4, min(80, (int)$row['setting_value']))
                 : (int)(bool)(int)$row['setting_value'];
         }
     } catch (Exception $e) {

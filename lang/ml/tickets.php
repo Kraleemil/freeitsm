@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'കൂടുതൽ കാണിക്കുക',
         'show_less' => 'കുറച്ച് കാണിക്കുക',
+        'older_messages' => '{n} പഴയ സന്ദേശങ്ങൾ',
+        'hide_older' => 'പഴയ സന്ദേശങ്ങൾ മറയ്ക്കുക',
+        'same_as_identical' => '{time} ലെ സന്ദേശത്തിന് സമാനം',
+        'same_as_near' => '{time} ലെ സന്ദേശത്തിന് ഏതാണ്ട് സമാനം',
     ],
     'title' => 'ടിക്കറ്റുകൾ',
     'nav' => [

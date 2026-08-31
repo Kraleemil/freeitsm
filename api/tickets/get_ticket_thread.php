@@ -66,6 +66,67 @@ try {
     }
     unset($email);
 
+    /* ---------------------------------------------------------------------
+       NEAR-DUPLICATE MESSAGES  (idea #10 from discussion #104)
+
+       A long ticket is rarely long because one message is long — it is long
+       because the same message arrived five times. A resend, an auto-reply
+       that quotes the whole original, a bounce carrying the message back, a
+       distribution list delivering twice.
+
+       So each message is fingerprinted on its VISIBLE TEXT — tags stripped,
+       whitespace collapsed, lower-cased — and compared with the ones before
+       it. An exact fingerprint match is "identical"; the same length to
+       within 3% with the same opening 300 characters is "nearly identical",
+       which catches the resend that differs only by a timestamp or a
+       signature line.
+
+       ⚠️ It only ever FLAGS. The message is returned in full and the reading
+       pane collapses it by default with a line saying which earlier message
+       it matches — the same rule as everything else here, that being wrong
+       costs a tap and never a fact. Two genuinely different messages that
+       happen to open identically are a mild annoyance; a hidden one is not.
+
+       Done here rather than in the browser because it is O(n²) on the
+       message count and the server has the whole thread in hand anyway.
+       --------------------------------------------------------------------- */
+    if (!empty($emails)) {
+        $fingerprints = [];
+        foreach ($emails as $i => &$email) {
+            $text = strtolower(trim(preg_replace('/\s+/u', ' ',
+                html_entity_decode(strip_tags((string)($email['body_content'] ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'))));
+            $len  = mb_strlen($text);
+            $email['same_as_id']   = null;
+            $email['same_as_time'] = null;
+            $email['same_kind']    = null;
+
+            // Too short to say anything useful. "Thanks" is not a duplicate of
+            // "Thanks" in any sense worth acting on.
+            if ($len >= 120) {
+                $hash = md5($text);
+                $head = mb_substr($text, 0, 300);
+                foreach ($fingerprints as $prev) {
+                    $kind = null;
+                    if ($prev['hash'] === $hash) {
+                        $kind = 'identical';
+                    } elseif ($prev['head'] === $head && $prev['len'] > 0
+                              && abs($len - $prev['len']) / $prev['len'] <= 0.03) {
+                        $kind = 'near';
+                    }
+                    if ($kind !== null) {
+                        $email['same_as_id']   = $prev['id'];
+                        $email['same_as_time'] = $prev['time'];
+                        $email['same_kind']    = $kind;
+                        break;                       // the FIRST match is the original
+                    }
+                }
+                $fingerprints[] = ['hash' => $hash, 'head' => $head, 'len' => $len,
+                                   'id' => $email['id'], 'time' => $email['received_datetime']];
+            }
+        }
+        unset($email);
+    }
+
     // For channel tickets, expose whether the provider's 24h service window is
     // still open (outside it, only template replies are allowed), plus the channel's
     // provider so the composer can offer the matching templates.

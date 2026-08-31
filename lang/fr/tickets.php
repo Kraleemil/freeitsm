@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'Afficher plus',
         'show_less' => 'Afficher moins',
+        'older_messages' => '{n} messages plus anciens',
+        'hide_older' => 'Masquer les messages plus anciens',
+        'same_as_identical' => 'Identique au message du {time}',
+        'same_as_near' => 'Presque identique au message du {time}',
     ],
     'title' => 'Tickets',
     'nav' => [

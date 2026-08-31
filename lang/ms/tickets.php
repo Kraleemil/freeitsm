@@ -10,6 +10,10 @@ return [
     'reading' => [
         'show_more' => 'Tunjuk lagi',
         'show_less' => 'Tunjuk kurang',
+        'older_messages' => '{n} mesej lebih lama',
+        'hide_older' => 'Sembunyikan mesej lama',
+        'same_as_identical' => 'Sama dengan mesej dari {time}',
+        'same_as_near' => 'Hampir sama dengan mesej dari {time}',
     ],
     'title' => 'Tiket',
 

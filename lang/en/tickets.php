@@ -21,6 +21,10 @@ return [
     'reading' => [
         'show_more' => 'Show more',
         'show_less' => 'Show less',
+        'older_messages' => '{n} older messages',
+        'hide_older' => 'Hide older messages',
+        'same_as_identical' => 'Identical to the message from {time}',
+        'same_as_near' => 'Nearly identical to the message from {time}',
     ],
     'title' => 'Tickets',
 
@@ -1477,6 +1481,11 @@ return [
             'collapse_quoted_help' => 'A short reply with a long quoted chain under it is brief by any line count and still unreadable, so quoted history is shortened separately.',
             'collapse_remember_label' => 'Remember what I opened',
             'collapse_remember_help' => 'Messages you expand stay expanded on this device, so working through a thread does not undo itself on every refresh.',
+            'group_older_label' => 'Fold older messages away',
+            'group_older_help' => 'Beyond the number below, older messages fold into a single line you can open. A long ticket is a different problem from a long message.',
+            'group_show_label' => 'Keep this many recent messages open',
+            'flag_duplicates_label' => 'Point out messages that have arrived before',
+            'flag_duplicates_help' => 'A resend, a duplicate delivery or a bounce carrying the original back is folded away with a note saying which message it matches. Nothing is deleted.',
             'reopen_help'         => 'Applies wherever a requester comes back — the self-service portal, a reply to your notification email, WhatsApp or web chat. The ticket returns to your first open status. Only tickets in a status marked as closed are affected (set which those are under Statuses).',
         ],
 

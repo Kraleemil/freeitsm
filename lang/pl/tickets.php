@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'Pokaż więcej',
         'show_less' => 'Pokaż mniej',
+        'older_messages' => '{n} starszych wiadomości',
+        'hide_older' => 'Ukryj starsze wiadomości',
+        'same_as_identical' => 'Identyczna z wiadomością z {time}',
+        'same_as_near' => 'Niemal identyczna z wiadomością z {time}',
     ],
     'title' => 'Zgłoszenia',
     'nav' => [

@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'अधिक दाखवा',
         'show_less' => 'कमी दाखवा',
+        'older_messages' => '{n} जुने संदेश',
+        'hide_older' => 'जुने संदेश लपवा',
+        'same_as_identical' => '{time} च्या संदेशासारखाच',
+        'same_as_near' => '{time} च्या संदेशासारखा जवळपास',
     ],
     'title' => 'तिकिटे',
     'nav' => [

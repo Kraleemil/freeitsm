@@ -171,12 +171,15 @@ function mcApply(host, opts) {
        quietly make every message look short enough to leave alone. */
     const full = Math.max(host.scrollHeight, host.offsetHeight);
     const limit = MC.collapse_px || 264;
-    if (full <= limit + 40) return;               // a shade over is not worth a control
+    /* A message flagged as one that has arrived before is folded away whatever
+       its height: its length is not the reason it is noise. */
+    const forced = host.classList.contains('mc-force');
+    if (!forced && full <= limit + 40) return;    // a shade over is not worth a control
 
     host.dataset.mcDone = '1';
 
     const id = opts.id || '';
-    const startOpen = (opts.newest && MC.collapse_expand_newest) || mcOpened().has(id);
+    const startOpen = !forced && ((opts.newest && MC.collapse_expand_newest) || mcOpened().has(id));
 
     const wrap = document.createElement('div');
     wrap.className = 'mc-wrap';
@@ -202,6 +205,61 @@ function mcApply(host, opts) {
     paint(startOpen);
 }
 
+/* ---------------------------------------------------------------------
+   FOLD THE OLDER PART OF A LONG TICKET  (idea #4 from discussion #104)
+
+   Collapsing a long MESSAGE and collapsing a long TICKET are different
+   problems. Eighty short messages defeat a per-message limit completely:
+   every one of them is under it, and the ticket is still unreadable.
+
+   So beyond `group_show` recent messages, the rest fold into one line you
+   can open. They stay in the page — this moves them, it does not drop
+   them — and the count is stated so nobody wonders what is behind it.
+   --------------------------------------------------------------------- */
+function tgGroupOlder(container) {
+    if (!MC.group_older || !container) return;
+    const show = Math.max(2, parseInt(MC.group_show, 10) || 6);
+
+    /* A "message" is a meta block plus everything up to the next one. The
+       separator, the meta, any duplicate note and the body all have to travel
+       together or the fold leaves orphans behind. */
+    const metas = [...container.querySelectorAll('.thread-meta')];
+    if (metas.length <= show + 1) return;          // folding one message saves nothing
+
+    const older = metas.slice(0, metas.length - show);
+    const fold = document.createElement('div');
+    fold.className = 'tg-fold';
+    container.insertBefore(fold, older[0].previousElementSibling || older[0]);
+
+    older.forEach(meta => {
+        const parts = [];
+        let n = meta.previousElementSibling;
+        if (n && n.classList.contains('thread-separator')) parts.push(n);
+        parts.push(meta);
+        n = meta.nextElementSibling;
+        while (n && !n.classList.contains('thread-meta') && !n.classList.contains('thread-separator')) {
+            const next = n.nextElementSibling;
+            parts.push(n);
+            n = next;
+        }
+        parts.forEach(el => fold.appendChild(el));
+    });
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tg-toggle';
+    btn.textContent = t('tickets.reading.older_messages').replace('{n}', older.length);
+    btn.setAttribute('aria-expanded', 'false');
+    fold.parentNode.insertBefore(btn, fold);
+    fold.hidden = true;
+    btn.addEventListener('click', () => {
+        fold.hidden = !fold.hidden;
+        btn.setAttribute('aria-expanded', fold.hidden ? 'false' : 'true');
+        btn.textContent = fold.hidden
+            ? t('tickets.reading.older_messages').replace('{n}', older.length)
+            : t('tickets.reading.hide_older');
+    });
+}
 /* Sweep a freshly rendered thread. The LAST message host is the newest —
    the thread renders oldest-first — and is the one that stays open. */
 function mcSweep(root) {
@@ -3547,11 +3605,16 @@ async function loadCorrespondenceThread(ticketId, isAuto = false) {
                             <span>${escapeHtml(t('tickets.split.from_here'))}</span>
                         </button>
                     </div>
-                    ${emailBodyHost(e.body_content, 'thread-message-body', e.body_type)}
-                `;
+                    ${e.same_kind && MC.flag_duplicates ? `<div class="dup-note">${escapeHtml(
+                        e.same_kind === 'identical'
+                            ? t('tickets.reading.same_as_identical').replace('{time}', formatFullDateTime(e.same_as_time))
+                            : t('tickets.reading.same_as_near').replace('{time}', formatFullDateTime(e.same_as_time)))}</div>` : ''}
+                    ${emailBodyHost(e.body_content, 'thread-message-body' + (e.same_kind && MC.flag_duplicates ? ' mc-force' : ''), e.body_type)}
+                `;
             }).join('');
             // Isolate each thread body in a shadow root (see emailBodyHost).
             hydrateEmailBodies(container);
+            tgGroupOlder(container);
         }
     } catch (error) {
         console.error('Error loading thread:', error);

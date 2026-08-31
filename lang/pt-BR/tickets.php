@@ -9,6 +9,10 @@ return [
     'reading' => [
         'show_more' => 'Ver mais',
         'show_less' => 'Ver menos',
+        'older_messages' => '{n} mensagens mais antigas',
+        'hide_older' => 'Ocultar mensagens mais antigas',
+        'same_as_identical' => 'Idêntica à mensagem de {time}',
+        'same_as_near' => 'Quase idêntica à mensagem de {time}',
     ],
     'title' => 'Tickets',
     'nav' => [

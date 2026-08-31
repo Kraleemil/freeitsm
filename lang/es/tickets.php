@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'Ver más',
         'show_less' => 'Ver menos',
+        'older_messages' => '{n} mensajes anteriores',
+        'hide_older' => 'Ocultar mensajes anteriores',
+        'same_as_identical' => 'Idéntico al mensaje del {time}',
+        'same_as_near' => 'Casi idéntico al mensaje del {time}',
     ],
     'title' => 'Tickets',
     'nav' => [
@@ -960,6 +964,11 @@ Esto no se puede deshacer. ¿Continuar?',
             'collapse_quoted_help' => 'Una respuesta breve con una larga cadena citada debajo es corta según cualquier recuento de líneas y sigue siendo ilegible, así que el historial citado se acorta aparte.',
             'collapse_remember_label' => 'Recordar lo que he abierto',
             'collapse_remember_help' => 'Los mensajes que despliegue seguirán desplegados en este dispositivo.',
+            'group_older_label' => 'Plegar los mensajes anteriores',
+            'group_older_help' => 'Más allá del número de abajo, los mensajes anteriores se pliegan en una sola línea que puede abrir.',
+            'group_show_label' => 'Mantener abiertos estos mensajes recientes',
+            'flag_duplicates_label' => 'Señalar los mensajes que ya han llegado',
+            'flag_duplicates_help' => 'Un reenvío, una entrega duplicada o un rebote se pliega con una nota indicando a qué mensaje corresponde. No se elimina nada.',
             'reopen_help'             => 'Se aplica siempre que un solicitante vuelve a escribir — el portal de autoservicio, una respuesta a su correo de notificación, WhatsApp o el chat web. El ticket vuelve a su primer estado abierto. Solo afecta a los tickets en un estado marcado como cerrado (defina cuáles son en Estados).',
         ],
         'privacy' => [

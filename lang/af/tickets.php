@@ -8,6 +8,10 @@ return [
     'reading' => [
         'show_more' => 'Wys meer',
         'show_less' => 'Wys minder',
+        'older_messages' => '{n} ouer boodskappe',
+        'hide_older' => 'Versteek ouer boodskappe',
+        'same_as_identical' => 'Identies aan die boodskap van {time}',
+        'same_as_near' => 'Byna identies aan die boodskap van {time}',
     ],
     'title' => 'Kaartjies',
 

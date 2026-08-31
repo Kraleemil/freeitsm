@@ -1559,6 +1559,27 @@ $translationNamespaces = ['common', 'tickets'];
                     <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_remember_help')); ?></small>
                 </div>
 
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="groupOlder">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.group_older_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.group_older_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label for="groupShow"><?php echo htmlspecialchars(t('tickets.settings.general.group_show_label')); ?></label>
+                    <input type="number" id="groupShow" min="2" max="80" step="1" style="max-width: 120px;">
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="flagDuplicates">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.flag_duplicates_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.flag_duplicates_help')); ?></small>
+                </div>
+
                 <div style="display: flex; gap: 10px; justify-content: flex-start; margin-top: 30px;">
                     <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
                 </div>
@@ -5568,6 +5589,9 @@ $translationNamespaces = ['common', 'tickets'];
                     cb('collapseExpandNewest', 'ticket_collapse_expand_newest', true);
                     cb('collapseQuoted',       'ticket_collapse_quoted',        true);
                     cb('collapseRemember',     'ticket_collapse_remember',      true);
+                    cb('groupOlder',          'ticket_group_older',            true);
+                    cb('flagDuplicates',      'ticket_flag_duplicates',        true);
+                    document.getElementById('groupShow').value = parseInt(data.settings.ticket_group_show, 10) || 6;
                     document.getElementById('collapseLines').value =
                         parseInt(data.settings.ticket_collapse_lines, 10) || 12;
 
@@ -5920,7 +5944,10 @@ $translationNamespaces = ['common', 'tickets'];
                 ticket_collapse_lines:         String(document.getElementById('collapseLines').value || 12),
                 ticket_collapse_expand_newest: document.getElementById('collapseExpandNewest').checked ? '1' : '0',
                 ticket_collapse_quoted:        document.getElementById('collapseQuoted').checked ? '1' : '0',
-                ticket_collapse_remember:      document.getElementById('collapseRemember').checked ? '1' : '0'
+                ticket_collapse_remember:      document.getElementById('collapseRemember').checked ? '1' : '0',
+                ticket_group_older:            document.getElementById('groupOlder').checked ? '1' : '0',
+                ticket_group_show:             String(document.getElementById('groupShow').value || 6),
+                ticket_flag_duplicates:        document.getElementById('flagDuplicates').checked ? '1' : '0'
             };
 
             try {

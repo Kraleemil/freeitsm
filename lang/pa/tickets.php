@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'ਹੋਰ ਦਿਖਾਓ',
         'show_less' => 'ਘੱਟ ਦਿਖਾਓ',
+        'older_messages' => '{n} ਪੁਰਾਣੇ ਸੁਨੇਹੇ',
+        'hide_older' => 'ਪੁਰਾਣੇ ਸੁਨੇਹੇ ਲੁਕਾਓ',
+        'same_as_identical' => '{time} ਦੇ ਸੁਨੇਹੇ ਵਾਂਗ',
+        'same_as_near' => '{time} ਦੇ ਸੁਨੇਹੇ ਵਾਂਗ ਲਗਭਗ',
     ],
     'title' => 'ਟਿਕਟਾਂ',
     'nav' => [

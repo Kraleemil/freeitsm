@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'আরও দেখান',
         'show_less' => 'কম দেখান',
+        'older_messages' => '{n}টি পুরোনো বার্তা',
+        'hide_older' => 'পুরোনো বার্তা লুকান',
+        'same_as_identical' => '{time} এর বার্তার অনুরূপ',
+        'same_as_near' => '{time} এর বার্তার প্রায় অনুরূপ',
     ],
     'title' => 'টিকিট',
     'nav' => [

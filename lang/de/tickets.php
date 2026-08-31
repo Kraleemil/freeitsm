@@ -5,6 +5,10 @@ return [
     'reading' => [
         'show_more' => 'Mehr anzeigen',
         'show_less' => 'Weniger anzeigen',
+        'older_messages' => '{n} ältere Nachrichten',
+        'hide_older' => 'Ältere Nachrichten ausblenden',
+        'same_as_identical' => 'Identisch mit der Nachricht vom {time}',
+        'same_as_near' => 'Nahezu identisch mit der Nachricht vom {time}',
     ],
     'title' => 'Tickets',
     'nav' => [
@@ -981,6 +985,11 @@ Das lässt sich nicht rückgängig machen. Fortfahren?',
             'collapse_quoted_help' => 'Eine kurze Antwort mit einem langen zitierten Verlauf darunter ist nach jeder Zeilenzählung kurz und trotzdem unlesbar, daher wird der zitierte Verlauf separat gekürzt.',
             'collapse_remember_label' => 'Merken, was ich geöffnet habe',
             'collapse_remember_help' => 'Aufgeklappte Nachrichten bleiben auf diesem Gerät aufgeklappt, damit sich das Durcharbeiten eines Verlaufs nicht bei jeder Aktualisierung zurücksetzt.',
+            'group_older_label' => 'Ältere Nachrichten einklappen',
+            'group_older_help' => 'Über die unten angegebene Anzahl hinaus werden ältere Nachrichten zu einer Zeile zusammengefasst, die Sie öffnen können.',
+            'group_show_label' => 'So viele aktuelle Nachrichten offen lassen',
+            'flag_duplicates_label' => 'Auf bereits eingegangene Nachrichten hinweisen',
+            'flag_duplicates_help' => 'Ein erneuter Versand, eine doppelte Zustellung oder ein Unzustellbarkeitsbericht wird mit einem Hinweis eingeklappt. Nichts wird gelöscht.',
             'reopen_help'             => 'Gilt überall, wo ein Anfragender zurückkommt — das Self-Service-Portal, eine Antwort auf Ihre Benachrichtigungs-E-Mail, WhatsApp oder Web-Chat. Das Ticket kehrt in Ihren ersten offenen Status zurück. Nur Tickets in einem als geschlossen gekennzeichneten Status sind betroffen (unter Status einstellbar, welche das sind).',
         ],
         'privacy' => [
