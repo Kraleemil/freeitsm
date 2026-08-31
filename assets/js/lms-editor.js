@@ -14,6 +14,8 @@ const LMSEditor = (() => {
     let lessons = [];
     let currentId = null;      // the lesson being edited
     let editor = null;         // TinyMCE
+    let editorReady = false;   // TinyMCE has fired its `init` and can be written to
+    let pendingBody = null;    // content that arrived before it could
     let articles = null;       // knowledge articles, loaded on first use
     let dragId = null;
 
@@ -34,6 +36,9 @@ const LMSEditor = (() => {
 
     function initTinyMCE() {
         const isDark = (document.documentElement.getAttribute('data-theme-mode') || 'light') === 'dark';
+        // The same gate every mobile behaviour in the product uses. Read once
+        // at init; an editor is not rebuilt on resize.
+        const isPhone = window.matchMedia('(max-width: 768px)').matches;
         tinymce.init({
             selector: '#lessonBody',
             license_key: 'gpl',
@@ -42,10 +47,46 @@ const LMSEditor = (() => {
             skin: isDark ? 'oxide-dark' : 'oxide',
             content_css: isDark ? 'dark' : 'default',
             plugins: ['advlist', 'autolink', 'lists', 'link', 'image', 'table', 'code', 'fullscreen', 'searchreplace', 'wordcount', 'codesample'],
-            toolbar: 'undo redo | blocks | bold italic | bullist numlist | link image table | codesample code | removeformat | fullscreen',
+            // The full-screen control was already here, at the END of the
+            // toolbar — and on a phone that is the same as not having it.
+            // Measured on the identical config in the contracts round: at
+            // 360px TinyMCE's own overflow collapses the bar to `undo redo …`
+            // and buries the button inside the "…" popup, which is the worst
+            // place for the one control that rescues a small editor.
+            // First on a phone, unchanged on a desktop.
+            toolbar: isPhone
+                ? 'fullscreen | undo redo | blocks | bold italic | bullist numlist | link image table | codesample code | removeformat'
+                : 'undo redo | blocks | bold italic | bullist numlist | link image table | codesample code | removeformat | fullscreen',
+            toolbar_mode: isPhone ? 'sliding' : 'floating',
             content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 15px; line-height: 1.7; } @media (pointer: coarse) { body { font-size: 16px; } }',
-            setup: (ed) => { editor = ed; }
+            // 🔴 `setup` fires when the editor STARTS initialising, not when it
+            // is ready to be written to — and init() kicks off initTinyMCE()
+            // and loadLessons() side by side, so the two race.
+            //
+            // Lose the race and `editor` is still null when selectLesson runs,
+            // its `if (editor)` is false, and THE LESSON BODY IS SILENTLY
+            // DROPPED: the editor comes up empty and a refresh "fixes" it by
+            // running the race again, usually winning the second time. That is
+            // exactly the shape of a bug that gets reported as "sometimes".
+            //
+            // Waiting on `init` and holding the content until then removes the
+            // race in both directions rather than making it less likely.
+            setup: (ed) => {
+                editor = ed;
+                ed.on('init', () => {
+                    editorReady = true;
+                    if (pendingBody !== null) { ed.setContent(pendingBody); pendingBody = null; }
+                });
+            }
         });
+    }
+
+    /* Write to the editor, or remember it until the editor exists. Every
+       caller goes through here so none of them has to know whether TinyMCE
+       has finished starting up. */
+    function setEditorBody(html) {
+        if (editor && editorReady) { editor.setContent(html); pendingBody = null; }
+        else { pendingBody = html; }
     }
 
     // ---------- lessons ----------
@@ -119,7 +160,7 @@ const LMSEditor = (() => {
         document.getElementById('noLesson').style.display = 'none';
         document.getElementById('lessonPane').style.display = '';
         document.getElementById('lessonTitle').value = l.title;
-        if (editor) editor.setContent(l.body || '');
+        setEditorBody(l.body || '');
         document.getElementById('saveState').textContent = '';
 
         renderLessonList();

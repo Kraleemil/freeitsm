@@ -78,7 +78,7 @@ $translationNamespaces = ['common', 'morning-checks'];
         .help-card.status-amber { border-left: 3px solid var(--warning-text, #ffc107); }
         .help-card.status-red   { border-left: 3px solid var(--danger-accent, #dc3545); }
     </style>
-    <link rel="stylesheet" href="../assets/css/mobile.css?v=106">
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=109">
 </head>
 <body>
     <?php include 'includes/header.php'; ?>
@@ -487,6 +487,6 @@ $translationNamespaces = ['common', 'morning-checks'];
             });
         });
     </script>
-    <script src="../assets/js/mobile.js?v=41"></script>
+    <script src="../assets/js/mobile.js?v=42"></script>
 </body>
 </html>

@@ -2489,3 +2489,149 @@
     if (mq.addEventListener) { mq.addEventListener('change', sync); }
     else if (mq.addListener) { mq.addListener(sync); }
 })();
+
+/* ====================================================================
+   LMS EDITOR — one lesson, two pages, and the actions along the bottom
+   (#1396, Ed's request)
+
+   ITS OWN top-level IIFE, for the reason the blocks above document.
+
+   > "each lesson should have 1 page for the main text and one page for
+   >  the questions ... and can we have course settings and preview and
+   >  ai write this lesson as buttons at the bottom"
+
+   On a desktop the lesson pane is one long column: title, editor, save,
+   then the questions section under it. That is fine with 900px of height
+   and unreadable with 400 — you scroll past a full rich-text editor to
+   reach the questions, and back again.
+
+   Two things happen here, both gated on `mq.matches`:
+
+     1. the pane splits into TWO PAGES behind a switch — the lesson text,
+        and its questions;
+     2. Course settings / Preview / AI-write-this-lesson are RELOCATED
+        into a bar pinned to the bottom of the screen. They are scattered
+        across two rows on the desktop layout (the first two live in the
+        top bar, the third inside the pane), which is why this moves the
+        nodes rather than restyling them where they sit.
+
+   ⭐ THE FIRST TAB IS LABELLED WITH THE LESSON'S OWN NAME, and that is a
+   design decision rather than a way of dodging a translation. There is no
+   existing key for "text"/"content", and adding one would mean a
+   fan-out to 24 locales for a single word. But on a phone the lesson list
+   is behind a sheet, so the screen otherwise never says WHICH lesson you
+   are editing — putting the name in the tab answers that at the same
+   time. `lms.editor.questions` supplies the other tab, already
+   translated. Zero new keys, and a better bar than a generic one.
+   ==================================================================== */
+(function () {
+    var pane = document.getElementById('lessonPane');
+    if (!pane) return;                       // not the course editor
+
+    var mq = window.matchMedia('(max-width: 768px)');
+    var questions = pane.querySelector('.lms-questions');
+    var titleEl   = document.getElementById('lessonTitle');
+    if (!questions) return;
+
+    /* ---- the two-page switch ---- */
+    var tabs = document.createElement('div');
+    tabs.className = 'lms-pane-tabs';
+    tabs.style.display = 'none';             // injected chrome: hidden off-mobile
+    var tText = document.createElement('button');
+    var tQs   = document.createElement('button');
+    tText.type = tQs.type = 'button';
+    tText.className = 'lms-pane-tab active';
+    tQs.className   = 'lms-pane-tab';
+    tQs.textContent = (typeof t === 'function' ? t('lms.editor.questions') : '') || 'Questions';
+    tabs.appendChild(tText);
+    tabs.appendChild(tQs);
+    pane.insertBefore(tabs, pane.firstChild);
+
+    /* The lesson's name, kept in step with the field as it is typed and as
+       another lesson is chosen. Truncated by CSS rather than here, so the
+       full name is still the button's accessible label. */
+    function syncTabName() {
+        var name = (titleEl && titleEl.value || '').trim();
+        tText.textContent = name || ((typeof t === 'function' ? t('lms.editor.lesson_title') : '') || 'Lesson');
+        tText.title = tText.textContent;
+    }
+    syncTabName();
+    if (titleEl) titleEl.addEventListener('input', syncTabName);
+    /* selectLesson() rewrites the title field without firing `input`, so the
+       field is observed rather than the call site wrapped — 27c's reasoning,
+       and it cannot get out of step with a function this file does not own. */
+    if (window.MutationObserver && titleEl) {
+        new MutationObserver(syncTabName).observe(titleEl, { attributes: true, attributeFilter: ['value'] });
+        // …and the value property does not mutate an attribute, so also poll
+        // the one event that always follows a lesson change: the pane being
+        // shown again.
+        new MutationObserver(syncTabName).observe(pane, { attributes: true, attributeFilter: ['style'] });
+    }
+
+    function setPage(which) {
+        pane.setAttribute('data-lms-page', which);
+        tText.classList.toggle('active', which === 'text');
+        tQs.classList.toggle('active', which === 'questions');
+        tText.setAttribute('aria-pressed', which === 'text' ? 'true' : 'false');
+        tQs.setAttribute('aria-pressed', which === 'questions' ? 'true' : 'false');
+    }
+    tText.addEventListener('click', function () { setPage('text'); });
+    tQs.addEventListener('click', function () { setPage('questions'); });
+
+    /* ---- the bottom bar ----
+       The three controls Ed named, gathered from the two places the desktop
+       layout keeps them. Each is remembered with its original parent and
+       next sibling so it can be put back EXACTLY where it was — not merely
+       back in the right container — when the viewport leaves mobile. */
+    var bar = document.createElement('div');
+    bar.className = 'lms-action-bar';
+    bar.style.display = 'none';
+
+    var moved = [];
+    function claim(el) {
+        if (!el) return;
+        moved.push({ el: el, parent: el.parentNode, next: el.nextSibling });
+        bar.appendChild(el);
+    }
+    function restore() {
+        for (var i = moved.length - 1; i >= 0; i--) {
+            var m = moved[i];
+            if (m.next && m.next.parentNode === m.parent) m.parent.insertBefore(m.el, m.next);
+            else m.parent.appendChild(m.el);
+        }
+        moved = [];
+    }
+
+    function gather() {
+        if (moved.length) return;            // already gathered
+        var barActions = document.querySelector('.lms-editor-bar-actions');
+        if (barActions) {
+            // Course settings, then Preview — in the order they already read.
+            Array.prototype.slice.call(barActions.children).forEach(claim);
+        }
+        claim(pane.querySelector('.lms-editor-tools .btn-ai'));
+    }
+
+    document.body.appendChild(bar);
+
+    /* ---- and it all goes away above 768px ----
+       The nodes go back where they came from and the page attribute is
+       removed, or a desktop resize would leave half the lesson hidden with
+       no switch to bring it back. */
+    function sync() {
+        if (mq.matches) {
+            gather();
+            tabs.style.display = '';
+            bar.style.display = '';
+            if (!pane.getAttribute('data-lms-page')) setPage('text');
+        } else {
+            restore();
+            tabs.style.display = 'none';
+            bar.style.display = 'none';
+            pane.removeAttribute('data-lms-page');
+        }
+    }
+    sync();
+    if (mq.addEventListener) { mq.addEventListener('change', sync); }
+    else if (mq.addListener) { mq.addListener(sync); }
+})();
