@@ -154,7 +154,20 @@ function logLoginAttempt($conn, $analystId, $username, $success) {
 }
 
 // If already logged in, redirect to inbox
-if (isset($_SESSION['analyst_id'])) {
+/* 🔴 …unless an administrator is PREVIEWING this page.
+
+   Everybody who uses the login designer is, by definition, logged in — so
+   without this exemption the preview iframe followed the redirect and showed
+   the LANDING page while the panel above it said "Login screen". Ed spotted
+   it immediately; the checks did not, because every one of them fetched this
+   page WITHOUT a session. One run did return 302 and it was explained away as
+   "the forged session is logged in" rather than followed up.
+
+   ⚠️ Deliberately narrow: an ADMIN, and only with ?preview=1. Everyone else
+   still gets the redirect, and this renders markup only — it grants nothing
+   and changes no session state. */
+$brandPreviewAllowed = $brandPreview && isset($_SESSION['analyst_id']) && !empty($_SESSION['is_admin']);
+if (isset($_SESSION['analyst_id']) && !$brandPreviewAllowed) {
     header('Location: ' . (defined('BASE_URL') ? BASE_URL : '/') . 'index.php');
     exit;
 }
