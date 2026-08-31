@@ -88,14 +88,48 @@ $pageStyles = <<<'CSS'
         }
         .form-card form { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
+        /* 🔴 THREE CHILDREN IN A TWO-COLUMN GRID (GH #122).
+           `.compose-body` holds `.compose-label-row`, `.compose-editor` and
+           `.compose-side`, and with only `grid-template-columns` set the
+           browser auto-placed them one cell at a time:
+
+               row 1 col 1 (1fr)   .compose-label-row   ← the label, 1476px
+               row 1 col 2 (300px) .compose-editor      ← THE EDITOR, 300x62
+               row 2 col 1 (1fr)   .compose-side        ← settings, 1476px
+
+           So the box people type their problem into was a 300px stub in the
+           top-right corner while the mailbox and priority selects had the
+           whole width. Measured at 1888px, which is the width it was reported
+           at.
+
+           ⚠️ IT WAS THE MOBILE WORK THAT DID IT. `.compose-label-row` was
+           added in #1284 to give the message body a label like every other
+           field — correct, and it slotted into the mobile single-column
+           layout perfectly, because below 900px `grid-template-columns: 1fr`
+           makes auto-placement stack all three in DOM order. The desktop
+           two-column grid is the only arrangement where a third child has
+           anywhere wrong to go, and nothing in a phone-width test could ever
+           have shown it.
+
+           🔑 Adding a child to a grid is a layout change even when it is
+           "just a label". Auto-placement does not leave a gap — it fills the
+           next cell, whatever was meant to be there.
+
+           Stated placement rather than auto, so a fourth child cannot do this
+           again: the label and the editor share the left column, and the panel
+           spans both rows on the right. */
         .compose-body {
             flex: 1;
             display: grid;
             grid-template-columns: 1fr 300px;
+            grid-template-rows: auto 1fr;   /* label sized to content; editor takes the rest */
             gap: 18px;
             align-items: stretch;
             min-height: 0;
         }
+        .compose-label-row { grid-column: 1; grid-row: 1; }
+        .compose-editor    { grid-column: 1; grid-row: 2; }
+        .compose-side      { grid-column: 2; grid-row: 1 / -1; }
         /* The message body's own label row. Named like every other field, with
            the full-screen control sitting on the same line rather than floating
            over the editor's toolbar. */
@@ -133,7 +167,40 @@ $pageStyles = <<<'CSS'
         }
 
         @media (max-width: 900px) {
-            .compose-body { grid-template-columns: 1fr; }
+            /* ⚠️ The stated placement above has to be UNDONE here, not just
+               the column count. A `grid-row: 1 / -1` on the side panel would
+               otherwise put it alongside the label in a one-column grid, and
+               `grid-template-rows: auto 1fr` would hand the editor's row all
+               the leftover height and squash the panel below it.
+               `none` plus `auto` restores plain auto-placement, which is what
+               this block has always relied on and what makes the three
+               children stack in DOM order. Measured identical before and
+               after at 360px: label 310x36, editor 310x240, side 310x355. */
+            .compose-body { grid-template-columns: 1fr; grid-template-rows: none; }
+            .compose-label-row,
+            .compose-editor,
+            .compose-side { grid-column: auto; grid-row: auto; }
+
+            /* ⚠️ THE INLINE EDITOR NEEDS A SIZE OF ITS OWN, AND THIS RULE WAS
+               ONE BREAKPOINT TOO LOW.
+
+               In a single column the flex chain has no leftover height to hand
+               out, so `flex: 1` on the editor resolves to almost nothing and
+               the message box collapses to a toolbar with a sliver under it.
+               That was found and fixed during the phone round — measured at
+               266x50 — but the fix was written into the `max-width: 768px`
+               block, while the single-column layout starts at **900px**.
+
+               So every width from 769px to 900px — which is where a tablet in
+               portrait lands — had the collapse with no minimum to catch it:
+               measured 806x49, and it predates the #122 grid fault rather than
+               being caused by it. The remedy was right; its media query was
+               simply narrower than the layout it was remedying.
+
+               🔑 When a rule fixes a layout, it belongs at the breakpoint that
+               INTRODUCES that layout, not at the width you happened to be
+               testing. */
+            body:not(.ss-compose-full) .compose-editor { min-height: 240px; }
             .compose-side {
                 border-left: none;
                 border-top: 1px solid var(--border, #e5e7eb);
@@ -205,14 +272,9 @@ $pageStyles = <<<'CSS'
             }
             body.ss-compose-full .compose-editor { padding-top: 57px; }
 
-            /* ⚠️ AND the inline editor needs a size of its own. Measured on a
-               phone it was 266x50 — the flex column has no height to share out,
-               so `flex: 1` on the editor resolves to almost nothing and the
-               message box collapsed to a toolbar with a sliver under it. That
-               is the real reason it was not clear where to type; the missing
-               label was only half of it. Tall enough to read as a place to
-               write, with the full-screen control there when it is not enough. */
-            body:not(.ss-compose-full) .compose-editor { min-height: 240px; }
+            /* The editor's minimum height now lives in the 900px block above,
+               which is where the single-column layout actually starts — see
+               the note there. */
             /* Nothing behind it should scroll while the panel is up. */
             body.ss-compose-full { overflow: hidden; }
         }
