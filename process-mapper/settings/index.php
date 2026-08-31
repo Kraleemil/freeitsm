@@ -145,14 +145,22 @@ $shapes = include '../includes/shapes.php';
         [data-theme-mode="dark"] .pms-shape-opt:hover { border-color: #3a3f6b; }
     </style>
     <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../../assets/css/mobile.css?v=124">
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=126">
 </head>
 <body data-mobile-module="process-mapper" data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
 
     <div class="container">
         <!-- Tabs strip — matches tickets/settings -->
-        <?php renderSettingsTabBar($visibleTabs, $activeTabId); ?>
+        <?php
+        /* 🔴 The third argument is not optional here. The tab bar renders
+           `onclick="<fn>('id')"`, which is resolved against the GLOBAL scope —
+           and this page keeps switchTab() inside the PMS IIFE, so the default
+           `switchTab` was a ReferenceError and the Left panel tab did nothing
+           at ANY width. Every other settings screen declares switchTab as a
+           plain global, which is why this is the only one affected. */
+        renderSettingsTabBar($visibleTabs, $activeTabId, 'PMS.switchTab');
+        ?>
 
         <!-- Step types tab (existing content) -->
         <?php if (settingsTabVisible($visibleTabs, 'step-types')): ?>

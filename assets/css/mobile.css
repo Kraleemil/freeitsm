@@ -8641,6 +8641,42 @@
         color: var(--text, #333);
         overflow-wrap: anywhere;
     }
+    /* Three of the five values are tiny — a hex code, a number and "Yes" — and
+       each was taking a full-width line of its own: 74px of card for about
+       40px of content, measured. Colour and Active pair on one line; Order
+       keeps its own because it carries two buttons.
+
+       `order` rather than DOM order, because the cells arrive as
+       Colour · Order · Active and the pairing wants Colour · Active first.
+       ⚠️ 45% and not `auto` or 0 — §23. `auto` lets the longer of the two
+       claim the line and push the other down; 0 crushes both to their labels. */
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:nth-child(3),
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:nth-child(5) {
+        flex: 1 1 45%;
+        min-width: 0;
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:nth-child(3) { order: 1; }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:nth-child(5) { order: 2; }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:nth-child(4) { order: 3; }
+    /* ⚠️ And the actions cell needs one too. Giving three cells an explicit
+       `order` left it on the default 0, which is BEFORE all of them — the
+       buttons floated above the values they act on (measured at t=337 with
+       Colour at 379). Once one sibling is ordered, they all have to be. */
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:last-child:not(:first-child) { order: 4; }
+
+    /* The order cell reads "↑ ↓ 10" — the controls before the thing they
+       change. Value first, controls after, which is the way every other
+       stepper in the product reads. Done with flex `order` so the module's
+       own markup (and therefore the desktop) is untouched. */
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] .pms-order-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] .pms-order-num {
+        order: -1;
+        min-width: 22px;
+    }
     /* Actions: full width and thumb-sized.
        ⚠️ `:not(:first-child)` because the loading/empty row is a single
        `<td colspan>`, which is both the first AND the last child of its row. */
