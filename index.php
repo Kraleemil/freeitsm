@@ -5,7 +5,8 @@
  */
 session_start();
 require_once 'config.php';
-require_once 'includes/functions.php'; // sessionIsAdmin() — gates the System card below
+require_once 'includes/functions.php';
+require_once 'includes/branding.php';   // the organisation's logo (GH #87) // sessionIsAdmin() — gates the System card below
 require_once 'includes/landing.php';   // where an unauthenticated visitor goes (discussion #63)
 
 // Check if user is logged in
@@ -231,7 +232,7 @@ $translationNamespaces = ['common'];
     <script>function closeWaffleMenu() {}</script>
 
     <div class="landing-container">
-        <img src="assets/images/CompanyLogo.png" alt="Company Logo" class="company-logo">
+        <img src="<?php echo htmlspecialchars(brandingLogoUrl()); ?>" alt="Company Logo" class="company-logo">
         <div class="welcome-text">
             <h2><?php echo htmlspecialchars(t('common.home.welcome_heading')); ?></h2>
             <p><?php echo htmlspecialchars(t('common.home.welcome_subtitle')); ?></p>

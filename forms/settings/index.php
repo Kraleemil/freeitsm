@@ -5,6 +5,7 @@
 session_start();
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/branding.php';   // the organisation's logo (GH #87)
 require_once '../../includes/i18n.php';
 require_once '../../includes/theme.php';
 require_once '../../includes/ai_settings_panel.php';
@@ -308,7 +309,7 @@ $translationNamespaces = ['common', 'forms'];
 
             <div class="logo-preview">
                 <div class="logo-preview-label"><?php echo htmlspecialchars(t('forms.settings.preview')); ?></div>
-                <img id="logoPreview" src="../../assets/images/CompanyLogo.png" alt="<?php echo htmlspecialchars(t('forms.settings.logo_alt')); ?>" class="align-center">
+                <img id="logoPreview" src="<?php echo htmlspecialchars(brandingLogoUrl()); ?>" alt="<?php echo htmlspecialchars(t('forms.settings.logo_alt')); ?>" class="align-center">
             </div>
 
             <div class="form-actions">

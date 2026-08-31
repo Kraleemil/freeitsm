@@ -12,6 +12,7 @@ if (isset($_SESSION['ss_user_id'])) {
 
 require_once '../config.php';
 require_once '../includes/functions.php';
+require_once '../includes/branding.php';   // the organisation's logo (GH #87)
 require_once '../includes/tenancy.php';
 require_once '../includes/i18n.php';
 I18n::initFromSession();
@@ -241,7 +242,7 @@ $localAllowed = $localOn || $forceLocal;
 <body>
     <div class="login-container">
         <div class="login-header">
-            <img src="../assets/images/CompanyLogo.png" alt="Company Logo">
+            <img src="<?php echo htmlspecialchars(brandingLogoUrl()); ?>" alt="Company Logo">
             <h1><?php echo htmlspecialchars(t('self-service.login.heading')); ?></h1>
             <p id="loginSubtitle"><?php echo htmlspecialchars(t('self-service.login.subtitle')); ?></p>
         </div>

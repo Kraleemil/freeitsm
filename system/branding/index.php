@@ -12,6 +12,7 @@ require_once '../../config.php';
 require_once '../../includes/i18n.php';
 require_once '../../includes/timezone.php';
 require_once '../../includes/theme.php';
+require_once '../../includes/branding.php';   // the login designer's field table + presets
 I18n::initFromSession();
 Tz::init();
 
@@ -82,6 +83,43 @@ $translationNamespaces = ['common', 'system'];
         }
 
         /* Logo block */
+        /* ---- login screen designer ---- */
+        .preset-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 20px; }
+        .preset {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 12px 6px 6px; border: 1px solid var(--border, #ddd);
+            border-radius: 999px; background: var(--surface, #fff);
+            color: var(--text, #333); font: inherit; font-size: 13px; cursor: pointer;
+        }
+        .preset:hover { border-color: var(--accent, #2b88d8); }
+        .preset-swatch {
+            width: 26px; height: 26px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--a), var(--b));
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+        }
+        .design-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 24px; align-items: start; }
+        .dgroup { margin-bottom: 22px; }
+        .dgroup h4 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted, #666); }
+        .dlabel { display: block; margin-bottom: 12px; font-size: 13px; color: var(--text, #333); }
+        .dlabel input[type="color"] { display: block; width: 100%; height: 38px; padding: 2px; margin-top: 4px; border: 1px solid var(--border, #ddd); border-radius: 6px; background: none; cursor: pointer; }
+        .dlabel input[type="range"] { display: block; width: 100%; margin-top: 6px; }
+        .dlabel .slot-input, .dlabel input[type="text"] { margin-top: 4px; }
+        .drow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .contrast-note { font-size: 12.5px; margin-top: -4px; }
+        .contrast-note.warn { color: var(--warning-text, #92400e); }
+        .contrast-note.ok   { color: var(--text-muted, #666); }
+        .design-preview { position: sticky; top: 16px; }
+        .preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; color: var(--text-muted, #666); }
+        /* 16:10 keeps the shape of a laptop screen, which is what most people
+           will actually see this on. */
+        #ln_preview { width: 100%; aspect-ratio: 16 / 10; border: 1px solid var(--border, #ddd); border-radius: 10px; background: var(--surface-2, #f4f5f7); }
+        .preview-note { margin-top: 8px; font-size: 12.5px; color: var(--text-muted, #666); }
+        [data-hidden="1"] { display: none !important; }
+
+        @media (max-width: 900px) {
+            .design-grid { grid-template-columns: 1fr; }
+            .design-preview { position: static; }
+        }
         .logo-row {
             display: flex;
             align-items: center;
@@ -293,6 +331,169 @@ $translationNamespaces = ['common', 'system'];
                 </div>
             </div>
 
+
+            <!-- ============================================================
+                 LOGIN SCREEN DESIGNER (#1421)
+
+                 Every control here is a CHOICE, never a piece of syntax: an
+                 enum, a colour picker, a slider, or plain text. The list of
+                 controls and their permitted values comes from
+                 includes/branding.php, which is also what validates the save
+                 and what renders the page — so a control cannot exist here
+                 without the server knowing about it.
+                 ============================================================ -->
+            <div class="settings-card">
+                <h3><?php echo htmlspecialchars(t('system.branding.login_heading')); ?></h3>
+                <p class="card-desc"><?php echo htmlspecialchars(t('system.branding.login_desc')); ?></p>
+
+                <!-- Presets. The quickest way from "eighteen empty controls"
+                     to something that looks deliberate. -->
+                <div class="preset-row">
+                    <?php foreach (brandingLoginPresets() as $id => $preset): ?>
+                        <button type="button" class="preset" data-preset="<?php echo htmlspecialchars($id); ?>"
+                                style="--a: <?php echo htmlspecialchars($preset['bg_from']); ?>; --b: <?php echo htmlspecialchars($preset['bg_to']); ?>;">
+                            <span class="preset-swatch"></span>
+                            <span class="preset-name"><?php echo htmlspecialchars($preset['label']); ?></span>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+
+                <div class="design-grid">
+                    <div class="design-controls">
+
+                        <div class="dgroup">
+                            <h4><?php echo htmlspecialchars(t('system.branding.login_group_background')); ?></h4>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_bg_style')); ?>
+                                <select id="ln_bg_style" class="slot-input">
+                                    <option value="gradient"><?php echo htmlspecialchars(t('system.branding.login_bg_gradient')); ?></option>
+                                    <option value="solid"><?php echo htmlspecialchars(t('system.branding.login_bg_solid')); ?></option>
+                                    <option value="image"><?php echo htmlspecialchars(t('system.branding.login_bg_image')); ?></option>
+                                </select>
+                            </label>
+                            <div class="drow">
+                                <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_colour_from')); ?>
+                                    <input type="color" id="ln_bg_from">
+                                </label>
+                                <label class="dlabel" data-when="gradient"><?php echo htmlspecialchars(t('system.branding.login_colour_to')); ?>
+                                    <input type="color" id="ln_bg_to">
+                                </label>
+                            </div>
+                            <label class="dlabel" data-when="gradient"><?php echo htmlspecialchars(t('system.branding.login_direction')); ?>
+                                <select id="ln_bg_direction" class="slot-input">
+                                    <option value="diagonal"><?php echo htmlspecialchars(t('system.branding.login_dir_diagonal')); ?></option>
+                                    <option value="diagonal-up"><?php echo htmlspecialchars(t('system.branding.login_dir_diagonal_up')); ?></option>
+                                    <option value="down"><?php echo htmlspecialchars(t('system.branding.login_dir_down')); ?></option>
+                                    <option value="right"><?php echo htmlspecialchars(t('system.branding.login_dir_right')); ?></option>
+                                    <option value="radial"><?php echo htmlspecialchars(t('system.branding.login_dir_radial')); ?></option>
+                                </select>
+                            </label>
+                            <div data-when="image">
+                                <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_bg_upload')); ?>
+                                    <input type="file" id="ln_bg_file" name="login_bg" accept=".png,.jpg,.jpeg,image/png,image/jpeg">
+                                </label>
+                                <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_dim')); ?> <output id="ln_dim_out"></output>
+                                    <input type="range" id="ln_bg_dim" min="0" max="80" step="5">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="dgroup">
+                            <h4><?php echo htmlspecialchars(t('system.branding.login_group_layout')); ?></h4>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_form_position')); ?>
+                                <select id="ln_form_position" class="slot-input">
+                                    <option value="left"><?php echo htmlspecialchars(t('system.branding.login_pos_left')); ?></option>
+                                    <option value="centre"><?php echo htmlspecialchars(t('system.branding.login_pos_centre')); ?></option>
+                                    <option value="right"><?php echo htmlspecialchars(t('system.branding.login_pos_right')); ?></option>
+                                </select>
+                            </label>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_card_style')); ?>
+                                <select id="ln_card_style" class="slot-input">
+                                    <option value="solid"><?php echo htmlspecialchars(t('system.branding.login_card_solid')); ?></option>
+                                    <option value="glass"><?php echo htmlspecialchars(t('system.branding.login_card_glass')); ?></option>
+                                    <option value="flat"><?php echo htmlspecialchars(t('system.branding.login_card_flat')); ?></option>
+                                </select>
+                            </label>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_logo_size')); ?> <output id="ln_logo_out"></output>
+                                <input type="range" id="ln_logo_size" min="40" max="400" step="10">
+                            </label>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_logo_position')); ?>
+                                <select id="ln_logo_position" class="slot-input">
+                                    <option value="above"><?php echo htmlspecialchars(t('system.branding.login_logo_above')); ?></option>
+                                    <option value="hidden"><?php echo htmlspecialchars(t('system.branding.login_logo_hidden')); ?></option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="dgroup">
+                            <h4><?php echo htmlspecialchars(t('system.branding.login_group_words')); ?></h4>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_headline')); ?>
+                                <input type="text" id="ln_heading" class="slot-input" maxlength="80"
+                                       placeholder="<?php echo htmlspecialchars(t('system.branding.login_headline_ph')); ?>">
+                            </label>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_subheading')); ?>
+                                <input type="text" id="ln_subheading" class="slot-input" maxlength="160"
+                                       placeholder="<?php echo htmlspecialchars(t('system.branding.login_subheading_ph')); ?>">
+                            </label>
+                        </div>
+
+                        <div class="dgroup">
+                            <h4><?php echo htmlspecialchars(t('system.branding.login_group_banner')); ?></h4>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_banner_position')); ?>
+                                <select id="ln_banner_position" class="slot-input">
+                                    <option value="off"><?php echo htmlspecialchars(t('system.branding.login_banner_off')); ?></option>
+                                    <option value="top"><?php echo htmlspecialchars(t('system.branding.login_banner_top')); ?></option>
+                                    <option value="bottom"><?php echo htmlspecialchars(t('system.branding.login_banner_bottom')); ?></option>
+                                </select>
+                            </label>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_banner_text')); ?>
+                                <input type="text" id="ln_banner_text" class="slot-input" maxlength="160"
+                                       placeholder="<?php echo htmlspecialchars(t('system.branding.login_banner_ph')); ?>">
+                            </label>
+                            <div class="drow">
+                                <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_banner_bg')); ?>
+                                    <input type="color" id="ln_banner_bg">
+                                </label>
+                                <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_banner_fg')); ?>
+                                    <input type="color" id="ln_banner_fg">
+                                </label>
+                            </div>
+                            <div class="contrast-note" id="bannerContrast"></div>
+                        </div>
+
+                        <div class="dgroup">
+                            <h4><?php echo htmlspecialchars(t('system.branding.login_group_footer')); ?></h4>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_footer_text')); ?>
+                                <input type="text" id="ln_footer_text" class="slot-input" maxlength="200"
+                                       placeholder="<?php echo htmlspecialchars(t('system.branding.login_footer_ph')); ?>">
+                            </label>
+                            <label class="dlabel"><?php echo htmlspecialchars(t('system.branding.login_footer_fg')); ?>
+                                <input type="color" id="ln_footer_fg">
+                            </label>
+                        </div>
+
+                        <div class="dgroup">
+                            <button type="button" class="btn btn-link" id="ln_reset"><?php echo htmlspecialchars(t('system.branding.login_reset')); ?></button>
+                        </div>
+                    </div>
+
+                    <!-- The preview is the REAL login page in an iframe, driven
+                         live over a same-origin BroadcastChannel. Not a mock-up:
+                         a mock-up drifts from the page it claims to show, and
+                         the first time it does, somebody ships a login screen
+                         nobody has actually seen. -->
+                    <div class="design-preview">
+                        <div class="preview-head">
+                            <span><?php echo htmlspecialchars(t('system.branding.login_preview')); ?></span>
+                            <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php?preview=1" target="_blank" rel="noopener" class="btn btn-link" id="ln_open_tab">
+                                <?php echo htmlspecialchars(t('system.branding.login_open_tab')); ?>
+                            </a>
+                        </div>
+                        <iframe id="ln_preview" src="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>auth/login.php?preview=1" title="<?php echo htmlspecialchars(t('system.branding.login_preview')); ?>"></iframe>
+                        <p class="preview-note"><?php echo t('system.branding.login_safety', ['url' => '<code>?nobranding=1</code>']); ?></p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Header slots -->
             <div class="settings-card">
                 <h3><?php echo htmlspecialchars(t('system.branding.header_heading')); ?></h3>
@@ -440,7 +641,151 @@ $translationNamespaces = ['common', 'system'];
         const btn = this.querySelector('button[type="submit"]');
         btn.disabled = true;
 
+        /* =====================================================================
+           LOGIN SCREEN DESIGNER
+
+           The controls, the preview and the save all read the same field list,
+           which PHP prints from includes/branding.php — so the browser cannot
+           know about a control the server does not.
+           ===================================================================== */
+        const LN_FIELDS   = <?php echo json_encode(brandingLoginFields(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        const LN_PRESETS  = <?php echo json_encode(brandingLoginPresets(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        const LN_SAVED    = <?php echo json_encode(brandingLoginDesign(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+        const LN_LOGO     = <?php echo json_encode(brandingLogoUrl(), JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+
+        /* Same-origin only, which is what makes it safe to let the preview tab
+           listen: no other site can post here. */
+        const lnChannel = window.BroadcastChannel ? new BroadcastChannel('freeitsm-login-preview') : null;
+        const lnEl = (f) => document.getElementById('ln_' + f);
+
+        function lnRead() {
+            const d = {};
+            for (const f in LN_FIELDS) {
+                const el = lnEl(f);
+                d[f] = el ? el.value : LN_SAVED[f];
+            }
+            return d;
+        }
+
+        function lnWrite(d) {
+            for (const f in LN_FIELDS) {
+                const el = lnEl(f);
+                if (el && d[f] !== undefined && d[f] !== null) el.value = d[f];
+            }
+            lnSync();
+        }
+
+        /* The CSS string is built the same way brandingLoginCss() builds it, from
+           values that are enums, #rrggbb and clamped numbers. It is applied to a
+           preview in this administrator's own browser and is never stored — what
+           gets stored goes through the server's validator. */
+        function lnCss(d) {
+            const dirs = {
+                'down':        `linear-gradient(180deg, ${d.bg_from}, ${d.bg_to})`,
+                'right':       `linear-gradient(90deg, ${d.bg_from}, ${d.bg_to})`,
+                'diagonal':    `linear-gradient(135deg, ${d.bg_from}, ${d.bg_to})`,
+                'diagonal-up': `linear-gradient(45deg, ${d.bg_from}, ${d.bg_to})`,
+                'radial':      `radial-gradient(circle at 30% 30%, ${d.bg_from}, ${d.bg_to})`
+            };
+            let bg = dirs[d.bg_direction] || dirs['diagonal'];
+            if (d.bg_style === 'solid') bg = d.bg_from;
+            return [
+                `--login-bg: ${bg}`,
+                `--login-accent: ${d.accent || '#2b88d8'}`,
+                `--login-logo-size: ${parseInt(d.logo_size, 10) || 250}px`,
+                // Only over an image — see brandingLoginCss(); the preview has to
+                // agree with the page or it is not a preview.
+                `--login-dim: ${d.bg_style === 'image' ? (parseInt(d.bg_dim, 10) || 0) / 100 : 0}`,
+                `--login-banner-bg: ${d.banner_bg}`,
+                `--login-banner-fg: ${d.banner_fg}`,
+                `--login-footer-fg: ${d.footer_fg}`
+            ].join('; ') + ';';
+        }
+
+        function lnBroadcast() {
+            const d = lnRead();
+            const msg = {
+                css: lnCss(d), formPos: d.form_position, card: d.card_style,
+                logoPos: d.logo_position, logo: LN_LOGO,
+                heading: d.heading, subheading: d.subheading,
+                bannerText: d.banner_text, bannerAt: d.banner_position,
+                footerText: d.footer_text
+            };
+            if (lnChannel) lnChannel.postMessage(msg);
+            // The embedded preview is same-origin, so it can simply be told too —
+            // and this covers a browser with no BroadcastChannel.
+            const fr = document.getElementById('ln_preview');
+            try { fr.contentWindow.postMessage({ __loginPreview: msg }, location.origin); } catch (e) {}
+        }
+
+        /* Show only the controls that apply to the chosen background, so the
+           screen never asks about a gradient's second colour when a photograph
+           is selected. */
+        function lnSync() {
+            const style = lnEl('bg_style').value;
+            document.querySelectorAll('[data-when]').forEach(el => {
+                el.setAttribute('data-hidden', el.getAttribute('data-when') === style ? '0' : '1');
+            });
+            const size = lnEl('logo_size');
+            document.getElementById('ln_logo_out').textContent = size.value + 'px';
+            document.getElementById('ln_dim_out').textContent  = lnEl('bg_dim').value + '%';
+
+            // Contrast is advice, not a gate — but silence here means somebody
+            // ships a banner nobody can read.
+            const ratio = lnContrast(lnEl('banner_bg').value, lnEl('banner_fg').value);
+            const note  = document.getElementById('bannerContrast');
+            const ok    = ratio >= 4.5;
+            note.className = 'contrast-note ' + (ok ? 'ok' : 'warn');
+            note.textContent = (ok ? '\u2713 ' : '\u26a0 ') +
+                t('system.branding.login_contrast').replace('{ratio}', ratio.toFixed(1));
+
+            lnBroadcast();
+        }
+
+        function lnContrast(a, b) {
+            const lum = (hex) => {
+                const v = [1, 3, 5].map(i => {
+                    const c = parseInt(hex.substr(i, 2), 16) / 255;
+                    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+                });
+                return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+            };
+            const x = lum(a), y = lum(b);
+            return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+        }
+
+        document.querySelectorAll('.preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const p = LN_PRESETS[btn.dataset.preset];
+                if (!p) return;
+                // A preset sets the LOOK and leaves the words alone: nobody wants
+                // their carefully written welcome message replaced by a theme.
+                const { label, ...values } = p;
+                lnWrite({ ...lnRead(), ...values });
+            });
+        });
+
+        document.getElementById('ln_reset').addEventListener('click', () => {
+            const defaults = {};
+            for (const f in LN_FIELDS) defaults[f] = LN_FIELDS[f].default;
+            lnWrite(defaults);
+        });
+
+        for (const f in LN_FIELDS) {
+            const el = lnEl(f);
+            if (el) el.addEventListener('input', lnSync);
+        }
+        // The preview iframe has to have loaded before it can be told anything.
+        document.getElementById('ln_preview').addEventListener('load', lnBroadcast);
+        lnWrite(LN_SAVED);
+
         const fd = new FormData();
+        // Every designer field, named exactly as the server's field table
+        // names it, so save_branding.php can loop the same list.
+        const lnNow = lnRead();
+        for (const f in LN_FIELDS) fd.append('login_' + f, lnNow[f]);
+        const lnBg = document.getElementById('ln_bg_file');
+        if (lnBg && lnBg.files[0]) fd.append('login_bg', lnBg.files[0]);
         fd.append('header_left',   document.getElementById('headerLeft').value);
         fd.append('header_center', document.getElementById('headerCenter').value);
         fd.append('header_right',  document.getElementById('headerRight').value);

@@ -5,6 +5,7 @@
 session_start();
 require_once '../config.php';
 require_once '../includes/functions.php';
+require_once '../includes/branding.php';   // the organisation's logo (GH #87)
 require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
 require_once '../includes/timezone.php';
@@ -345,7 +346,7 @@ $translationNamespaces = ['common', 'forms'];
         function renderForm() {
             const card = document.getElementById('formCard');
             const alignClass = 'align-' + logoAlignment;
-            let html = `<img src="../assets/images/CompanyLogo.png" alt="${escAttr(window.t('forms.fill.logo_alt'))}" class="form-logo ${alignClass}">`;
+            let html = `<img src="<?php echo htmlspecialchars(brandingLogoUrl()); ?>" alt="${escAttr(window.t('forms.fill.logo_alt'))}" class="form-logo ${alignClass}">`;
             html += `<h1 class="fill-title">${esc(formData.title)}</h1>`;
             if (formData.description) {
                 html += `<p class="fill-desc">${esc(formData.description)}</p>`;

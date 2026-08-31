@@ -19,6 +19,7 @@
 session_start();
 require_once '../../config.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/branding.php';   // the organisation's logo (GH #87)
 require_once '../../includes/i18n.php';
 require_once '../../includes/theme.php';
 require_once '../../includes/timezone.php';
@@ -1580,7 +1581,7 @@ $translationNamespaces = ['common', 'forms'];
                 return;
             }
             const alignClass = 'align-' + logoAlignment;
-            let html = `<img src="<?php echo BASE_URL; ?>assets/images/CompanyLogo.png" alt="${escAttr(window.t('forms.preview.logo_alt'))}" class="preview-logo ${alignClass}">`;
+            let html = `<img src="<?php echo htmlspecialchars(brandingLogoUrl()); ?>" alt="${escAttr(window.t('forms.preview.logo_alt'))}" class="preview-logo ${alignClass}">`;
             html += `<p class="preview-title">${esc(title)}</p>`;
             if (desc) html += `<p class="preview-desc">${esc(desc)}</p>`;
             html += fields.map(f => {

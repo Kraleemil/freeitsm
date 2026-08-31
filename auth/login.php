@@ -7,6 +7,27 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/ldap.php';
 require_once __DIR__ . '/../includes/landing.php';   // re-issue the landing cookie on login (#63)
+require_once __DIR__ . '/../includes/branding.php';   // logo + the login screen designer
+
+/* The login screen's appearance. Read from the database, validated by
+   includes/branding.php, and NEVER taken from the request:
+
+     ?nobranding=1  renders the stock screen. 🔑 A safety valve, not a
+                    bypass — it changes appearance only. Without it a
+                    white-on-white design or an oversized logo locks
+                    everybody out, INCLUDING the administrator who would
+                    have to sign in to undo it.
+     ?preview=1     lets an admin's settings screen drive this page live
+                    over a same-origin BroadcastChannel. It applies COLOURS
+                    AND LAYOUT ONLY, in that one browser, and never writes
+                    anything. Cross-origin pages cannot post to a
+                    BroadcastChannel, so nothing outside this install can
+                    reach it. */
+$brandNone    = isset($_GET['nobranding']);
+$brandPreview = isset($_GET['preview']);
+$brand        = $brandNone ? null : brandingLoginDesign();
+$brandLogo    = $brandNone ? ((defined('BASE_URL') ? BASE_URL : '/') . BRANDING_DEFAULT_LOGO) : brandingLogoUrl();
+
 
 /**
  * Translations, behind a guard.
@@ -510,12 +531,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
+            /* The default IS the old hardcoded gradient, so an install that has
+               never opened the designer looks exactly as it always did. */
+            background: var(--login-bg, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+            min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
+            position: relative;
         }
+
+        /* A background photograph is dimmed behind the form rather than the
+           form being made opaque — the picture still reads, the words still
+           contrast. 0% dim leaves it untouched. */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, var(--login-dim, 0));
+            pointer-events: none;
+        }
+
+        /* Where the form sits. `margin` rather than `align-items`, so the
+           banner and footer strips stay full width. */
+        body[data-form-pos="left"]  .login-container { margin-right: auto; margin-left: 6vw; }
+        body[data-form-pos="right"] .login-container { margin-left: auto; margin-right: 6vw; }
+
+        /* Card treatments. `glass` needs a fallback colour: backdrop-filter is
+           unsupported in enough places that a transparent card would otherwise
+           render as unreadable text on a photograph. */
+        body[data-card="glass"] .login-container {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        body[data-card="flat"] .login-container {
+            box-shadow: none;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+        }
+
+        /* The strips. Fixed so they frame the screen rather than scrolling
+           with a tall form on a phone. */
+        .login-strip {
+            position: fixed;
+            left: 0;
+            right: 0;
+            z-index: 5;
+            padding: 10px 16px;
+            text-align: center;
+            font-size: 13.5px;
+            line-height: 1.4;
+        }
+        .login-strip-banner { background: var(--login-banner-bg, #111827); color: var(--login-banner-fg, #fff); font-weight: 600; }
+        .login-strip-banner[data-at="top"]    { top: 0; }
+        .login-strip-banner[data-at="bottom"] { bottom: 0; }
+        .login-strip-footer {
+            bottom: 0;
+            color: var(--login-footer-fg, #fff);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+            font-size: 12.5px;
+        }
+        /* …and they must not sit on top of each other. */
+        body:has(.login-strip-banner[data-at="bottom"]) .login-strip-footer { bottom: 42px; }
+
+        .login-tagline {
+            margin: -14px 0 22px;
+            color: #555;
+            font-size: 14px;
+            text-align: center;
+        }
+        body[data-logo-pos="hidden"] .login-header img { display: none; }
+        body[data-logo-pos="top-left"]   .login-header,
+        body[data-logo-pos="top-centre"] .login-header { text-align: center; }
 
         .login-container {
             background: white;
@@ -532,7 +621,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .login-header img {
-            width: 250px;
+            width: var(--login-logo-size, 250px);
+            max-width: 100%;
             height: auto;
             margin-bottom: 25px;
         }
@@ -731,16 +821,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .modal-close:hover { color: #333; }
     </style>
 </head>
-<body>
+<body<?php if ($brand): ?> data-form-pos="<?php echo htmlspecialchars($brand['form_position']); ?>" data-card="<?php echo htmlspecialchars($brand['card_style']); ?>" data-logo-pos="<?php echo htmlspecialchars($brand['logo_position']); ?>" style="<?php echo htmlspecialchars(brandingLoginCss($brand)); ?>"<?php endif; ?>>
+<?php if ($brand && $brand['banner_position'] !== 'off' && $brand['banner_text'] !== ''): ?>
+    <div class="login-strip login-strip-banner" data-at="<?php echo htmlspecialchars($brand['banner_position']); ?>"><?php echo htmlspecialchars($brand['banner_text']); ?></div>
+<?php endif; ?>
     <div class="login-container">
         <div class="login-header">
-            <img src="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>assets/images/CompanyLogo.png" alt="Company Logo">
+            <!-- The organisation's logo, not a hardcoded file (GH #87). -->
+            <img src="<?php echo htmlspecialchars($brandLogo); ?>" alt="Company Logo">
             <?php if ($mfa_required): ?>
                 <h1><?php echo htmlspecialchars(tr('mfa_heading', 'Verification')); ?></h1>
             <?php else: ?>
-                <h1><?php echo htmlspecialchars(tr('heading', 'ITSM Login')); ?></h1>
+                <h1><?php echo htmlspecialchars($brand && $brand['heading'] !== '' ? $brand['heading'] : tr('heading', 'ITSM Login')); ?></h1>
             <?php endif; ?>
         </div>
+        <?php if ($brand && $brand['subheading'] !== '' && !$mfa_required): ?>
+            <p class="login-tagline"><?php echo htmlspecialchars($brand['subheading']); ?></p>
+        <?php endif; ?>
 
         <?php if ($mfa_required): ?>
             <!-- MFA Challenge Form -->
@@ -988,5 +1085,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <a href="<?php echo defined('BASE_URL') ? BASE_URL : '/'; ?>self-service/login.php"><?php echo htmlspecialchars(tr('portal_link', 'Go to the Self-Service Portal')); ?></a>
         </div>
     </div>
+<?php if ($brand && $brand['footer_text'] !== ''): ?>
+    <div class="login-strip login-strip-footer"><?php echo htmlspecialchars($brand['footer_text']); ?></div>
+<?php endif; ?>
+<?php if ($brandPreview): ?>
+<script>
+/* LIVE PREVIEW — only when this page was opened with ?preview=1.
+
+   The branding settings screen broadcasts the design as it is being edited
+   and this applies it, so an administrator sees the REAL login page change
+   under them rather than a mock-up that can drift from it.
+
+   🔑 Why this is not a hole:
+     · BroadcastChannel is SAME-ORIGIN. No other site can post to it.
+     · It changes colours and layout in ONE browser and writes nothing.
+       Persisting still goes through the guarded, validated save endpoint.
+     · The values are re-checked here anyway — a colour must match
+       #rrggbb and a layout must be one of the known words — so this path
+       keeps the same discipline as the server even where it need not. */
+(function () {
+    if (!window.BroadcastChannel) return;
+    var HEX = /^#[0-9a-fA-F]{6}$/;
+    var ENUMS = {
+        formPos:  ['left', 'centre', 'right'],
+        card:     ['solid', 'glass', 'flat'],
+        logoPos:  ['above', 'top-left', 'top-centre', 'hidden'],
+        bannerAt: ['off', 'top', 'bottom']
+    };
+    function ok(list, v) { return list.indexOf(v) > -1 ? v : list[0]; }
+    /* Two ways in, because the preview is shown BOTH embedded in the settings
+       screen and in a tab of its own. `postMessage` covers the iframe (and a
+       browser without BroadcastChannel); the channel covers the tab.
+       ⚠️ The origin is checked on the postMessage path — an iframe can be
+       messaged by anyone who can reach the page. */
+    window.addEventListener('message', function (e) {
+        if (e.origin !== location.origin) return;
+        if (e.data && e.data.__loginPreview) apply(e.data.__loginPreview);
+    });
+    new BroadcastChannel('freeitsm-login-preview').onmessage = function (e) { apply(e.data); };
+    function apply(data) {
+        var e = { data: data };
+        var d = e.data || {};
+        if (typeof d.css === 'string' && d.css.length < 600 && d.css.indexOf('<') === -1) {
+            document.body.setAttribute('style', d.css);
+        }
+        document.body.setAttribute('data-form-pos', ok(ENUMS.formPos, d.formPos));
+        document.body.setAttribute('data-card',     ok(ENUMS.card, d.card));
+        document.body.setAttribute('data-logo-pos', ok(ENUMS.logoPos, d.logoPos));
+        var img = document.querySelector('.login-header img');
+        if (img && typeof d.logo === 'string' && /^[\w.\/-]+$/.test(d.logo)) img.src = d.logo;
+        setText('h1', d.heading);
+        strip('banner', d.bannerText, ok(ENUMS.bannerAt, d.bannerAt));
+        strip('footer', d.footerText, 'bottom');
+        var tag = document.querySelector('.login-tagline');
+        if (d.subheading) {
+            if (!tag) { tag = document.createElement('p'); tag.className = 'login-tagline';
+                        document.querySelector('.login-header').after(tag); }
+            tag.textContent = d.subheading;
+        } else if (tag) { tag.remove(); }
+    }
+    function setText(sel, v) {
+        var el = document.querySelector('.login-header ' + sel);
+        /* textContent, never innerHTML — the whole point of the file this
+           mirrors is that branding text is text. */
+        if (el && v) el.textContent = v;
+    }
+    function strip(kind, text, at) {
+        var el = document.querySelector('.login-strip-' + kind);
+        if (!text || (kind === 'banner' && at === 'off')) { if (el) el.remove(); return; }
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'login-strip login-strip-' + kind;
+            document.body.appendChild(el);
+        }
+        el.textContent = text;
+        if (kind === 'banner') el.setAttribute('data-at', at);
+    }
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>

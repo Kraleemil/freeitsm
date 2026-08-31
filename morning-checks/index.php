@@ -5,6 +5,7 @@
 session_start();
 require_once '../config.php';
 require_once '../includes/functions.php';
+require_once '../includes/branding.php';   // the organisation's logo (GH #87)
 require_once '../includes/i18n.php';
 require_once '../includes/theme.php';
 require_once '../includes/timezone.php';
@@ -1346,7 +1347,7 @@ $translationNamespaces = ['common', 'morning-checks'];
                 await new Promise((resolve, reject) => {
                     img.onload = resolve;
                     img.onerror = reject;
-                    img.src = '../assets/images/CompanyLogo.png';
+                    img.src = <?php echo json_encode(brandingLogoUrl()); ?>;
                 });
                 const maxH = 12;
                 const w = maxH * (img.width / img.height);

@@ -22,6 +22,7 @@ require_once '../../config.php';
 require_once '../../includes/admin_api_guard.php'; // System admins only (issue #34)
 require_once '../../includes/functions.php';
 require_once '../../includes/uploads.php';         // the ONE home for file writes
+require_once '../../includes/branding.php';        // the login designer's field table
 require_once '../../includes/landing.php';         // install-wide landing default (#63)
 
 header('Content-Type: application/json');
@@ -144,6 +145,47 @@ try {
         $upsert($conn, 'branding_logo_path', null);
     }
 
+    /* ---------------------------------------------------------------------
+       The login screen designer.
+
+       🔴 EVERY value goes through brandingLoginValidate() against the SAME
+       field table the login page renders from. Not a second copy of the rules
+       — the same function. A colour that is not #rrggbb, a position that is
+       not one of the listed words and a number outside its range are all
+       replaced by the default rather than stored.
+
+       That is belt and braces, because the page validates again when it
+       renders. Both, deliberately: this endpoint stops bad values being
+       stored, and the renderer stops bad values being shown if they ever
+       arrive some other way. The login screen is not the place to rely on
+       one of them.
+       --------------------------------------------------------------------- */
+    $loginFields = brandingLoginFields();
+
+    // The background image, if one was chosen. Same upload pipeline as the
+    // logo — which refuses SVG, because an SVG is XML that can carry a script
+    // and it would be served from our own origin.
+    if (isset($_FILES['login_bg']) && $_FILES['login_bg']['error'] === UPLOAD_ERR_OK) {
+        $uploadDir = __DIR__ . '/../../system/uploads/branding';
+        uploadPrepareWebServableDir($uploadDir);
+        $prev = $conn->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'branding_login_bg_image_path'");
+        $prev->execute();
+        $prevPath = (string)($prev->fetchColumn() ?: '');
+        if ($prevPath !== '' && brandingPathIsSafe($prevPath)) {
+            @unlink(__DIR__ . '/../../' . $prevPath);
+        }
+        $stored = uploadStoreFile($_FILES['login_bg'], $uploadDir, UPLOAD_TYPES_IMAGE, 4 * 1024 * 1024);
+        $upsert($conn, 'branding_login_bg_image_path', BRANDING_UPLOAD_DIR . $stored['stored_name']);
+    }
+
+    foreach ($loginFields as $field => $spec) {
+        // The image path is owned by the upload branch above; a form post never
+        // sets it directly, or a crafted request could point it at any file.
+        if ($field === 'bg_image_path') continue;
+        if (!array_key_exists('login_' . $field, $_POST)) continue;
+        $clean = brandingLoginValidate($field, $_POST['login_' . $field], $spec);
+        $upsert($conn, brandingLoginKey($field), (string)$clean);
+    }
     echo json_encode(['success' => true]);
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'error' => $e->getMessage()]);
