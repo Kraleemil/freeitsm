@@ -202,8 +202,10 @@ $translationNamespaces = ['common', 'contracts'];
         .form-row .meta-row .meta-item { display: flex; gap: 6px; }
         .form-row .meta-row .meta-item span:first-child { color: var(--text-dim, #888); }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=91">
 </head>
-<body>
+<body data-mobile-module="contracts" data-mobile-page="rfp-extracted">
     <?php include '../includes/header.php'; ?>
 
     <div class="page-wrap">
@@ -525,5 +527,6 @@ $translationNamespaces = ['common', 'contracts'];
             if (e.target.id === 'editModal') closeEditModal();
         });
     </script>
+    <script src="../../assets/js/mobile.js?v=34"></script>
 </body>
 </html>

@@ -395,8 +395,10 @@ $translationNamespaces = ['common', 'contracts'];
         [data-theme-mode="dark"] .history-row.current { background: #0f241b; }
         [data-theme-mode="dark"] .history-row.current .history-row-header { background: #102c20; }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=91">
 </head>
-<body>
+<body data-mobile-module="contracts">
     <?php include '../includes/header.php'; ?>
 
     <div class="page-wrap">
@@ -1284,5 +1286,6 @@ $translationNamespaces = ['common', 'contracts'];
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
     </script>
+    <script src="../../assets/js/mobile.js?v=34"></script>
 </body>
 </html>

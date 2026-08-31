@@ -453,8 +453,10 @@ $translationNamespaces = ['common', 'contracts'];
         [data-theme-mode="dark"] .conflict-explanation  { background: #3a2e12; }
         [data-theme-mode="dark"] .merge-summary         { background: #3a2e12; border-color: #5a4a1e; }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=91">
 </head>
-<body>
+<body data-mobile-module="contracts">
     <?php include '../includes/header.php'; ?>
 
     <div class="page-wrap">
@@ -1705,5 +1707,6 @@ $translationNamespaces = ['common', 'contracts'];
             return label === key ? (res || '').replace('_', ' ') : label;
         }
     </script>
+    <script src="../../assets/js/mobile.js?v=34"></script>
 </body>
 </html>

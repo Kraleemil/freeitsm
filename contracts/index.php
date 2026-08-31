@@ -185,8 +185,10 @@ $translationNamespaces = ['common', 'contracts'];
         [data-theme-mode="dark"] .sidebar-link:hover { background: #3a2e12; }
         [data-theme-mode="dark"] .search-result-item:hover { background: #3a2e12; }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=91">
 </head>
-<body>
+<body data-mobile-module="contracts" data-mobile-page="contracts-list">
     <?php include 'includes/header.php'; ?>
 
     <div class="contracts-layout">
@@ -506,5 +508,6 @@ $translationNamespaces = ['common', 'contracts'];
             return div.innerHTML;
         }
     </script>
+    <script src="../assets/js/mobile.js?v=34"></script>
 </body>
 </html>

@@ -181,6 +181,57 @@ $today = DateFmt::render(new DateTime('now', new DateTimeZone(Tz::current())), '
             padding: 14px 0; font-family: 'Segoe UI', Tahoma, sans-serif;
         }
 
+
+        /* ---- Mobile (#1362) ----------------------------------------------
+           Its own @media block rather than a link to assets/css/mobile.css,
+           for the same reason the equipment report has one: this is a plain
+           scrolling document with no app shell, and LAYER 2's
+           `body { height: 100dvh; display: flex }` would clip it.
+
+           It was the ONLY one of the twenty-two pages already contained at
+           360px before this round (docScrollW=345), which is what a page
+           built as a document rather than as an application looks like. So
+           nothing here is a repair — it is the difference between a page that
+           fits and a page that reads. 70px of side padding is 39% of a 360px
+           screen, and a `.pv-section-body` table is AI-generated content of
+           unknown width, contained here for the same reason a Knowledge
+           article's author HTML is. */
+        @media (max-width: 768px) {
+            body { padding: 0; }
+            .pv-toolbar {
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 8px 12px;
+            }
+            .pv-toolbar .pv-title { flex: 1 1 100%; font-size: 15px; }
+            .pv-toolbar a, .pv-toolbar button {
+                flex: 1 1 auto;
+                min-height: 40px;
+                text-align: center;
+            }
+            /* "Use your browser's Print to save a PDF" — true on a desktop,
+               and on a phone it is the share sheet. It is guidance rather
+               than a control, so it takes its own line instead of competing
+               with the buttons for one. */
+            .pv-toolbar .pv-print-hint { flex: 1 1 100%; }
+            .pv-page {
+                max-width: none;
+                margin: 12px;
+                padding: 22px 16px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            }
+            .pv-cover { padding: 20px 0 16px; margin-bottom: 24px; }
+            /* The document body is generated prose and can contain a table of
+               any width. Contain it so it cannot take the page with it. */
+            .pv-section-body table {
+                display: block;
+                overflow-x: auto;
+                overscroll-behavior-x: contain;
+                -webkit-overflow-scrolling: touch;
+                max-width: 100%;
+            }
+            .pv-section-body ul, .pv-section-body ol { margin-left: 18px; }
+        }
         @media print {
             body { background: white; padding: 0; }
             .pv-toolbar { display: none; }

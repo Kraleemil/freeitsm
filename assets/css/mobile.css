@@ -5552,4 +5552,972 @@
     .editor-footer { padding: 8px 12px 8px; }
     .fm-glyph { font-size: 17px; line-height: 1; }
     .readonly-banner { padding: 10px 12px; font-size: 13px; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LAYER 28 — CONTRACTS module  (#1362-#1365)
+
+       Fourteenth module. Twenty-two pages: the contracts list / detail / edit,
+       suppliers, contacts, settings, help, an equipment report, and the
+       thirteen-page RFP Builder that hangs off the same nav.
+
+       🔑 THE SHELL IS ONE SHAPE WRITTEN TWICE. `.contracts-layout` and
+       `.rfp-layout` are the same declaration — `display:flex`,
+       `height: calc(100vh - 48px)`, a 260px sidebar, a `flex:1` main — and both
+       fill that sidebar with the SAME `.sidebar-section` / `.sidebar-stat` /
+       `.sidebar-link` / `.sidebar-add-btn` classes. So every rule below is
+       written against both selectors and the RFP Builder inherits the whole
+       shell for the cost of a comma. Half of Change Management came free the
+       same way (LAYER 23); this is the first time it was free by DESIGN rather
+       than by coincidence of naming.
+
+       Starting numbers at a 360px viewport, before anything: `docScrollW=1262`
+       on twenty of the twenty-two pages — the SAME number on all of them,
+       which is the tell that it is the shared header row and not the module.
+       Opting in took all twenty to 360 with no module CSS at all, exactly as
+       it did for Watchtower, Problem Management and Change Management.
+
+       🔴 WHAT OPTING IN DID NOT FIX — and the RFP Builder is the worse half:
+
+         `.rfp-main`  =  100px wide  (260px sidebar out of 360px)
+         `.contracts-main` = 360px
+
+       …and the reason for that difference is itself the find, below.
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    /* --------------------------------------------------------------------
+       28a — The page shell: two panes become a strip over a list.
+
+       `height: calc(100vh - 48px)` assumes a 48px header that has not wrapped,
+       which is wrong on a phone the moment it does. Let the page own its
+       height, as LAYERS 21-23 all do.
+       -------------------------------------------------------------------- */
+    .contracts-layout,
+    .rfp-layout {
+        flex-direction: column;
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* ⚠️⚠️ THE 16px SIDEBAR THAT ONLY OPENS ON HOVER — a desktop mode leaking
+       onto a phone, and the reason the two shells measured differently.
+
+       Contracts has a per-analyst "left panel" preference (Settings → Left
+       panel). Set to `hover`, `contracts/includes/header.php` puts
+       `.contracts-sidebar-hover` on <html> SERVER-SIDE and collapses the
+       sidebar to a 16px rail that expands on `:hover`. On a phone there is no
+       hover, so the search box, the five figures, the quick links and the New
+       contract button are all in a 16px strip that CANNOT BE OPENED AT ALL.
+
+       It is iOS lesson #4 (a desktop-only mode leaking onto mobile) with the
+       state on the SERVER rather than in localStorage — so there is no
+       function to wrap and no class to strip in JS; it is on the page before
+       any script runs. CSS is the only lever, and it has to win.
+
+       🔴 AND IT NEARLY DIDN'T. That rule is (0,3,0) and lives in a <style>
+       block header.php emits INSIDE <body> — i.e. AFTER this file in document
+       order. §9's load-order trap in a form the wiki does not yet describe: a
+       shared INCLUDE can put a stylesheet after the page's own <head>, so
+       "link mobile.css last" is not sufficient on its own. `html.` prefixed
+       here to make it (0,3,1), which beats it on specificity rather than
+       relying on order. No !important needed.
+
+       ⭐ It also explains the measurements. `.contracts-sidebar-hover` scopes
+       to `.contracts-layout .contracts-sidebar` only — it never matched
+       `.rfp-sidebar`. So Ed's own preference was accidentally shielding the
+       contracts pages from the 260px squeeze while the RFP Builder took it at
+       full force: 100px of usable width. Two pages of the same shell measuring
+       differently was the thread worth pulling. */
+    html.contracts-sidebar-hover .contracts-layout .contracts-sidebar,
+    html.contracts-sidebar-hover .contracts-layout .contracts-sidebar:hover {
+        position: static;
+        width: auto;
+        min-width: 0;
+        overflow: visible;
+        box-shadow: none;
+        transition: none;
+    }
+    html.contracts-sidebar-hover .contracts-layout .contracts-sidebar > *,
+    html.contracts-sidebar-hover .contracts-layout .contracts-sidebar:hover > * {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    /* The grab-handle pip the rail draws to say "hover me". There is nothing
+       to hover, and it would sit on top of the strip. */
+    html.contracts-sidebar-hover .contracts-layout .contracts-sidebar::before {
+        content: none;
+    }
+
+    /* The sidebar becomes a compact header strip above the content, the shape
+       LAYER 22 settled on for Problem Management. Stacking it as it stands
+       would spend ~400px of a 640px screen — a search box, five figures, four
+       links and a button — before the first contract.
+
+       Wrapping flex rather than PM's two-column grid, because the two shells
+       do not hold the same things: contracts has a search button AND an add
+       button to share the top line, the RFP Builder has only the add button.
+       `flex: 1 1 140px` lets the pair share a row where there are two and lets
+       the single one take the whole width where there is one, with no
+       page-specific rule and no :nth-child to go stale. */
+    .contracts-sidebar,
+    .rfp-sidebar {
+        width: auto;
+        min-width: 0;
+        flex: 0 0 auto;
+        overflow: visible;
+        border-right: none;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        padding: 10px 12px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+    .contracts-sidebar .sidebar-section,
+    .rfp-sidebar .sidebar-section {
+        margin-bottom: 0;
+        min-width: 0;
+    }
+
+    /* ⚠️ Keyed on what a section CONTAINS, not on its position. The two
+       sidebars hold the same sections in a different order and a different
+       count (contracts has four, the RFP Builder three), so a :nth-child
+       ordering would be right on one page and silently wrong on the other. */
+    .contracts-sidebar .sidebar-section:has(.sidebar-search-btn) { order: 1; flex: 1 1 140px; }
+    .contracts-sidebar .sidebar-section:has(.sidebar-add-btn),
+    .rfp-sidebar .sidebar-section:has(.sidebar-add-btn)          { order: 2; flex: 1 1 140px; }
+    .contracts-sidebar .sidebar-section:has(.sidebar-stat),
+    .rfp-sidebar .sidebar-section:has(.sidebar-stat)             { order: 3; flex: 1 1 100%; }
+    .contracts-sidebar .sidebar-section:has(.sidebar-links),
+    .rfp-sidebar .sidebar-section:has(.sidebar-links)            { order: 4; flex: 1 1 100%; }
+
+    /* "Overview" and "Quick links" label sections that are about to become two
+       self-evident chip rows — a row of `label 12` pairs and a row of named
+       links. On a strip they are ~40px of pure furniture each. PM kept its one
+       heading; three of them is a different question and they go.
+       ⚠️ Scoped to the sidebar: `.sidebar-section h3` also exists on the
+       detail pages, where it is a real heading. */
+    .contracts-sidebar .sidebar-section h3,
+    .rfp-sidebar .sidebar-section h3 { display: none; }
+
+    /* The figures: one horizontal scrolling row, not five stacked bars. Each
+       keeps its number for the reason LAYER 22 kept the filter counts — the
+       figure is the whole point of the row (is anything expiring at all?),
+       so this cannot collapse into a select. */
+    .contracts-sidebar .sidebar-section:has(.sidebar-stat),
+    .rfp-sidebar .sidebar-section:has(.sidebar-stat) {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        gap: 6px;
+        /* Same idiom as .detail-tabs, #pmStatusFilters and the settings .tabs:
+           the bar is redundant on touch and eats a row of height. */
+        scrollbar-width: none;
+    }
+    .contracts-sidebar .sidebar-section:has(.sidebar-stat)::-webkit-scrollbar,
+    .rfp-sidebar .sidebar-section:has(.sidebar-stat)::-webkit-scrollbar { display: none; }
+    .contracts-sidebar .sidebar-stat,
+    .rfp-sidebar .sidebar-stat {
+        flex: 0 0 auto;
+        margin-bottom: 0;
+        gap: 8px;
+        padding: 7px 10px;
+        font-size: 13px;
+        white-space: nowrap;
+        background: var(--surface-2, #f7f7f8);
+        border-radius: 999px;
+    }
+    .contracts-sidebar .sidebar-stat .stat-value,
+    .rfp-sidebar .sidebar-stat .stat-value { font-size: 14px; }
+
+    /* The quick links, likewise one scrolling row.
+       ⚠️ NOT hidden as duplicates of the views drawer, which was the first
+       instinct. On the contracts sidebar they genuinely do duplicate
+       `.header-nav` (Suppliers / Contacts / RFP Builder / Settings), but the
+       RFP Builder's two are "Back to contracts" and its OWN help page — and
+       the header's Help button goes to `contracts/help.php`, a different
+       document. Hiding the row would have cost the RFP Builder the only link
+       to its guide. */
+    .contracts-sidebar .sidebar-links,
+    .rfp-sidebar .sidebar-links {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        gap: 6px;
+        scrollbar-width: none;
+    }
+    .contracts-sidebar .sidebar-links::-webkit-scrollbar,
+    .rfp-sidebar .sidebar-links::-webkit-scrollbar { display: none; }
+    .contracts-sidebar .sidebar-link,
+    .rfp-sidebar .sidebar-link {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: 8px 12px;
+        min-height: 40px;
+        background: var(--surface-2, #f7f7f8);
+        border-radius: 999px;
+        gap: 7px;
+    }
+    /* Thumb-sized, and the pair on the top line stay side by side. */
+    .contracts-sidebar .sidebar-search-btn,
+    .contracts-sidebar .sidebar-add-btn,
+    .rfp-sidebar .sidebar-add-btn {
+        min-height: 42px;
+        font-size: 14px;
+        text-align: center;
+        justify-content: center;
+    }
+    .contracts-sidebar .sidebar-add-btn,
+    .rfp-sidebar .sidebar-add-btn { display: flex; align-items: center; }
+
+    /* The content pane is the page's scroller. 30px of padding at 360px is a
+       sixth of the screen spent on margins. */
+    .contracts-main,
+    .rfp-main {
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: 12px;
+    }
+
+    /* --------------------------------------------------------------------
+       28b — The RFP Builder's seven sub-page shells.
+
+       `.page-wrap` (documents, extracted, consolidate, coverage, scoring,
+       suppliers, document) and `.rfp-view-wrap` (view) carry the identical
+       `padding: 30px 40px; height: calc(100vh - 48px)`. 40px of side padding
+       at 360px is 22% of the screen.
+       -------------------------------------------------------------------- */
+    .page-wrap,
+    .rfp-view-wrap {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: 12px;
+    }
+    /* The trail wraps to two or three lines at this width rather than running
+       off the side; the separators need to breathe for it to stay readable. */
+    .breadcrumb { line-height: 1.7; margin-bottom: 10px; }
+
+    /* --------------------------------------------------------------------
+       28c — Card feeds: the six list tables.
+
+       §11's decision, taken six times. Every one of these is read ONE ROW AT A
+       TIME — you are looking up a contract, a supplier, a person, a document —
+       the columns are ours rather than user-chosen, and one of them (the
+       requirement text on `extracted`) is outright prose. That is the tell
+       that settles it: a cell measured 129px wide and 358px TALL before this
+       block, which is a sentence rendered as a column of single words.
+
+       The three that do NOT become feeds are in 28d, and they lose for §11's
+       stated reason rather than by omission.
+
+       ⚠️ SCOPED ON A PAGE MARKER, NOT A CLASS. `.section-card` is also
+       change-management/settings' class name (§15 — a generic class name is
+       usually two modules' class name), and the four `.section-card` tables
+       here need four DIFFERENT column treatments anyway. `data-mobile-page`
+       is the convention the settings layer already established.
+
+       Shape follows LAYER 27's, which is the newest and the one that had its
+       traps written down: a wrapping FLEX row per card, so cells can pair up
+       on a line. `min-width: 0` on every cell is load-bearing for the reason
+       27 records — a flex item's automatic minimum size is its content width,
+       so one nowrap cell pins the whole card wider than the screen while the
+       document stays perfectly contained and every check passes.
+       -------------------------------------------------------------------- */
+    body[data-mobile-page="contracts-list"] .section-card table,
+    body[data-mobile-page="contracts-contacts"] .section-card table,
+    body[data-mobile-page="contracts-suppliers"] .section-card table,
+    body[data-mobile-page="rfp-list"] .section-card table,
+    body[data-mobile-page="rfp-documents"] .page-wrap table,
+    body[data-mobile-page="rfp-extracted"] .page-wrap table {
+        display: block;
+        width: 100%;
+    }
+    body[data-mobile-page="contracts-list"] .section-card table thead,
+    body[data-mobile-page="contracts-contacts"] .section-card table thead,
+    body[data-mobile-page="contracts-suppliers"] .section-card table thead,
+    body[data-mobile-page="rfp-list"] .section-card table thead,
+    body[data-mobile-page="rfp-documents"] .page-wrap table thead,
+    body[data-mobile-page="rfp-extracted"] .page-wrap table thead {
+        display: none;
+    }
+    body[data-mobile-page="contracts-list"] .section-card table tbody,
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody,
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody,
+    body[data-mobile-page="rfp-list"] .section-card table tbody,
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody,
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody {
+        display: block;
+        width: 100%;
+    }
+    body[data-mobile-page="contracts-list"] .section-card table tbody tr,
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody tr,
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody tr,
+    body[data-mobile-page="rfp-list"] .section-card table tbody tr,
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody tr,
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 8px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border-soft, #f0f0f0);
+    }
+    body[data-mobile-page="contracts-list"] .section-card table tbody td,
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td,
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody td,
+    body[data-mobile-page="rfp-list"] .section-card table tbody td,
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td,
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td {
+        display: block;
+        flex: 1 1 100%;
+        min-width: 0;              /* 🔴 see the block comment above */
+        padding: 0;
+        border: none;
+        text-align: left;
+        font-size: 12.5px;
+        color: var(--text-dim, #888);
+    }
+
+    /* ---- the harvested column headings, promoted out of LAYER 27 ----
+       27c wrote this rule against `#formsTable` because it was the only feed
+       that had them. It is the second module's turn and the rule is
+       identical, so it becomes general rather than copied: mobile.js only
+       stamps the attribute on tables named in its FEEDS list, so a table it
+       has never been pointed at cannot pick this up by accident. */
+    td[data-mobile-label]::before {
+        content: attr(data-mobile-label) "\00a0";
+        color: var(--text-faint, #999);
+    }
+
+    /* ---- the shape shared by all six: a reference, a state, a title ----
+       Every one of these tables opens with an identifier and carries a status
+       somewhere in the middle, so the card header is the same on all six: the
+       identifier at the left, the status badge pushed to the right by
+       `margin-left: auto`, and the name on its own line beneath. Only the
+       INDEX of the status column differs, which is why the selectors below
+       are per-page rather than one rule. */
+    body[data-mobile-page="contracts-list"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:nth-child(1) {
+        /* 🔴🔴 THE FLEX-BASIS THAT HAS TO BE A MIDDLE VALUE, AND BOTH ENDS
+           ARE WRONG. This one line was written three times.
+
+           `auto` (the default) makes the basis the CONTENT width, and
+           `flex-wrap` decides what fits from the BASIS before flex-shrink
+           ever runs — so a 273px filename claimed the whole 328px line and
+           pushed its own status badge onto the next row. Measured on
+           `documents`: identifier at y=500, its badge at y=520.
+
+           `0` fixes that and breaks the opposite thing. A zero basis means
+           the identifier asks for NOTHING, so every other short cell on the
+           row fits beside it too — on `rfp-list` the badge AND two counts
+           joined the header line and squeezed "Data room platform" into
+           65px wide by 60px TALL. That is §11's crushed signature exactly,
+           and I had just introduced it while fixing the other page.
+
+           `60%` is the value that holds both: wide enough that the
+           identifier plus its badge fill the line and the next cell has to
+           wrap, small enough to shrink when the badge is wide. It still
+           grows to take the remainder, which is what pushes the badge right
+           without a `margin-left: auto`.
+
+           ⭐ THE TELL, and it is general: one page in six laid out
+           differently under rules that were identical. The difference was
+           the DATA — one long filename — not the CSS. When a shared rule
+           misbehaves on exactly one page, measure that page's content
+           before re-reading the rule. */
+        flex: 1 1 60%;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+        /* Long names then wrap inside their own share rather than pinning the
+           card open (the LAYER 27 trap again). */
+        overflow-wrap: anywhere;
+    }
+
+    /* The status cell, wherever it happens to sit, goes to the right of the
+       first line. `order` rather than DOM surgery. */
+    body[data-mobile-page="contracts-list"] .section-card table tbody td:nth-child(6),
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td:nth-child(6),
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody td:nth-child(4),
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:nth-child(2),
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:nth-child(3) {
+        order: -1;
+        flex: 0 0 auto;
+    }
+    /* …and the identifier keeps the left of that same line. */
+    body[data-mobile-page="contracts-list"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:nth-child(1),
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:nth-child(1) {
+        order: -2;
+    }
+
+    /* ---- the bare counts share ONE line ----
+       §21's own caution, met in practice: three consecutive full-width lines
+       reading "Docs 3", "Reqs 100", "Suppliers 2" is a card that has become a
+       spreadsheet. Prefixed values are only readable in small numbers, so the
+       counts pack onto a single line and the dates keep their own.
+       ⚠️ `flex: 0 0 auto`, NOT `display: inline` — a flex item's display is
+       blockified, so an inline cell still takes a line of its own. LAYER 26
+       hit that and wrote it up; it is the easiest rule here to get wrong. */
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:nth-child(3),
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:nth-child(4),
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:nth-child(5),
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:nth-child(4),
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:nth-child(5) {
+        flex: 0 0 auto;
+    }
+
+    /* The contract's title and the contact's job title are the second line and
+       carry the weight; they are not meta. */
+    body[data-mobile-page="contracts-list"] .section-card table tbody td:nth-child(2),
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td:nth-child(2) {
+        font-size: 14px;
+        color: var(--text, #333);
+        margin: 2px 0 4px;
+    }
+
+    /* ---- the actions cell: full width, thumb-sized, at the foot ----
+       ⚠️ `:last-child` and not an index, because it is the one column every
+       one of these six tables ends with — and `:not(:first-child)` because
+       §11's empty-state warning applies exactly here: the loading / empty row
+       is a single `<td colspan="7">`, which is both the first AND the last
+       child of its row. Without the guard, "No contracts yet." is laid out as
+       a row of buttons. That is how the Calendar feed lost its message. */
+    body[data-mobile-page="contracts-list"] .section-card table tbody td:last-child:not(:first-child),
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td:last-child:not(:first-child),
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody td:last-child:not(:first-child),
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:last-child:not(:first-child),
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:last-child:not(:first-child),
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td:last-child:not(:first-child) {
+        flex: 1 1 100%;
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    body[data-mobile-page="contracts-list"] .section-card table tbody td:last-child:not(:first-child) > *,
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td:last-child:not(:first-child) > *,
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody td:last-child:not(:first-child) > *,
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:last-child:not(:first-child) > *,
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:last-child:not(:first-child) > *,
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td:last-child:not(:first-child) > * {
+        flex: 1 1 auto;
+        min-height: 40px;
+        justify-content: center;
+    }
+
+    /* ⚠️ …and the empty / loading / error row itself, which every rule keyed
+       on position above has to leave alone. It is one full-width cell and it
+       wants to look like the sentence it is. */
+    body[data-mobile-page="contracts-list"] .section-card table tbody td:only-child,
+    body[data-mobile-page="contracts-contacts"] .section-card table tbody td:only-child,
+    body[data-mobile-page="contracts-suppliers"] .section-card table tbody td:only-child,
+    body[data-mobile-page="rfp-list"] .section-card table tbody td:only-child,
+    body[data-mobile-page="rfp-documents"] .page-wrap table tbody td:only-child,
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td:only-child {
+        flex: 1 1 100%;
+        order: 0;
+        margin: 0;
+        padding: 20px 0;
+        text-align: center;
+        font-size: 13px;
+    }
+
+    /* ---- `extracted`: the one whose body is a sentence ----
+       Department / Type / Confidence are metadata about a requirement; the
+       requirement itself is the card. So the three short values ride the top
+       line as a run and the prose gets the full width beneath them, wrapping
+       normally — the shape 27 used for a form's description, and the reason
+       §11 says prose can be neither scrolled sideways nor squeezed. */
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td:nth-child(1),
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td:nth-child(2),
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td:nth-child(4) {
+        flex: 0 0 auto;
+        order: -1;
+    }
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td:nth-child(3) {
+        flex: 1 1 100%;
+        font-size: 14px;
+        color: var(--text, #333);
+        white-space: normal;
+        overflow-wrap: anywhere;
+        margin: 6px 0 0;
+    }
+    /* The desktop sheet pins four of these five columns to a fixed width
+       (`style="width: 140px"` and friends). In a card there is no column to
+       hold open, and an inline width on a flex item fights `flex-basis`. */
+    body[data-mobile-page="rfp-extracted"] .page-wrap table tbody td[style*="width"],
+    body[data-mobile-page="rfp-extracted"] .page-wrap table thead th[style*="width"] {
+        width: auto !important;
+    }
+
+    /* --------------------------------------------------------------------
+       28d — The four that stay tables, and why.
+
+       §11 is a decision, not a default, and these four come out the other
+       way:
+
+         `.heatmap`       (coverage) — a category down the side, a SUPPLIER per
+                                       column. Reading it means comparing one
+                                       row across columns and one column down
+                                       the page. That is the definition of the
+                                       case a card feed destroys.
+         `.winners-table` (compare)  — the same shape, and I had it as a card
+                                       feed until the measurements showed the
+                                       cards. See the warning below.
+         `.ai-log-table`  (view)     — 8 columns, four of them `class="num"`.
+         `.audit-table`   (audit)    — 9 columns, same four numeric ones:
+                                       tokens in, tokens out, cached, time.
+
+       🔴🔴 A `<thead>` IN THE MARKUP IS NOT THE COLUMN LIST. `compare.php`
+       ships two static `<th>` — Category and Winner — so a grep of the file
+       said "four columns, two of them names, that is a comfortable card
+       feed", and I built one. The rendered row is
+       `Category | 5.00 | 5.00 | Tied`: the middle columns are emitted ONE PER
+       SUPPLIER by the page's own JS, so the real column count is not in the
+       source at all and is not fixed. Which puts it squarely in §11's
+       right-hand column — "the columns are user-chosen or open-ended" — and
+       the card feed I had written rendered two unlabelled `5.00`s stacked
+       under a category, which is the least readable form of a comparison
+       there is.
+       ⭐ It was caught by dumping the FIRST RENDERED ROW's cells rather than
+       reading the `<thead>`. A table whose columns come from data cannot be
+       counted in the editor; §11's questions have to be asked of the page.
+
+       You read the last two to answer "what did this cost and how long did it
+       take" — which is scanning a numeric column, the left-hand side of §11's
+       table. And nine columns cannot be carried by reading order in any case.
+
+       Same idiom as the settings tables, deliberately: `display:block` plus
+       `overflow-x:auto` on the table itself. Ed's #1004 rule was that every
+       table on a settings screen should behave the same way; the same
+       argument applies to every table in a module that a reader scans rather
+       than reads. See [[Consistency over bespoke]]. */
+    .heatmap,
+    .winners-table,
+    .ai-log-table,
+    .audit-table {
+        display: block;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+    /* ⚠️ `position: sticky` on a `thead th` needs a scrolling ANCESTOR to
+       stick inside. Making the table itself the scroller re-parents that
+       relationship, and the heatmap's sticky header then sticks to a box that
+       no longer scrolls vertically — it just sits there taking up room and
+       covering the first row on the way past. The header row is one line of
+       category names; dropping the stickiness is cheaper than rebuilding the
+       scroll container. */
+    .heatmap thead th { position: static; }
+
+    /* --------------------------------------------------------------------
+       28e — `.section-card` and its header, shared by six pages.
+
+       ⚠️ Scoped through `.contracts-main` / `.rfp-main` / `.page-wrap` rather
+       than styled bare. `.section-card` is ALSO change-management/settings'
+       class name — §15's "a generic class name is usually two modules' class
+       name", which cost the Knowledge round a cross-module regression that no
+       measurement of the page being worked on could have shown.
+       -------------------------------------------------------------------- */
+    .contracts-main .section-card,
+    .rfp-main .section-card,
+    .page-wrap .section-card {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .contracts-main .section-card .section-header,
+    .rfp-main .section-card .section-header,
+    .page-wrap .section-card .section-header {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 14px;
+    }
+    .contracts-main .section-card .section-header h2,
+    .rfp-main .section-card .section-header h2,
+    .page-wrap .section-card .section-header h2 { font-size: 15px; }
+
+    /* --------------------------------------------------------------------
+       28f — The contract detail view, and the header that every check passed.
+
+       🔴 `docScrollW === innerWidth`, `uncontained = 0`, nothing overflowing —
+       and the page was unusable. `.contract-card-header` is a nowrap flex row
+       holding an `<h2>` and FIVE buttons (Back, Task, Calendar, Report, Edit).
+       The buttons win, so the heading was squeezed to about 130px: the
+       contract number broke across two lines, its title across three, and the
+       Calendar button ran off the right-hand edge of the card.
+
+       It is LAYER 23's `flex-shrink` fault in a new place, and it failed the
+       same way: the CARD overflows, not the document, so an ancestor scrolls
+       and every containment number stays clean. §11's "overflow gets
+       reported; crushing does not", except this one does not even squeeze
+       visibly until you look.
+
+       ⭐ ONLY THE SCREENSHOT SHOWED IT — for the second module running. The
+       measurements were all green when I took it.
+       -------------------------------------------------------------------- */
+    .contract-card-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 14px;
+    }
+    .contract-card-header h2 { font-size: 17px; line-height: 1.35; }
+    .contract-card-header .actions { flex-wrap: wrap; gap: 8px; }
+    .contract-card-header .btn {
+        flex: 1 1 auto;
+        min-height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 8px 12px;
+    }
+
+    /* The detail grid is `1fr 1fr`, which at 360px is two ~150px columns.
+       Dates survive that; names do not — "TechDirect Solutions Ltd (t/a
+       TechDirect)" came out 140px wide and 60px tall, §19's narrow-AND-tall
+       signature. One column, matching what LAYER 25 did for the Tasks detail
+       panel's paired rows and what 15e does for every inline grid on a
+       settings screen. See [[Consistency over bespoke]] — a module that
+       stacks its pairs where its neighbours stack theirs is worth more than
+       two dates side by side. */
+    [data-mobile-module="contracts"] .contract-details,
+    [data-mobile-module="contracts"] .form-grid,
+    [data-mobile-module="contracts"] .view-grid,
+    [data-mobile-module="contracts"] .cv-modal-row {
+        /* ⚠️ `minmax(0, 1fr)` and NOT `1fr`. §14's `min-width: auto` in its
+           grid form: `1fr` is shorthand for `minmax(auto, 1fr)`, and that
+           `auto` floor is the track's MIN-CONTENT width — so one child that
+           cannot break (a long label, an input with a `size`) pushes the
+           track wider than its own container and the whole grid overflows.
+           Measured after the first version of this rule: a single track
+           320px wide inside a 288px box, one column and still spilling.
+           A zero floor lets the track shrink to what it has. */
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+    }
+    [data-mobile-module="contracts"] .contract-details { padding: 14px; }
+
+    /* 🔴🔴 …AND STACKING THE GRID IS ONLY HALF OF IT — 15e's trap, met again
+       and diagnosed the same way it was the first time.
+
+       After the rule above, the grid measured `98.16px 187.84px`. Not
+       `1fr 1fr` (which is 143/143) and not one column either — two AUTO
+       columns, which is what a grid gets when it is told to have one track
+       and then handed a child that spans two:
+
+           .detail-group.full-width { grid-column: span 2; }
+           .section-divider         { grid-column: span 2; }
+
+       A child spanning two columns of a ONE-column grid makes the browser
+       create an IMPLICIT second column, so the layout silently reverts to two
+       and sizes them by content. Ten of these across three pages
+       (`.full-width`, `.section-divider`, `.modal-actions` on view, suppliers
+       and the supplier detail).
+
+       ⭐ THE TELL, and it is worth more than the fix: `padding: 14px` from the
+       SAME rule applied while `grid-template-columns` did not. A rule that
+       does not match changes nothing (§9); a rule that half-works is being
+       overridden on one property, or — as here — is being obeyed and then
+       undone by the children. Measuring the computed value rather than
+       re-reading the selector is what separates those in one step.
+
+       `1 / -1` says "the whole row however many tracks there are", which is
+       correct at every width, so this is a fix rather than a mobile override.
+
+       ⚠️ AND IT IS DELIBERATELY KEYED ON THE GRID, NOT ON THE SPANNING CLASS.
+       The first version listed the classes — `.full-width`, `.section-divider`,
+       `.modal-actions` — and it fixed the contract detail and left the two
+       supplier pages exactly as they were, because those spell the same idea
+       `.view-section` and `.form-section`. Five names for one concept across
+       three files, and no reason to think the sixth does not exist.
+
+       In a ONE-column grid every child is full width by definition, so `> *`
+       is not a blunt instrument here — it is the actual intent, and it covers
+       whatever the next page calls its section heading. Same reasoning as
+       15e's `[style*="grid-template-columns"]`: state the intent, not the
+       inventory. */
+    [data-mobile-module="contracts"] .contract-details > *,
+    [data-mobile-module="contracts"] .form-grid > *,
+    [data-mobile-module="contracts"] .view-grid > *,
+    [data-mobile-module="contracts"] .cv-modal-row > * {
+        grid-column: 1 / -1;
+    }
+    /* 🔴🔴 …AND ONE OF THE FOUR STILL DID NOT TAKE. THIRD TIME FOR THIS FILE.
+
+       After the rule above, `.view-grid` stacked and `.form-grid` came out
+       `306px 0px` — one real track plus a phantom, so two of its nineteen
+       children were still spanning. Not a tie lost on order: `inbox.css:3039`
+       carries
+
+           .form-grid .form-group.full-width { grid-column: span 2; }
+
+       which is (0,3,0) against the (0,2,0) above and therefore wins NO MATTER
+       WHAT ORDER THE FILES LOAD IN. `.view-grid` is contracts' own name and
+       appears nowhere in inbox.css, which is exactly why one of the two
+       worked and the other did not.
+
+       This is the same trap, in the same file, for the third time: LAYER 3's
+       anti-zoom rule lost to `inbox.css:2653` at (0,3,1), 16i's modal header
+       inset lost to `inbox.css:2549` at (0,3,0), and now this. 🔑 A shared
+       stylesheet that styles a class you are overriding is worth GREPPING
+       before writing the override — a rule that loses on specificity looks
+       identical to one that was never written, and both look identical to a
+       cache that did not bust.
+
+       Mirrored at (0,4,0) rather than reached for with !important, which is
+       the house rule: getting the order right, or the specificity right, is
+       the point of not needing it. */
+    [data-mobile-module="contracts"] .form-grid .form-group.full-width {
+        grid-column: 1 / -1;
+    }
+
+    /* --------------------------------------------------------------------
+       28g — 🔴🔴 NINE MODAL SHELLS, AND LAYER 3 CAN SEE ONE OF THEM.
+
+       The wiki records this trap twice already — Problem Management had a
+       modal class of its own, and so did Change Management. Contracts has
+       NINE, which changes the answer:
+
+         .cv-modal  .modal-card  .modal-edit-shell  .edit-modal  .stream-modal
+         .modal-shell  .modal-history-shell  .batch-modal
+         (+ .modal-content, the one LAYER 3 actually covers)
+
+       This is not a cosmetic problem. LAYER 3 carries the ANTI-ZOOM RULE —
+       `font-size: 16px` on every field in a sheet — and iOS lesson #1 is that
+       a field under 16px makes Safari zoom on focus, which spills the sheet,
+       which makes Safari reflow to a desktop-width layout, which stops
+       `max-width: 768px` matching AT ALL. One unreached modal does not
+       degrade gracefully; it switches the entire mobile layer off. So nine
+       unreached shells is nine ways to lose the whole thing.
+
+       ⭐ ENUMERATING THE SHELLS IS THE WRONG FIX, and 15e already wrote down
+       why: "at that point enumerating containers is losing to the codebase".
+       Every one of these nine is THE CHILD OF AN OVERLAY, and there are only
+       three overlays. So the rule keys on the overlay and takes whatever card
+       it holds — including the tenth shell nobody has written yet.
+
+       ⚠️⚠️ AND IT MUST BE SCOPED, which is what `data-mobile-module` is for.
+       `.modal-overlay` is ALSO the class name used by change-management,
+       tasks, the inbox, the login page and the reporting logs; `.modal-backdrop`
+       is system/integrations'. A bare `.modal-overlay > *` would silently
+       restyle the modals of five other modules, three of which are already
+       shipped and device-tested. That is §15 exactly, and it is the fault
+       that "no measurement of the page you are working on" can find.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="contracts"] .modal-backdrop > *,
+    [data-mobile-module="contracts"] .modal-overlay > *,
+    [data-mobile-module="contracts"] .cv-modal-overlay > * {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        display: flex;
+        flex-direction: column;
+    }
+    /* The overlays themselves centre a box; there is nothing left to centre. */
+    [data-mobile-module="contracts"] .modal-backdrop,
+    [data-mobile-module="contracts"] .modal-overlay,
+    [data-mobile-module="contracts"] .cv-modal-overlay {
+        align-items: stretch;
+        justify-content: stretch;
+    }
+    /* The body scrolls; the header and footer stay put. Every one of the nine
+       uses the same three-part shape under a differently-named parent, which
+       is the other half of why the overlay is the right thing to key on. */
+    [data-mobile-module="contracts"] .cv-modal-body,
+    [data-mobile-module="contracts"] .modal-edit-body,
+    [data-mobile-module="contracts"] .edit-modal-body,
+    [data-mobile-module="contracts"] .modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 16px;
+    }
+    [data-mobile-module="contracts"] .cv-modal-header,
+    [data-mobile-module="contracts"] .modal-edit-header,
+    [data-mobile-module="contracts"] .edit-modal-header,
+    [data-mobile-module="contracts"] .modal-header,
+    [data-mobile-module="contracts"] .cv-modal-footer,
+    [data-mobile-module="contracts"] .modal-edit-footer,
+    [data-mobile-module="contracts"] .edit-modal-footer,
+    [data-mobile-module="contracts"] .modal-footer {
+        flex: 0 0 auto;
+        padding: 12px 16px;
+    }
+    /* Footer buttons are the ones a thumb has to hit. */
+    [data-mobile-module="contracts"] .cv-modal-footer,
+    [data-mobile-module="contracts"] .modal-edit-footer,
+    [data-mobile-module="contracts"] .edit-modal-footer,
+    [data-mobile-module="contracts"] .modal-footer { flex-wrap: wrap; gap: 8px; }
+    [data-mobile-module="contracts"] .cv-modal-footer > button,
+    [data-mobile-module="contracts"] .cv-modal-footer > a,
+    [data-mobile-module="contracts"] .modal-edit-footer > button,
+    [data-mobile-module="contracts"] .edit-modal-footer > button,
+    [data-mobile-module="contracts"] .modal-footer > button,
+    [data-mobile-module="contracts"] .modal-footer > a {
+        flex: 1 1 auto;
+        min-height: 44px;
+    }
+
+    /* 🔴 THE ANTI-ZOOM RULE, WHICH IS THE WHOLE REASON THE ABOVE MATTERS.
+       Under 16px, iOS Safari zooms on focus and the mobile layer switches
+       itself off (iOS lesson #1 / Techniques §3). LAYER 3 states this for
+       `.modal-content`; these nine shells never saw it.
+
+       ⚠️ The selector list is MIRRORED FROM LAYER 3 rather than shortened,
+       for the reason #998 recorded: inbox.css carries
+       `.modal .form-group input[type="date"] { font-size: 14px }` at (0,3,1),
+       which beats a shorter selector on specificity no matter what order the
+       files load in — and that had every native date, time, number and email
+       field in the product sitting at 14px on a phone for months. A module
+       whose contracts are all dates would have hit it on the first tap. */
+    [data-mobile-module="contracts"] .modal-backdrop input,
+    [data-mobile-module="contracts"] .modal-backdrop select,
+    [data-mobile-module="contracts"] .modal-backdrop textarea,
+    [data-mobile-module="contracts"] .modal-overlay input,
+    [data-mobile-module="contracts"] .modal-overlay select,
+    [data-mobile-module="contracts"] .modal-overlay textarea,
+    [data-mobile-module="contracts"] .cv-modal-overlay input,
+    [data-mobile-module="contracts"] .cv-modal-overlay select,
+    [data-mobile-module="contracts"] .cv-modal-overlay textarea {
+        font-size: 16px;
+    }
+    /* And native date/time controls ignore `width: 100%` outright — iOS gives
+       them an intrinsic width and the grey field walks off the right edge.
+       Techniques §20 says this has been needed five times; a contracts module
+       has a start date, an end date, a notice date and a review date, so it
+       is needed here more than anywhere. */
+    [data-mobile-module="contracts"] input[type="date"],
+    [data-mobile-module="contracts"] input[type="datetime-local"],
+    [data-mobile-module="contracts"] input[type="time"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    [data-mobile-module="contracts"] input[type="date"]::-webkit-date-and-time-value {
+        margin: 0;
+        text-align: left;
+    }
+
+    /* --------------------------------------------------------------------
+       28h — The edit form.
+
+       Same `1fr 1fr` story as the detail view, plus the anti-zoom on the
+       fields that are NOT in a modal — this form is a full page.
+       -------------------------------------------------------------------- */
+    /* ⚠️ `.form-grid` is NOT repeated here. It was, with a plain `1fr`, and
+       being the later of two rules at equal specificity it quietly undid the
+       `minmax(0, 1fr)` in 28f — so the track went back to 320px inside a
+       288px box and the fix above measured as if it had never been written.
+       🔑 The second-guess is worth stating because it cost a round: when a
+       rule you just wrote has no effect, the overriding rule is as likely to
+       be YOUR OWN, further down the same file, as anybody else's. */
+    [data-mobile-module="contracts"] .form-row { grid-template-columns: minmax(0, 1fr); }
+    [data-mobile-module="contracts"] .form-actions { flex-wrap: wrap; gap: 8px; }
+    [data-mobile-module="contracts"] .form-actions > button,
+    [data-mobile-module="contracts"] .form-actions > a {
+        flex: 1 1 auto;
+        min-height: 44px;
+        justify-content: center;
+    }
+    /* 16px on every field on the page, modal or not. A full-page form spills
+       exactly as badly as a sheet does when Safari zooms. */
+    [data-mobile-module="contracts"] .contracts-main input,
+    [data-mobile-module="contracts"] .contracts-main select,
+    [data-mobile-module="contracts"] .contracts-main textarea,
+    [data-mobile-module="contracts"] .page-wrap input,
+    [data-mobile-module="contracts"] .page-wrap select,
+    [data-mobile-module="contracts"] .page-wrap textarea {
+        font-size: 16px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* --------------------------------------------------------------------
+       28i — The RFP Builder's page header, on nine pages, and the same fault
+       as 28f on all nine.
+
+       `.page-header` is `display:flex; justify-content:space-between` holding
+       an `<h1>` and a `.page-actions` row. Identical shape to
+       `.contract-card-header`, identical outcome: on `extracted` the title
+       "Extracted requirements — Data room platform" came out about 130px wide
+       across FIVE lines while the Documents button ran off the right edge.
+
+       ⭐ Worth noting how it was found. 28f's version was fixed from a
+       screenshot, and I did not go looking for the pattern elsewhere — the
+       measurements were clean on all nine of these too. It turned up on the
+       NEXT screenshot, of a page opened to check something else entirely.
+       🔑 When a layout fault is caused by a SHAPE (a nowrap flex row holding
+       a heading and a button group) rather than by a class, grep for the
+       shape once it is found. `justify-content: space-between` on a flex row
+       with a heading in it is the signature, and this module had it twice
+       under two different names.
+
+       These four class names are contracts-only today — grepped, not assumed
+       — but they are scoped through the module marker anyway, because "no
+       other module uses this name yet" is precisely the state §15's faults
+       start from and the scoping costs nothing.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="contracts"] .page-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    [data-mobile-module="contracts"] .page-header h1 {
+        font-size: 18px;
+        line-height: 1.3;
+    }
+    [data-mobile-module="contracts"] .page-actions { flex-wrap: wrap; gap: 8px; }
+    [data-mobile-module="contracts"] .page-actions > a,
+    [data-mobile-module="contracts"] .page-actions > button {
+        flex: 1 1 auto;
+        min-height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    /* Four figures across 328px is 82px each — §11's crushed width, on a
+       number that is the whole point of the card. Two-up, which is the call
+       15f made for the eight server summary cards and 18b for the service
+       board: a phone can hold two of these and read them, and one column of
+       four spends a third of the screen saying very little.
+       ⚠️ A grid rather than a wrapping flex row, per §10 — wrapping leaves
+       the figures ragged, and these are meant to be compared. */
+    [data-mobile-module="contracts"] .stats-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    [data-mobile-module="contracts"] .stat-card { padding: 12px 14px; }
+    [data-mobile-module="contracts"] .stat-card .stat-value { font-size: 20px; }
+    [data-mobile-module="contracts"] .stat-card .stat-label { font-size: 11px; }
 }

@@ -201,8 +201,10 @@ $translationNamespaces = ['common', 'contracts'];
         .btn-primary { background-color: var(--con-accent, #f59e0b); color: white; }
         .btn-primary:hover { background-color: var(--con-accent-hover, #d97706); }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../../../assets/css/mobile.css?v=91">
 </head>
-<body>
+<body data-mobile-module="contracts">
     <?php include '../../includes/header.php'; ?>
 
     <div class="contracts-layout">
@@ -652,5 +654,6 @@ $translationNamespaces = ['common', 'contracts'];
             return div.innerHTML;
         }
     </script>
+    <script src="../../../assets/js/mobile.js?v=34"></script>
 </body>
 </html>

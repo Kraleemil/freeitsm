@@ -1744,7 +1744,45 @@
        Indexes are into the header row, zero-based:
          3 = the field count, 4 = the submission count. */
     var FEEDS = [
-        { table: '#formsTable', columns: [3, 4] }
+        { table: '#formsTable', columns: [3, 4] },
+
+        /* ---- Contracts (LAYER 28c, #1362) ----
+           Six card feeds, and the list below is the whole argument for §21
+           existing. Under §11 alone a seven-column contracts list was a
+           marginal call and an EIGHT-column RFP list was not a feed at all;
+           the only objection in both cases was that some columns cannot
+           speak for themselves. These are those columns and no others.
+
+           ⚠️ Two names in a row is the commonest case here, and it is not
+           obvious from a column count. The contracts list puts Supplier
+           beside Owner — a company and a person, both rendered as plain
+           text — and the suppliers list puts Legal name beside Trading
+           name, which are two names for the SAME organisation. Unlabelled,
+           the second of each pair is unreadable. */
+        { table: 'body[data-mobile-page="contracts-list"] .section-card table',
+          columns: [2, 3, 4] },          /* supplier, owner, end date */
+        { table: 'body[data-mobile-page="contracts-contacts"] .section-card table',
+          columns: [4] },                /* supplier — an email and a mobile
+                                            announce themselves by shape; a
+                                            company name after a person's
+                                            name does not */
+        { table: 'body[data-mobile-page="contracts-suppliers"] .section-card table',
+          columns: [1, 2, 4] },          /* trading name, type, city */
+        { table: 'body[data-mobile-page="rfp-list"] .section-card table',
+          columns: [2, 3, 4, 5, 6] },    /* three bare counts (docs, reqs,
+                                            suppliers) and TWO bare dates —
+                                            created and updated are
+                                            indistinguishable side by side */
+        { table: 'body[data-mobile-page="rfp-documents"] .page-wrap table',
+          columns: [1, 4, 5] },          /* department, requirement count,
+                                            uploaded. NOT size: "1.2 MB"
+                                            says what it is */
+        { table: 'body[data-mobile-page="rfp-extracted"] .page-wrap table',
+          columns: [3] }                 /* confidence. A bare "87%" is
+                                            §21's own example of a figure
+                                            that means nothing alone, while
+                                            Department and Type read as the
+                                            tags they are */
     ];
 
     function labelCardFeed(table, columns) {

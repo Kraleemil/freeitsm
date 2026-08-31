@@ -59,6 +59,50 @@ $autoPrint = !empty($_GET['print']);
         .cr-bar .primary { background: #f59e0b; color: #fff; }
         .cr-bar .secondary { background: #e5e7eb; color: #333; }
         <?php echo contractReportCss(); ?>
+
+        /* ---- Mobile (#1362) ----------------------------------------------
+           This page deliberately does NOT link assets/css/mobile.css, and
+           carries its own @media block instead — the documented exception in
+           the wiki's "Where mobile CSS actually lives", the same call the
+           landing page makes. mobile.css's LAYER 2 sets
+           `body { display:flex; flex-direction:column; height:100dvh }`
+           unconditionally, which is how an app-shell page gets its scroll
+           region and which would CLIP a plain scrolling report.
+
+           ⚠️ It also does not go in `contractReportCss()`, where the rest of
+           these rules live, because that function is shared with
+           `api/contracts/email_equipment_report.php` — the same stylesheet is
+           inlined into an email. Email clients treat @media wildly
+           differently and none of that is testable from here, so the screen
+           gets its own rules on the screen's own page.
+
+           The six-column table SCROLLS rather than becoming a card feed.
+           §11's reasoning, and one extra consideration that is specific to
+           this page: three of the six columns (serial, asset tag, reference)
+           are bare codes, which is precisely the case §21 exists for — and
+           §21 needs mobile.js to harvest the headings, which this page has no
+           other reason to load. A feed here would be six unlabelled values;
+           the table keeps its header row instead. Print is untouched: this
+           block cannot apply to it. */
+        @media (max-width: 768px) {
+            body { padding: 12px; }
+            .cr-page { padding: 16px; border-radius: 6px; }
+            .cr-bar { flex-wrap: wrap; margin-bottom: 10px; }
+            .cr-bar button, .cr-bar a {
+                flex: 1 1 auto;
+                min-height: 42px;
+                font-size: 14px;
+                text-align: center;
+            }
+            .cr-table {
+                display: block;
+                overflow-x: auto;
+                overscroll-behavior-x: contain;
+                -webkit-overflow-scrolling: touch;
+                white-space: nowrap;
+                max-width: 100%;
+            }
+        }
         @media print {
             body { background: #fff; padding: 0; }
             .cr-page { max-width: none; padding: 0; box-shadow: none; border-radius: 0; }
