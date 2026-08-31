@@ -144,8 +144,10 @@ $shapes = include '../includes/shapes.php';
         /* Dark: the pale-indigo shape hover border would glow on the dark card. */
         [data-theme-mode="dark"] .pms-shape-opt:hover { border-color: #3a3f6b; }
     </style>
+    <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=124">
 </head>
-<body>
+<body data-mobile-module="process-mapper" data-mobile-page="settings">
     <?php include '../includes/header.php'; ?>
 
     <div class="container">
@@ -476,5 +478,6 @@ $shapes = include '../includes/shapes.php';
                  switchTab, saveSidebarMode };
     })();
     </script>
+    <script src="../../assets/js/mobile.js?v=49"></script>
 </body>
 </html>

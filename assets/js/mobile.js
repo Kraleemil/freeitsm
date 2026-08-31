@@ -1820,7 +1820,13 @@
                                             themselves; the other five are two
                                             names, a bare number and two dates
                                             — nothing a reader can place once
-                                            the header row is gone */
+                                            the header row is gone */,
+        /* ---- PROCESS MAPPER settings (LAYER 30e, #1415) ----
+           Shape · Name · Colour · Order · Active · Actions. The swatch and
+           the name speak for themselves; a bare `10` and a bare `Yes` do
+           not, and the colour is a hex code that could be anything. */
+        { table: 'body[data-mobile-module="process-mapper"] table:has(#pmsRows)',
+          columns: [2, 3, 4] }
     ];
 
     function labelCardFeed(table, columns) {
@@ -2784,6 +2790,137 @@
     }
     if (window.MutationObserver) {
         new MutationObserver(sync).observe(panel, { attributes: true, attributeFilter: ['style'] });
+    }
+    sync();
+    if (mq.addEventListener) { mq.addEventListener('change', sync); }
+    else if (mq.addListener) { mq.addListener(sync); }
+})();
+
+/* ====================================================================
+   PROCESS MAPPER — the process list as a sheet (#1415)
+
+   ITS OWN top-level IIFE, for the reason the blocks above document.
+
+   `.pm-sidebar` is 260px fixed — width AND min-width — which is 72% of a
+   360px screen, leaving about 100px of canvas. It becomes a slide-in
+   sheet with a button, the same chrome as LAYER 4 and LAYER 29d.
+
+   🔴 AND IT MAY ALREADY BE INVISIBLE. `sidebar-hover` is a stored
+   per-analyst preference (Process Mapper → Settings → Left panel) that
+   collapses the sidebar to a 16px strip which expands on HOVER. An
+   analyst who set that at their desk arrives on a phone to a sliver that
+   nothing can open — every process map in the system behind a control
+   that a touch screen cannot operate. The CSS neutralises the effect and
+   leaves the preference alone; this supplies the way in.
+
+   ⚠️ The button is INJECTED rather than shipped hidden. §25 says hide at
+   source, but that only pays when the desktop needs the element — here it
+   never does, so nothing is added to the page.
+   ==================================================================== */
+(function () {
+    var layout = document.querySelector('.pm-layout');
+    var sidebar = document.getElementById('pmSidebar');
+    var bar = document.querySelector('.pm-toolbar-left');
+    if (!layout || !sidebar || !bar) return;          // not the mapper page
+
+    var mq = window.matchMedia('(max-width: 768px)');
+
+    function tr(key, fallback) {
+        if (typeof window.t !== 'function') return fallback;
+        var v = window.t(key);
+        return (!v || v === key) ? fallback : v;      // a missing key returns the KEY, which is truthy
+    }
+    /* `process-mapper.nav.processes` is the module's own name for this list,
+       already translated wherever the namespace exists — so the sheet needs
+       no new string. */
+    var label = tr('process-mapper.nav.processes', 'Processes');
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pm-sidebar-btn';
+    btn.textContent = '☰ ' + label;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('aria-expanded', 'false');
+    btn.style.display = 'none';                       // injected chrome: @media CSS cannot hide it
+    bar.insertBefore(btn, bar.firstChild);
+
+    var scrim = null;
+
+    function open() {
+        document.body.setAttribute('data-pm-sidebar', 'open');
+        btn.setAttribute('aria-expanded', 'true');
+        if (!scrim) {
+            scrim = document.createElement('div');
+            scrim.className = 'pm-sidebar-scrim';
+            scrim.addEventListener('click', close);
+            document.body.appendChild(scrim);
+        }
+        scrim.style.display = '';
+    }
+    function close() {
+        document.body.removeAttribute('data-pm-sidebar');
+        btn.setAttribute('aria-expanded', 'false');
+        if (scrim) scrim.style.display = 'none';
+    }
+    btn.addEventListener('click', function () {
+        if (document.body.getAttribute('data-pm-sidebar') === 'open') close(); else open();
+    });
+
+    /* Choosing a process closes the sheet — otherwise you tap a map and the
+       list stays over the thing you just asked to look at. Delegated,
+       because the list is rebuilt from a fetch on every search keystroke and
+       the call site does not belong to this file.
+
+       ⚠️ NOT the search box and NOT "+ New": one filters the list you are
+       reading and the other opens a dialogue that wants the sheet gone
+       anyway but is handled by its own modal. Keying on the item class is
+       narrower and cannot catch either. */
+    sidebar.addEventListener('click', function (e) {
+        if (!mq.matches) return;
+        if (e.target.closest('.pm-process-item')) close();
+    });
+
+    /* ---- keep the selected item in view when the details sheet opens ----
+
+       LAYER 30f turns `.pm-detail-panel` into a bottom sheet taking 58dvh, and
+       Ed's whole point was that you must still be able to SEE what you
+       selected. Measured without this: the sheet leaves 195px of canvas
+       showing and the step you tapped was below it, so you got its details
+       and lost the thing itself.
+
+       The canvas is its own scroller, so the fix is arithmetic rather than
+       `scrollIntoView` — which would centre the step in the FULL scrollport
+       (609px) and drop it straight back behind the sheet. Aim for ~70px below
+       the top of the strip that is still visible.
+
+       ⚠️ Observed rather than wrapped: the panel is opened from five
+       different places in process-mapper.js (step, group, lane, connector,
+       annotation) and none of those call sites belongs to this file — 27c's
+       reasoning, and it cannot get out of step with functions it does not own. */
+    var detail = document.getElementById('detailPanel');
+    var canvas = document.getElementById('pmCanvas');
+    if (detail && canvas && window.MutationObserver) {
+        new MutationObserver(function () {
+            if (!mq.matches || !detail.classList.contains('open')) return;
+            var sel = canvas.querySelector('.pm-step.selected, .pm-group.selected, .pm-lane.selected');
+            if (!sel) return;
+            var visible = detail.getBoundingClientRect().top - canvas.getBoundingClientRect().top;
+            if (visible <= 0) return;
+            var top  = sel.offsetTop  - Math.max(12, Math.min(70, visible - sel.offsetHeight - 12));
+            var left = sel.offsetLeft - Math.max(12, (canvas.clientWidth - sel.offsetWidth) / 2);
+            canvas.scrollTop  = Math.max(0, top);
+            canvas.scrollLeft = Math.max(0, left);
+        }).observe(detail, { attributes: true, attributeFilter: ['class'] });
+    }
+    /* ⚠️ And it all goes away above 768px, or a desktop resize leaves the
+       page with a fixed panel over the canvas and a scrim across it. */
+    function sync() {
+        if (mq.matches) {
+            btn.style.display = '';
+        } else {
+            close();
+            btn.style.display = 'none';
+        }
     }
     sync();
     if (mq.addEventListener) { mq.addEventListener('change', sync); }

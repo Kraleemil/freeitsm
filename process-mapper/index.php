@@ -60,8 +60,10 @@ try {
     <?php echo Tz::scriptTag(); ?>
     <script src="../assets/js/tz.js?v=5"></script>
     <script src="../assets/js/i18n.js?v=2"></script>
+    <!-- Mobile layer: linked AFTER this page's own CSS so its @media rules win on ties. -->
+    <link rel="stylesheet" href="../assets/css/mobile.css?v=124">
 </head>
-<body>
+<body data-mobile-module="process-mapper">
     <?php include 'includes/header.php'; ?>
 
     <div class="pm-layout">
@@ -478,5 +480,6 @@ try {
     <script src="../assets/js/vendor/html2canvas.min.js"></script>
     <script src="../assets/js/vendor/jspdf.umd.min.js"></script>
     <script src="../assets/js/process-mapper.js?v=13"></script>
+    <script src="../assets/js/mobile.js?v=49"></script>
 </body>
 </html>

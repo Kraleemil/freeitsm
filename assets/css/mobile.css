@@ -8328,4 +8328,442 @@
     [data-mobile-module="lms"] .lms-editor-main {
         padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     }
+
+    /* ====================================================================
+       LAYER 30 — PROCESS MAPPER (#1415)
+
+       The sixteenth module, and the first one where the honest answer is
+       that a phone can READ the thing but not BUILD it.
+
+       §22 asked which drags survive touch, and this canvas is the case it
+       parks: `process-mapper.js` has ELEVEN mousedown/mousemove/mouseup
+       listeners and ZERO touch or pointer ones, so a step cannot be moved
+       with a finger. Its per-step actions — edit label, add note, link to a
+       URL, create a connected step — all live behind a `contextmenu`
+       listener, and a touch screen has no right-click either. Between them
+       that is the whole of authoring.
+
+       ⭐ So this round does not pretend. It makes a map READABLE on a phone
+       — you can reach the list, open a map, pan around it and read the
+       steps — and leaves authoring where it works. Saying that plainly is
+       better than shipping a toolbar whose buttons half-respond.
+
+       What it does do:
+         30a  the shell, which is `height: calc(100vh - 48px)` again
+         30b  the 260px sidebar as a sheet, and the HOVER MODE neutralised
+         30c  the 749px toolbar contained
+         30d  `.pm-modal` promoted — LAYER 3 only knows `.modal-content`
+         30e  the settings table as a card feed
+       ==================================================================== */
+
+    /* --------------------------------------------------------------------
+       30a — The shell.
+
+       `.pm-layout` is `height: calc(100vh - 48px)`, the fourth module in a
+       row to be (LAYER 21, 27, 29 and now this). On iOS `100vh` is the
+       LARGE viewport, so the shell is taller than what you can see, and the
+       48px is a second guess on top — the header's height, but only while it
+       has not wrapped. LAYER 2 already makes `<body>` a `100dvh` flex
+       column, so the shell only has to take what is left.
+
+       🔴 And `min-height: 0` is not optional. Without it this flex item will
+       not shrink below its content, the shell grows past the viewport, and
+       the page is unreachable at the bottom with no overflow rule that ever
+       fires — §28, found the hard way in the LMS console.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="process-mapper"] .pm-layout {
+        height: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    /* --------------------------------------------------------------------
+       30b — 🔴 THE SIDEBAR, AND THE PREFERENCE THAT HIDES IT COMPLETELY.
+
+       Two separate problems, and the second is the serious one.
+
+       At 260px fixed (`width` AND `min-width`) the list of process maps is
+       72% of a 360px screen, so the canvas it sits next to gets 100px. It
+       becomes a slide-in sheet with a button, the same chrome as LAYER 4's
+       ticket sheets and LAYER 29d's lesson list.
+
+       🔴 The second: `.pm-layout.sidebar-hover` is a stored per-analyst
+       preference — Process Mapper → Settings → Left panel — that collapses
+       the sidebar to a 16px strip which expands `:hover`. On a touch screen
+       nothing hovers, so an analyst who turned that on at their desk arrives
+       on a phone to a 16px sliver and NO WAY TO OPEN IT. Every process map
+       in the system, behind a control that cannot be operated.
+
+       ⭐ This is §26 crossed with the saved-desktop-mode trap that the
+       tickets pop-out (#762) and the knowledge editor (#1000) both sprang:
+       a preference that is sound where it was set and unusable where it is
+       read. The rule is the same as those two — leave the stored preference
+       alone, neutralise its EFFECT here. The class stays on the element and
+       comes back untouched above 768px.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="process-mapper"] .pm-sidebar,
+    [data-mobile-module="process-mapper"] .pm-layout.sidebar-hover .pm-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 1400;
+        width: 86vw;
+        min-width: 0;
+        max-width: 320px;
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform 0.22s ease, visibility 0.22s;
+        box-shadow: 4px 0 30px rgba(0, 0, 0, 0.35);
+        overflow-y: auto;
+        /* …and the hover mode's own opacity/pointer-events rules undone, or
+           the sheet opens with nothing legible inside it. */
+        opacity: 1;
+
+        /* 🔴🔴 `.pm-sidebar` IS ALSO PROBLEM MANAGEMENT'S CLASS. `pm-` means
+           Problem Management in LAYER 22 and Process Mapper here, and LAYER 22's
+           block is UNSCOPED — so its two-column grid was laying out this
+           module's panel: "+ New" and the search box side by side, and the
+           process names crushed to "S…", "I…", "A…" in a 1fr column.
+
+           ⭐ §15 in its sharpest form yet — not a shared component but two
+           modules that happened to pick the same three-letter prefix, with a
+           whole LAYOUT MODE leaking between them. The numbers said the sheet
+           opened at l=0, 310 wide and visible, and all of that was true; only
+           the screenshot showed the names cut to one letter.
+
+           Restated here rather than by scoping LAYER 22, because Problem
+           Management's pages carry no module marker to scope it TO — giving
+           them one is a change to a shipped module and belongs in its own
+           round, not as a side effect of opening a new one. */
+        display: flex;
+        flex-direction: column;
+        grid-template-columns: none;
+        gap: 0;
+        padding: 0;
+        border-bottom: none;
+    }
+    [data-mobile-module="process-mapper"] .pm-layout.sidebar-hover .pm-sidebar > * {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    /* The 3px grab handle the hover mode draws down the left edge: it is an
+       affordance for a cursor and reads as a stray line on a phone. */
+    [data-mobile-module="process-mapper"] .pm-layout.sidebar-hover .pm-sidebar::before {
+        display: none;
+    }
+    /* ⚠️ `:hover` must not open it on a touch screen — a stray tap would
+       leave the sheet half-open with no scrim. Only the attribute does. */
+    [data-mobile-module="process-mapper"] .pm-layout.sidebar-hover .pm-sidebar:hover {
+        width: 86vw;
+    }
+    /* 🔴 BOTH SELECTORS, and the second one is why this rule exists twice.
+
+       A selector list carries its specificity PER SELECTOR, so the closed rule
+       above is (0,2,0) for a normal layout and (0,4,0) for a `sidebar-hover`
+       one. Written once as
+           body[data-mobile-module][data-pm-sidebar="open"] .pm-sidebar   (0,3,1)
+       this beat the first and LOST TO THE SECOND — so on an account with the
+       hover preference set, tapping the button flipped the attribute and the
+       panel did not move. Ed hit it immediately, because his own preference is
+       hover: "it flashes for a split second then vanishes".
+
+       ⭐ The lesson generalises past this module: adding a variant to a CLOSED
+       rule silently raises the bar the OPEN rule has to clear, and nothing
+       warns you. Mirror the variants on both halves of an open/closed pair.
+       Mirrored, the second is (0,5,1) and wins over (0,4,0). */
+    body[data-mobile-module="process-mapper"][data-pm-sidebar="open"] .pm-sidebar,
+    body[data-mobile-module="process-mapper"][data-pm-sidebar="open"] .pm-layout.sidebar-hover .pm-sidebar {
+        transform: translateX(0);
+        visibility: visible;
+    }
+    .pm-sidebar-scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 1390;
+        background: rgba(0, 0, 0, 0.45);
+    }
+    /* The button mobile.js injects into the toolbar to open it. */
+    .pm-sidebar-btn {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 38px;
+        padding: 6px 12px;
+        border: 1px solid var(--border, #ddd);
+        border-radius: 8px;
+        background: var(--surface, #fff);
+        color: var(--text, #333);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    /* --------------------------------------------------------------------
+       30c — The toolbar, measured at 749px inside a 360px screen.
+
+       It holds the authoring controls, and the note at the top of this layer
+       explains why they cannot all work here. They are NOT hidden: a
+       half-usable control that is visible can at least be understood, and
+       some of them (export, the map picker) work by tap perfectly well.
+       Instead the row scrolls sideways in its own box, which is this file's
+       standing answer to a control strip that will not fit.
+
+       ⚠️ `min-width: 0` on the flex children, or §14's automatic minimum
+       size pins the row open at its content width and the SHELL overflows
+       rather than the strip scrolling.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="process-mapper"] .pm-toolbar {
+        gap: 6px;
+        padding: 6px 8px;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        justify-content: flex-start;
+    }
+    [data-mobile-module="process-mapper"] .pm-toolbar-left,
+    [data-mobile-module="process-mapper"] .pm-toolbar-right {
+        flex: 0 0 auto;
+        min-width: 0;
+    }
+    [data-mobile-module="process-mapper"] .pm-toolbar button,
+    [data-mobile-module="process-mapper"] .pm-toolbar .pm-toolbar-btn {
+        min-height: 38px;
+        flex: 0 0 auto;
+    }
+
+    /* The canvas already scrolls both ways (`overflow: auto` in
+       process-mapper.css), which is what makes a map readable on a phone at
+       all — panning is native touch scrolling and needs no JavaScript. It
+       only needs to be allowed to fill what is left. */
+    [data-mobile-module="process-mapper"] .pm-canvas-wrap {
+        min-width: 0;
+        min-height: 0;
+    }
+    [data-mobile-module="process-mapper"] .pm-canvas {
+        min-height: 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* --------------------------------------------------------------------
+       30d — The module's own modal.
+
+       LAYER 3 promotes `.modal-content` to a full-screen sheet and knows
+       nothing about `.pm-modal`, so the export dialogue stayed a 90%-wide
+       centred box with a `max-height: 85vh` — perfectly contained, which is
+       exactly why no measurement complains. Fourth module to roll its own
+       modal class (Problem Management, Change Management, Contracts, this).
+       -------------------------------------------------------------------- */
+    [data-mobile-module="process-mapper"] .pm-modal {
+        width: 100%;
+        max-width: none;
+        max-height: 100%;
+        height: 100%;
+        border-radius: 0;
+    }
+    [data-mobile-module="process-mapper"] .pm-modal-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+    }
+    /* 🔴 16px, or iOS zooms on focus and the reflow-to-desktop cascade takes
+       the whole layer down with it — the export dialogue's textarea is the
+       one focusable field in this module's chrome. */
+    [data-mobile-module="process-mapper"] .pm-modal-textarea,
+    [data-mobile-module="process-mapper"] .pm-modal input,
+    [data-mobile-module="process-mapper"] .pm-sidebar input {
+        font-size: 16px;
+    }
+    [data-mobile-module="process-mapper"] .pm-modal-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    [data-mobile-module="process-mapper"] .pm-modal-actions .pm-modal-btn {
+        flex: 1 1 auto;
+        min-height: 42px;
+    }
+
+    /* --------------------------------------------------------------------
+       30e — Settings: six columns become a card feed.
+
+       Shape · Name · Colour · Order · Active · Actions. §11 says feed
+       without much argument: you are looking at one step type at a time, not
+       reading down a column across them, and six columns cannot be carried
+       by reading order.
+
+       §21 labels the three that cannot speak for themselves — colour, order
+       and active — while Shape and Name are self-evident. The shape cell is
+       a swatch, so it rides up beside the name rather than taking a line.
+       -------------------------------------------------------------------- */
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] table,
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows {
+        display: block;
+        width: 100%;
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] thead {
+        display: none;
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        border: 1px solid var(--border, #e0e0e0);
+        border-radius: 10px;
+        background: var(--surface, #fff);
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td {
+        display: block;
+        flex: 1 1 100%;
+        /* 🔴 Load-bearing: a flex item's automatic minimum size is its content
+           width, so one nowrap cell pins the card wider than the screen while
+           the document stays contained and every check passes (LAYER 27). */
+        min-width: 0;
+        padding: 0;
+        border: none;
+        font-size: 12.5px;
+        color: var(--text-dim, #888);
+    }
+    /* The shape swatch rides beside the name rather than taking a line of its
+       own — `flex: 0 0 auto` and `order: -1` so it leads the title row. */
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:nth-child(1) {
+        flex: 0 0 auto;
+        order: -2;
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:nth-child(2) {
+        flex: 1 1 60%;
+        order: -1;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text, #333);
+        overflow-wrap: anywhere;
+    }
+    /* Actions: full width and thumb-sized.
+       ⚠️ `:not(:first-child)` because the loading/empty row is a single
+       `<td colspan>`, which is both the first AND the last child of its row. */
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:last-child:not(:first-child) {
+        flex: 1 1 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:last-child:not(:first-child) > * {
+        flex: 1 1 auto;
+        min-height: 40px;
+        justify-content: center;
+    }
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows td:only-child {
+        flex: 1 1 100%;
+        order: 0;
+        margin: 0;
+        padding: 20px 0;
+        text-align: center;
+        font-size: 13px;
+    }
+    /* --------------------------------------------------------------------
+       30f — The selected item, as a bottom sheet (#1418, Ed's request).
+
+       > "do you think it would be good if we had a little bar at the bottom
+       >  which shows the currently selected item (box, lane, group etc.)
+       >  with a little edit button"
+
+       Yes — and the module already has most of it, which is worth checking
+       before building anything. Driving a real tap on a step showed that
+       `mousedown` fires from a touch (browsers synthesise the compatibility
+       mouse events after a tap), the step gets `.selected`, and
+       `.pm-detail-panel` opens with "Step Details" in it. Groups, lanes,
+       connectors and annotations each have their own body and title, all
+       already translated.
+
+       ⭐ So this is not a new bar — it is the module's OWN panel, which is a
+       320px column on the right, moved to the bottom. A bar plus an Edit
+       button would have put two taps where one already works, and needed a
+       new component and new strings to do it.
+
+       ⭐ Ed's real point is the one that shapes it: you must not lose sight
+       of what you selected. 58dvh leaves the canvas visible above, so the
+       step you tapped is still on screen while you edit it.
+
+       ⚠️ SPECIFICITY CHECKED UP FRONT this time, after the sidebar taught the
+       lesson an hour ago: the module's own `.pm-detail-panel.open` is (0,2,0)
+       and this is (0,3,0), so it wins — and the closed state below is written
+       against the same two selectors, so the pair cannot get out of step.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="process-mapper"] .pm-detail-panel {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1350;
+        width: auto;
+        min-width: 0;
+        height: 0;
+        border-left: none;
+        border-top: 1px solid var(--border, #e0e0e0);
+        transition: height 0.22s ease;
+    }
+    [data-mobile-module="process-mapper"] .pm-detail-panel.open {
+        width: auto;
+        min-width: 0;
+        height: 58dvh;
+        box-shadow: 0 -4px 24px var(--shadow, rgba(0, 0, 0, 0.28));
+        border-radius: 14px 14px 0 0;
+    }
+    /* 🔴 AND THE CANVAS NEEDS SOMEWHERE TO SCROLL TO.
+
+       Bringing the selected step into the strip above the sheet failed
+       silently at first, and the measurement said why in one line:
+           canvasScroll = 0,0 (max 1186,0)
+       The canvas scrolls sideways across the map but its content is no
+       TALLER than its box, so `scrollTop` has a maximum of zero. The step
+       sat at y=411 with the sheet starting at 311, and no amount of
+       scrolling could have moved it — there was nowhere to scroll to.
+
+       A sheet's worth of padding underneath the map gives it the range.
+       `:has()` because `.pm-canvas` is inside an EARLIER sibling of the
+       panel, and CSS has no previous-sibling combinator.
+
+       ⚠️ And `padding-bottom` on the canvas did NOT do it — measured again
+       and `scrollTop` still maxed at 0. The map's steps are absolutely
+       positioned, so the scroller's own end padding is not the reliable
+       way to buy range. SHRINKING THE BOX is: the canvas takes the strip
+       above the sheet, its content is then taller than its box, and a
+       vertical range appears by itself. It also gives the honest layout —
+       map above, details below — rather than a sheet floating over a
+       canvas that still believes it is full height. */
+    [data-mobile-module="process-mapper"] .pm-layout:has(.pm-detail-panel.open) .pm-canvas-wrap {
+        max-height: 42dvh;
+    }
+
+    /* The form inside has to scroll, and clear the home indicator. */
+    [data-mobile-module="process-mapper"] .pm-detail-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+    /* A bigger close target than a 12px × — it is the only way out of the
+       sheet, and it sits where a thumb reaches. */
+    [data-mobile-module="process-mapper"] .pm-detail-close {
+        min-width: 40px;
+        min-height: 40px;
+        font-size: 26px;
+        line-height: 1;
+    }
+    /* 🔴 16px on every field in it, or iOS zooms on focus and the whole
+       max-width: 768px layer stops matching (the reflow-to-desktop cascade). */
+    [data-mobile-module="process-mapper"] .pm-detail-body input,
+    [data-mobile-module="process-mapper"] .pm-detail-body select,
+    [data-mobile-module="process-mapper"] .pm-detail-body textarea {
+        font-size: 16px;
+    }
+    /* An empty cell that has been given a §21 label prints the label with
+       nothing after it — the LMS Progress lesson, applied up front. */
+    body[data-mobile-page="settings"][data-mobile-module="process-mapper"] #pmsRows tr td:empty:not(:first-child) {
+        display: none;
+    }
 }
