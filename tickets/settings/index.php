@@ -1317,48 +1317,6 @@ $translationNamespaces = ['common', 'tickets'];
                     <small><?php echo t('tickets.settings.merge.note'); ?></small>
                 </div>
 
-                <!-- Long messages (discussion #104). Five knobs rather than one
-                     switch, because a service desk that lives in email and one
-                     that barely touches it want opposite defaults. -->
-                <h3 style="margin-top: 34px;"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_heading')); ?></h3>
-                <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_desc')); ?></p>
-
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 10px;">
-                        <input type="checkbox" id="collapseEnabled">
-                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_enabled_label')); ?>
-                    </label>
-                </div>
-
-                <div class="form-group">
-                    <label for="collapseLines"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_lines_label')); ?></label>
-                    <input type="number" id="collapseLines" min="4" max="80" step="1" style="max-width: 120px;">
-                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_lines_help')); ?></small>
-                </div>
-
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 10px;">
-                        <input type="checkbox" id="collapseExpandNewest">
-                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_newest_label')); ?>
-                    </label>
-                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_newest_help')); ?></small>
-                </div>
-
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 10px;">
-                        <input type="checkbox" id="collapseQuoted">
-                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_quoted_label')); ?>
-                    </label>
-                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_quoted_help')); ?></small>
-                </div>
-
-                <div class="form-group">
-                    <label style="display: flex; align-items: center; gap: 10px;">
-                        <input type="checkbox" id="collapseRemember">
-                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_remember_label')); ?>
-                    </label>
-                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_remember_help')); ?></small>
-                </div>
                 <div style="display: flex; gap: 10px; justify-content: flex-start; margin-top: 30px;">
                     <button type="submit" class="btn btn-primary"><?php echo htmlspecialchars(t('common.save')); ?></button>
                 </div>
@@ -1556,6 +1514,49 @@ $translationNamespaces = ['common', 'tickets'];
                         <?php endfor; ?>
                     </select>
                     <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.snooze_hour_help')); ?></small>
+                </div>
+
+                <!-- Long messages (discussion #104). Five knobs rather than one
+                     switch, because a service desk that lives in email and one
+                     that barely touches it want opposite defaults. -->
+                <h3 style="margin-top: 34px;"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_heading')); ?></h3>
+                <p style="color: var(--text-muted, #666); margin-bottom: 16px;"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_desc')); ?></p>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseEnabled">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_enabled_label')); ?>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="collapseLines"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_lines_label')); ?></label>
+                    <input type="number" id="collapseLines" min="4" max="80" step="1" style="max-width: 120px;">
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_lines_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseExpandNewest">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_newest_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_newest_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseQuoted">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_quoted_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_quoted_help')); ?></small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="collapseRemember">
+                        <?php echo htmlspecialchars(t('tickets.settings.general.collapse_remember_label')); ?>
+                    </label>
+                    <small style="color: var(--text-muted, #666);"><?php echo htmlspecialchars(t('tickets.settings.general.collapse_remember_help')); ?></small>
                 </div>
 
                 <div style="display: flex; gap: 10px; justify-content: flex-start; margin-top: 30px;">
