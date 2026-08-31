@@ -331,4 +331,16 @@ return [
         's7_paused_title' => 'Paused too long',
         's7_paused_desc'  => 'How many hours a ticket may sit with its SLA clock stopped before Watchtower mentions it. The default is 24.',
     ],
+    // Whose work the dashboard is answering about (#58).
+    'scope' => [
+        'mine'                 => 'Mine',
+        'team'                 => 'My team',
+        'all'                  => 'Everyone',
+        'everyone_tag'         => 'everyone',
+        'impersonal_heading'   => 'On “Mine”, cards that have no owner',
+        'impersonal_show'      => 'Keep showing them',
+        'impersonal_hide'      => 'Hide them',
+        'impersonal_note'      => 'Service status, workflows, equipment, the shared calendar, contracts and knowledge belong to the team rather than to a person, so they cannot narrow to you. Keeping them is the safer answer: a degraded service is the last thing that should disappear because you switched to a personal view.',
+    ],
+
 ];

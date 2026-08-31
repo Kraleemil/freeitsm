@@ -253,4 +253,16 @@ return [
         's7_paused_title' => 'Sat på pause for længe',
         's7_paused_desc' => 'Hvor mange timer en sag må stå med sit SLA-ur stoppet, før Vagttårn nævner den. Standardværdien er 24.',
     ],
+    // Whose work the dashboard is answering about (#58).
+    'scope' => [
+        'mine'                 => 'Mine',
+        'team'                 => 'Mit team',
+        'all'                  => 'Alle',
+        'everyone_tag'         => 'alle',
+        'impersonal_heading'   => 'Ved “Mine”: kort uden en ejer',
+        'impersonal_show'      => 'Bliv ved med at vise dem',
+        'impersonal_hide'      => 'Skjul dem',
+        'impersonal_note'      => 'Servicestatus, arbejdsgange, udstyr, den fælles kalender, kontrakter og viden tilhører teamet frem for en person og kan derfor ikke indsnævres til dig. At beholde dem er det sikreste: en forringet tjeneste er det sidste, der bør forsvinde, fordi du skiftede til en personlig visning.',
+    ],
+
 ];

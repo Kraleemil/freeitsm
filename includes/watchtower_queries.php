@@ -13,20 +13,37 @@ require_once __DIR__ . '/watchtower_settings.php';   // which cards show, which 
  * company the analyst has switched to. Omitted (or 0) = unscoped, which is the
  * behaviour every other card on this dashboard still has.
  */
-function getWatchtowerData($conn, $analystId = 0) {
+function getWatchtowerData($conn, $analystId = 0, $scope = WT_SCOPE_ALL) {
     $today = date('Y-m-d');
+
+    // Whose work this dashboard is answering about (#58). 'all' reproduces the
+    // behaviour every card had before, so nothing changes for anyone who never
+    // touches the toggle.
+    if (!wtScopeIsValid((string)$scope) || $analystId <= 0) $scope = WT_SCOPE_ALL;
 
     // -- Morning Checks --
 
-    $mcTotal = (int)$conn->query("SELECT COUNT(*) FROM morningChecks_Checks WHERE IsActive = 1")->fetchColumn();
+    // Routed through the GROUP, not by a column on the check - see
+    // wtMorningCheckScope(). Both queries expose c and g so the one clause fits.
+    [$mcScopeSql, $mcScopeArgs] = wtMorningCheckScope($conn, $analystId, $scope);
+
+    $mcTotalStmt = $conn->prepare(
+        "SELECT COUNT(*)
+           FROM morningChecks_Checks c
+      LEFT JOIN morningChecks_Groups g ON g.GroupID = c.GroupID
+          WHERE c.IsActive = 1{$mcScopeSql}"
+    );
+    $mcTotalStmt->execute($mcScopeArgs);
+    $mcTotal = (int)$mcTotalStmt->fetchColumn();
 
     $mcDoneStmt = $conn->prepare(
         "SELECT COUNT(DISTINCT r.CheckID)
          FROM morningChecks_Results r
          JOIN morningChecks_Checks c ON r.CheckID = c.CheckID
-         WHERE c.IsActive = 1 AND DATE(r.CheckDate) = ?"
+    LEFT JOIN morningChecks_Groups g ON g.GroupID = c.GroupID
+         WHERE c.IsActive = 1 AND DATE(r.CheckDate) = ?{$mcScopeSql}"
     );
-    $mcDoneStmt->execute([$today]);
+    $mcDoneStmt->execute(array_merge([$today], $mcScopeArgs));
     $mcDone = (int)$mcDoneStmt->fetchColumn();
 
     // One row per status that actually exists, with the label and colour the
@@ -36,18 +53,23 @@ function getWatchtowerData($conn, $analystId = 0) {
     // all three counts read zero for ever and "all checks passing" was shown on
     // mornings when every check was red. Statuses are user-editable anyway, so
     // no hardcoded name could have been right for long.
+    // Joins the check and its group so the same scope clause applies - without
+    // it the breakdown would keep counting everybody's results while the
+    // headline above counted only mine, and the two would visibly disagree.
     $mcStatusStmt = $conn->prepare(
         "SELECT COALESCE(s.Label, r.Status) AS label,
                 MAX(s.Colour)               AS colour,
                 MIN(COALESCE(s.SortOrder, 9999)) AS sort_order,
                 COUNT(*)                    AS cnt
          FROM morningChecks_Results r
+         JOIN morningChecks_Checks c ON c.CheckID = r.CheckID
+    LEFT JOIN morningChecks_Groups g ON g.GroupID = c.GroupID
          LEFT JOIN morningChecks_Statuses s ON s.StatusID = r.StatusID
-         WHERE DATE(r.CheckDate) = ?
+         WHERE DATE(r.CheckDate) = ?{$mcScopeSql}
          GROUP BY COALESCE(s.Label, r.Status)
          ORDER BY sort_order, label"
     );
-    $mcStatusStmt->execute([$today]);
+    $mcStatusStmt->execute(array_merge([$today], $mcScopeArgs));
     $mcStatuses = [];
     foreach ($mcStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
         if (($row['label'] ?? '') === '') continue;
@@ -121,14 +143,25 @@ function getWatchtowerData($conn, $analystId = 0) {
     // the bug this replaced.
     $tkPicked = wtItemMembers($conn, 'tickets.by_status');
     $tkPickSql = $tkPicked === null ? '' : ' AND ts.id IN ' . wtIdListSql($tkPicked);
-    $tkStatusStmt = $conn->query(
+
+    // 🔴 THE SCOPE GOES IN THE JOIN, NOT THE WHERE.
+    //
+    // This is a LEFT JOIN so that a status with no tickets still appears with a
+    // count of zero. Put "assigned to me" in the WHERE and every row where the
+    // join found nothing is discarded — the LEFT JOIN silently becomes an INNER
+    // one, and a status you happen to have no tickets in VANISHES from the list
+    // rather than showing 0. The card would then look shorter on "Mine" for a
+    // reason nobody could see.
+    [$tkScopeSql, $tkScopeArgs] = wtScopeClause($conn, $analystId, $scope, 't.assigned_analyst_id');
+    $tkStatusStmt = $conn->prepare(
         "SELECT ts.id, ts.name AS status, ts.colour, COUNT(t.id) AS cnt
          FROM ticket_statuses ts
-         LEFT JOIN tickets t ON t.status_id = ts.id
+         LEFT JOIN tickets t ON t.status_id = ts.id{$tkScopeSql}
          WHERE ts.is_closed = 0 AND ts.is_active = 1{$tkPickSql}
          GROUP BY ts.id, ts.name, ts.colour, ts.display_order
          ORDER BY ts.display_order, ts.name"
     );
+    $tkStatusStmt->execute($tkScopeArgs);
     $tkStatuses = [];
     $tkTotalOpen = 0;
     foreach ($tkStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -152,13 +185,15 @@ function getWatchtowerData($conn, $analystId = 0) {
                (SELECT display_order FROM ticket_priorities WHERE is_default = 1 LIMIT 1),
                (SELECT MIN(display_order) FROM ticket_priorities))"
         : 'tp.id IN ' . wtIdListSql($hpPicked);
-    $tkUrgent = (int)$conn->query(
+    $tkUrgentStmt = $conn->prepare(
         "SELECT COUNT(*)
          FROM tickets t
          JOIN ticket_priorities tp ON tp.id = t.priority_id
          JOIN ticket_statuses   ts ON ts.id = t.status_id
-         WHERE ts.is_closed = 0 AND {$hpWhere}"
-    )->fetchColumn();
+         WHERE ts.is_closed = 0 AND {$hpWhere}{$tkScopeSql}"
+    );
+    $tkUrgentStmt->execute($tkScopeArgs);
+    $tkUrgent = (int)$tkUrgentStmt->fetchColumn();
 
     // The names behind that one number, so the card can say which priorities it
     // means instead of the label claiming "urgent/high" for ever regardless of
@@ -173,6 +208,11 @@ function getWatchtowerData($conn, $analystId = 0) {
         " ORDER BY display_order, name"
     )->fetchAll(PDO::FETCH_COLUMN);
 
+    // ⚠️ DELIBERATELY NEVER SCOPED. An unassigned ticket is by definition not
+    // anybody's, so narrowing this to "mine" would report 0 for ever — and 0
+    // here reads as "the queue is clear", which is the opposite of what an
+    // unclaimed pile means. It stays a team-wide figure whatever the toggle
+    // says, and the card labels it as such.
     $tkUnassigned = (int)$conn->query(
         "SELECT COUNT(*)
          FROM tickets t
@@ -204,9 +244,11 @@ function getWatchtowerData($conn, $analystId = 0) {
                    FROM ticket_audit a
                   WHERE a.ticket_id = t.id AND a.field_name = 'status'),
                 t.created_datetime
-            ) < DATE_SUB(NOW(), INTERVAL ? HOUR)"
+            ) < DATE_SUB(NOW(), INTERVAL ? HOUR){$tkScopeSql}"
     );
-    $tkPausedStmt->execute([$pausedThresholdHours]);
+    // ⚠️ Threshold FIRST, then the scope arguments — positional placeholders,
+    // and the scope clause is appended after the interval.
+    $tkPausedStmt->execute(array_merge([$pausedThresholdHours], $tkScopeArgs));
     $tkPausedTooLong = (int)$tkPausedStmt->fetchColumn();
 
     $tickets = [
@@ -225,13 +267,17 @@ function getWatchtowerData($conn, $analystId = 0) {
     // changes.status (legacy VARCHAR) was migrated to status_id → change_statuses.
     // Join the lookup and compare by name to preserve the original semantics.
 
-    $chUpcoming = (int)$conn->query(
+    [$chScopeSql, $chScopeArgs] = wtScopeClause($conn, $analystId, $scope, 'c.assigned_to_id');
+
+    $chUpcomingStmt = $conn->prepare(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
          WHERE c.work_start_datetime BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
-           AND cs.is_closed = 0 AND cs.is_default = 0"
-    )->fetchColumn();
+           AND cs.is_closed = 0 AND cs.is_default = 0{$chScopeSql}"
+    );
+    $chUpcomingStmt->execute($chScopeArgs);
+    $chUpcoming = (int)$chUpcomingStmt->fetchColumn();
     // Was NOT IN ('Closed','Cancelled') — and FreeITSM has never shipped a change
     // status called 'Closed'. Of the four finished statuses (Rejected, Completed,
     // Failed, Cancelled) that list caught exactly one, so completed and failed
@@ -247,25 +293,29 @@ function getWatchtowerData($conn, $analystId = 0) {
     // putting it on an "awaiting approval" count would nag about something that
     // is nobody's turn. The first version of this counted drafts, which is how
     // the number went from 0 to 1 on a database with one unsubmitted draft in it.
-    $chUnapproved = (int)$conn->query(
+    $chUnapprovedStmt = $conn->prepare(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
-         WHERE c.approval_datetime IS NULL AND cs.is_closed = 0 AND cs.is_default = 0"
-    )->fetchColumn();
+         WHERE c.approval_datetime IS NULL AND cs.is_closed = 0 AND cs.is_default = 0{$chScopeSql}"
+    );
+    $chUnapprovedStmt->execute($chScopeArgs);
+    $chUnapproved = (int)$chUnapprovedStmt->fetchColumn();
 
     // Work that is under way right now: the work window already says so exactly,
     // so the status name added nothing except a way to break. Same draft rule —
     // a change nobody has submitted is not being worked on, whatever dates
     // somebody pencilled into it.
-    $chInProgress = (int)$conn->query(
+    $chInProgressStmt = $conn->prepare(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
          WHERE cs.is_closed = 0 AND cs.is_default = 0
            AND c.work_start_datetime <= NOW()
-           AND (c.work_end_datetime >= NOW() OR c.work_end_datetime IS NULL)"
-    )->fetchColumn();
+           AND (c.work_end_datetime >= NOW() OR c.work_end_datetime IS NULL){$chScopeSql}"
+    );
+    $chInProgressStmt->execute($chScopeArgs);
+    $chInProgress = (int)$chInProgressStmt->fetchColumn();
 
     // Changes broken down by status, the same as tickets and tasks. The three
     // figures above are DERIVED (a date window, an approval) rather than status
@@ -275,14 +325,16 @@ function getWatchtowerData($conn, $analystId = 0) {
     // waiting on somebody.
     $chPicked = wtItemMembers($conn, 'changes.by_status');
     $chPickSql = $chPicked === null ? '' : ' AND cs.id IN ' . wtIdListSql($chPicked);
-    $chStatusStmt = $conn->query(
+    // Scope in the ON, not the WHERE — see the ticket card for why.
+    $chStatusStmt = $conn->prepare(
         "SELECT cs.id, cs.name, cs.colour, COUNT(c.id) AS cnt
          FROM change_statuses cs
-         LEFT JOIN changes c ON c.status_id = cs.id
+         LEFT JOIN changes c ON c.status_id = cs.id{$chScopeSql}
          WHERE cs.is_closed = 0 AND cs.is_active = 1{$chPickSql}
          GROUP BY cs.id, cs.name, cs.colour, cs.display_order
          ORDER BY cs.display_order, cs.name"
     );
+    $chStatusStmt->execute($chScopeArgs);
     $chStatuses = [];
     $chTotalOpen = 0;
     foreach ($chStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -301,14 +353,16 @@ function getWatchtowerData($conn, $analystId = 0) {
     // see — on an attention dashboard, the overrunning change is the whole point.
     // Needs an end date: an open-ended window has not been overrun, it is just
     // open-ended.
-    $chOverrunning = (int)$conn->query(
+    $chOverrunningStmt = $conn->prepare(
         "SELECT COUNT(*)
          FROM changes c
          JOIN change_statuses cs ON cs.id = c.status_id
          WHERE cs.is_closed = 0 AND cs.is_default = 0
            AND c.work_end_datetime IS NOT NULL
-           AND c.work_end_datetime < NOW()"
-    )->fetchColumn();
+           AND c.work_end_datetime < NOW(){$chScopeSql}"
+    );
+    $chOverrunningStmt->execute($chScopeArgs);
+    $chOverrunning = (int)$chOverrunningStmt->fetchColumn();
 
     $changes = [
         'upcoming_7d'       => $chUpcoming,
@@ -513,35 +567,44 @@ function getWatchtowerData($conn, $analystId = 0) {
 
     // -- Tasks --
 
-    $taskOverdue = (int)$conn->query(
+    [$tsScopeSql, $tsScopeArgs] = wtScopeClause($conn, $analystId, $scope, 't.assigned_analyst_id');
+
+    $taskOverdueStmt = $conn->prepare(
         "SELECT COUNT(*) FROM tasks t
          LEFT JOIN task_statuses ts ON ts.id = t.status_id
          WHERE t.due_date < CURDATE()
            AND (ts.is_closed = 0 OR ts.id IS NULL)
-           AND t.parent_task_id IS NULL"
-    )->fetchColumn();
+           AND t.parent_task_id IS NULL{$tsScopeSql}"
+    );
+    $taskOverdueStmt->execute($tsScopeArgs);
+    $taskOverdue = (int)$taskOverdueStmt->fetchColumn();
 
-    $taskDueToday = (int)$conn->query(
+    $taskDueTodayStmt = $conn->prepare(
         "SELECT COUNT(*) FROM tasks t
          LEFT JOIN task_statuses ts ON ts.id = t.status_id
          WHERE t.due_date = CURDATE()
            AND (ts.is_closed = 0 OR ts.id IS NULL)
-           AND t.parent_task_id IS NULL"
-    )->fetchColumn();
+           AND t.parent_task_id IS NULL{$tsScopeSql}"
+    );
+    $taskDueTodayStmt->execute($tsScopeArgs);
+    $taskDueToday = (int)$taskDueTodayStmt->fetchColumn();
 
     // Every open task status with its own name and colour, instead of counting
     // the two called 'To Do' and 'In Progress' — which left tasks in any other
     // open status (Blocked, on stock data) off the dashboard altogether.
     $tkTaskPicked = wtItemMembers($conn, 'tasks.by_status');
     $tkTaskPickSql = $tkTaskPicked === null ? '' : ' AND ts.id IN ' . wtIdListSql($tkTaskPicked);
-    $taskStatusStmt = $conn->query(
+    // Scope in the ON, not the WHERE - see the ticket card above for why a
+    // status you own nothing in must still appear with a zero.
+    $taskStatusStmt = $conn->prepare(
         "SELECT ts.id, ts.name, ts.colour, COUNT(t.id) AS cnt
          FROM task_statuses ts
-         LEFT JOIN tasks t ON t.status_id = ts.id AND t.parent_task_id IS NULL
+         LEFT JOIN tasks t ON t.status_id = ts.id AND t.parent_task_id IS NULL{$tsScopeSql}
          WHERE ts.is_closed = 0 AND ts.is_active = 1{$tkTaskPickSql}
          GROUP BY ts.id, ts.name, ts.colour, ts.display_order
          ORDER BY ts.display_order, ts.name"
     );
+    $taskStatusStmt->execute($tsScopeArgs);
     $taskStatuses = [];
     $taskTotalOpen = 0;
     foreach ($taskStatusStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {

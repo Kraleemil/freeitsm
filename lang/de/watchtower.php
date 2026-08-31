@@ -250,4 +250,16 @@ return [
         'card_workflows'            => 'Workflows',
         'card_workflows_desc'       => 'Fehlgeschlagene oder abgebrochene Durchläufe und Webhooks, deren Zustellung gestoppt ist.',
     ],
+    // Whose work the dashboard is answering about (#58).
+    'scope' => [
+        'mine'                 => 'Meine',
+        'team'                 => 'Mein Team',
+        'all'                  => 'Alle',
+        'everyone_tag'         => 'alle',
+        'impersonal_heading'   => 'Bei „Meine“: Karten ohne Zuständigkeit',
+        'impersonal_show'      => 'Weiter anzeigen',
+        'impersonal_hide'      => 'Ausblenden',
+        'impersonal_note'      => 'Servicestatus, Workflows, Geräte, der gemeinsame Kalender, Verträge und Wissen gehören dem Team und nicht einer Person und lassen sich deshalb nicht auf Sie eingrenzen. Sie anzuzeigen ist die sicherere Antwort: Ein gestörter Dienst sollte als Letztes verschwinden, weil Sie auf eine persönliche Ansicht umgeschaltet haben.',
+    ],
+
 ];

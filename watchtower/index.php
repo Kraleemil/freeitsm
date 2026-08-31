@@ -16,6 +16,17 @@ Tz::init();
 $current_page = 'dashboard';
 $path_prefix = '../';
 $translationNamespaces = ['common', 'watchtower'];
+
+// Whose work this analyst last chose to look at (#58). Read HERE rather than in
+// JS so the first paint already has the right button lit — fetching it after
+// the page draws means the toggle visibly jumps, which reads as a fault.
+require_once '../includes/watchtower_settings.php';
+$wtScope = WT_SCOPE_ALL;
+try {
+    $wtScope = wtScopeFor(connectToDatabase(), (int)$_SESSION['analyst_id']);
+} catch (Exception $e) {
+    // 'all' stands — the widest view, and the one that hides nothing.
+}
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo htmlspecialchars(I18n::getLocale()); ?>" data-theme="<?php echo htmlspecialchars(Theme::active()); ?>" data-theme-mode="<?php echo htmlspecialchars(Theme::mode()); ?>">
@@ -60,6 +71,45 @@ $translationNamespaces = ['common', 'watchtower'];
             align-items: center;
             gap: 8px;
         }
+        /* Whose work (#58). A segmented control rather than three loose
+           buttons, so it reads as one question with one answer. */
+        .wt-scope-toggle {
+            display: inline-flex;
+            border: 1px solid var(--border, #cbd5e1);
+            border-radius: 6px;
+            overflow: hidden;
+            margin-left: auto;
+            margin-right: 12px;
+        }
+        .wt-scope-btn {
+            background: none;
+            border: none;
+            border-right: 1px solid var(--border, #cbd5e1);
+            padding: 5px 12px;
+            font-size: 12px;
+            color: var(--text-muted, #64748b);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .wt-scope-btn:last-child { border-right: none; }
+        .wt-scope-btn:hover { background: var(--surface-hover, #f8fafc); }
+        .wt-scope-btn.active {
+            background: var(--wt-accent, #0f766e);
+            color: var(--wt-on-accent, #fff);
+        }
+        /* A card the scope cannot narrow, while a narrowed scope is showing.
+           It says so rather than letting a team-wide number read as a personal
+           one — see the note beside it in the markup. */
+        .wt-card.wt-everyone .wt-card-name::after {
+            content: attr(data-everyone-label);
+            margin-left: 8px;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: var(--text-faint, #94a3b8);
+        }
+
         .wt-refresh-btn {
             background: none;
             border: 1px solid var(--border, #cbd5e1);
@@ -372,6 +422,17 @@ $translationNamespaces = ['common', 'watchtower'];
     <div class="wt-container">
         <div class="wt-top-bar">
             <div class="wt-title"><?php echo htmlspecialchars(t('watchtower.dashboard.heading')); ?></div>
+
+            <?php /* Whose work (#58). Rendered server-side with the remembered
+                     choice already active, so the first paint is the right set.
+                     Painting "Everyone" and then swapping to "Mine" a moment
+                     later reads as a bug — the tickets calendar learned that. */ ?>
+            <div class="wt-scope-toggle" id="wtScopeToggle">
+                <button class="wt-scope-btn<?php echo $wtScope === 'mine' ? ' active' : ''; ?>" data-scope="mine"><?php echo htmlspecialchars(t('watchtower.scope.mine')); ?></button>
+                <button class="wt-scope-btn<?php echo $wtScope === 'team' ? ' active' : ''; ?>" data-scope="team"><?php echo htmlspecialchars(t('watchtower.scope.team')); ?></button>
+                <button class="wt-scope-btn<?php echo $wtScope === 'all'  ? ' active' : ''; ?>" data-scope="all"><?php echo htmlspecialchars(t('watchtower.scope.all')); ?></button>
+            </div>
+
             <div class="wt-refresh-info">
                 <span id="wtLastRefresh"></span>
                 <button class="wt-refresh-btn" id="wtRefreshBtn" onclick="loadDashboard()">
@@ -990,11 +1051,65 @@ $translationNamespaces = ['common', 'watchtower'];
         setBody('wtTasks', html);
     }
 
+    // ── Whose work (#58) ────────────────────────────────────────────────────
+    //
+    // Seeded from the server so the lit button matches the data on first paint.
+    let wtScope = <?php echo json_encode($wtScope); ?>;
+
+    /**
+     * Mark the cards the scope cannot narrow, so a team-wide number is never
+     * read as a personal one.
+     *
+     * ⚠️ The list comes from the SERVER, not from a copy here. Which cards have
+     * an owner is a fact about the data model, and a second copy in JavaScript
+     * would drift the first time one gained an owner column.
+     */
+    function markImpersonalCards(d) {
+        const impersonal = d.impersonal_cards || [];
+        const narrowed   = (d.scope || 'all') !== 'all';
+        const hide       = narrowed && (d.impersonal_mode === 'hide');
+        const label      = window.t('watchtower.scope.everyone_tag');
+
+        Object.entries(WT_CARD_ELEMENTS).forEach(([key, id]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const isImpersonal = impersonal.indexOf(key) !== -1;
+            el.classList.toggle('wt-everyone', isImpersonal && narrowed && !hide);
+            const name = el.querySelector('.wt-card-name');
+            if (name) name.setAttribute('data-everyone-label', label);
+            // Hiding is the analyst's own choice; the default keeps them visible
+            // because a degraded service is the last thing that should vanish.
+            // ⚠️ ONLY EVER HIDES. Un-hiding here would resurrect a card the
+            // settings screen turned off, or the workflows card on an install
+            // with no workflows - neither of which is this function's business.
+            if (isImpersonal && hide) el.style.display = 'none';
+        });
+    }
+
+    (function initScopeToggle() {
+        const root = document.getElementById('wtScopeToggle');
+        if (!root) return;
+        root.addEventListener('click', function (e) {
+            const btn = e.target.closest('.wt-scope-btn');
+            if (!btn || btn.dataset.scope === wtScope) return;
+            wtScope = btn.dataset.scope;
+            root.querySelectorAll('.wt-scope-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.scope === wtScope));
+            loadDashboard();
+            // Remembered in the background: the redraw must not wait on it.
+            fetch('../api/system/set_user_preference.php', {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: 'watchtower_scope', value: wtScope })
+            }).catch(() => { /* the view is right either way; only the memory is lost */ });
+        });
+    })();
+
     function loadDashboard() {
         const btn = document.getElementById('wtRefreshBtn');
         btn.classList.add('spinning');
 
-        fetch('../api/watchtower/get_dashboard.php')
+        fetch('../api/watchtower/get_dashboard.php?scope=' + encodeURIComponent(wtScope))
             .then(r => r.json())
             .then(d => {
                 if (!d.success) {
@@ -1017,6 +1132,11 @@ $translationNamespaces = ['common', 'watchtower'];
                 renderAssets(d);
                 renderTasks(d);
                 renderWorkflows(d);
+
+                // 🔴 LAST. applyCardVisibility() and renderWorkflows() both set
+                // display themselves, so running this any earlier would have its
+                // decision quietly overwritten a few lines later.
+                markImpersonalCards(d);
 
                 // Update timestamp
                 const now = new Date();

@@ -13,7 +13,11 @@ Tz::init();
 
 $current_page = 'preferences';
 $path_prefix = '../../';
-$translationNamespaces = ['common', 'system'];
+// ⚠️ 'watchtower' is here for ONE section — the "Mine" view's handling of cards
+// with no owner (#58). The setting is a personal preference, so it lives on this
+// screen rather than in Watchtower's own admin settings; its strings still
+// belong to that module. Without the namespace the labels render as raw keys.
+$translationNamespaces = ['common', 'system', 'watchtower'];
 $locales = I18n::getSupportedLocales();
 $currentLocale = I18n::getLocale();
 
@@ -498,6 +502,21 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
                 </select>
                 <span class="pref-saving-hint" id="landingSavingHint"><?php echo htmlspecialchars(t('system.preferences.saving')); ?></span>
                 <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;"><?php echo htmlspecialchars(t('system.preferences.landing_note')); ?></p>
+            </div>
+
+            <?php /* Watchtower's "Mine" view (#58). Six of the ten cards have no
+                     owner to narrow to, and what should happen to them is a
+                     genuine judgement call rather than something to decide for
+                     everybody — so it is a choice. Default is to keep them. */ ?>
+            <div class="pref-section">
+                <h3><?php echo htmlspecialchars(t('watchtower.scope.impersonal_heading')); ?></h3>
+                <div class="anim-toggle" id="wtImpersonalToggle">
+                    <button class="anim-option" data-wtimp="show"><?php echo htmlspecialchars(t('watchtower.scope.impersonal_show')); ?></button>
+                    <button class="anim-option" data-wtimp="hide"><?php echo htmlspecialchars(t('watchtower.scope.impersonal_hide')); ?></button>
+                </div>
+                <p class="pref-hint" style="margin-top:8px;color:var(--text-muted,#666);font-size:12px;">
+                    <?php echo htmlspecialchars(t('watchtower.scope.impersonal_note')); ?>
+                </p>
             </div>
 
             <?php
@@ -1378,6 +1397,43 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
             return d;
         }
 
+        // ── Watchtower "Mine": cards with no owner (#58) ────────────────────
+        (function initWtImpersonal() {
+            const root = document.getElementById('wtImpersonalToggle');
+            if (!root) return;
+
+            const paint = v => root.querySelectorAll('.anim-option').forEach(b =>
+                b.classList.toggle('active', b.dataset.wtimp === (v || 'show')));
+
+            // Read the stored value rather than assuming the default, or somebody
+            // who chose "hide" sees "keep showing" lit and reasonably concludes
+            // their choice was lost.
+            fetch('../../api/system/get_user_preference.php?key=watchtower_impersonal',
+                  { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(d => paint(d.value || d.preference_value || 'show'))
+                .catch(() => paint('show'));
+
+            root.addEventListener('click', async function (e) {
+                const btn = e.target.closest('.anim-option');
+                if (!btn) return;
+                const previous = root.querySelector('.anim-option.active');
+                paint(btn.dataset.wtimp);
+                try {
+                    const r = await fetch('../../api/system/set_user_preference.php', {
+                        method: 'POST', credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: 'watchtower_impersonal', value: btn.dataset.wtimp })
+                    }).then(r => r.json());
+                    if (!r || !r.success) throw new Error(r && r.error);
+                } catch (err) {
+                    // Back where it was: a control showing a state the server
+                    // refused is a lie about what will happen.
+                    paint(previous ? previous.dataset.wtimp : 'show');
+                    showToast(window.t('system.preferences.save_failed'), 'error');
+                }
+            });
+        })();
         /** Paint the task choice (#75). */
         function paintTaskCal(taskMode) {
             const root = document.getElementById('taskCalToggle');
