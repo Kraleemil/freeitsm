@@ -1663,7 +1663,7 @@ function initEditors(callback) {
             content_css: isDark ? 'dark' : 'default',
             plugins: ['advlist', 'autolink', 'lists', 'link', 'table', 'wordcount'],
             toolbar: 'undo redo | blocks | bold italic underline | bullist numlist | link table | removeformat',
-            content_style: 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; }',
+            content_style: 'body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; } @media (pointer: coarse) { body { font-size: 16px; } }',
             setup: function(editor) {
                 editor.on('init', function() {
                     initialized++;

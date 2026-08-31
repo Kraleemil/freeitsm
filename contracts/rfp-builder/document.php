@@ -1087,7 +1087,7 @@ $translationNamespaces = ['common', 'contracts'];
                     // those for us. Section content uses h3/h4 internally.
                     block_formats: 'Paragraph=p; Heading 3=h3; Heading 4=h4',
                     toolbar: 'undo redo | blocks | bold italic | bullist numlist | link table | removeformat',
-                    content_style: 'body { font-family: Georgia, "Times New Roman", serif; font-size: 14px; line-height: 1.55; color: #1f2937; } h3 { font-family: "Segoe UI", Tahoma, sans-serif; font-size: 15px; margin: 16px 0 6px 0; } h4 { font-family: "Segoe UI", Tahoma, sans-serif; font-size: 13px; margin: 12px 0 4px 0; } p { margin: 0 0 10px 0; } ul, ol { margin: 0 0 10px 22px; }',
+                    content_style: 'body { font-family: Georgia, "Times New Roman", serif; font-size: 14px; line-height: 1.55; color: #1f2937; } h3 { font-family: "Segoe UI", Tahoma, sans-serif; font-size: 15px; margin: 16px 0 6px 0; } h4 { font-family: "Segoe UI", Tahoma, sans-serif; font-size: 13px; margin: 12px 0 4px 0; } p { margin: 0 0 10px 0; } ul, ol { margin: 0 0 10px 22px; } @media (pointer: coarse) { body { font-size: 16px; } }',
                     setup: editor => {
                         editor.on('init', () => {
                             editor.setContent(initialHtml || '');

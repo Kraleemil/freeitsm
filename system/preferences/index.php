@@ -1224,7 +1224,7 @@ $fmtSample = new DateTime('2026-08-05 14:30:00', new DateTimeZone(Tz::current())
                 content_css: isDark ? 'dark' : 'default',
                 plugins: ['autolink', 'lists', 'link', 'code'],
                 toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat | code',
-                content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+                content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; } @media (pointer: coarse) { body { font-size: 16px; } }',
                 setup: function (ed) {
                     sigEditor = ed;
                     // Live preview, so the effect of a merge code is visible while

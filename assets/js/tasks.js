@@ -1240,7 +1240,7 @@ function renderDetailPanel(task) {
         content_css: tinyDark ? 'dark' : 'default',
         plugins: 'lists link',
         toolbar: 'bold italic underline | bullist numlist | link',
-        content_style: 'body { font-family: Segoe UI, sans-serif; font-size: 13px; color: ' + (tinyDark ? '#e6e8eb' : '#333') + '; }',
+        content_style: 'body { font-family: Segoe UI, sans-serif; font-size: 13px; color: ' + (tinyDark ? '#e6e8eb' : '#333') + '; } @media (pointer: coarse) { body { font-size: 16px; } }',
         setup: editor => {
             tinyEditor = editor;
             editor.on('change keyup', () => {

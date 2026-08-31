@@ -6172,7 +6172,7 @@ $translationNamespaces = ['common', 'tickets'];
                 // hand-written HTML — the styled call-to-action buttons the help text
                 // already suggests — and taking that away would be a regression for
                 // anyone who has written one.
-                content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+                content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; } @media (pointer: coarse) { body { font-size: 16px; } }',
                 setup: function (editor) { templateBodyEditor = editor; }
             });
         }
@@ -6322,7 +6322,7 @@ $translationNamespaces = ['common', 'tickets'];
                 plugins: ['advlist', 'autolink', 'lists', 'link', 'charmap', 'code', 'table'],
                 toolbar: 'undo redo | blocks | bold italic forecolor backcolor | ' +
                          'bullist numlist outdent indent | link | removeformat | code',
-                content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; }',
+                content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 14px; } @media (pointer: coarse) { body { font-size: 16px; } }',
                 setup: function(editor) { replyTemplateEditor = editor; }
             });
         }

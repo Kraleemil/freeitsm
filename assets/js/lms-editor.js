@@ -43,7 +43,7 @@ const LMSEditor = (() => {
             content_css: isDark ? 'dark' : 'default',
             plugins: ['advlist', 'autolink', 'lists', 'link', 'image', 'table', 'code', 'fullscreen', 'searchreplace', 'wordcount', 'codesample'],
             toolbar: 'undo redo | blocks | bold italic | bullist numlist | link image table | codesample code | removeformat | fullscreen',
-            content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 15px; line-height: 1.7; }',
+            content_style: 'body { font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; font-size: 15px; line-height: 1.7; } @media (pointer: coarse) { body { font-size: 16px; } }',
             setup: (ed) => { editor = ed; }
         });
     }
