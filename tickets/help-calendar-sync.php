@@ -68,20 +68,23 @@ $translationNamespaces = ['common', 'tickets'];
         <a href="#switch-on" class="help-nav-link" data-section="switch-on">
             <span class="help-nav-num">6</span> Turning it on for yourself
         </a>
+        <a href="#tasks" class="help-nav-link" data-section="tasks">
+            <span class="help-nav-num">7</span> Tasks in your calendar
+        </a>
         <a href="#inbound" class="help-nav-link" data-section="inbound">
-            <span class="help-nav-num">7</span> Changes coming back
+            <span class="help-nav-num">8</span> Changes coming back
         </a>
         <a href="#cron-vs-notify" class="help-nav-link" data-section="cron-vs-notify">
-            <span class="help-nav-num">8</span> Scheduled job vs notifications
+            <span class="help-nav-num">9</span> Scheduled job vs notifications
         </a>
         <a href="#scheduling-the-job" class="help-nav-link" data-section="scheduling-the-job">
-            <span class="help-nav-num">9</span> Setting up the scheduled job
+            <span class="help-nav-num">10</span> Setting up the scheduled job
         </a>
         <a href="#health" class="help-nav-link" data-section="health">
-            <span class="help-nav-num">10</span> Is it working?
+            <span class="help-nav-num">11</span> Is it working?
         </a>
         <a href="#troubleshooting" class="help-nav-link" data-section="troubleshooting">
-            <span class="help-nav-num">11</span> Troubleshooting
+            <span class="help-nav-num">12</span> Troubleshooting
         </a>
     </div>
 
@@ -253,10 +256,46 @@ $translationNamespaces = ['common', 'tickets'];
                 <p><strong>From then on it follows the ticket.</strong> Move it to Thursday and the appointment moves. Hand it to a colleague and it <strong>leaves your calendar and appears in theirs</strong>. Close, delete or unschedule it and the appointment disappears &mdash; a calendar should say what you are <em>going</em> to do, not accumulate everything you have ever finished.</p>
             </div>
 
+            <!-- 7. Tasks -->
+            <div class="help-section" id="tasks">
+                <div class="help-section-header">
+                    <span class="help-section-num">7</span>
+                    <div>
+                        <h3>Tasks in your calendar</h3>
+                        <p>A task can put two different things in your diary, and they are not the same kind of fact.</p>
+                    </div>
+                </div>
+
+                <p>Once you have chosen <strong>Add to my calendar</strong>, a second choice appears underneath it: <strong>Tasks in this calendar</strong>. It starts at <strong>None</strong>, so nothing about your tasks leaves FreeITSM until you say so.</p>
+
+                <div class="help-cards">
+                    <div class="help-card">
+                        <h4>When I plan to do it</h4>
+                        <p>The <strong>work window</strong> you set aside on the task, written as an ordinary timed appointment. It blocks out time, exactly as a scheduled ticket does.</p>
+                    </div>
+                    <div class="help-card">
+                        <h4>When it is due</h4>
+                        <p>The task's <strong>due date</strong>, written as an all-day entry titled <strong>Due: &hellip;</strong> so a deadline is never mistaken for a booked slot.</p>
+                    </div>
+                </div>
+
+                <p><strong>Why it is two choices and not one switch.</strong> A work window is a <em>plan</em> and a due date is a <em>commitment</em>, and most tasks only ever get the second. Somebody who wants their deadlines in front of them does not necessarily want every half-hour they have blocked out, and the reverse is just as reasonable. Choose <strong>Both</strong> and a task with both dates appears twice, deliberately.</p>
+
+                <p class="help-note"><strong>Only tasks assigned to you.</strong> A task assigned to a <em>team</em> is never added to anybody's calendar &mdash; there is no one person's diary it belongs in, and writing it into everybody's would fill several calendars with an entry nobody owns. Assign it to a person and it appears in theirs.</p>
+
+                <p><strong>Completed tasks are removed</strong>, the same as closed tickets. Clearing a due date, reassigning the task, or changing your mind about which kinds you want all take the entries back out again rather than leaving them behind.</p>
+
+                <div class="help-card">
+                    <span class="help-pill info">Moving a task's entry in Outlook moves the task</span>
+                    <p>Drag its appointment and the work window follows. Drag its <strong>Due:</strong> entry to another day and <strong>the due date itself changes</strong> &mdash; so treat that entry as the deadline, not as a note about it. Every change made from a calendar is written to the task's history with the mailbox it came from, so a deadline that moves can always be traced.</p>
+                </div>
+
+                <p class="help-note warn"><strong>Changes only come back if the scheduled job is running.</strong> This is the same job the rest of this page describes, and it is the commonest reason a change in Outlook appears not to have worked. See <a href="#scheduling-the-job">Setting up the scheduled job</a>.</p>
+            </div>
             <!-- 7. Inbound -->
             <div class="help-section" id="inbound">
                 <div class="help-section-header">
-                    <span class="help-section-num">7</span>
+                    <span class="help-section-num">8</span>
                     <div>
                         <h3>Changes coming back from your calendar</h3>
                         <p>Optional, and off until you set up the scheduled job.</p>
@@ -278,7 +317,7 @@ $translationNamespaces = ['common', 'tickets'];
             <!-- 8. Cron vs notifications -->
             <div class="help-section" id="cron-vs-notify">
                 <div class="help-section-header">
-                    <span class="help-section-num">8</span>
+                    <span class="help-section-num">9</span>
                     <div>
                         <h3>Scheduled job vs notifications</h3>
                         <p>Not either/or &mdash; the job is required, and notifications make it fast.</p>
@@ -308,7 +347,7 @@ $translationNamespaces = ['common', 'tickets'];
             <!-- 9. Scheduling the job -->
             <div class="help-section" id="scheduling-the-job">
                 <div class="help-section-header">
-                    <span class="help-section-num">9</span>
+                    <span class="help-section-num">10</span>
                     <div>
                         <h3>Setting up the scheduled job</h3>
                         <p>Every five minutes is sensible. It both reads changes and renews subscriptions.</p>
@@ -341,7 +380,7 @@ echo ===== %DATE% %TIME% ===== &gt;&gt; "%LOG%"
             <!-- 10. Health -->
             <div class="help-section" id="health">
                 <div class="help-section-header">
-                    <span class="help-section-num">10</span>
+                    <span class="help-section-num">11</span>
                     <div>
                         <h3>Is it working?</h3>
                         <p><strong>System &rarr; Calendar sync</strong> answers this at the top of <strong>Changes made in the calendar</strong>.</p>
@@ -362,7 +401,7 @@ echo ===== %DATE% %TIME% ===== &gt;&gt; "%LOG%"
             <!-- 11. Troubleshooting -->
             <div class="help-section" id="troubleshooting">
                 <div class="help-section-header">
-                    <span class="help-section-num">11</span>
+                    <span class="help-section-num">12</span>
                     <div>
                         <h3>Troubleshooting</h3>
                         <p>The failures you are most likely to meet, and what each one actually means.</p>
