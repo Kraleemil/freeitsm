@@ -8191,11 +8191,47 @@
     /* The editor takes the height the page has, now that it is the only thing
        on it. lms-editor.js asks TinyMCE for 420px, which is most of a phone
        screen before the title and the tabs are counted. */
-    [data-mobile-module="lms"] [data-lms-page="text"] .tox-tinymce {
+    /* ⚠️ `:not(.tox-fullscreen)` is load-bearing — see the block below. */
+    [data-mobile-module="lms"] [data-lms-page="text"] .tox-tinymce:not(.tox-fullscreen) {
         height: auto !important;
         flex: 1 1 auto;
         min-height: 240px;
     }
+
+    /* 🔴 THE FULL-SCREEN BUTTON WENT FULL-WIDTH BUT NOT FULL-HEIGHT, AND THE
+       RULE ABOVE IS WHY (#1410, Ed: "can you make it full screen").
+
+       TinyMCE's fullscreen plugin fixes the editor to the viewport and sizes
+       it with its own `height` declaration. The rule above answers a
+       different question — how tall the editor should be while it is one of
+       two things stacked in a flex column — and it answers it with
+       `height: auto !important`, which beats the plugin. Measured at 360x740:
+       the editor went `position: fixed` at 0,0 and 360 wide, and stayed
+       **240px tall**, because `min-height` was then the only thing with an
+       opinion. Full width, a fifth of the height, and no way to tell from the
+       CSS which rule had won.
+
+       ⭐ My own #1399 broke it, three items after I moved the button to the
+       front of the toolbar *because* it is the control that rescues a small
+       editor. Worth naming: I made the control easier to reach in the same
+       change that stopped it working.
+
+       `100dvh` rather than the plugin's `100%` for the reason 29e documents —
+       on iOS the static viewport is not the one you can see. */
+    [data-mobile-module="lms"] .tox-tinymce.tox-fullscreen {
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        min-height: 0;
+        flex: none;
+    }
+    /* …and the chrome this layer injects has to get out of the way. The action
+       bar is `position: fixed; z-index: 1200` and the plugin's own z-index is
+       also 1200, so the bar — being later in the document — painted OVER the
+       bottom of a full-screen editor. The tab strip goes too: there is nothing
+       to switch to while one page is filling the screen. */
+    body.tox-fullscreen .lms-action-bar,
+    body.tox-fullscreen .lms-pane-tabs,
+    body.tox-fullscreen .lms-panel-btn { display: none !important; }
     [data-mobile-module="lms"] [data-lms-page="text"] { display: flex; flex-direction: column; min-height: 0; }
     [data-mobile-module="lms"] [data-lms-page="text"] .lms-form-row,
     [data-mobile-module="lms"] [data-lms-page="text"] .lms-editor-tools,
