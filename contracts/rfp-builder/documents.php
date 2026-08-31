@@ -180,7 +180,7 @@ $translationNamespaces = ['common', 'contracts'];
         [data-theme-mode="dark"] .alert-info { background: #3a2e12; color: #fde8c8; }
     </style>
     <!-- Mobile layer: linked AFTER this page's own <style> so its @media rules win on ties. -->
-    <link rel="stylesheet" href="../../assets/css/mobile.css?v=100">
+    <link rel="stylesheet" href="../../assets/css/mobile.css?v=103">
 </head>
 <body data-mobile-module="contracts" data-mobile-page="rfp-documents">
     <?php include '../includes/header.php'; ?>
@@ -329,6 +329,37 @@ $translationNamespaces = ['common', 'contracts'];
             }
         }
 
+        /*
+         * NOTE THE DELETE BUTTON'S onclick BELOW: escapeHtml() wraps the
+         * JSON.stringify(), and without it Delete never worked at all.
+         *
+         * JSON.stringify() puts DOUBLE QUOTES round the filename, and the
+         * attribute is itself delimited by double quotes — so the browser
+         * ended the attribute at the first inner quote and the filename became
+         * stray attributes on the button:
+         *
+         *     onclick="deleteDoc(3, " risk-department-secure-data-room.docx")"=""
+         *
+         * The handler was therefore the truncated string "deleteDoc(3, " and
+         * every tap raised SyntaxError: Unexpected end of input. Silent,
+         * because an inline handler that fails to parse throws into nothing —
+         * no dialogue, no error, no clue. Broken on the desktop too, for every
+         * document, since the page was written.
+         *
+         * escapeHtml turns the quotes into &quot;; the parser turns them back
+         * inside the attribute value, and the handler sees deleteDoc(3, "name").
+         *
+         * A value going into an HTML attribute needs HTML escaping even when it
+         * is already valid JavaScript — the attribute is parsed first.
+         *
+         * (This comment lives here rather than beside the button because the
+         * markup below is a backtick template literal, and the first draft of
+         * it was an HTML comment containing backticks of its own. That closed
+         * the string and took the whole script with it — every function came
+         * out undefined and the table sat on "Loading...". Second time I have
+         * done that in this module. A backtick in a comment is still a
+         * backtick.)
+         */
         function renderDocs(docs) {
             const tbody = document.getElementById('docsList');
             if (docs.length === 0) {
@@ -362,7 +393,7 @@ $translationNamespaces = ['common', 'contracts'];
                             <button class="action-btn" title="${escapeHtml(window.t('contracts.rfp.documents.rerun_extraction'))}" onclick="reExtract(${d.id}, this)">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path></svg>
                             </button>
-                            <button class="action-btn danger" title="${escapeHtml(window.t('common.delete'))}" onclick="deleteDoc(${d.id}, ${JSON.stringify(d.original_filename)})">
+                            <button class="action-btn danger" title="${escapeHtml(window.t('common.delete'))}" onclick="deleteDoc(${d.id}, ${escapeHtml(JSON.stringify(d.original_filename))})">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>
                             </button>
                         </td>
@@ -493,6 +524,23 @@ $translationNamespaces = ['common', 'contracts'];
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
                 await loadDocuments();
+                // 🔑 SAY THAT IT WORKED. Re-running text extraction on a
+                // document that already has text produces a row that looks
+                // exactly the same, so with no message the button read as
+                // dead — Ed's report was "it doesn't do anything when you push
+                // it", and it had in fact done it every time.
+                //
+                // A toast rather than setStatus(): setStatus writes into
+                // #uploadStatus, which sits mid-page beside the upload box and
+                // measured `height: 0` — invisible to anyone scrolled down the
+                // document list, which on a phone is everyone.
+                //
+                // The character count is the proof the extraction ran, and
+                // `documents.chars` ('{n} chars') already exists and is already
+                // translated — no new key, correct in all 24 locales.
+                showToast(window.t('contracts.rfp.documents.chars', {
+                    n: (data.char_count || 0).toLocaleString()
+                }), 'success');
             } catch (err) {
                 showToast(window.t('contracts.rfp.documents.reextract_failed') + ' ' + err.message, 'error');
             } finally {

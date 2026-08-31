@@ -6587,8 +6587,46 @@
        288px box and the fix above measured as if it had never been written.
        🔑 The second-guess is worth stating because it cost a round: when a
        rule you just wrote has no effect, the overriding rule is as likely to
-       be YOUR OWN, further down the same file, as anybody else's. */
-    [data-mobile-module="contracts"] .form-row { grid-template-columns: minmax(0, 1fr); }
+       be YOUR OWN, further down the same file, as anybody else's.
+
+       🔴🔴 AND THIS LINE USED TO SAY `grid-template-columns: minmax(0, 1fr)`,
+       WHICH DID NOTHING AT ALL — for two whole rounds.
+
+       `inbox.css:2124` declares `.form-row { display: flex; gap: 12px }`
+       APP-WIDE. A grid property on a flex container is inert: it computes,
+       it shows up in devtools, and it has no effect whatsoever. So the rule
+       looked right, measured as applied (`display=flex cols=minmax(0px,1fr)`)
+       and changed nothing.
+
+       ⭐ mobile.css ALREADY HAD THIS WRITTEN DOWN and I did not read it:
+       LAYER 16's `#eventModal` block says in as many words that "`.form-row`
+       in this app is a FLEX row, and LAYER 3's stacking rule sets
+       `grid-template-columns`, which is inert on a flex container". Same
+       trap, same file, same property, ~4000 lines apart.
+       🔑 **Match the property to the display type.** `grid-template-columns`
+       stacks a grid; `flex-direction: column` stacks a flex row. Neither does
+       the other's job, and the wrong one fails SILENTLY.
+
+       🔴 …AND THEN SWAPPING ONE FOR THE OTHER BROKE THE PAGE THE FIRST ONE
+       WAS WORKING ON. `.form-row` is BOTH THINGS IN THIS MODULE:
+
+           contracts/edit.php     `.form-row { display: grid; 1fr 1fr }`  ← page CSS
+           rfp-builder/extracted  (no display of its own) → inbox.css's FLEX row
+
+       Replacing the grid property with the flex one duly stacked `extracted`
+       and put `edit.php` straight back to two 134px columns. Measured, not
+       guessed — and it is the second self-inflicted regression in this layer
+       from assuming a class means one thing.
+
+       ⭐ SET BOTH. That is not belt-and-braces: each property is **inert on
+       the display type it does not belong to**, which is the very thing that
+       made the original bug silent, and is exactly what makes declaring both
+       safe. One rule that stacks `.form-row` whichever it turns out to be. */
+    [data-mobile-module="contracts"] .form-row {
+        grid-template-columns: minmax(0, 1fr);
+        flex-direction: column;
+        gap: 0;
+    }
     [data-mobile-module="contracts"] .form-actions { flex-wrap: wrap; gap: 8px; }
     [data-mobile-module="contracts"] .form-actions > button,
     [data-mobile-module="contracts"] .form-actions > a {
@@ -7326,4 +7364,162 @@
     /* The uppercase micro-label is fine once it has a row to itself; it was
        only ever unreadable because it was wrapping inside a 74px column. */
     [data-mobile-module="contracts"] .form-row label { font-size: 12px; }
+
+    /* --------------------------------------------------------------------
+       28t — The edit-requirement sheet on `extracted` (Ed: "extracted
+       documents → open → then tap the edit button under any of them ... it's
+       all squished in randomly").
+
+       A different screen from 28s's, and a different cause — worth both being
+       written down, because "squished in randomly" turned out to be literally
+       accurate twice for two unrelated reasons.
+
+       Measured with the sheet open at 360px:
+
+           label "Requirement text"   86px   →  #editText   230px @ x=114
+           label "Type"               29px   →  #editType   287px @ x=57
+           label "Source quote (…)"  158px   →  #editQuote  158px @ x=186
+
+       Every field starts at a different place and has a different width, and
+       the widths are exactly `328 − the label's width`. The labels are not
+       above the fields — they are BESIDE them, and each field is pushed in by
+       however long its own label happens to be. That is the "random".
+
+       🔴 THE PAGE IS NOT AT FAULT AND NEITHER IS THE MOBILE LAYER.
+       `extracted.php` sets `.form-row { margin-bottom: 16px }` and
+       `label { display: block; margin-bottom: 6px }` — the markup of a
+       stacked form, written by someone who expected a block. But
+       `inbox.css:2124` declares `.form-row { display: flex; gap: 12px }`
+       app-wide, so the label and the field became flex siblings on one line.
+
+       ⚠️ WHICH MEANS IT IS WRONG ON THE DESKTOP TOO, and has been since the
+       page was written: at 1100px `#editText` measures 562px starting 94px
+       into a 640px dialogue. It is less obviously broken there because a
+       label beside a field still reads as a form — which is exactly why
+       nobody has reported it. **Flagged to Ed rather than fixed here**: the
+       one-line desktop fix is the same `flex-direction: column`, but it is a
+       change to a screen he has not asked me to touch, and this round's rule
+       is that mobile work alters nothing above 768px.
+       -------------------------------------------------------------------- */
+    /* The stacking itself is in 28h, against `.form-row` for the whole module
+       — the same fault is on every contracts form that relies on the label
+       being a block. What is left here is this sheet's own furniture. */
+
+    /* The metadata line — department, document, confidence — is a nowrap flex
+       row that measured 365px inside a 328px body, so the last item ran off
+       the screen. It is a set of short independent facts, which is precisely
+       what wrapping is for. */
+    [data-mobile-module="contracts"] .modal-body .meta-row {
+        flex-wrap: wrap;
+        gap: 6px 14px;
+    }
+    [data-mobile-module="contracts"] .modal-body .meta-row .meta-item { flex: 0 0 auto; }
+
+    /* The requirement is the field the sheet exists for; give it the room a
+       full-screen sheet has rather than the 90px floor a small dialogue
+       wanted. The source quote stays smaller — it is reference, not the edit. */
+    [data-mobile-module="contracts"] .modal-body #editText { min-height: 140px; }
+
+    /* --------------------------------------------------------------------
+       28u — The generated-document screen (Ed, polish pass 3).
+
+       🔴🔴 THE WORST MEASUREMENT IN THE ENTIRE MODULE, and by a distance:
+
+           .cat-info      11px wide × 480px tall
+           .cat-header h2 11px × 88px      ("Identity and access management")
+           .cat-desc      11px × 264px
+           .cat-meta      11px × 118px
+           .cat-actions   261px
+
+       An ELEVEN-PIXEL column. The section title, its description, the
+       requirement count, the version and the generated timestamp were all
+       rendering at roughly one character per line down a 480px ribbon, while
+       the buttons beside them held 261px of a 328px card.
+
+       The mechanism is the one this module keeps repeating:
+       `.cat-header` is a nowrap flex row of `.cat-info { flex: 1; min-width: 0 }`
+       and `.cat-actions { flex-shrink: 0 }`. `min-width: 0` lets the content
+       shrink to NOTHING, and `flex-shrink: 0` means the buttons never give any
+       of it back, so the text absorbs the entire shortfall.
+
+       ⭐ Note the inversion worth remembering: `min-width: 0` is usually the
+       FIX (§14 — it is what lets a flex item stop pinning its container open).
+       Here it is half the fault, because the item that cannot shrink is the
+       one BESIDE it. `min-width: 0` says "I will take whatever is left";
+       `flex-shrink: 0` next to it says "there is nothing left". Neither is
+       wrong alone; together they are 11px.
+
+       `.framing-card-header` is the same shape and measured the same way —
+       an 83px heading against 261px of buttons.
+
+       The fix is 28j/28r's, for the third and fourth time in this module:
+       let the row wrap and give the actions a line of their own.
+       -------------------------------------------------------------------- */
+    [data-mobile-module="contracts"] .cat-header,
+    [data-mobile-module="contracts"] .framing-card-header {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 14px 12px;
+    }
+    [data-mobile-module="contracts"] .cat-header .cat-info,
+    [data-mobile-module="contracts"] .framing-card-header h3 {
+        flex: 1 1 100%;
+    }
+    [data-mobile-module="contracts"] .cat-header .cat-actions,
+    [data-mobile-module="contracts"] .framing-card-header .actions {
+        flex: 1 1 100%;
+        flex-shrink: 1;        /* the whole point: it may give way now */
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    [data-mobile-module="contracts"] .cat-header .cat-actions > *,
+    [data-mobile-module="contracts"] .framing-card-header .actions > * {
+        flex: 1 1 auto;
+        min-height: 40px;
+    }
+    /* The metadata line — 13 reqs, v1, generated at — is a set of short
+       independent facts, so it wraps rather than running on. */
+    [data-mobile-module="contracts"] .cat-header .cat-meta,
+    [data-mobile-module="contracts"] .framing-card-header .meta { flex-wrap: wrap; gap: 6px 10px; }
+    [data-mobile-module="contracts"] .cat-header h2 { font-size: 16px; }
+    [data-mobile-module="contracts"] .section-body,
+    [data-mobile-module="contracts"] .framing-card { padding-left: 12px; padding-right: 12px; }
+
+    /* --------------------------------------------------------------------
+       28v — "Set context": the note gets the sheet (Ed: "make the form field
+       use the whole screen and just add a teeny bit of spacing between
+       optional context note, the intro explainer and the form field itself").
+
+       Measured with the sheet open: the shell was full height at 740px and
+       the body 626px, while the textarea sat at **166px** — a six-row field
+       sized for a 640px desktop dialogue, floating in a sheet nearly four
+       times its height. And the three parts ran straight into each other:
+       label at y=61, help at y=77, field at y=141, with no margin between any
+       of them.
+
+       ⚠️ SCOPED TO `#contextModal` BY ID, deliberately — the precedent is
+       LAYER 3's `#noteModal`, which says why in as many words: a
+       fill-the-sheet rule is right for a modal holding ONE field and wrong
+       for every multi-field form, which wants its natural per-field sizing.
+       `document.php` has three other `.modal-edit-shell` modals, and one of
+       them is a TinyMCE editor that manages its own height. */
+    #contextModal .modal-edit-body {
+        display: flex;
+        flex-direction: column;
+    }
+    #contextModal .modal-edit-body .form-row {
+        flex: 1 1 auto;
+        min-height: 0;
+        margin-bottom: 0;
+    }
+    /* The "teeny bit of spacing", stated as three separate gaps because they
+       are three different relationships: the label names the field, the help
+       explains it, and the field is the thing itself. */
+    #contextModal .modal-edit-body label { margin-bottom: 6px; }
+    #contextModal .modal-edit-body .help { margin-bottom: 12px; line-height: 1.5; }
+    #contextModal #ctxField {
+        flex: 1 1 auto;
+        min-height: 0;         /* §14 — without it the rows= attribute wins */
+        resize: none;          /* it is already exactly as tall as the sheet */
+    }
 }
